@@ -1,7 +1,7 @@
 project('custom_engine', 'cpp',
   version: '1.0.0',
   default_options: [
-    'cpp_std=c++17',
+    'cpp_std=c++20',
     'optimization=3',
     'warning_level=1',
   ]
@@ -25,6 +25,7 @@ endif
 
 # Include directories
 inc_dirs = include_directories(
+  'src/lczero_chess',
   'src',
   'src/chess',
   'src/chess/nnue',
@@ -63,7 +64,9 @@ chess_sources = files(
   'src/chess/syzygy/tbprobe.cpp',
   'src/chess/nnue/evaluate_nnue.cpp',
   'src/chess/nnue/features/half_ka_v2.cpp',
-  'src/chess/nnue/features/half_ka_v2_variants.cpp'
+  'src/chess/nnue/features/half_ka_v2_variants.cpp',
+  'src/lczero_chess/chess/board.cc',
+  'src/lczero_chess/chess/position.cc'
 )
 
 # Engine sources

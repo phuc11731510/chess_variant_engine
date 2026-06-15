@@ -226,6 +226,13 @@ Key Position::material_key(EndgameEval e) const {
 }
 
 
+Position& Position::copy_from(const Position& other, StateInfo* newSt) {
+  std::memcpy(this, &other, sizeof(Position));
+  st = newSt;
+  return *this;
+}
+
+
 /// Position::set() initializes the position object with the given FEN string.
 /// This function is not very robust - make sure that input FENs are correct,
 /// this is assumed to be the responsibility of the GUI.

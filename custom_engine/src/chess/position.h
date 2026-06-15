@@ -110,6 +110,7 @@ public:
   Position() = default;
   Position(const Position&) = delete;
   Position& operator=(const Position&) = delete;
+  Position& copy_from(const Position& other, StateInfo* newSt);
 
   // FEN string input/output
   Position& set(const Variant* v, const std::string& fenStr, bool isChess960, StateInfo* si, Thread* th, bool sfen = false);

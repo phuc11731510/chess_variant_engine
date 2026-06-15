@@ -17,6 +17,9 @@
 #include "variant.h"
 #include "xboard.h"
 #include "movegen.h"
+#include "chess/board.h"
+#include "chess/position.h"
+#include "chess/gamestate.h"
 
 using namespace Stockfish;
 
@@ -199,14 +202,189 @@ checkCounting = true
     std::cout << "========================================" << std::endl;
 }
 
+void run_board_tests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "RUNNING CHESSBOARD BRIDGE TESTS" << std::endl;
+    std::cout << "========================================\n" << std::endl;
+
+    // Load custom variant
+    std::string ini_text = R"(
+[custom_10x10_variant]
+maxRank = 10
+maxFile = j
+
+pawn = p
+knight = n
+bishop = b
+rook = r
+queen = q
+king = k:KN
+
+amazon = a
+chancellor = e
+archbishop = h
+centaur = m
+customPiece1 = v:CN
+customPiece2 = y:AD
+customPiece3 = s:fKifmnDifmnA
+
+pawnTypes = p s
+promotionPawnTypes = p s
+enPassantTypes = p s
+nMoveRuleTypes = p s
+
+doubleStep = true
+doubleStepRegionWhite = *1 *2 *3
+doubleStepRegionBlack = *10 *9 *8
+
+promotionRegionWhite = *9 *10
+promotionRegionBlack = *2 *1
+mandatoryPawnPromotion = true
+promotionPieceTypes = b h m n v y
+
+castling = true
+castlingKingsideFile = h
+castlingQueensideFile = d
+castlingRookKingsideFile = i
+castlingRookQueensideFile = b
+
+stalemateValue = loss
+checkCounting = true
+)";
+
+    std::istringstream ss(ini_text);
+    variants.parse_istream<false>(ss);
+
+    const Variant* v = variants.find("custom_10x10_variant")->second;
+    if (!v) {
+        std::cerr << "[FAIL] Failed to find custom_10x10_variant!" << std::endl;
+        std::exit(1);
+    }
+    UCI::init_variant(v);
+    PSQT::init(v);
+
+    // TEST 1: Default initialization and legal moves count (should be 34)
+    {
+        std::cout << "TEST 1: Default initialization..." << std::endl;
+        lczero::ChessBoard board;
+        
+        // Output startpos FEN
+        std::cout << "Startpos FEN: " << lczero::ChessBoard::kStartposFen << std::endl;
+        std::cout << "Board state:\n" << board.GetRawPosition() << std::endl;
+
+        auto moves = board.GenerateLegalMoves();
+        std::cout << "Found " << moves.size() << " legal moves." << std::endl;
+        for (const auto& m : moves) {
+            std::cout << "  " << board.MoveToString(m) << std::endl;
+        }
+
+        if (moves.size() != 34) {
+            std::cerr << "[FAIL] Legal moves size is " << moves.size() << ", expected 34!" << std::endl;
+            std::exit(1);
+        }
+        std::cout << "[PASS] TEST 1 passed!\n" << std::endl;
+    }
+
+    // TEST 2: ApplyMove and UndoMove consistency
+    {
+        std::cout << "TEST 2: ApplyMove & UndoMove consistency..." << std::endl;
+        lczero::ChessBoard board;
+        std::string original_fen = board.GetRawPosition().fen();
+        
+        auto moves = board.GenerateLegalMoves();
+        if (moves.empty()) {
+            std::cerr << "[FAIL] No legal moves found!" << std::endl;
+            std::exit(1);
+        }
+
+        lczero::Move m = moves[0];
+        std::cout << "Applying move: " << board.MoveToString(m) << std::endl;
+        board.ApplyMove(m);
+        std::string post_move_fen = board.GetRawPosition().fen();
+        std::cout << "Post-move FEN: " << post_move_fen << std::endl;
+
+        std::cout << "Undoing move..." << std::endl;
+        board.UndoMove();
+        std::string reverted_fen = board.GetRawPosition().fen();
+        std::cout << "Reverted FEN: " << reverted_fen << std::endl;
+
+        if (original_fen != reverted_fen) {
+            std::cerr << "[FAIL] FEN discrepancy after Apply/Undo! Original: " << original_fen << ", Reverted: " << reverted_fen << std::endl;
+            std::exit(1);
+        }
+        std::cout << "[PASS] TEST 2 passed!\n" << std::endl;
+    }
+
+    // TEST 3: Stalemate = Loss rule verification
+    {
+        std::cout << "TEST 3: Stalemate = Loss verification..." << std::endl;
+        // White King on a1, Black King on j10, Black Rook on b2 protected by Rook on b10.
+        std::string stalemate_fen = "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 7+7 0 1";
+        lczero::ChessBoard board(stalemate_fen);
+        std::cout << "Stalemate position:\n" << board.GetRawPosition() << std::endl;
+
+        lczero::PositionHistory history;
+        history.Reset(board, 0, 1);
+
+        lczero::GameResult result = history.ComputeGameResult();
+        if (result != lczero::GameResult::BLACK_WON) {
+            std::cerr << "[FAIL] Stalemate result is not BLACK_WON! Got: " << (int)result << std::endl;
+            std::exit(1);
+        }
+        std::cout << "[PASS] TEST 3 passed! (Stalemate correctly marked as Loss)\n" << std::endl;
+    }
+
+    // TEST 4: 7-checks limit rule verification
+    {
+        std::cout << "TEST 4: 7-checks limit verification..." << std::endl;
+        
+        // Case A: White checks remaining = 0
+        {
+            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+7 0 1";
+            lczero::ChessBoard board(checks_0_fen);
+            lczero::PositionHistory history;
+            history.Reset(board, 0, 1);
+
+            lczero::GameResult result = history.ComputeGameResult();
+            if (result != lczero::GameResult::BLACK_WON) {
+                std::cerr << "[FAIL] 0 checks remaining for White did not result in BLACK_WON! Got: " << (int)result << std::endl;
+                std::exit(1);
+            }
+        }
+
+        // Case B: Black checks remaining = 0
+        {
+            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 7+0 0 1";
+            lczero::ChessBoard board(checks_0_fen);
+            lczero::PositionHistory history;
+            history.Reset(board, 0, 1);
+
+            lczero::GameResult result = history.ComputeGameResult();
+            if (result != lczero::GameResult::WHITE_WON) {
+                std::cerr << "[FAIL] 0 checks remaining for Black did not result in WHITE_WON! Got: " << (int)result << std::endl;
+                std::exit(1);
+            }
+        }
+
+        std::cout << "[PASS] TEST 4 passed! (7-checks limit correctly ends the game)\n" << std::endl;
+    }
+
+    std::cout << "========================================" << std::endl;
+    std::cout << "ALL CHESSBOARD BRIDGE TESTS PASSED!" << std::endl;
+    std::cout << "========================================\n" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     bool selfplay_mode = false;
     bool test_ep_mode = false;
+    bool test_board_mode = false;
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
             selfplay_mode = true;
         } else if (std::string(argv[i]) == "--test-ep") {
             test_ep_mode = true;
+        } else if (std::string(argv[i]) == "--test-board") {
+            test_board_mode = true;
         }
     }
 
@@ -228,6 +406,8 @@ int main(int argc, char* argv[]) {
 
     if (test_ep_mode) {
         run_ep_tests();
+    } else if (test_board_mode) {
+        run_board_tests();
     } else if (selfplay_mode) {
         std::cout << "Starting custom selfplay mode..." << std::endl;
         // Selfplay logic will go here
