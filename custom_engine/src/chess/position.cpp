@@ -255,9 +255,13 @@ Position& Position::copy_from(const Position& other, StateInfo* newSt) {
   virtualPieces = other.virtualPieces;
   promotedPieces = other.promotedPieces;
 
+#ifdef LCZERO_MCTS
+  newSt->previous = nullptr;
+#else
   if (newSt) {
       newSt->previous = nullptr;
   }
+#endif
   return *this;
 }
 
@@ -2206,6 +2210,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   // Update king attacks used for fast check detection
   set_check_info(st);
 
+#ifndef LCZERO_MCTS
   // Calculate the repetition info. It is the ply distance from the previous
   // occurrence of the same position, negative in the 3-fold case, or zero
   // if the position was not repeated.
@@ -2224,6 +2229,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           }
       }
   }
+#else
+  st->repetition = 0;
+#endif
 
   assert(pos_is_ok());
 }
