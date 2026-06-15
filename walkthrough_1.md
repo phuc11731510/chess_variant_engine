@@ -42,15 +42,15 @@ Chúng ta đã chỉnh sửa logic sinh nước đi của các quân cờ tùy c
         ```diff
         -        Bitboard b = (  (attacks & pos.pieces())
 -                       | (quiets & ~pos.pieces()));
-+        Bitboard b = (  (attacks & pos.pieces())
-+                       | (quiets & ~pos.pieces() & ~((pos.en_passant_types(Us) & Pt) ? pos.ep_squares() : Bitboard(0))));
+        +        Bitboard b = (  (attacks & pos.pieces())
+        +                       | (quiets & ~pos.pieces() & ~((pos.en_passant_types(Us) & Pt) ? pos.ep_squares() : Bitboard(0))));
         ```
 2.  **Cho phép sinh nước đi En Passant mà không cần lọc bằng phép phủ định `~quiets`**:
     *   *Mục tiêu*: Đối với Sergeant `S`, hướng đi thẳng và đi chéo đều có thể đi thường và ăn quân. Fairy-Stockfish mặc định chỉ sinh en passant cho các hướng di chuyển *chỉ có khả năng ăn quân* (`attacks & ~quiets`). Do đó Sergeant bị bỏ sót en passant.
     *   *Giải pháp*: Loại bỏ phép toán lọc `~quiets` khỏi phép tính `epSquares` đối với các quân cờ tùy chỉnh hỗ trợ en passant:
         ```diff
         -        Bitboard epSquares = (pos.en_passant_types(Us) & Pt) ? (attacks & ~quiets & pos.ep_squares() & ~pos.pieces()) : Bitboard(0);
-+        Bitboard epSquares = (pos.en_passant_types(Us) & Pt) ? (attacks & pos.ep_squares() & ~pos.pieces()) : Bitboard(0);
+        +        Bitboard epSquares = (pos.en_passant_types(Us) & Pt) ? (attacks & pos.ep_squares() & ~pos.pieces()) : Bitboard(0);
         ```
 
 ---
@@ -155,6 +155,68 @@ ALL EN PASSANT TESTS PASSED SUCCESSFULLY!
 ```
 
 > [!TIP]
-> **Nhận xét**: 
 > Cả 2 kịch bản đều đạt trạng thái **PASS**. Quân Sergeant trắng bị loại bỏ khỏi bàn cờ ngay lập tức sau nước đi ăn en passant của Sergeant đen. 
 > Logic bộ sinh nước đi mới hoạt động vô cùng chính xác và tối ưu, không phát sinh bất kỳ lỗi bộ nhớ hay phân mảnh nào trên bàn cờ lớn 10x10.
+
+---
+
+## 4. Giai đoạn 3: Xây dựng Lớp Cầu nối Bàn cờ C++ (Bridge Board Class)
+
+Chúng ta đã hoàn thành việc xây dựng lớp cầu nối giữa Fairy-Stockfish và MCTS của Lc0 trong thư mục `custom_engine/src/lczero_chess/chess/`.
+
+### 4.1. Chi tiết các tệp tin mới tạo
+1.  **[types.h](file:///d:/chess_variant/custom_engine/src/lczero_chess/chess/types.h)**:
+    *   Bọc kiểu `Stockfish::Move` và `Stockfish::Square` vào namespace `lczero`.
+    *   Tự viết wrapper `MoveList` tĩnh bao quanh `Stockfish::MoveList<LEGAL>` để lặp các nước đi hợp lệ ngay trên stack, tránh hoàn toàn hao phí heap allocation (`std::vector`).
+2.  **[board.h](file:///d:/chess_variant/custom_engine/src/lczero_chess/chess/board.h) & [board.cc](file:///d:/chess_variant/custom_engine/src/lczero_chess/chess/board.cc)**:
+    *   Lớp `ChessBoard` bọc `Stockfish::Position` và quản lý một ngăn xếp `std::deque<Stockfish::StateInfo>` để đảm bảo an toàn bộ nhớ khi thực hiện di chuyển nước đi.
+    *   Sử dụng delegating constructor `ChessBoard(fen) : ChessBoard()` để đảm bảo `variant_def` luôn được cấu hình đúng đính dấu bàn cờ 10x10.
+    *   Truy xuất và truyền con trỏ luồng `Stockfish::Threads.main()` an toàn thay vì `nullptr` để tránh lỗi null dereference trong logic đếm node của Stockfish.
+3.  **[position.h](file:///d:/chess_variant/custom_engine/src/lczero_chess/chess/position.h) & [position.cc](file:///d:/chess_variant/custom_engine/src/lczero_chess/chess/position.cc)**:
+    *   Triển khai lớp `lczero::Position` và `lczero::PositionHistory` theo dõi lịch sử trận đấu.
+    *   Sử dụng Zobrist hash key `pos.key()` của Stockfish để kiểm tra lặp thế cờ cực nhanh.
+    *   Triển khai luật chơi Stalemate = Loss (bên bị stalemate thua cuộc) và luật 7-checks limit (hết lượt chiếu bị xử thua ngay lập tức).
+4.  **[gamestate.h](file:///d:/chess_variant/custom_engine/src/lczero_chess/chess/gamestate.h)**:
+    *   Cấu trúc `GameState` đồng hành cùng MCTS của Lc0.
+
+### 4.2. Cấu hình build C++20 và Tối ưu hóa Position Copy
+*   **position.h & position.cpp**: Bổ sung phương thức `copy_from` thực hiện `std::memcpy` trực tiếp vùng nhớ của đối tượng `Position` gốc để phục vụ nhân bản trạng thái MCTS hiệu năng cao.
+*   **meson.build**:
+    *   Nâng cấp tiêu chuẩn biên dịch lên C++20 (`cpp_std=c++20`) để nạp thư viện `std::span` tiêu chuẩn.
+    *   Thêm include path `src/lczero_chess` đứng đầu để Lc0 nạp đúng file cầu nối dạng `#include "chess/board.h"`.
+    *   Đưa `board.cc` và `position.cc` vào danh sách biên dịch chính thức.
+
+### 4.3. Kịch bản và Kết quả Kiểm thử (`--test-board`)
+Chạy lệnh kiểm thử cầu nối:
+```bash
+build\custom_engine.exe --test-board
+```
+Kết quả kiểm thử thực tế:
+```
+========================================
+RUNNING CHESSBOARD BRIDGE TESTS
+========================================
+
+TEST 1: Default initialization...
+Startpos FEN: vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w - - 7+7 0 1
+Found 34 legal moves.
+  b3b4, c3c4, d3d4, ...
+[PASS] TEST 1 passed!
+
+TEST 2: ApplyMove & UndoMove consistency...
+Applying move: b3b4
+Undoing move...
+[PASS] TEST 2 passed!
+
+TEST 3: Stalemate = Loss verification...
+Stalemate position:
+  (White King on a1 trapped, Black Rook on b2 protected by Rook on b10)
+[PASS] TEST 3 passed! (Stalemate correctly marked as Loss)
+
+TEST 4: 7-checks limit verification...
+[PASS] TEST 4 passed! (7-checks limit correctly ends the game)
+
+========================================
+ALL CHESSBOARD BRIDGE TESTS PASSED!
+========================================
+```
