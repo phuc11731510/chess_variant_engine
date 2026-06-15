@@ -43,11 +43,26 @@ namespace Stockfish {
 struct StateInfo {
 
   // Copied when making a move
-#ifndef LCZERO_MCTS
+#ifdef LCZERO_MCTS
+  // Group Bitboards (16-byte aligned) first to eliminate memory padding
+  Bitboard epSquares;
+  Bitboard wallSquares;
+  Bitboard gatesBB[COLOR_NB];
+  
+  // Group int/Square (4-byte aligned) next
+  int    castlingRights;
+  int    rule50;
+  int    pliesFromNull;
+  int    countingPly;
+  int    countingLimit;
+  Square castlingKingSquare[COLOR_NB];
+  
+  // Group smaller fields last
+  CheckCount checksRemaining[COLOR_NB];
+#else
   Key    pawnKey;
   Key    materialKey;
   Value  nonPawnMaterial[COLOR_NB];
-#endif
   int    castlingRights;
   int    rule50;
   int    pliesFromNull;
@@ -58,6 +73,7 @@ struct StateInfo {
   Square castlingKingSquare[COLOR_NB];
   Bitboard wallSquares;
   Bitboard gatesBB[COLOR_NB];
+#endif
 
   // Not copied when making a move (will be recomputed anyhow)
   Key        key;
@@ -92,6 +108,13 @@ struct StateInfo {
   DirtyPiece dirtyPiece;
 #endif
 };
+
+#ifdef LCZERO_MCTS
+static_assert(offsetof(StateInfo, key) < 128, 
+    "StateInfo::key is too far from start; check field ordering for MCTS cache efficiency");
+static_assert(offsetof(StateInfo, key) == 104,
+    "StateInfo::key offset is not optimized (expected 104 bytes)");
+#endif
 
 
 /// A list to keep track of the position states along the setup moves (from the
