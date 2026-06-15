@@ -11,9 +11,11 @@ struct GameState {
     std::vector<Move> moves;
 
     Position CurrentPosition() const {
-        return std::accumulate(
-            moves.begin(), moves.end(), startpos,
-            [](const Position& pos, Move m) { return Position(pos, m); });
+        Position result = startpos;
+        for (Move m : moves) {
+            result = Position(result, m);
+        }
+        return result;
     }
 
     std::vector<Position> GetPositions() const {

@@ -35,16 +35,14 @@ public:
     MoveList GenerateLegalMoves() const { return us_board_.GenerateLegalMoves(); }
 
     int GetRepetitions() const { return repetitions_; }
-    void SetRepetitions(int repetitions, int cycle_length) {
+    void SetRepetitions(int repetitions) {
         repetitions_ = repetitions;
-        cycle_length_ = cycle_length;
     }
 
 private:
     ChessBoard us_board_;
     int rule50_ply_ = 0;
     int repetitions_ = 0;
-    int cycle_length_ = 0;
     int ply_count_ = 0;
 };
 
@@ -69,7 +67,7 @@ public:
     bool DidRepeatSinceLastZeroingMove() const;
 
 private:
-    int ComputeLastMoveRepetitions(int* cycle_length) const;
+    int ComputeLastMoveRepetitions() const;
     
     Position starting_position_;
     Position last_position_;

@@ -61,9 +61,8 @@ void PositionHistory::Append(Move m) {
     // Thực hiện nước đi m
     last_position_ = Position(last_position_, m);
     
-    int cycle_length = 0;
-    int repetitions = ComputeLastMoveRepetitions(&cycle_length);
-    last_position_.SetRepetitions(repetitions, cycle_length);
+    int repetitions = ComputeLastMoveRepetitions();
+    last_position_.SetRepetitions(repetitions);
 }
 
 // MCTS WARNING: Pop() is O(n) due to replay. Avoid using this in performance-critical paths.
@@ -79,8 +78,7 @@ void PositionHistory::Pop() {
     }
 }
 
-int PositionHistory::ComputeLastMoveRepetitions(int* cycle_length) const {
-    *cycle_length = 0;
+int PositionHistory::ComputeLastMoveRepetitions() const {
     const auto& last = last_position_;
     if (last.GetRule50Ply() < 4) return 0;
     
@@ -89,7 +87,6 @@ int PositionHistory::ComputeLastMoveRepetitions(int* cycle_length) const {
     for (int idx = size - 4; idx >= 0; idx -= 2) {
         const auto& pos = history_[idx];
         if (pos.hash == last.Hash()) {
-            *cycle_length = size - idx;
             return 1 + pos.repetitions;
         }
         if (pos.rule50_ply < 2) return 0;
