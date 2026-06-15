@@ -18,6 +18,26 @@
 
 // Code for calculating NNUE evaluation function
 
+#ifdef LCZERO_MCTS
+
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <optional>
+#include "../evaluate.h"
+#include "../position.h"
+#include "../types.h"
+
+namespace Stockfish::Eval::NNUE {
+  std::string trace(Position&) { return ""; }
+  Value evaluate(const Position&, bool) { return VALUE_ZERO; }
+  bool load_eval(std::string, std::istream&) { return false; }
+  bool save_eval(std::ostream&) { return false; }
+  bool save_eval(const std::optional<std::string>&) { return false; }
+}
+
+#else
+
 #include <iostream>
 #include <set>
 #include <sstream>
@@ -441,3 +461,5 @@ namespace Stockfish::Eval::NNUE {
 
 
 } // namespace Stockfish::Eval::NNUE
+
+#endif

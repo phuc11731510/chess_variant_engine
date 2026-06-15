@@ -15,6 +15,7 @@ add_project_arguments('-DALLVARS', language: 'cpp')
 add_project_arguments('-DPRECOMPUTED_MAGICS', language: 'cpp')
 add_project_arguments('-DNNUE_EMBEDDING_OFF', language: 'cpp')
 add_project_arguments('-DNDEBUG', language: 'cpp')
+add_project_arguments('-DLCZERO_MCTS', language: 'cpp')
 
 # OS-specific flags
 if host_machine.system() == 'windows'

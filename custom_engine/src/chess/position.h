@@ -84,9 +84,11 @@ struct StateInfo {
   Move       move;
   int        repetition;
 
+#ifndef LCZERO_MCTS
   // Used by NNUE
   Eval::NNUE::Accumulator accumulator;
   DirtyPiece dirtyPiece;
+#endif
 };
 
 

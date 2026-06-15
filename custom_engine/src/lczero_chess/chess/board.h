@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <deque>
+#include <array>
 #include "types.h"
 #include "../../chess/position.h"
 
@@ -43,7 +43,8 @@ public:
 
 private:
     Stockfish::Position pos;
-    std::deque<Stockfish::StateInfo> states; // Dùng deque để đảm bảo con trỏ trỏ vào phần tử không bị mất hiệu lực khi thêm phần tử mới
+    std::array<Stockfish::StateInfo, 2> states; // Mảng tĩnh thay thế deque để tránh heap allocation
+    int state_index = 0; // Vị trí state đang hoạt động trong mảng states
     const Stockfish::Variant* variant_def = nullptr;
 };
 

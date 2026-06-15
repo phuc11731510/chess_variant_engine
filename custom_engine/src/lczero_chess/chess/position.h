@@ -7,6 +7,13 @@ namespace lczero {
 
 enum class GameResult : uint8_t { UNDECIDED, BLACK_WON, DRAW, WHITE_WON };
 
+struct LightweightPosition {
+    uint64_t hash;
+    int rule50_ply;
+    int repetitions;
+    Move move; // Lưu nước đi dẫn tới vị trí tiếp theo
+};
+
 class Position {
 public:
     Position() = default;
@@ -20,14 +27,11 @@ public:
     int GetRule50Ply() const { return rule50_ply_; }
     const ChessBoard& GetBoard() const { return us_board_; }
 
-    // Trả về nước đi cuối cùng dẫn tới thế cờ này
     Move GetLastMove() const { return us_board_.GetRawPosition().state()->move; }
 
-    // Các phương thức lấy Hash dùng cho MCTS Transposition Table
     uint64_t Hash() const { return us_board_.GetRawPosition().key(); }
     uint64_t GetHash() const { return Hash(); }
 
-    // Sinh danh sách nước đi hợp lệ
     MoveList GenerateLegalMoves() const { return us_board_.GenerateLegalMoves(); }
 
     int GetRepetitions() const { return repetitions_; }
@@ -47,27 +51,28 @@ private:
 class PositionHistory {
 public:
     PositionHistory() = default;
-    PositionHistory(std::span<const Position> positions)
-        : positions_(positions.begin(), positions.end()) {}
+    PositionHistory(std::span<const Position> positions);
 
-    const Position& Starting() const { return positions_.front(); }
-    const Position& Last() const { return positions_.back(); }
-    int GetLength() const { return positions_.size(); }
+    const Position& Starting() const { return starting_position_; }
+    const Position& Last() const { return last_position_; }
+    int GetLength() const { return history_.size() + 1; }
 
     void Reset(const ChessBoard& board, int rule50_ply, int game_ply);
     void Reset(const Position& pos);
     void Append(Move m);
-    void Pop() { positions_.pop_back(); }
+    void Pop();
 
-    bool IsBlackToMove() const { return Last().IsBlackToMove(); }
+    bool IsBlackToMove() const { return last_position_.IsBlackToMove(); }
     
-    // Cực kỳ quan trọng: Định nghĩa luật kết thúc game (Stalemate = Loss, 7-checks)
     GameResult ComputeGameResult() const;
     bool DidRepeatSinceLastZeroingMove() const;
 
 private:
     int ComputeLastMoveRepetitions(int* cycle_length) const;
-    std::vector<Position> positions_;
+    
+    Position starting_position_;
+    Position last_position_;
+    std::vector<LightweightPosition> history_; // Chỉ chứa các node lịch sử dạng nén siêu nhẹ
 };
 
 } // namespace lczero

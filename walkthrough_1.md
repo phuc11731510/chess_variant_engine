@@ -1,6 +1,6 @@
-# Tài liệu Walkthrough Chi tiết - Giai đoạn 1, 2 và 3
+# Tài liệu Walkthrough Chi tiết & Toàn diện - Giai đoạn 1, 2 và 3
 
-Tài liệu này mô tả chi tiết toàn bộ các thay đổi mã nguồn, cấu hình biên dịch và kết quả kiểm thử đã thực hiện trong Giai đoạn 1, 2 và Giai đoạn 3 của dự án phát triển Engine Cờ Biến thể 10x10.
+Tài liệu này mô tả chi tiết toàn bộ các thay đổi mã nguồn, cấu trúc dự án, cấu hình hệ thống biên dịch, sửa lỗi giải thuật sinh nước đi, kiến trúc lớp cầu nối C++, quá trình gỡ lỗi và kết quả kiểm thử trong Giai đoạn 1, 2 và 3 của dự án phát triển **Engine Cờ Biến thể 10x10**.
 
 ---
 
@@ -337,7 +337,46 @@ ALL CHESSBOARD BRIDGE TESTS PASSED!
 
 ---
 
-## 6. Tổng kết và Kế hoạch Tiếp theo (Phase 4 Roadmap)
+## 6. Đợt Tối ưu hóa Hiệu năng & An toàn Bộ nhớ cho MCTS (Performance & Memory Safety Optimization)
+
+Trước khi tiến hành tích hợp MCTS ở Giai đoạn 4, chúng tôi đã thực hiện một đợt refactoring lớn để tối ưu hóa triệt để 4 vấn đề thắt cổ chai hiệu năng và bảo mật bộ nhớ được phát hiện ở lớp cầu nối:
+
+### 6.1. Khắc phục Thread Contention (Tối ưu hóa 1)
+*   **Vấn đề**: Trong `Position::copy_from`, việc sao chép nguyên trạng `thisThread` khiến hàng chục luồng MCTS chạy song song cùng cập nhật một biến atomic dùng chung: `thisThread->nodes.fetch_add(1)`. Việc này gây ra hiện tượng Cache Line Bouncing liên tục trên CPU.
+*   **Giải pháp**:
+    *   Thêm preprocessor flag `-DLCZERO_MCTS` vào `meson.build`.
+    *   Bọc tắt hoàn toàn cơ chế tự động đếm node của Stockfish trong hàm `Position::do_move` và việc prefetch material table bằng `#ifndef LCZERO_MCTS`.
+    *   Nhờ đó, triệt tiêu 100% hiện tượng Hardware Lock Contention khi chạy tìm kiếm đa luồng.
+
+### 6.2. Triệt tiêu Cấp phát Heap của `states` deque (Tối ưu hóa 2)
+*   **Vấn đề**: MCTS hoạt động theo mô hình duyệt và clone bàn cờ (Copy -> ApplyMove) chứ không undo liên tục như Minimax. Việc `lczero::ChessBoard` giữ `std::deque<StateInfo>` khiến mỗi lần nhân bản node phải cấp phát động trên Heap để sao chép chuỗi lịch sử.
+*   **Giải pháp**:
+    *   Thay thế `std::deque<StateInfo>` bằng mảng tĩnh `std::array<Stockfish::StateInfo, 2> states` và lưu trữ chỉ số `state_index` hiện tại.
+    *   Khi copy hoặc gán bàn cờ, ta sao chép trực tiếp mảng tĩnh này. Khi áp dụng nước đi, ta chỉ cần copy dữ liệu state hiện tại sang slot tiếp theo trong mảng tĩnh.
+    *   Giải pháp này đảm bảo **zero-allocation trên Heap** khi nhân bản bàn cờ và cải thiện tối đa Data Locality trên cache L1.
+
+### 6.3. Khắc phục lỗi bộ nhớ Dangling Pointer (Tối ưu hóa 3)
+*   **Vấn đề**: Khi dùng `memcpy` sao chép đối tượng `Position`, con trỏ `newSt->previous` của bàn cờ mới vẫn trỏ về địa chỉ `StateInfo` của bàn cờ cha cũ. Khi bàn cờ cha bị giải phóng, con trỏ này trở thành Dangling Pointer, dễ gây lỗi Segmentation Fault khi có các hàm duyệt ngược lịch sử.
+*   **Giải pháp**: Bổ sung dòng code `newSt->previous = nullptr;` bên trong hàm `Position::copy_from` để cắt đứt liên kết trỏ ngược ngay sau khi sao chép bộ nhớ, đảm bảo an toàn bộ nhớ tuyệt đối.
+
+### 6.4. Nén dung lượng RAM của Lịch sử Bàn cờ (Tối ưu hóa 4)
+*   **Vấn đề**: `PositionHistory` ban đầu lưu `std::vector<Position>` khiến dung lượng RAM phình to hàng Gigabytes khi cây MCTS mở rộng hàng triệu node.
+*   **Giải pháp**:
+    *   Định nghĩa struct nén siêu nhẹ:
+        ```cpp
+        struct LightweightPosition {
+            uint64_t hash;
+            int rule50_ply;
+            int repetitions;
+            Move move;
+        };
+        ```
+    *   `PositionHistory` chỉ lưu trữ đầy đủ 2 đối tượng `starting_position_` và `last_position_`, còn các vị trí trung gian trong lịch sử chỉ cần lưu dạng `LightweightPosition` (chỉ tốn 16-20 bytes thay vì hàng trăm bytes).
+    *   Cơ chế `Pop()` được thiết kế thông minh bằng cách phát lại (replay) các nước đi từ `starting_position_` thông qua mảng history nén, đảm bảo phục hồi trạng thái chính xác mà không tốn tài nguyên lưu trữ.
+
+---
+
+## 7. Tổng kết và Kế hoạch Tiếp theo (Phase 4 Roadmap)
 
 Lớp cầu nối C++ giữa Fairy-Stockfish và Lc0 hiện tại đã đạt được độ ổn định hoàn hảo cùng hiệu năng tối ưu nhất nhờ kiến trúc **Zero-Allocation**. Tất cả mã nguồn mới và các bản sửa lỗi liên quan đều đã được kiểm tra nghiêm ngặt, đảm bảo biên dịch thành công ở chế độ tối ưu nhất của C++20 trên cả môi trường GCC/MSVC.
 

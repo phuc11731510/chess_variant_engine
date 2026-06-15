@@ -20,42 +20,85 @@ Position Position::FromFen(std::string_view fen) {
     return pos;
 }
 
+PositionHistory::PositionHistory(std::span<const Position> positions) {
+    if (!positions.empty()) {
+        starting_position_ = positions.front();
+        last_position_ = positions.back();
+        history_.reserve(positions.size() - 1);
+        for (size_t i = 0; i < positions.size() - 1; ++i) {
+            history_.push_back({
+                positions[i].Hash(),
+                positions[i].GetRule50Ply(),
+                positions[i].GetRepetitions(),
+                positions[i + 1].GetLastMove()
+            });
+        }
+    }
+}
+
 void PositionHistory::Reset(const ChessBoard& board, int rule50_ply, int game_ply) {
-    positions_.clear();
-    positions_.emplace_back(board, rule50_ply, game_ply);
+    starting_position_ = Position(board, rule50_ply, game_ply);
+    last_position_ = starting_position_;
+    history_.clear();
 }
 
 void PositionHistory::Reset(const Position& pos) {
-    positions_.clear();
-    positions_.push_back(pos);
+    starting_position_ = pos;
+    last_position_ = pos;
+    history_.clear();
 }
 
 void PositionHistory::Append(Move m) {
-    positions_.push_back(Position(Last(), m));
+    // Lưu trạng thái trước nước đi và nước đi chuẩn bị thực hiện
+    history_.push_back({
+        last_position_.Hash(),
+        last_position_.GetRule50Ply(),
+        last_position_.GetRepetitions(),
+        m
+    });
+    
+    // Thực hiện nước đi m
+    last_position_ = Position(last_position_, m);
+    
     int cycle_length = 0;
     int repetitions = ComputeLastMoveRepetitions(&cycle_length);
-    positions_.back().SetRepetitions(repetitions, cycle_length);
+    last_position_.SetRepetitions(repetitions, cycle_length);
+}
+
+void PositionHistory::Pop() {
+    if (!history_.empty()) {
+        history_.pop_back();
+        // Tái dựng lại trạng thái của last_position_ từ starting_position_
+        last_position_ = starting_position_;
+        for (const auto& entry : history_) {
+            last_position_ = Position(last_position_, entry.move);
+        }
+    }
 }
 
 int PositionHistory::ComputeLastMoveRepetitions(int* cycle_length) const {
     *cycle_length = 0;
-    const auto& last = positions_.back();
+    const auto& last = last_position_;
     if (last.GetRule50Ply() < 4) return 0;
-    for (int idx = (int)positions_.size() - 5; idx >= 0; idx -= 2) {
-        const auto& pos = positions_[idx];
-        if (pos.GetBoard().GetRawPosition().key() == last.GetBoard().GetRawPosition().key()) {
-            *cycle_length = (int)positions_.size() - 1 - idx;
-            return 1 + pos.GetRepetitions();
+    
+    int size = (int)history_.size();
+    // Duyệt ngược lịch sử nén siêu nhanh
+    for (int idx = size - 4; idx >= 0; idx -= 2) {
+        const auto& pos = history_[idx];
+        if (pos.hash == last.Hash()) {
+            *cycle_length = size - idx;
+            return 1 + pos.repetitions;
         }
-        if (pos.GetRule50Ply() < 2) return 0;
+        if (pos.rule50_ply < 2) return 0;
     }
     return 0;
 }
 
 bool PositionHistory::DidRepeatSinceLastZeroingMove() const {
-    for (auto iter = positions_.rbegin(); iter != positions_.rend(); ++iter) {
-        if (iter->GetRepetitions() > 0) return true;
-        if (iter->GetRule50Ply() == 0) return false;
+    if (last_position_.GetRepetitions() > 0) return true;
+    for (auto iter = history_.rbegin(); iter != history_.rend(); ++iter) {
+        if (iter->repetitions > 0) return true;
+        if (iter->rule50_ply == 0) return false;
     }
     return false;
 }
@@ -64,32 +107,31 @@ GameResult PositionHistory::ComputeGameResult() const {
     const auto& board = Last().GetBoard();
     const auto& raw_pos = board.GetRawPosition();
     
-    // 1. Check limit checks (7-checks)
+    // 1. Kiểm tra giới hạn 7-checks
     if (raw_pos.checks_remaining(Stockfish::WHITE) <= 0) {
-        return GameResult::BLACK_WON; // White ran out of checks -> Black wins
+        return GameResult::BLACK_WON; // Trắng hết lượt chiếu -> Đen thắng
     }
     if (raw_pos.checks_remaining(Stockfish::BLACK) <= 0) {
-        return GameResult::WHITE_WON; // Black ran out of checks -> White wins
+        return GameResult::WHITE_WON; // Đen hết lượt chiếu -> Trắng thắng
     }
 
-    // 2. Check legal moves
+    // 2. Kiểm tra nước đi hợp lệ
     auto legal_moves = board.GenerateLegalMoves();
     if (legal_moves.empty()) {
         if (board.IsUnderCheck()) {
-            // Checkmate
+            // Chiếu hết
             return IsBlackToMove() ? GameResult::WHITE_WON : GameResult::BLACK_WON;
         }
-        // Stalemate: In our variant, stalemate = LOSS
-        // The side who is in stalemate (whose turn it is but has no legal moves) loses the game.
+        // Stalemate = LOSS (Bên bị stalemate thua)
         return IsBlackToMove() ? GameResult::WHITE_WON : GameResult::BLACK_WON;
     }
 
-    // 3. Rule 50 moves (100 plies without pawn move or capture)
+    // 3. Luật 50 nước đi (100 plies)
     if (Last().GetRule50Ply() >= 100) {
         return GameResult::DRAW;
     }
 
-    // 4. Repetitions (3-fold repetition, repetitions_ >= 2)
+    // 4. Luật lặp thế cờ (3-fold repetition, repetitions >= 2)
     if (Last().GetRepetitions() >= 2) {
         return GameResult::DRAW;
     }

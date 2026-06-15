@@ -227,8 +227,31 @@ Key Position::material_key(EndgameEval e) const {
 
 
 Position& Position::copy_from(const Position& other, StateInfo* newSt) {
-  std::memcpy(this, &other, sizeof(Position));
+  std::memcpy(board, other.board, sizeof(board));
+  std::memcpy(unpromotedBoard, other.unpromotedBoard, sizeof(unpromotedBoard));
+  std::memcpy(byTypeBB, other.byTypeBB, sizeof(byTypeBB));
+  std::memcpy(byColorBB, other.byColorBB, sizeof(byColorBB));
+  std::memcpy(pieceCount, other.pieceCount, sizeof(pieceCount));
+  std::memcpy(castlingRightsMask, other.castlingRightsMask, sizeof(castlingRightsMask));
+  std::memcpy(castlingRookSquare, other.castlingRookSquare, sizeof(castlingRookSquare));
+  std::memcpy(castlingPath, other.castlingPath, sizeof(castlingPath));
+  
+  thisThread = other.thisThread;
   st = newSt;
+  gamePly = other.gamePly;
+  sideToMove = other.sideToMove;
+  psq = other.psq;
+  var = other.var;
+  tsumeMode = other.tsumeMode;
+  chess960 = other.chess960;
+  
+  std::memcpy(pieceCountInHand, other.pieceCountInHand, sizeof(pieceCountInHand));
+  virtualPieces = other.virtualPieces;
+  promotedPieces = other.promotedPieces;
+
+  if (newSt) {
+      newSt->previous = nullptr;
+  }
   return *this;
 }
 
@@ -1555,7 +1578,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   assert(&newSt != st);
 
 #ifndef NO_THREADS
+  #ifndef LCZERO_MCTS
   thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
+  #endif
 #endif
   Key k = st->key ^ Zobrist::side;
 
@@ -1575,11 +1600,13 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   if (st->countingLimit)
       ++st->countingPly;
 
+#ifndef LCZERO_MCTS
   // Used by NNUE
   st->accumulator.computed[WHITE] = false;
   st->accumulator.computed[BLACK] = false;
   auto& dp = st->dirtyPiece;
   dp.dirty_num = 1;
+#endif
 
   Color us = sideToMove;
   Color them = ~us;
@@ -1636,6 +1663,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       else
           st->nonPawnMaterial[them] -= PieceValue[MG][captured];
 
+#ifndef LCZERO_MCTS
       if (Eval::useNNUE)
       {
           dp.dirty_num = 2;  // 1 piece moved, 1 piece captured
@@ -1643,6 +1671,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           dp.from[1] = capsq;
           dp.to[1] = SQ_NONE;
       }
+#endif
 
       // Update board and piece lists
       bool capturedPromoted = is_promoted(capsq);
@@ -1660,20 +1689,26 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           k ^=  Zobrist::inHand[pieceToHand][pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)] - 1]
               ^ Zobrist::inHand[pieceToHand][pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)]];
 
+#ifndef LCZERO_MCTS
           if (Eval::useNNUE)
           {
               dp.handPiece[1] = pieceToHand;
               dp.handCount[1] = pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)];
           }
+#endif
       }
+#ifndef LCZERO_MCTS
       else if (Eval::useNNUE)
           dp.handPiece[1] = NO_PIECE;
+#endif
 
       // Update material hash key and prefetch access to materialTable
       k ^= Zobrist::psq[captured][capsq];
       st->materialKey ^= Zobrist::psq[captured][pieceCount[captured]];
 #ifndef NO_THREADS
+      #ifndef LCZERO_MCTS
       prefetch(thisThread->materialTable[material_key(var->endgameEval)]);
+      #endif
 #endif
       // Reset rule 50 counter
       st->rule50 = 0;
@@ -1768,6 +1803,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   // Move the piece. The tricky Chess960 castling is handled earlier
   if (type_of(m) == DROP)
   {
+#ifndef LCZERO_MCTS
       if (Eval::useNNUE)
       {
           // Add drop piece
@@ -1777,6 +1813,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           dp.from[0] = SQ_NONE;
           dp.to[0] = to;
       }
+#endif
 
       drop_piece(make_piece(us, in_hand_piece_type(m)), pc, to);
       st->materialKey ^= Zobrist::psq[pc][pieceCount[pc]-1];
@@ -1811,12 +1848,14 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   }
   else if (type_of(m) != CASTLING)
   {
+#ifndef LCZERO_MCTS
       if (Eval::useNNUE)
       {
           dp.piece[0] = pc;
           dp.from[0] = from;
           dp.to[0] = to;
       }
+#endif
 
       move_piece(from, to);
   }
@@ -1835,6 +1874,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           remove_piece(to);
           put_piece(promotion, to, true, type_of(m) == PIECE_PROMOTION ? pc : NO_PIECE);
 
+#ifndef LCZERO_MCTS
           if (Eval::useNNUE)
           {
               // Promoting pawn to SQ_NONE, promoted piece from SQ_NONE
@@ -1846,6 +1886,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
               dp.to[dp.dirty_num] = to;
               dp.dirty_num++;
           }
+#endif
 
           // Update hash keys
           k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
@@ -1890,6 +1931,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       remove_piece(to);
       put_piece(promotion, to, true, type_of(m) == PIECE_PROMOTION ? pc : NO_PIECE);
 
+#ifndef LCZERO_MCTS
       if (Eval::useNNUE)
       {
           // Promoting piece to SQ_NONE, promoted piece from SQ_NONE
@@ -1901,6 +1943,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           dp.to[dp.dirty_num] = to;
           dp.dirty_num++;
       }
+#endif
 
       // Update hash keys
       k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
@@ -1917,6 +1960,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       remove_piece(to);
       put_piece(demotion, to);
 
+#ifndef LCZERO_MCTS
       if (Eval::useNNUE)
       {
           // Demoting piece to SQ_NONE, demoted piece from SQ_NONE
@@ -1928,6 +1972,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           dp.to[dp.dirty_num] = to;
           dp.dirty_num++;
       }
+#endif
 
       // Update hash keys
       k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[demotion][to];
@@ -1956,6 +2001,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       Square gate = gating_square(m);
       Piece gating_piece = make_piece(us, gating_type(m));
 
+#ifndef LCZERO_MCTS
       if (Eval::useNNUE)
       {
           // Add gating piece
@@ -1966,6 +2012,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           dp.to[dp.dirty_num] = gate;
           dp.dirty_num++;
       }
+#endif
 
       put_piece(gating_piece, gate);
       remove_from_hand(gating_piece);
@@ -2014,6 +2061,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           if (type_of(bpc) != PAWN)
               st->nonPawnMaterial[bc] -= PieceValue[MG][bpc];
 
+#ifndef LCZERO_MCTS
           if (Eval::useNNUE)
           {
               dp.piece[dp.dirty_num] = bpc;
@@ -2022,6 +2070,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
               dp.to[dp.dirty_num] = SQ_NONE;
               dp.dirty_num++;
           }
+#endif
 
           // Update board and piece lists
           // In order to not have to store the values of both board and unpromotedBoard,
@@ -2045,11 +2094,13 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
               k ^=  Zobrist::inHand[pieceToHand][pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)] - 1]
                   ^ Zobrist::inHand[pieceToHand][pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)]];
 
+#ifndef LCZERO_MCTS
               if (Eval::useNNUE)
               {
                   dp.handPiece[dp.dirty_num - 1] = pieceToHand;
                   dp.handCount[dp.dirty_num - 1] = pieceCountInHand[color_of(pieceToHand)][type_of(pieceToHand)];
               }
+#endif
           }
 
           // Update material hash key
@@ -2293,6 +2344,7 @@ void Position::do_castling(Color us, Square from, Square& to, Square& rfrom, Squ
   Piece castlingKingPiece = piece_on(Do ? from : to);
   Piece castlingRookPiece = piece_on(Do ? rfrom : rto);
 
+#ifndef LCZERO_MCTS
   if (Do && Eval::useNNUE)
   {
       auto& dp = st->dirtyPiece;
@@ -2304,6 +2356,7 @@ void Position::do_castling(Color us, Square from, Square& to, Square& rfrom, Squ
       dp.to[1] = rto;
       dp.dirty_num = 2;
   }
+#endif
 
   // Remove both pieces first since squares could overlap in Chess960
   remove_piece(Do ? from : to);
@@ -2322,15 +2375,21 @@ void Position::do_null_move(StateInfo& newSt) {
   assert(!checkers());
   assert(&newSt != st);
 
+#ifdef LCZERO_MCTS
+  std::memcpy(&newSt, st, sizeof(StateInfo));
+#else
   std::memcpy(&newSt, st, offsetof(StateInfo, accumulator));
+#endif
 
   newSt.previous = st;
   st = &newSt;
 
+#ifndef LCZERO_MCTS
   st->dirtyPiece.dirty_num = 0;
   st->dirtyPiece.piece[0] = NO_PIECE; // Avoid checks in UpdateAccumulator()
   st->accumulator.computed[WHITE] = false;
   st->accumulator.computed[BLACK] = false;
+#endif
 
   while (st->epSquares)
       st->key ^= Zobrist::enpassant[file_of(pop_lsb(st->epSquares))];

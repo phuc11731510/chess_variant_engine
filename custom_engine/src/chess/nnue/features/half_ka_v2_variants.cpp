@@ -18,6 +18,8 @@
 
 //Definition of input features HalfKAv2 of NNUE evaluation function
 
+#ifndef LCZERO_MCTS
+
 #include "half_ka_v2_variants.h"
 
 #include "../../position.h"
@@ -110,3 +112,5 @@ namespace Stockfish::Eval::NNUE::Features {
   }
 
 }  // namespace Stockfish::Eval::NNUE::Features
+
+#endif
