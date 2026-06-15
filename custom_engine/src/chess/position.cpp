@@ -222,7 +222,11 @@ void Position::init() {
 }
 
 Key Position::material_key(EndgameEval e) const {
+#ifdef LCZERO_MCTS
+  return 0;
+#else
   return st->materialKey ^ Zobrist::endgame[e];
+#endif
 }
 
 
@@ -240,7 +244,9 @@ Position& Position::copy_from(const Position& other, StateInfo* newSt) {
   st = newSt;
   gamePly = other.gamePly;
   sideToMove = other.sideToMove;
+#ifndef LCZERO_MCTS
   psq = other.psq;
+#endif
   var = other.var;
   tsumeMode = other.tsumeMode;
   chess960 = other.chess960;
@@ -651,9 +657,12 @@ void Position::set_check_info(StateInfo* si) const {
 
 void Position::set_state(StateInfo* si) const {
 
-  si->key = si->materialKey = 0;
+  si->key = 0;
+#ifndef LCZERO_MCTS
+  si->materialKey = 0;
   si->pawnKey = Zobrist::noPawns;
   si->nonPawnMaterial[WHITE] = si->nonPawnMaterial[BLACK] = VALUE_ZERO;
+#endif
   si->checkersBB = count<KING>(sideToMove) ? attackers_to(square<KING>(sideToMove), ~sideToMove) : Bitboard(0);
   si->move = MOVE_NONE;
 
@@ -668,11 +677,13 @@ void Position::set_state(StateInfo* si) const {
       if (!pc)
           si->key ^= Zobrist::wall[s];
 
+#ifndef LCZERO_MCTS
       else if (type_of(pc) == PAWN)
           si->pawnKey ^= Zobrist::psq[pc][s];
 
       else if (type_of(pc) != KING)
           si->nonPawnMaterial[color_of(pc)] += PieceValue[MG][pc];
+#endif
   }
 
   for (Bitboard b = si->epSquares; b; )
@@ -688,8 +699,10 @@ void Position::set_state(StateInfo* si) const {
       {
           Piece pc = make_piece(c, pt);
 
+#ifndef LCZERO_MCTS
           for (int cnt = 0; cnt < pieceCount[pc]; ++cnt)
               si->materialKey ^= Zobrist::psq[pc][cnt];
+#endif
 
           if (piece_drops() || seirawan_gating())
               si->key ^= Zobrist::inHand[pc][pieceCountInHand[c][pt]];
@@ -1656,12 +1669,14 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           assert(piece_on(to) == NO_PIECE);
       }
 
+#ifndef LCZERO_MCTS
       // If the captured piece is a pawn, update pawn hash key, otherwise
       // update non-pawn material.
       if (type_of(captured) == PAWN)
           st->pawnKey ^= Zobrist::psq[captured][capsq];
       else
           st->nonPawnMaterial[them] -= PieceValue[MG][captured];
+#endif
 
 #ifndef LCZERO_MCTS
       if (Eval::useNNUE)
@@ -1704,11 +1719,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
       // Update material hash key and prefetch access to materialTable
       k ^= Zobrist::psq[captured][capsq];
+#ifndef LCZERO_MCTS
       st->materialKey ^= Zobrist::psq[captured][pieceCount[captured]];
 #ifndef NO_THREADS
-      #ifndef LCZERO_MCTS
       prefetch(thisThread->materialTable[material_key(var->endgameEval)]);
-      #endif
+#endif
 #endif
       // Reset rule 50 counter
       st->rule50 = 0;
@@ -1789,14 +1804,18 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           // remove opponent's piece
           remove_piece(s);
           k ^= Zobrist::psq[flipped][s];
+#ifndef LCZERO_MCTS
           st->materialKey ^= Zobrist::psq[flipped][pieceCount[flipped]];
           st->nonPawnMaterial[them] -= PieceValue[MG][flipped];
+#endif
 
           // add our piece
           put_piece(resulting, s);
           k ^= Zobrist::psq[resulting][s];
+#ifndef LCZERO_MCTS
           st->materialKey ^= Zobrist::psq[resulting][pieceCount[resulting]-1];
           st->nonPawnMaterial[us] += PieceValue[MG][resulting];
+#endif
       }
   }
 
@@ -1816,9 +1835,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 #endif
 
       drop_piece(make_piece(us, in_hand_piece_type(m)), pc, to);
+#ifndef LCZERO_MCTS
       st->materialKey ^= Zobrist::psq[pc][pieceCount[pc]-1];
       if (type_of(pc) != PAWN)
           st->nonPawnMaterial[us] += PieceValue[MG][pc];
+#endif
       // Set castling rights for dropped king or rook
       if (castling_dropped_piece() && rank_of(to) == castling_rank(us))
       {
@@ -1890,12 +1911,14 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
           // Update hash keys
           k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
+#ifndef LCZERO_MCTS
           st->pawnKey ^= Zobrist::psq[pc][to];
           st->materialKey ^=  Zobrist::psq[promotion][pieceCount[promotion]-1]
                             ^ Zobrist::psq[pc][pieceCount[pc]];
 
           // Update material
           st->nonPawnMaterial[us] += PieceValue[MG][promotion];
+#endif
       }
 
       // Set en passant square(s) if the moved pawn can be captured
@@ -1920,8 +1943,10 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           }
       }
 
+#ifndef LCZERO_MCTS
       // Update pawn hash key
       st->pawnKey ^= (type_of(m) != DROP ? Zobrist::psq[pc][from] : 0) ^ Zobrist::psq[pc][to];
+#endif
   }
   else if (type_of(m) == PROMOTION || type_of(m) == PIECE_PROMOTION)
   {
@@ -1947,11 +1972,13 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
       // Update hash keys
       k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
+#ifndef LCZERO_MCTS
       st->materialKey ^=  Zobrist::psq[promotion][pieceCount[promotion]-1]
                         ^ Zobrist::psq[pc][pieceCount[pc]];
 
       // Update material
       st->nonPawnMaterial[us] += PieceValue[MG][promotion] - PieceValue[MG][pc];
+#endif
   }
   else if (type_of(m) == PIECE_DEMOTION)
   {
@@ -1976,11 +2003,13 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
       // Update hash keys
       k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[demotion][to];
+#ifndef LCZERO_MCTS
       st->materialKey ^=  Zobrist::psq[demotion][pieceCount[demotion]-1]
                         ^ Zobrist::psq[pc][pieceCount[pc]];
 
       // Update material
       st->nonPawnMaterial[us] += PieceValue[MG][demotion] - PieceValue[MG][pc];
+#endif
   }
   // Set en passant square(s) if the moved piece can be captured
   else if (   type_of(m) != DROP
@@ -2019,8 +2048,10 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
       st->gatesBB[us] ^= gate;
       k ^= Zobrist::psq[gating_piece][gate];
+#ifndef LCZERO_MCTS
       st->materialKey ^= Zobrist::psq[gating_piece][pieceCount[gating_piece]];
       st->nonPawnMaterial[us] += PieceValue[MG][gating_piece];
+#endif
   }
 
   // Remove gates
@@ -2058,8 +2089,10 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           Square bsq = pop_lsb(blast);
           Piece bpc = piece_on(bsq);
           Color bc = color_of(bpc);
+#ifndef LCZERO_MCTS
           if (type_of(bpc) != PAWN)
               st->nonPawnMaterial[bc] -= PieceValue[MG][bpc];
+#endif
 
 #ifndef LCZERO_MCTS
           if (Eval::useNNUE)
@@ -2105,9 +2138,11 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
           // Update material hash key
           k ^= Zobrist::psq[bpc][bsq];
+#ifndef LCZERO_MCTS
           st->materialKey ^= Zobrist::psq[bpc][pieceCount[bpc]];
           if (type_of(bpc) == PAWN)
               st->pawnKey ^= Zobrist::psq[bpc][bsq];
+#endif
 
           // Update castling rights if needed
           if (st->castlingRights && castlingRightsMask[bsq])

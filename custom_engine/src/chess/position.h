@@ -43,9 +43,11 @@ namespace Stockfish {
 struct StateInfo {
 
   // Copied when making a move
+#ifndef LCZERO_MCTS
   Key    pawnKey;
   Key    materialKey;
   Value  nonPawnMaterial[COLOR_NB];
+#endif
   int    castlingRights;
   int    rule50;
   int    pliesFromNull;
@@ -377,7 +379,9 @@ private:
   StateInfo* st;
   int gamePly;
   Color sideToMove;
+#ifndef LCZERO_MCTS
   Score psq;
+#endif
 
   // variant-specific
   const Variant* var;
@@ -967,7 +971,12 @@ inline Value Position::checkmate_value(int ply) const {
       && !(checkers() & ~pieces(SHOGI_PAWN))
       && !st->capturedPiece
       &&  st->pliesFromNull > 0
-      && (st->materialKey != st->previous->materialKey))
+#ifndef LCZERO_MCTS
+      && (st->materialKey != st->previous->materialKey)
+#else
+      && (type_of(st->move) == DROP)
+#endif
+      )
   {
       return mate_in(ply);
   }
@@ -1380,15 +1389,27 @@ inline Key Position::key() const {
 }
 
 inline Key Position::pawn_key() const {
+#ifdef LCZERO_MCTS
+  return 0;
+#else
   return st->pawnKey;
+#endif
 }
 
 inline Score Position::psq_score() const {
+#ifdef LCZERO_MCTS
+  return SCORE_ZERO;
+#else
   return psq;
+#endif
 }
 
 inline Value Position::non_pawn_material(Color c) const {
+#ifdef LCZERO_MCTS
+  return VALUE_ZERO;
+#else
   return st->nonPawnMaterial[c];
+#endif
 }
 
 inline Value Position::non_pawn_material() const {
@@ -1508,7 +1529,9 @@ inline void Position::put_piece(Piece pc, Square s, bool isPromoted, Piece unpro
   byColorBB[color_of(pc)] |= s;
   pieceCount[pc]++;
   pieceCount[make_piece(color_of(pc), ALL_PIECES)]++;
+#ifndef LCZERO_MCTS
   psq += PSQT::psq[pc][s];
+#endif
   if (isPromoted)
       promotedPieces |= s;
   unpromotedBoard[s] = unpromotedPc;
@@ -1523,7 +1546,9 @@ inline void Position::remove_piece(Square s) {
   board[s] = NO_PIECE;
   pieceCount[pc]--;
   pieceCount[make_piece(color_of(pc), ALL_PIECES)]--;
+#ifndef LCZERO_MCTS
   psq -= PSQT::psq[pc][s];
+#endif
   promotedPieces -= s;
   unpromotedBoard[s] = NO_PIECE;
 }
@@ -1537,7 +1562,9 @@ inline void Position::move_piece(Square from, Square to) {
   byColorBB[color_of(pc)] ^= fromTo;
   board[from] = NO_PIECE;
   board[to] = pc;
+#ifndef LCZERO_MCTS
   psq += PSQT::psq[pc][to] - PSQT::psq[pc][from];
+#endif
   if (is_promoted(from))
       promotedPieces ^= fromTo;
   unpromotedBoard[to] = unpromotedBoard[from];
@@ -1619,14 +1646,18 @@ inline void Position::add_to_hand(Piece pc) {
   if (variant()->freeDrops) return;
   pieceCountInHand[color_of(pc)][type_of(pc)]++;
   pieceCountInHand[color_of(pc)][ALL_PIECES]++;
+#ifndef LCZERO_MCTS
   psq += PSQT::psq[pc][SQ_NONE];
+#endif
 }
 
 inline void Position::remove_from_hand(Piece pc) {
   if (variant()->freeDrops) return;
   pieceCountInHand[color_of(pc)][type_of(pc)]--;
   pieceCountInHand[color_of(pc)][ALL_PIECES]--;
+#ifndef LCZERO_MCTS
   psq -= PSQT::psq[pc][SQ_NONE];
+#endif
 }
 
 inline void Position::drop_piece(Piece pc_hand, Piece pc_drop, Square s) {

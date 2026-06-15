@@ -75,7 +75,10 @@ namespace Eval {
   /// variable to have the engine search in a special directory in their distro.
 
   void NNUE::init() {
-
+#ifdef LCZERO_MCTS
+    useNNUE = false;
+    return;
+#else
     useNNUE = Options["Use NNUE"];
     if (!useNNUE)
         return;
@@ -135,6 +138,7 @@ namespace Eval {
                     eval_file_loaded = eval_file;
             }
         }
+#endif
   }
 
   /// NNUE::verify() verifies that the last net used was loaded successfully
