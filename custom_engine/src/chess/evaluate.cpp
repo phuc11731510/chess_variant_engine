@@ -143,7 +143,9 @@ namespace Eval {
 
   /// NNUE::verify() verifies that the last net used was loaded successfully
   void NNUE::verify() {
-
+#ifdef LCZERO_MCTS
+    return;
+#else
     string eval_file = string(Options["EvalFile"]);
 
     if (useNNUE && eval_file.find(eval_file_loaded) == string::npos)
@@ -173,6 +175,7 @@ namespace Eval {
         else
             sync_cout << "info string classical evaluation enabled" << sync_endl;
     }
+#endif
   }
 }
 
