@@ -5,8 +5,9 @@
 namespace lczero {
 
 Position::Position(const Position& parent, Move m)
-    : rule50_ply_(parent.rule50_ply_ + 1), ply_count_(parent.ply_count_ + 1) {
-    us_board_ = parent.us_board_;
+    : us_board_(parent.us_board_),
+      rule50_ply_(parent.rule50_ply_ + 1),
+      ply_count_(parent.ply_count_ + 1) {
     const bool is_zeroing = us_board_.ApplyMove(m);
     if (is_zeroing) rule50_ply_ = 0;
 }
@@ -65,6 +66,8 @@ void PositionHistory::Append(Move m) {
     last_position_.SetRepetitions(repetitions, cycle_length);
 }
 
+// MCTS WARNING: Pop() is O(n) due to replay. Avoid using this in performance-critical paths.
+// In MCTS, copy-on-apply should be used instead of pop/undo.
 void PositionHistory::Pop() {
     if (!history_.empty()) {
         history_.pop_back();

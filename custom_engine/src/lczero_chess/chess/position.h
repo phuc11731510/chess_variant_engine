@@ -60,6 +60,7 @@ public:
     void Reset(const ChessBoard& board, int rule50_ply, int game_ply);
     void Reset(const Position& pos);
     void Append(Move m);
+    [[deprecated("Pop() is O(n) and should not be used in performance-critical MCTS paths. MCTS uses copy-on-apply instead.")]]
     void Pop();
 
     bool IsBlackToMove() const { return last_position_.IsBlackToMove(); }
