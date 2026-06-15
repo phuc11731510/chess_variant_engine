@@ -22,6 +22,9 @@ public:
 
     MoveList GenerateLegalMoves() const;
     bool ApplyMove(Move move);
+    // NOTE: MCTS uses Copy->ApplyMove pattern, not ApplyMove->UndoMove.
+    // UndoMove is kept only for unit testing/debugging purposes.
+    [[deprecated("Do not use UndoMove in MCTS. Clone the ChessBoard before ApplyMove instead.")]]
     void UndoMove();
     bool IsUnderCheck() const;
 

@@ -67,12 +67,12 @@ bool ChessBoard::ApplyMove(Move move) {
     int next_index = 1 - state_index;
     state_index = next_index;
     pos.do_move(move, states[state_index]);
-    
-    Stockfish::PieceType pt = Stockfish::type_of(pos.moved_piece(move));
-    bool is_pawn_or_sergeant = (pt == Stockfish::PAWN || pt == Stockfish::CUSTOM_PIECE_3);
-    return pos.capture(move) || is_pawn_or_sergeant;
+    // Stockfish resets rule50 to 0 for all zeroing moves (captures, pawn/sergeant moves, drops, etc.)
+    return pos.state()->rule50 == 0;
 }
 
+// MCTS WARNING: Do not call this in MCTS search. ChessBoard should be cloned
+// before ApplyMove. UndoMove is only kept for unit testing/debugging.
 void ChessBoard::UndoMove() {
     int prev_index = 1 - state_index;
     Move last_move = pos.state()->move;
