@@ -29,38 +29,148 @@ graph TD
 ### Giai đoạn 2: Sửa đổi Bộ sinh nước đi trong C++ cho Luật En Passant Mặc định
 *   **Mục tiêu**: Chỉnh sửa trực tiếp file `movegen.cpp` của Fairy-Stockfish để đảm bảo bất kỳ quân tốt tùy chỉnh nào khi di chuyển vào ô en passant trống đều kích hoạt nước đi ăn en passant thay vì đi thường.
 *   **Các bước thực hiện**:
-    1.  Mở tệp [movegen.cpp](file:///d:/chess_variant/custom_engine/src/chess/movegen.cpp) (chúng ta sửa trực tiếp tệp đã sao chép nằm trong thư mục dự án `src/chess/` của mình).
-    2.  Tại hàm `generate_moves` phục vụ các quân cờ tùy chỉnh, chỉnh sửa dòng code sinh các nước đi đi thường (`NORMAL`) vào ô trống để loại trừ ô en passant bằng phép toán bitwise `& ~pos.ep_squares()`.
-    3.  Sửa đổi cách gán biến `epSquares` tại dòng 310 bằng cách bỏ phép loại trừ `~quiets`, chuyển thành `epSquares = (pos.en_passant_types(Us) & Pt) ? (attacks & pos.ep_squares() & ~pos.pieces()) : Bitboard(0);` để cho phép mọi hướng đi vào ô en passant đều được coi là nước đi bắt tốt qua đường.
-    4.  Thực hiện biên dịch thử nghiệm dự án hợp nhất và chạy tệp kiểm thử C++ nhỏ để kiểm tra xem khi Sergeant đen đứng ở `b5` đi `b5b4` (sau nước đi `a3c5` của Trắng) thì quân Sergeant Trắng ở `c5` có bị loại bỏ khỏi bàn cờ cục bộ hay không.
+    1.  Mở tệp [movegen.cpp](file:///d:/chess_variant/custom_engine/src/chess/movegen.cpp) (chúng ta sửa trực tiếp tệp đã sao chép nằm trong thư mục dự án### Giai đoạn 3: Xây dựng Lớp Cầu nối Bàn cờ C++ (Bridge Board Class)
+*   **Mục tiêu**: Thay thế trự    > **Thay đổi Thiết kế Tối giản**:
+    > Thay vì tạo ra namespace mới `variant_engine` dẫn đến việc phải sửa hàng ngàn dòng mã tìm kiếm MCTS của Lc0, chúng ta sẽ **giữ nguyên namespace `lczero`** và viết tệp tin `types.h` và `board.h` bọc trong thư mục riêng `src/lczero_chess/chess/`.
+    >
+    > Bằng cách bọc trực tiếp kiểu `Stockfish::Move` và `Stockfish::Position` dưới tên lớp `lczero::Move` và `lczero::ChessBoard`, thuật toán MCTS của Lc0 sẽ biên dịch thành công mà **không cần sửa đổi bất kỳ dòng mã tìm kiếm nào**.
+    >
+    > **Tránh xung đột tên file (Header Collision)**:
+    > Do cả Stockfish và Lc0 đều sử dụng các tệp tin cùng tên như `types.h`, `position.h`, để tránh việc trình biên dịch nạp sai tệp tin (hoặc tự include đệ quy vô hạn), chúng ta sẽ tổ chức thư mục cầu nối riêng tại `src/lczero_chess/chess/`. 
+    > Trong các tệp cầu nối này, ta nạp tệp gốc của Stockfish bằng đường dẫn tương đối rõ ràng (ví dụ: `#include "../../chess/types.h"`).
 
+#### 1. Định nghĩa kiểu dữ liệu trong [types.h](file:///d:/chess_variant/custom_engine/src/lczero_chess/chess/types.h)
+Chúng ta sẽ định nghĩa tệp `types.h` trong namespace `lczero` để định nghĩa lại `Move` và `Square` theo cơ chế của Fairy-Stockfish:
+```cpp
+#pragma once
+#include <cstdint>
+#include <string>
+#include <vector>
+#include "../../chess/types.h" // Nạp kiểu gốc của Stockfish qua đường dẫn tương đối để tránh tự include đệ quy
 
+namespace lczero {
 
-### Giai đoạn 3: Xây dựng Lớp Cầu nối Bàn cờ C++
-*   **Mục tiêu**: Xây dựng các lớp API trung gian để bọc lại logic bàn cờ của Fairy-Stockfish, cung cấp giao diện sạch cho thuật toán tìm kiếm MCTS.
-*   **Các bước thực hiện**:
-    1.  Tạo tệp `custom_engine/src/chess/types.h`: Định nghĩa kiểu dữ liệu `Move` sử dụng bí danh `using Move = Stockfish::Move;` và các hằng số bàn cờ lớn để triệt tiêu hao tổn chuyển đổi nước đi.
-    2.  Tạo cặp tệp `custom_engine/src/chess/board.h` và `board.cc`: Lập trình lớp `variant_engine::ChessBoard` chứa con trỏ trỏ tới thực thể `Stockfish::Position` để quản lý bàn cờ.
-    3.  Cài đặt các hàm API cầu nối:
-        *   `SetFromFen(fen)`: Khởi tạo thế cờ từ FEN.
-        *   `GenerateLegalMoves()`: Gọi bộ sinh nước đi của Fairy-Stockfish và trả về danh sách nước đi hợp lệ.
-        *   `DoMove(move)`: Gọi hàm `pos.do_move(move)` của Fairy-Stockfish để cập nhật bàn cờ.
-        *   `IsGameOver()`: Kiểm tra trạng thái kết thúc trận đấu.
-        *   `EncodeBoard()`: Đọc các quân cờ trên bàn 10x10 hiện tại và ghi dữ liệu nhị phân vào tensor đầu vào của mạng neural.
+// Sử dụng trực tiếp kiểu Move của Stockfish (đã tự động cấu hình 32-bit khi bật LARGEBOARDS)
+using Move = Stockfish::Move;
+using Square = Stockfish::Square;
+
+constexpr Move MOVE_NONE = Stockfish::MOVE_NONE;
+constexpr Move MOVE_NULL = Stockfish::MOVE_NULL;
+
+using MoveList = std::vector<Move>;
+
+} // namespace lczero
+```
+#### 2. Khai báo Lớp `lczero::ChessBoard` trong [board.h](file:///d:/chess_variant/custom_engine/src/lczero_chess/chess/board.h)
+Chúng ta thiết kế lớp `lczero::ChessBoard` tương thích với interface mà MCTS của Lc0 yêu cầu:
+```cpp
+#pragma once
+#include <string>
+#include <vector>
+#include <deque>
+#include "types.h" // Nạp types.h bọc của lczero cùng thư mục
+#include "../../chess/position.h" // Nạp position.h gốc của Stockfish qua đường dẫn tương đối để tránh xung đột
+
+namespace lczero {
+
+class ChessBoard {
+public:
+    ChessBoard() = default;
+    ChessBoard(const ChessBoard& other);
+    ChessBoard(const std::string& fen) { SetFromFen(fen); }
+    ChessBoard& operator=(const ChessBoard& other);
+
+    // Điểm khởi đầu FEN của biến thể 10x10 của bạn
+    static const char* kStartposFen;
+
+    // Thiết lập thế cờ từ FEN
+    void SetFromFen(std::string_view fen, int* rule50_ply = nullptr, int* moves = nullptr);
+    
+    // Làm trống bàn cờ
+    void Clear();
+
+    // Sinh nước đi hợp lệ (thay thế cho GeneratePseudolegalMoves và GenerateLegalMoves của Lc0)
+    MoveList GenerateLegalMoves() const;
+
+    // Áp dụng nước đi (Trả về true nếu nước đi làm reset luật 50 nước đi)
+    bool ApplyMove(Move move);
+
+    // Hủy nước đi (nếu cần thiết cho việc duyệt thử)
+    void UndoMove();
+
+    // Kiểm tra Vua của mình có đang bị chiếu hay không
+    bool IsUnderCheck() const;
+
+    // Tiện ích định dạng nước đi thành chuỗi UCI (ví dụ: "a3c5")
+    std::string MoveToString(Move move) const;
+    Move ParseMove(std::string_view move_str) const;
+
+    // Trả về đối tượng Position của Fairy-Stockfish bên dưới
+    const Stockfish::Position& GetRawPosition() const { return pos; }
+
+private:
+    Stockfish::Position pos;
+    std::deque<Stockfish::StateInfo> states; // Deque đảm bảo an toàn bộ nhớ (pointer stability)
+    const Stockfish::Variant* variant_def = nullptr;
+};
+
+} // namespace lczero
+```
+
+#### 3. Triển khai Lớp `lczero::ChessBoard` trong [board.cc](file:///d:/chess_variant/custom_engine/src/lczero_chess/chess/board.cc)
+*   **Hàm khởi tạo copy (`ChessBoard(const ChessBoard& other)`)**: 
+    Do `Stockfish::Position` chứa con trỏ `st` trỏ tới trạng thái `StateInfo` hiện tại, khi copy đối tượng `ChessBoard`, chúng ta phải copy cả deque `states` và gán lại con trỏ `pos.set_state(&states.back())` để đảm bảo con trỏ không trỏ sang vùng nhớ của đối tượng cũ.
+*   **Hàm `SetFromFen`**:
+    1. Đảm bảo biến thể `"custom_10x10_variant"` được tải thông qua `variants.find()`.
+    2. Reset `states` về kích thước 1 phần tử.
+    3. Gọi `pos.set()` của Stockfish để đồng bộ hóa bàn cờ từ FEN.
+    4. Trả về `rule50_ply` và `moves` tương ứng.
+*   **Hàm `GenerateLegalMoves`**:
+    1. Gọi `MoveList<LEGAL> moveList(pos)`.
+    2. Copy toàn bộ nước đi hợp lệ vào `lczero::MoveList` để trả về cho MCTS.
+*   **Hàm `ApplyMove`**:
+    1. Thêm một `StateInfo` mới vào deque: `states.emplace_back()`.
+    2. Gọi `pos.do_move(move, states.back())`.
+    3. Trả về `true` nếu nước đi là ăn quân hoặc đi tốt (reset luật 50 nước đi).
+
+#### 4. Quy trình Kiểm thử Lớp Cầu nối (`--test-board`)
+*   Chúng ta sẽ thêm cờ `--test-board` vào [main.cc](file:///d:/chess_variant/custom_engine/src/main.cc).
+*   Chương trình kiểm thử sẽ:
+    1. Khởi tạo `lczero::ChessBoard` từ FEN khởi đầu.
+    2. In ra các nước đi hợp lệ dưới dạng chuỗi (ví dụ: `a3c5`).
+    3. Áp dụng nước đi và kiểm tra tính đúng đắn của trạng thái bàn cờ sau mỗi nước đi.
+đặc trưng đầu vào):
+        *   **Mặt phẳng 0 - 12 (13 planes)**: Vị trí của các quân Trắng theo thứ tự: Pawn `P`, Sergeant `S`, Knight `N`, Bishop `B`, Rook `R`, Queen `Q`, King `K` (Royal), Amazon `A`, Chancellor `E`, Archbishop `H`, General `M`, Wildebeest `V`, Alibaba `Y`. (Mỗi ô cờ có quân tương ứng sẽ ghi `1.0f`, còn lại ghi `0.0f`).
+        *   **Mặt phẳng 13 - 25 (13 planes)**: Vị trí của các quân Đen tương tự như trên.
+        *   **Mặt phẳng 26 - 29 (4 planes)**: Quyền nhập thành (Castling rights): Cánh Vua Trắng, Cánh Hậu Trắng, Cánh Vua Đen, Cánh Hậu Đen. (Ghi `1.0f` cho toàn bộ mặt phẳng nếu có quyền, ngược lại ghi `0.0f`).
+        *   **Mặt phẳng 30 (1 plane)**: Lượt đi hiện tại. (Ghi `1.0f` nếu Trắng đi, `0.0f` nếu Đen đi).
+        *   **Mặt phẳng 31 (1 plane)**: Số lượt đếm quy tắc 50 nước đi (tỉ lệ hóa `rule50 / 100.0f`).
+        *   **Mặt phẳng 32 - 33 (2 planes)**: Số lần bị chiếu còn lại của Trắng và Đen (tỉ lệ hóa `checksRemaining / 7.0f`).
+        *   *Lưu ý*: Áp dụng quy tắc chuẩn hóa Side-to-Move. Nếu bên tới lượt đi là Đen, chúng ta sẽ lật dọc bàn cờ (hàng 10 đổi hàng 1) và hoán đổi vị trí các mặt phẳng của Trắng/Đen để mạng neural luôn nhìn nhận thế trận dưới góc nhìn của người chuẩn bị đi.
+
+#### 3. Quy trình Kiểm thử và Xác nhận Lớp Cầu nối
+*   Thêm cờ `--test-board` vào [main.cc](file:///d:/chess_variant/custom_engine/src/main.cc).
+*   Bộ kiểm thử `--test-board` sẽ thực hiện:
+    1. Thiết lập bàn cờ từ FEN khởi đầu 10x10 đầy đủ.
+    2. Xác nhận danh sách nước đi hợp lệ khớp chính xác với 34 nước đi đầu tiên.
+    3. Đi thử các nước đi phức tạp như Nhập thành (`f1d1` hoặc `f1h1`), Phong cấp Sergeant, và ăn tốt en passant.
+    4. Xác nhận trạng thái trò chơi kết thúc (stalemate xử thua và 7-checks xử thua).
+    5. In ra kết cấu tensor mã hóa bàn cờ từ `EncodeBoard()` để đảm bảo dữ liệu nhị phân hoàn toàn chuẩn xác.
+
 
 ### Giai đoạn 4: Tích hợp Tìm kiếm MCTS và ONNX Runtime
 *   **Mục tiêu**: Sao chép thuật toán tìm kiếm MCTS đa luồng hiệu năng cao của Lc0, tích hợp ONNX Runtime backend để nạp mô hình `.onnx` và thực hiện suy luận.
 *   **Các bước thực hiện**:
-    1.  Sao chép các file tìm kiếm trong thư mục `src/search/` của Lc0 sang `custom_engine/src/search/` và đổi namespace sang `variant_engine`.
+    1.  Sao chép các file tìm kiếm trong thư mục `src/search/` của Lc0 sang `custom_engine/src/search/` và **giữ nguyên namespace `lczero`** (để tránh sửa mã nguồn MCTS của Leela).
     2.  Tích hợp các tệp mã nguồn điều phối luồng neural từ `src/neural/` của Lc0.
     3.  Tích hợp thư viện ONNX Runtime C++ API trong `custom_engine/src/neural/backends/onnx/`.
-    4.  Lập trình hàm giải mã mạng neural `MapMoveToNetworkIndex(variant_engine::Move move)`: Ánh xạ nước đi 32-bit thành chỉ số index tĩnh trong tensor Policy logits của bạn.
+    4.  Lập trình hàm giải mã mạng neural `MapMoveToNetworkIndex(lczero::Move move)`: Ánh xạ nước đi 32-bit thành chỉ số index tĩnh trong tensor Policy logits của bạn.
     5.  Xây dựng logic gom cụm (Batching) các yêu cầu đánh giá từ nhiều luồng tìm kiếm MCTS thành một lô để đưa vào ONNX Runtime, tối ưu hóa hiệu năng tính toán.
 
 ### Giai đoạn 5: Lập trình Chu trình Tự chơi và Huấn luyện Học tăng cường (RL)
 *   **Mục tiêu**: Viết mã nguồn ghi dữ liệu huấn luyện, thực thi chế độ tự chơi C++ sinh tệp `.chunk`, và thiết lập tập lệnh Python/PyTorch huấn luyện mạng trên Google Colab.
 *   **Các bước thực hiện**:
-    1.  Xây dựng lớp `variant_engine::trainingdata::TrainingDataWriter` để ghi lại lịch sử ván đấu (các thế cờ và phân phối lượt đi $\pi$ từ MCTS) ra tệp nhị phân `.chunk`.
+    1.  Xây dựng lớp `lczero::trainingdata::TrainingDataWriter` để ghi lại lịch sử ván đấu (các thế cờ và phân phối lượt đi $\pi$ từ MCTS) ra tệp nhị phân `.chunk`.
     2.  Viết chương trình điều phối tự chơi `custom_engine selfplay` chạy đa luồng để tự đánh và lưu trữ dữ liệu.
     3.  Viết script Python `init_model.py` để khởi tạo một file `model.onnx` chứa các trọng số ngẫu nhiên (mô hình 0 ELO) nhằm khởi động chu kỳ tự chơi đầu tiên.
     4.  Viết mã nguồn huấn luyện PyTorch `train.py` để chạy trên Google Colab: đọc các tệp `.chunk`, huấn luyện mô hình để dự đoán Policy và Value, sau đó xuất ra tệp `model.onnx` thế hệ tiếp theo.
@@ -260,11 +370,11 @@ Fairy-Stockfish có một kiểu dữ liệu `Move` đã được tối ưu hóa
 DO đó, chúng ta sẽ loại bỏ hoàn toàn ý tưởng viết lại lớp Move riêng và hàm ánh xạ trung gian. Thay vào đó, trong lớp cầu nối của `custom_engine`, chúng ta sẽ sử dụng cơ chế định nghĩa bí danh kiểu (Type Aliasing) trực tiếp:
 
 ```cpp
-// Trong tệp custom_engine/src/chess/types.h
+// Trong tệp custom_engine/src/lczero_chess/chess/types.h
 #pragma once
-#include "types.h" // Nạp file định nghĩa kiểu gốc của Fairy-Stockfish
+#include "../../chess/types.h" // Nạp file định nghĩa kiểu gốc của Fairy-Stockfish qua đường dẫn tương đối để tránh xung đột
 
-namespace variant_engine {
+namespace lczero {
     // Sử dụng trực tiếp kiểu Move của Fairy-Stockfish làm kiểu Move của Lc0
     using Move = Stockfish::Move;
     
@@ -275,7 +385,7 @@ namespace variant_engine {
 ```
 
 Bằng cách này:
-- Hệ thống tìm kiếm chỉ nhìn thấy kiểu `variant_engine::Move` bản chất chính là `Stockfish::Move`.
+- Hệ thống tìm kiếm chỉ nhìn thấy kiểu `lczero::Move` bản chất chính là `Stockfish::Move`.
 - Không có bất kỳ hàm chuyển đổi hay ánh xạ nào được thực thi khi truyền nước đi qua lại giữa phần quản lý luật chơi (Fairy-Stockfish) và phần tìm kiếm MCTS.
 - **Hao tổn hiệu năng do giao tiếp nước đi chính thức bằng 0.**
 
@@ -292,7 +402,7 @@ Trong mã nguồn gốc của Lc0 (tại tệp `src/neural/encoder.cc`), hàm ch
 Chúng ta sẽ loại bỏ hoàn toàn các phép đối xứng hình học phức tạp khác (xoay, lật ngang, lật chéo) và chỉ giữ lại phép lật dọc để chuẩn hóa lượt đi:
 1. **Chuẩn hóa lượt đi**: Lật dọc bàn cờ (hàng 10 thành hàng 1, ví dụ ô b10 thành b1) và tráo đổi màu quân cờ khi đến lượt Đen đi để mạng neural luôn nhìn thế trạng dưới góc nhìn của người chuẩn bị đi.
 2. **Không gian đối xứng hình học khác**: Không áp dụng. Hàm giải mã nước đi được đơn giản hóa tối đa về chữ ký mặc định không có transform:
-   $$\text{MapMoveToNetworkIndex}(\text{variant\_engine::Move move})$$
+   $$\text{MapMoveToNetworkIndex}(\text{lczero::Move move})$$
 
 ---
 
