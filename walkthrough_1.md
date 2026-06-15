@@ -13,21 +13,21 @@ Sự kết hợp này đòi hỏi một lớp cầu nối trung gian (Bridge Lay
 ### Sơ đồ luồng hoạt động và Kiến trúc tổng quát:
 ```mermaid
 graph TD
-    subgraph Tầng Tìm kiếm MCTS (Lc0 Style)
-        MCTS[Bộ tìm kiếm MCTS] --> PH[PositionHistory]
-        PH --> P[Position]
-        P --> GS[GameState]
+    subgraph mcts_layer ["Tầng Tìm kiếm MCTS (Lc0 Style)"]
+        MCTS["Bộ tìm kiếm MCTS"] --> PH["PositionHistory"]
+        PH --> P["Position"]
+        P --> GS["GameState"]
     end
 
-    subgraph Lớp Cầu nối C++ (lczero Namespace)
-        P --> CB[ChessBoard]
-        CB --> ML[MoveList bọc Stack Array]
+    subgraph bridge_layer ["Lớp Cầu nối C++ (lczero Namespace)"]
+        P --> CB["ChessBoard"]
+        CB --> ML["MoveList bọc Stack Array"]
     end
 
-    subgraph Tầng Luật chơi Biến thể (Fairy-Stockfish Core)
-        CB --> SF_Pos[Stockfish::Position]
-        SF_Pos --> SF_MoveGen[movegen.cpp với bản vá EP]
-        SF_Pos --> SF_Variant[variant.cpp định nghĩa 10x10]
+    subgraph core_layer ["Tầng Luật chơi Biến thể (Fairy-Stockfish Core)"]
+        CB --> SF_Pos["Stockfish::Position"]
+        SF_Pos --> SF_MoveGen["movegen.cpp với bản vá EP"]
+        SF_Pos --> SF_Variant["variant.cpp định nghĩa 10x10"]
     end
 
     style MCTS fill:#f9f,stroke:#333,stroke-width:2px
