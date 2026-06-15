@@ -1,0 +1,46 @@
+# Archive files
+*.zip
+*.tar.gz
+*.tgz
+
+# Compiled binaries and libraries
+*.exe
+*.dll
+*.pyd
+*.so
+*.dylib
+*.o
+*.obj
+*.a
+*.lib
+*.pdb
+
+# Build directories
+build/
+bin/
+obj/
+subprojects/
+custom_engine/build/
+
+# Python cache and virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Large training data and models
+*.chunk
+*.onnx
+/chunks/
+/models/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# External repositories
+/Fairy-Stockfish/
+/lc0/
