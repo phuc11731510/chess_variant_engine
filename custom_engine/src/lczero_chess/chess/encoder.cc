@@ -13,8 +13,8 @@ InputPlanes EncodePositionForNN(
     }
     
     // Giai đoạn 4: Triển khai chi tiết thuật toán mã hóa trạng thái bàn cờ 10x10.
-    // Tạm thời trả về vector rỗng hoặc khởi tạo kích thước mặc định (112 planes).
-    return InputPlanes(kAuxPlaneBase + 8);
+    // Tạm thời trả về vector với số planes mặc định (kAuxPlaneBase + kAuxPlanesCount).
+    return InputPlanes(kAuxPlaneBase + kAuxPlanesCount);
 }
 
 InputPlanes EncodePositionForNN(
@@ -27,7 +27,7 @@ InputPlanes EncodePositionForNN(
         *transform_out = 0;
     }
     
-    return InputPlanes(kAuxPlaneBase + 8);
+    return InputPlanes(kAuxPlaneBase + kAuxPlanesCount);
 }
 
 } // namespace lczero
