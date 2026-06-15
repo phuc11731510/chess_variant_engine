@@ -67,7 +67,8 @@ chess_sources = files(
   'src/chess/nnue/features/half_ka_v2.cpp',
   'src/chess/nnue/features/half_ka_v2_variants.cpp',
   'src/lczero_chess/chess/board.cc',
-  'src/lczero_chess/chess/position.cc'
+  'src/lczero_chess/chess/position.cc',
+  'src/lczero_chess/chess/encoder.cc'
 )
 
 # Engine sources
