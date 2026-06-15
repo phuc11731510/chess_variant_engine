@@ -17,22 +17,23 @@ graph TD
 ```
 
 ### Giai đoạn 1: Thiết lập Dự án C++ `custom_engine` và Cấu hình Biên dịch Hợp nhất (Unified Compilation)
-*   **Mục tiêu**: Tạo cấu trúc thư mục biệt lập cho engine, thiết lập hệ thống build Meson/Ninja, sao chép mã nguồn của Fairy-Stockfish sang dự án và chuẩn bị biên dịch trực tiếp toàn bộ các tệp tin trong cùng một đơn vị build (không qua thư viện tĩnh trung gian).
+*   **Mục tiêu**: Tạo cấu trúc thư mục biệt lập cho engine, thiết lập hệ thống build Meson/Ninja, sao chép các mã nguồn luật chơi cần thiết từ Fairy-Stockfish vào dự án và chuẩn bị biên dịch trực tiếp toàn bộ các tệp tin trong cùng một đơn vị build.
 *   **Các bước thực hiện**:
     1.  Tạo thư mục `d:\chess_variant\custom_engine`.
-    2.  Tạo các thư mục con: `src/chess`, `src/search`, `src/neural`, `src/selfplay`, `src/trainingdata`, và `third_party/fairy_stockfish`.
-    3.  Sao chép toàn bộ mã nguồn nguồn trong `d:\chess_variant\Fairy-Stockfish\Fairy-Stockfish-master\src\` sang `custom_engine\third_party\fairy_stockfish\`.
-    4.  Viết file `custom_engine/meson.build` định nghĩa cấu hình build C++ hợp nhất (sử dụng tiêu chuẩn C++17 trở lên). Cấu hình này sẽ khai báo danh sách tất cả các tệp `.cpp` từ cả thư mục `third_party/fairy_stockfish/` và thư mục `src/` để trình biên dịch xây dựng trực tiếp thành file executable duy nhất.
+    2.  Tạo các thư mục con: `src/chess`, `src/search`, `src/neural`, `src/selfplay`, `src/trainingdata` (không cần thư mục `third_party` bên ngoài để giữ dự án hoàn toàn độc lập và tinh gọn).
+    3.  Sao chép toàn bộ mã nguồn cần thiết (từ `d:\chess_variant\Fairy-Stockfish\Fairy-Stockfish-master\src\`) trực tiếp vào thư mục dự án `custom_engine\src\chess\`.
+    4.  Viết file `custom_engine/meson.build` định nghĩa cấu hình build C++ hợp nhất (sử dụng tiêu chuẩn C++17 trở lên). Cấu hình này sẽ khai báo danh sách tất cả các tệp `.cpp` trực tiếp trong thư mục `src/chess/` và các thư mục `src/` khác để trình biên dịch xây dựng trực tiếp thành file executable duy nhất.
     5.  Bật các macro preprocessor quan trọng trong `meson.build` gồm `-DLARGEBOARDS` và `-DALLVARS` để áp dụng đồng loạt cho toàn bộ các file được biên dịch, đảm bảo hỗ trợ bàn cờ 10x10.
     6.  Chạy thử lệnh `meson setup build` để tạo môi trường build và đảm bảo các file cấu hình liên kết thư viện ngoài (như ONNX Runtime) được tìm thấy, chuẩn bị cho quá trình biên dịch sau khi sửa code.
 
 ### Giai đoạn 2: Sửa đổi Bộ sinh nước đi trong C++ cho Luật En Passant Mặc định
 *   **Mục tiêu**: Chỉnh sửa trực tiếp file `movegen.cpp` của Fairy-Stockfish để đảm bảo bất kỳ quân tốt tùy chỉnh nào khi di chuyển vào ô en passant trống đều kích hoạt nước đi ăn en passant thay vì đi thường.
 *   **Các bước thực hiện**:
-    1.  Mở tệp [movegen.cpp](file:///d:/chess_variant/Fairy-Stockfish/Fairy-Stockfish-master/src/movegen.cpp) (hoặc tệp đã sao chép trong thư mục `third_party`).
+    1.  Mở tệp [movegen.cpp](file:///d:/chess_variant/custom_engine/src/chess/movegen.cpp) (chúng ta sửa trực tiếp tệp đã sao chép nằm trong thư mục dự án `src/chess/` của mình).
     2.  Tại hàm `generate_moves` phục vụ các quân cờ tùy chỉnh, chỉnh sửa dòng code sinh các nước đi đi thường (`NORMAL`) vào ô trống để loại trừ ô en passant bằng phép toán bitwise `& ~pos.ep_squares()`.
     3.  Sửa đổi cách gán biến `epSquares` tại dòng 310 bằng cách bỏ phép loại trừ `~quiets`, chuyển thành `epSquares = (pos.en_passant_types(Us) & Pt) ? (attacks & pos.ep_squares() & ~pos.pieces()) : Bitboard(0);` để cho phép mọi hướng đi vào ô en passant đều được coi là nước đi bắt tốt qua đường.
     4.  Thực hiện biên dịch thử nghiệm dự án hợp nhất và chạy tệp kiểm thử C++ nhỏ để kiểm tra xem khi Sergeant đen đứng ở `b5` đi `b5b4` (sau nước đi `a3c5` của Trắng) thì quân Sergeant Trắng ở `c5` có bị loại bỏ khỏi bàn cờ cục bộ hay không.
+
 
 
 ### Giai đoạn 3: Xây dựng Lớp Cầu nối Bàn cờ C++
@@ -493,10 +494,9 @@ Dự án được tách biệt hoàn toàn tại thư mục `d:\chess_variant\cu
 ```mermaid
 graph TD
     subgraph CustomEngineDir ["Thư mục custom_engine (Biệt lập)"]
-        FairySF_Lib["fairy_stockfish_lib"] -->|Liên kết C++ tĩnh| EngineBinary["custom_engine executable"]
-        Lc0Search_Src["lczero search/ & neural/"] -->|Sao chép & Kế thừa| EngineBinary
-        CustomBoard["custom_board.cc & custom_board.h"] -->|Cầu nối liên kết| EngineBinary
-        EngineBinary -->|Chạy Tự chơi / Ghi dữ liệu .chunk| DataWriter["lczero::TrainingData Writer"]
+        Chess_Src["src/chess/<br>(Mã nguồn luật chơi Fairy-Stockfish + Lớp cầu nối)"] --> EngineBinary["custom_engine executable"]
+        Lc0Search_Src["src/search/ & src/neural/<br>(Logic MCTS & ONNX Runtime)"] --> EngineBinary
+        EngineBinary -->|Chạy Tự chơi / Ghi dữ liệu .chunk| DataWriter["variant_engine::TrainingDataWriter"]
     end
 
     subgraph DataAndTrain ["Dữ liệu và Huấn luyện"]
@@ -520,6 +520,7 @@ d:\chess_variant\custom_engine\
 │  │      board.h / board.cc       # Lớp ChessBoard bọc Position của Fairy-Stockfish (namespace variant_engine)
 │  │      types.h / types.cc       # Khai báo Move sử dụng bí danh và hằng số bàn cờ 10x10 (namespace variant_engine)
 │  │      position.h / position.cc # Lớp Position bọc trạng thái lịch sử của bàn cờ (namespace variant_engine)
+│  │      *                        # Lưu trữ trực tiếp các tệp tin .cpp và .h luật chơi của Fairy-Stockfish
 │  │
 │  ├─search/                       # Kế thừa thuật toán MCTS của Lc0 (namespace variant_engine)
 │  │      search.h / search.cc     # Logic tìm kiếm cây MCTS đa luồng
@@ -539,10 +540,8 @@ d:\chess_variant\custom_engine\
 │  │
 │  └─trainingdata/                 # Ghi dữ liệu tự chơi (namespace variant_engine)
 │         writer.h / writer.cc     # Ghi trực tiếp các thế cờ và phân phối xác suất ra file .chunk
-│
-└─third_party/
-    └─fairy_stockfish/             # Mã nguồn Fairy-Stockfish được biên dịch làm thư viện tĩnh
 ```
+
 
 ---
 
