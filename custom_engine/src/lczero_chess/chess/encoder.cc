@@ -75,17 +75,15 @@ void UnpackInputPlanes(
             continue;
         }
         
-        // 3. Ngược lại, duyệt qua tất cả các ô hợp lệ trên bàn cờ.
-        // Bàn cờ biến thể 10x10 có rank từ 0 đến 9, file từ 0 đến 9.
-        // Dữ liệu trong mảng phẳng được sắp xếp theo: index = r * width + f
-        for (int r = 0; r < height; ++r) {
-            for (int f = 0; f < width; ++f) {
-                Stockfish::Square sq = Stockfish::make_square(Stockfish::File(f), Stockfish::Rank(r));
-                if (plane.mask & sq) {
-                    dest[r * width + f] = plane.value;
-                } else {
-                    dest[r * width + f] = 0.0f;
-                }
+        // 3. Ngược lại, gán toàn bộ = 0.0f, sau đó duyệt qua các bit 1 trong mask
+        std::memset(dest, 0, plane_size * sizeof(float));
+        Stockfish::Bitboard b = plane.mask;
+        while (b) {
+            Stockfish::Square sq = Stockfish::pop_lsb(b);
+            int f = Stockfish::file_of(sq);
+            int r = Stockfish::rank_of(sq);
+            if (f < width && r < height) {
+                dest[r * width + f] = plane.value;
             }
         }
     }

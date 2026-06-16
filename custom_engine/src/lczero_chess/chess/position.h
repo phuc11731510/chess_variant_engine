@@ -46,6 +46,8 @@ private:
     int ply_count_ = 0;
 };
 
+#include <array>
+
 class PositionHistory {
 public:
     PositionHistory() = default;
@@ -53,7 +55,7 @@ public:
 
     const Position& Starting() const { return starting_position_; }
     const Position& Last() const { return last_position_; }
-    int GetLength() const { return history_.size() + 1; }
+    int GetLength() const { return history_size_ + 1; }
 
     void Reset(const ChessBoard& board, int rule50_ply, int game_ply);
     void Reset(const Position& pos);
@@ -71,7 +73,8 @@ private:
     
     Position starting_position_;
     Position last_position_;
-    std::vector<LightweightPosition> history_; // Chỉ chứa các node lịch sử dạng nén siêu nhẹ
+    std::array<LightweightPosition, 256> history_; // Mảng tĩnh tránh heap allocation
+    size_t history_size_ = 0;
 };
 
 } // namespace lczero

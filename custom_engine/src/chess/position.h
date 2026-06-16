@@ -390,6 +390,12 @@ private:
   void do_castling(Color us, Square from, Square& to, Square& rfrom, Square& rto);
 
   // Data members
+  // Pointers & thread context (non-memcpyed)
+  Thread* thisThread;
+  StateInfo* st;
+  const Variant* var;
+
+  // Contiguous POD state (memcpy target)
   Piece board[SQUARE_NB];
   Piece unpromotedBoard[SQUARE_NB];
   Bitboard byTypeBB[PIECE_TYPE_NB];
@@ -398,16 +404,11 @@ private:
   int castlingRightsMask[SQUARE_NB];
   Square castlingRookSquare[CASTLING_RIGHT_NB];
   Bitboard castlingPath[CASTLING_RIGHT_NB];
-  Thread* thisThread;
-  StateInfo* st;
   int gamePly;
   Color sideToMove;
 #ifndef LCZERO_MCTS
   Score psq;
 #endif
-
-  // variant-specific
-  const Variant* var;
   bool tsumeMode;
   bool chess960;
   int pieceCountInHand[COLOR_NB][PIECE_TYPE_NB];

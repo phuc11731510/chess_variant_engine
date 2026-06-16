@@ -22,17 +22,18 @@ Position Position::FromFen(std::string_view fen) {
 }
 
 PositionHistory::PositionHistory(std::span<const Position> positions) {
+    history_size_ = 0;
     if (!positions.empty()) {
         starting_position_ = positions.front();
         last_position_ = positions.back();
-        history_.reserve(positions.size() - 1);
-        for (size_t i = 0; i < positions.size() - 1; ++i) {
-            history_.push_back({
+        size_t limit = std::min(positions.size() - 1, history_.size());
+        for (size_t i = 0; i < limit; ++i) {
+            history_[history_size_++] = {
                 positions[i].Hash(),
                 positions[i].GetRule50Ply(),
                 positions[i].GetRepetitions(),
                 positions[i + 1].GetLastMove()
-            });
+            };
         }
     }
 }
@@ -40,23 +41,25 @@ PositionHistory::PositionHistory(std::span<const Position> positions) {
 void PositionHistory::Reset(const ChessBoard& board, int rule50_ply, int game_ply) {
     starting_position_ = Position(board, rule50_ply, game_ply);
     last_position_ = starting_position_;
-    history_.clear();
+    history_size_ = 0;
 }
 
 void PositionHistory::Reset(const Position& pos) {
     starting_position_ = pos;
     last_position_ = pos;
-    history_.clear();
+    history_size_ = 0;
 }
 
 void PositionHistory::Append(Move m) {
     // Lưu trạng thái trước nước đi và nước đi chuẩn bị thực hiện
-    history_.push_back({
-        last_position_.Hash(),
-        last_position_.GetRule50Ply(),
-        last_position_.GetRepetitions(),
-        m
-    });
+    if (history_size_ < history_.size()) {
+        history_[history_size_++] = {
+            last_position_.Hash(),
+            last_position_.GetRule50Ply(),
+            last_position_.GetRepetitions(),
+            m
+        };
+    }
     
     // Thực hiện nước đi m
     last_position_ = Position(last_position_, m);
@@ -68,12 +71,12 @@ void PositionHistory::Append(Move m) {
 // MCTS WARNING: Pop() is O(n) due to replay. Avoid using this in performance-critical paths.
 // In MCTS, copy-on-apply should be used instead of pop/undo.
 void PositionHistory::Pop() {
-    if (!history_.empty()) {
-        history_.pop_back();
+    if (history_size_ > 0) {
+        history_size_--;
         // Tái dựng lại trạng thái của last_position_ từ starting_position_
         last_position_ = starting_position_;
-        for (const auto& entry : history_) {
-            last_position_ = Position(last_position_, entry.move);
+        for (size_t i = 0; i < history_size_; ++i) {
+            last_position_ = Position(last_position_, history_[i].move);
         }
     }
 }
@@ -82,7 +85,7 @@ int PositionHistory::ComputeLastMoveRepetitions() const {
     const auto& last = last_position_;
     if (last.GetRule50Ply() < 4) return 0;
     
-    int size = (int)history_.size();
+    int size = (int)history_size_;
     // Duyệt ngược lịch sử nén siêu nhanh
     for (int idx = size - 4; idx >= 0; idx -= 2) {
         const auto& pos = history_[idx];
@@ -96,9 +99,9 @@ int PositionHistory::ComputeLastMoveRepetitions() const {
 
 bool PositionHistory::DidRepeatSinceLastZeroingMove() const {
     if (last_position_.GetRepetitions() > 0) return true;
-    for (auto iter = history_.rbegin(); iter != history_.rend(); ++iter) {
-        if (iter->repetitions > 0) return true;
-        if (iter->rule50_ply == 0) return false;
+    for (int i = (int)history_size_ - 1; i >= 0; --i) {
+        if (history_[i].repetitions > 0) return true;
+        if (history_[i].rule50_ply == 0) return false;
     }
     return false;
 }

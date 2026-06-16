@@ -231,22 +231,11 @@ Key Position::material_key(EndgameEval e) const {
 
 
 Position& Position::copy_from(const Position& other, StateInfo* newSt) {
-  std::memcpy(board, other.board, offsetof(Position, thisThread) - offsetof(Position, board));
+  std::memcpy(board, other.board, offsetof(Position, promotedPieces) + sizeof(promotedPieces) - offsetof(Position, board));
   
   thisThread = other.thisThread;
   st = newSt;
-  gamePly = other.gamePly;
-  sideToMove = other.sideToMove;
-#ifndef LCZERO_MCTS
-  psq = other.psq;
-#endif
   var = other.var;
-  tsumeMode = other.tsumeMode;
-  chess960 = other.chess960;
-  
-  std::memcpy(pieceCountInHand, other.pieceCountInHand, sizeof(pieceCountInHand));
-  virtualPieces = other.virtualPieces;
-  promotedPieces = other.promotedPieces;
 
 #ifdef LCZERO_MCTS
   newSt->previous = nullptr;
