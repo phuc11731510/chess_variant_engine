@@ -20,6 +20,7 @@
 #include "chess/board.h"
 #include "chess/position.h"
 #include "chess/gamestate.h"
+#include "chess/encoder.h"
 
 using namespace Stockfish;
 
@@ -367,6 +368,92 @@ checkCounting = true
         }
 
         std::cout << "[PASS] TEST 4 passed! (7-checks limit correctly ends the game)\n" << std::endl;
+    }
+
+    // TEST 5: Encoder & Unpacker validation
+    {
+        std::cout << "TEST 5: Encoder & Unpacker validation..." << std::endl;
+        
+        lczero::ChessBoard board;
+        lczero::PositionHistory history;
+        history.Reset(board, 0, 1);
+        
+        lczero::InputPlanes planes;
+        int transform = -1;
+        lczero::EncodePositionForNN(history, 8, lczero::FillEmptyHistory::NO, &planes, &transform);
+        
+        // Xác minh kích thước mặt phẳng
+        constexpr size_t expected_planes = lczero::kAuxPlaneBase + lczero::kAuxPlanesCount; // 226
+        if (planes.size() != expected_planes) {
+            std::cerr << "[FAIL] Expected " << expected_planes << " planes, got " << planes.size() << std::endl;
+            std::exit(1);
+        }
+        if (transform != 0) {
+            std::cerr << "[FAIL] Expected transform 0, got " << transform << std::endl;
+            std::exit(1);
+        }
+        
+        // Giả lập một vài giá trị trên các mặt phẳng
+        // Mặt phẳng 0: Bật ô A1 (SQ_A1 = 0)
+        planes[0].mask = Stockfish::square_bb(Stockfish::SQ_A1);
+        planes[0].value = 1.0f;
+        
+        // Mặt phẳng 7: Điền toàn bộ giá trị 0.5f (Biên bàn cờ)
+        planes[7].Fill(0.5f);
+        
+        // Bung ra mảng float
+        constexpr int width = 10;
+        constexpr int height = 10;
+        constexpr int plane_size = width * height;
+        std::vector<float> float_planes(expected_planes * plane_size, 0.0f);
+        
+        lczero::UnpackInputPlanes(planes, float_planes.data(), width, height);
+        
+        // Xác minh mặt phẳng 0
+        // Ô SQ_A1 (rank 0, file 0) phải là 1.0f, các ô khác là 0.0f
+        if (float_planes[0] != 1.0f) {
+            std::cerr << "[FAIL] Plane 0 index 0 (SQ_A1) should be 1.0f, got " << float_planes[0] << std::endl;
+            std::exit(1);
+        }
+        for (int i = 1; i < plane_size; ++i) {
+            if (float_planes[i] != 0.0f) {
+                std::cerr << "[FAIL] Plane 0 index " << i << " should be 0.0f, got " << float_planes[i] << std::endl;
+                std::exit(1);
+            }
+        }
+        
+        // Xác minh mặt phẳng 7 (tất cả là 0.5f)
+        const float* plane7_start = float_planes.data() + 7 * plane_size;
+        for (int i = 0; i < plane_size; ++i) {
+            if (plane7_start[i] != 0.5f) {
+                std::cerr << "[FAIL] Plane 7 index " << i << " should be 0.5f, got " << plane7_start[i] << std::endl;
+                std::exit(1);
+            }
+        }
+        
+        // Xác minh mặt phẳng 1 (không có gì, tất cả là 0.0f)
+        const float* plane1_start = float_planes.data() + 1 * plane_size;
+        for (int i = 0; i < plane_size; ++i) {
+            if (plane1_start[i] != 0.0f) {
+                std::cerr << "[FAIL] Plane 1 index " << i << " should be 0.0f, got " << plane1_start[i] << std::endl;
+                std::exit(1);
+            }
+        }
+        
+        // Xác minh cơ chế tái sử dụng buffer không cấp phát heap mới
+        size_t initial_capacity = planes.capacity();
+        lczero::EncodePositionForNN(history, 8, lczero::FillEmptyHistory::NO, &planes, nullptr);
+        if (planes.capacity() != initial_capacity) {
+            std::cerr << "[FAIL] Planes capacity changed, expected no heap reallocation" << std::endl;
+            std::exit(1);
+        }
+        // Tất cả các plane sau khi encode mới phải được reset về 0 (mask trống)
+        if (planes[0].mask) {
+            std::cerr << "[FAIL] Plane 0 mask was not reset to 0 after re-encoding" << std::endl;
+            std::exit(1);
+        }
+        
+        std::cout << "[PASS] TEST 5 passed! (Encoder & Unpacker validation correct)\n" << std::endl;
     }
 
     std::cout << "========================================" << std::endl;

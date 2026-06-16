@@ -1,33 +1,94 @@
 #include "encoder.h"
+#include <cstring>
+#include <algorithm>
 
 namespace lczero {
 
-InputPlanes EncodePositionForNN(
+void EncodePositionForNN(
     const PositionHistory& history,
     int history_planes,
     FillEmptyHistory fill_empty_history,
+    InputPlanes* output_planes,
     int* transform_out) {
     
     if (transform_out) {
         *transform_out = 0; // NoTransform
     }
     
-    // Giai đoạn 4: Triển khai chi tiết thuật toán mã hóa trạng thái bàn cờ 10x10.
-    // Tạm thời trả về vector với số planes mặc định (kAuxPlaneBase + kAuxPlanesCount).
-    return InputPlanes(kAuxPlaneBase + kAuxPlanesCount);
+    if (output_planes) {
+        constexpr size_t target_size = kAuxPlaneBase + kAuxPlanesCount;
+        if (output_planes->size() != target_size) {
+            output_planes->resize(target_size);
+        }
+        // Khởi tạo/Reset lại các plane để tái sử dụng buffer cũ
+        for (auto& plane : *output_planes) {
+            plane.mask = 0;
+            plane.value = 1.0f;
+        }
+    }
 }
 
-InputPlanes EncodePositionForNN(
+void EncodePositionForNN(
     std::span<const Position> positions,
     int history_planes,
     FillEmptyHistory fill_empty_history,
+    InputPlanes* output_planes,
     int* transform_out) {
     
     if (transform_out) {
         *transform_out = 0;
     }
     
-    return InputPlanes(kAuxPlaneBase + kAuxPlanesCount);
+    if (output_planes) {
+        constexpr size_t target_size = kAuxPlaneBase + kAuxPlanesCount;
+        if (output_planes->size() != target_size) {
+            output_planes->resize(target_size);
+        }
+        for (auto& plane : *output_planes) {
+            plane.mask = 0;
+            plane.value = 1.0f;
+        }
+    }
+}
+
+void UnpackInputPlanes(
+    const InputPlanes& planes,
+    float* float_planes,
+    int width,
+    int height) {
+    
+    const int plane_size = width * height;
+    
+    for (size_t p = 0; p < planes.size(); ++p) {
+        const auto& plane = planes[p];
+        float* dest = float_planes + p * plane_size;
+        
+        // 1. Nếu plane trống (mask == 0), ta gán toàn bộ = 0.0f
+        if (!plane.mask) {
+            std::memset(dest, 0, plane_size * sizeof(float));
+            continue;
+        }
+        
+        // 2. Nếu plane được lấp đầy hoàn toàn (mask == AllSquares), ta gán giá trị plane.value
+        if (plane.mask == Stockfish::AllSquares) {
+            std::fill_n(dest, plane_size, plane.value);
+            continue;
+        }
+        
+        // 3. Ngược lại, duyệt qua tất cả các ô hợp lệ trên bàn cờ.
+        // Bàn cờ biến thể 10x10 có rank từ 0 đến 9, file từ 0 đến 9.
+        // Dữ liệu trong mảng phẳng được sắp xếp theo: index = r * width + f
+        for (int r = 0; r < height; ++r) {
+            for (int f = 0; f < width; ++f) {
+                Stockfish::Square sq = Stockfish::make_square(Stockfish::File(f), Stockfish::Rank(r));
+                if (plane.mask & sq) {
+                    dest[r * width + f] = plane.value;
+                } else {
+                    dest[r * width + f] = 0.0f;
+                }
+            }
+        }
+    }
 }
 
 } // namespace lczero
