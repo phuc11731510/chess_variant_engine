@@ -28,6 +28,8 @@
 #include "search/classic/node.h"
 
 #include <algorithm>
+#include <mutex>
+#include <vector>
 #include <cassert>
 #include <cmath>
 #include <cstring>
@@ -540,6 +542,133 @@ void NodeTree::DeallocateTree() {
   gNodeGc.AddToGcQueue(std::move(gamebegin_node_));
   gamebegin_node_ = nullptr;
   current_head_ = nullptr;
+}
+
+// =========================================================================
+// Custom Batched Thread-Local Slab Allocator for Node
+// =========================================================================
+
+struct NodeSlab {
+  alignas(64) char data[65536 * sizeof(Node)];
+};
+
+class GlobalNodeAllocator {
+ public:
+  struct FreeNode {
+    FreeNode* next;
+  };
+ private:
+  std::mutex mutex_;
+  std::vector<std::unique_ptr<NodeSlab>> slabs_;
+  FreeNode* global_free_list_ = nullptr;
+
+  void AllocateNewSlab() {
+    auto slab = std::make_unique<NodeSlab>();
+    Node* nodes = reinterpret_cast<Node*>(slab->data);
+    for (size_t i = 0; i < 65536; ++i) {
+      FreeNode* fn = reinterpret_cast<FreeNode*>(&nodes[i]);
+      fn->next = global_free_list_;
+      global_free_list_ = fn;
+    }
+    slabs_.push_back(std::move(slab));
+  }
+
+ public:
+  GlobalNodeAllocator() = default;
+
+  FreeNode* FetchBatch(size_t batch_size) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!global_free_list_) {
+      AllocateNewSlab();
+    }
+    FreeNode* head = global_free_list_;
+    FreeNode* curr = head;
+    size_t count = 0;
+    while (curr && count < batch_size - 1) {
+      curr = curr->next;
+      count++;
+    }
+    if (curr) {
+      global_free_list_ = curr->next;
+      curr->next = nullptr;
+    } else {
+      global_free_list_ = nullptr;
+    }
+    return head;
+  }
+
+  void ReturnBatch(FreeNode* head, FreeNode* tail) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    tail->next = global_free_list_;
+    global_free_list_ = head;
+  }
+};
+
+// Safe Meyers singleton returning a pointer to a leaked heap instance to prevent static destruction order fiascos.
+static GlobalNodeAllocator& GetGlobalNodeAllocator() {
+  static GlobalNodeAllocator* allocator = new GlobalNodeAllocator();
+  return *allocator;
+}
+
+struct ThreadLocalNodeCache {
+  struct FreeNode {
+    FreeNode* next;
+  };
+  FreeNode* local_free_list = nullptr;
+  size_t size = 0;
+
+  ~ThreadLocalNodeCache() {
+    if (local_free_list) {
+      FreeNode* head = local_free_list;
+      FreeNode* tail = head;
+      while (tail->next) {
+        tail = tail->next;
+      }
+      GetGlobalNodeAllocator().ReturnBatch(
+          reinterpret_cast<GlobalNodeAllocator::FreeNode*>(head),
+          reinterpret_cast<GlobalNodeAllocator::FreeNode*>(tail));
+    }
+  }
+};
+
+static thread_local ThreadLocalNodeCache tl_node_cache;
+
+void* Node::operator new(size_t size) {
+  assert(size == sizeof(Node));
+  auto& cache = tl_node_cache;
+  if (!cache.local_free_list) {
+    cache.local_free_list = reinterpret_cast<ThreadLocalNodeCache::FreeNode*>(
+        GetGlobalNodeAllocator().FetchBatch(128));
+    cache.size = 128;
+  }
+  auto* node = cache.local_free_list;
+  cache.local_free_list = node->next;
+  cache.size--;
+  return node;
+}
+
+void Node::operator delete(void* ptr) {
+  if (!ptr) return;
+  auto* fn = reinterpret_cast<ThreadLocalNodeCache::FreeNode*>(ptr);
+  auto& cache = tl_node_cache;
+  fn->next = cache.local_free_list;
+  cache.local_free_list = fn;
+  cache.size++;
+
+  if (cache.size >= 256) {
+    ThreadLocalNodeCache::FreeNode* curr = cache.local_free_list;
+    for (int i = 0; i < 127; ++i) {
+      curr = curr->next;
+    }
+    ThreadLocalNodeCache::FreeNode* next_local = curr->next;
+    curr->next = nullptr;
+
+    GetGlobalNodeAllocator().ReturnBatch(
+        reinterpret_cast<GlobalNodeAllocator::FreeNode*>(cache.local_free_list),
+        reinterpret_cast<GlobalNodeAllocator::FreeNode*>(curr));
+    cache.local_free_list = next_local;
+    cache.size -= 128;
+  }
 }
 
 }  // namespace classic

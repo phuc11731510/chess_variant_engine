@@ -145,6 +145,11 @@ class Node {
   Node(Node&& move_from) = default;
   Node& operator=(Node&& move_from) = default;
 
+  // Custom new and delete operators for slab memory pool
+  void* operator new(size_t size);
+  void operator delete(void* ptr);
+  void* operator new(size_t, void* ptr) noexcept { return ptr; }
+
   // Allocates a new edge and a new node. The node has to be no edges before
   // that.
   Node* CreateSingleChildNode(Move m);
