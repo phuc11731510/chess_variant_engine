@@ -53,15 +53,12 @@ public:
     PositionHistory() = default;
     PositionHistory(std::span<const Position> positions);
 
-    const Position& Starting() const { return starting_position_; }
     const Position& Last() const { return last_position_; }
     int GetLength() const { return history_size_ + 1; }
 
     void Reset(const ChessBoard& board, int rule50_ply, int game_ply);
     void Reset(const Position& pos);
     void Append(Move m);
-    [[deprecated("Pop() is O(n) and should not be used in performance-critical MCTS paths. MCTS uses copy-on-apply instead.")]]
-    void Pop();
 
     bool IsBlackToMove() const { return last_position_.IsBlackToMove(); }
     
@@ -71,7 +68,6 @@ public:
 private:
     int ComputeLastMoveRepetitions() const;
     
-    Position starting_position_;
     Position last_position_;
     std::array<LightweightPosition, 256> history_; // Mảng tĩnh tránh heap allocation
     size_t history_size_ = 0;

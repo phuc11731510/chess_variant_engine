@@ -30,16 +30,16 @@ ChessBoard::ChessBoard() {
 
 ChessBoard::ChessBoard(const ChessBoard& other) {
     variant_def = other.variant_def;
-    states = other.states; // Sao chép mảng tĩnh cực nhanh
     state_index = other.state_index;
+    states[state_index] = other.states[state_index];
     pos.copy_from(other.pos, &states[state_index]);
 }
 
 ChessBoard& ChessBoard::operator=(const ChessBoard& other) {
     if (this != &other) {
         variant_def = other.variant_def;
-        states = other.states;
         state_index = other.state_index;
+        states[state_index] = other.states[state_index];
         pos.copy_from(other.pos, &states[state_index]);
     }
     return *this;
