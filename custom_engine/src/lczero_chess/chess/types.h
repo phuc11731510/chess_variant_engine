@@ -9,17 +9,53 @@
 namespace lczero {
 
 struct FlipSquareLUT {
-    Stockfish::Square lut[Stockfish::SQUARE_NB + 1];
+    Stockfish::Square lut[Stockfish::RANK_NB][Stockfish::SQUARE_NB + 1];
     constexpr FlipSquareLUT() : lut{} {
-        for (int s = 0; s < Stockfish::SQUARE_NB; ++s) {
-            int f = s % 12;
-            int r = s / 12;
-            lut[s] = Stockfish::Square((9 - r) * 12 + f);
+        for (int r = 0; r < Stockfish::RANK_NB; ++r) {
+            for (int s = 0; s < Stockfish::SQUARE_NB; ++s) {
+                int f = s % 12;
+                int rank_val = s / 12;
+                lut[r][s] = Stockfish::Square((r - rank_val) * 12 + f);
+            }
+            lut[r][Stockfish::SQUARE_NB] = Stockfish::SQ_NONE;
         }
-        lut[Stockfish::SQUARE_NB] = Stockfish::SQ_NONE;
     }
 };
 inline constexpr FlipSquareLUT flip_square_lut;
+
+struct FlipFromToLUT {
+    uint16_t lut[Stockfish::RANK_NB][16384];
+    constexpr FlipFromToLUT() : lut{} {
+        for (int r = 0; r < Stockfish::RANK_NB; ++r) {
+            for (int from_to = 0; from_to < 16384; ++from_to) {
+                int from = (from_to >> 7) & 127;
+                int to = from_to & 127;
+                
+                int from_flipped = from;
+                int to_flipped = to;
+                
+                if (from < Stockfish::SQUARE_NB) {
+                    int f = from % 12;
+                    int rank_val = from / 12;
+                    from_flipped = (r - rank_val) * 12 + f;
+                } else if (from == Stockfish::SQUARE_NB) {
+                    from_flipped = Stockfish::SQ_NONE;
+                }
+                
+                if (to < Stockfish::SQUARE_NB) {
+                    int f = to % 12;
+                    int rank_val = to / 12;
+                    to_flipped = (r - rank_val) * 12 + f;
+                } else if (to == Stockfish::SQUARE_NB) {
+                    to_flipped = Stockfish::SQ_NONE;
+                }
+                
+                lut[r][from_to] = (from_flipped << 7) | to_flipped;
+            }
+        }
+    }
+};
+inline constexpr FlipFromToLUT flip_from_to_lut;
 
 class Move {
 public:
@@ -34,44 +70,20 @@ public:
     
     void Flip(Stockfish::Rank max_rank = Stockfish::RANK_10) {
         if (m_ == Stockfish::MOVE_NONE || m_ == Stockfish::MOVE_NULL) return;
-        Stockfish::Square from = Stockfish::from_sq(m_);
-        Stockfish::Square to = Stockfish::to_sq(m_);
-        Stockfish::MoveType mt = Stockfish::type_of(m_);
-        Stockfish::PieceType pt = Stockfish::promotion_type(m_);
         
-        auto flip_sq = [max_rank](Stockfish::Square s) {
-            if (max_rank == Stockfish::RANK_10) {
-                return flip_square_lut.lut[s];
-            }
-            return Stockfish::flip_rank(s, max_rank);
-        };
+        uint32_t from_to = m_ & 0x3FFF;
+        uint32_t from_to_flipped = flip_from_to_lut.lut[max_rank][from_to];
         
-        if (from != Stockfish::SQ_NONE) from = flip_sq(from);
-        if (to != Stockfish::SQ_NONE) to = flip_sq(to);
+        uint32_t mt = m_ & (15 << 14);
+        uint32_t is_drop = (mt == Stockfish::DROP) ? 1 : 0;
+        uint32_t mask = 0x3FFF ^ (is_drop * (0x3FFF ^ 0x7F));
         
-        if (mt == Stockfish::NORMAL) {
-            if (Stockfish::is_gating(m_)) {
-                m_ = Stockfish::make_gating<Stockfish::NORMAL>(
-                    from, to, Stockfish::gating_type(m_), flip_sq(Stockfish::gating_square(m_)));
-            } else {
-                m_ = Stockfish::make_move(from, to);
-            }
-        } else if (mt == Stockfish::PROMOTION) {
-            m_ = Stockfish::make<Stockfish::PROMOTION>(from, to, pt);
-        } else if (mt == Stockfish::EN_PASSANT) {
-            m_ = Stockfish::make<Stockfish::EN_PASSANT>(from, to);
-        } else if (mt == Stockfish::CASTLING) {
-            if (Stockfish::is_gating(m_)) {
-                m_ = Stockfish::make_gating<Stockfish::CASTLING>(
-                    from, to, Stockfish::gating_type(m_), flip_sq(Stockfish::gating_square(m_)));
-            } else {
-                m_ = Stockfish::make<Stockfish::CASTLING>(from, to);
-            }
-        } else if (mt == Stockfish::DROP) {
-            m_ = Stockfish::make_drop(to, Stockfish::in_hand_piece_type(m_), Stockfish::dropped_piece_type(m_));
-        } else {
-            m_ = Stockfish::make_move(from, to);
-        }
+        uint32_t is_gate = Stockfish::is_gating(m_) ? 1 : 0;
+        uint32_t gate_old = (m_ >> 24) & 127;
+        uint32_t gate_flipped = flip_square_lut.lut[max_rank][gate_old];
+        uint32_t gate_new = is_gate ? gate_flipped : gate_old;
+        
+        m_ = Stockfish::Move((m_ & ~0x7F003FFF) | (gate_new << 24) | (from_to_flipped & mask));
     }
     
     std::string ToString(bool is_chess960 = false) const {
