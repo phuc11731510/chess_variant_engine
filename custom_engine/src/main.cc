@@ -347,8 +347,8 @@ checkCounting = true
             history.Reset(board, 0, 1);
 
             lczero::GameResult result = history.ComputeGameResult();
-            if (result != lczero::GameResult::BLACK_WON) {
-                std::cerr << "[FAIL] 0 checks remaining for White did not result in BLACK_WON! Got: " << (int)result << std::endl;
+            if (result != lczero::GameResult::WHITE_WON) {
+                std::cerr << "[FAIL] 0 checks remaining for White did not result in WHITE_WON! Got: " << (int)result << std::endl;
                 std::exit(1);
             }
         }
@@ -361,8 +361,8 @@ checkCounting = true
             history.Reset(board, 0, 1);
 
             lczero::GameResult result = history.ComputeGameResult();
-            if (result != lczero::GameResult::WHITE_WON) {
-                std::cerr << "[FAIL] 0 checks remaining for Black did not result in WHITE_WON! Got: " << (int)result << std::endl;
+            if (result != lczero::GameResult::BLACK_WON) {
+                std::cerr << "[FAIL] 0 checks remaining for Black did not result in BLACK_WON! Got: " << (int)result << std::endl;
                 std::exit(1);
             }
         }
