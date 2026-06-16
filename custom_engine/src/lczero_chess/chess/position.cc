@@ -23,31 +23,59 @@ Position Position::FromFen(std::string_view fen) {
 
 PositionHistory::PositionHistory(std::span<const Position> positions) {
     history_size_ = 0;
+    position_cache_.clear();
     if (!positions.empty()) {
         starting_position_ = positions.front();
         last_position_ = positions.back();
         size_t limit = std::min(positions.size() - 1, history_.size());
+        position_cache_.reserve(256);
         for (size_t i = 0; i < limit; ++i) {
-            history_[history_size_++] = {
+            history_[history_size_] = {
                 positions[i].Hash(),
                 positions[i].GetRule50Ply(),
                 positions[i].GetRepetitions(),
                 positions[i + 1].GetLastMove()
             };
+            position_cache_.push_back(positions[i + 1]);
+            history_size_++;
         }
     }
+}
+
+PositionHistory::PositionHistory(const PositionHistory& other) {
+    starting_position_ = other.starting_position_;
+    last_position_ = other.last_position_;
+    history_size_ = other.history_size_;
+    std::copy_n(other.history_.begin(), history_size_, history_.begin());
+    position_cache_.reserve(256);
+    position_cache_ = other.position_cache_;
+}
+
+PositionHistory& PositionHistory::operator=(const PositionHistory& other) {
+    if (this != &other) {
+        starting_position_ = other.starting_position_;
+        last_position_ = other.last_position_;
+        history_size_ = other.history_size_;
+        std::copy_n(other.history_.begin(), history_size_, history_.begin());
+        position_cache_ = other.position_cache_;
+    }
+    return *this;
 }
 
 void PositionHistory::Reset(const ChessBoard& board, int rule50_ply, int game_ply) {
     starting_position_ = Position(board, rule50_ply, game_ply);
     last_position_ = starting_position_;
     history_size_ = 0;
+    position_cache_.clear();
+    position_cache_.reserve(256);
 }
 
 void PositionHistory::Reset(const Position& pos) {
     starting_position_ = pos;
     last_position_ = pos;
     history_size_ = 0;
+    position_cache_.clear();
+    position_cache_.reserve(256);
 }
 
 void PositionHistory::Append(Move m) {
@@ -66,6 +94,9 @@ void PositionHistory::Append(Move m) {
     
     int repetitions = ComputeLastMoveRepetitions();
     last_position_.SetRepetitions(repetitions);
+
+    // Cache position mới để hỗ trợ Trim/Pop O(1)
+    position_cache_.push_back(last_position_);
 }
 
 int PositionHistory::ComputeLastMoveRepetitions() const {
@@ -131,22 +162,23 @@ GameResult PositionHistory::ComputeGameResult() const {
     return GameResult::UNDECIDED;
 }
 
-std::vector<Position> PositionHistory::GetPositions() const {
-    std::vector<Position> result;
-    result.reserve(history_size_ + 1);
-    result.push_back(starting_position_);
-    for (size_t i = 0; i < history_size_; ++i) {
-        result.push_back(Position(result.back(), history_[i].move));
-    }
-    return result;
+const std::vector<Position>& PositionHistory::GetPositions() const {
+    static thread_local std::vector<Position> buffer;
+    buffer.clear();
+    buffer.reserve(256);
+    buffer.push_back(starting_position_);
+    buffer.insert(buffer.end(), position_cache_.begin(), position_cache_.end());
+    return buffer;
 }
 
 void PositionHistory::Trim(size_t size) {
     if (size > 0 && size <= history_size_ + 1) {
         history_size_ = size - 1;
-        last_position_ = starting_position_;
-        for (size_t i = 0; i < history_size_; ++i) {
-            last_position_ = Position(last_position_, history_[i].move);
+        position_cache_.resize(history_size_);
+        if (history_size_ == 0) {
+            last_position_ = starting_position_;
+        } else {
+            last_position_ = position_cache_.back();
         }
     }
 }
@@ -154,9 +186,11 @@ void PositionHistory::Trim(size_t size) {
 void PositionHistory::Pop() {
     if (history_size_ > 0) {
         --history_size_;
-        last_position_ = starting_position_;
-        for (size_t i = 0; i < history_size_; ++i) {
-            last_position_ = Position(last_position_, history_[i].move);
+        position_cache_.pop_back();
+        if (history_size_ == 0) {
+            last_position_ = starting_position_;
+        } else {
+            last_position_ = position_cache_.back();
         }
     }
 }

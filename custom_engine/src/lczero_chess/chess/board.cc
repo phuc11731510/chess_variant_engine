@@ -63,8 +63,11 @@ MoveList ChessBoard::GenerateLegalMoves() const {
     Stockfish::MoveList<Stockfish::LEGAL> list(pos);
     MoveList result;
     result.reserve(list.size());
+    bool is_black = (pos.side_to_move() == Stockfish::BLACK);
     for (auto ext_move : list) {
-        result.push_back(Move(ext_move.move));
+        Move m(ext_move.move);
+        if (is_black) m.Flip();
+        result.push_back(m);
     }
     return result;
 }
@@ -72,6 +75,9 @@ MoveList ChessBoard::GenerateLegalMoves() const {
 bool ChessBoard::ApplyMove(Move move) {
     int next_index = 1 - state_index;
     state_index = next_index;
+    if (pos.side_to_move() == Stockfish::BLACK) {
+        move.Flip();
+    }
     pos.do_move(move, states[state_index]);
     // Stockfish resets rule50 to 0 for all zeroing moves (captures, pawn/sergeant moves, drops, etc.)
     return pos.state()->rule50 == 0;
@@ -91,12 +97,19 @@ bool ChessBoard::IsUnderCheck() const {
 }
 
 std::string ChessBoard::MoveToString(Move move) const {
+    if (pos.side_to_move() == Stockfish::BLACK) {
+        move.Flip();
+    }
     return Stockfish::UCI::move(pos, move);
 }
 
 Move ChessBoard::ParseMove(std::string_view move_str) const {
     std::string s(move_str);
-    return Stockfish::UCI::to_move(pos, s);
+    Move m = Stockfish::UCI::to_move(pos, s);
+    if (pos.side_to_move() == Stockfish::BLACK) {
+        m.Flip();
+    }
+    return m;
 }
 
 } // namespace lczero

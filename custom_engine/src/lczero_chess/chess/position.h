@@ -62,13 +62,17 @@ class PositionHistory {
 public:
     PositionHistory() = default;
     PositionHistory(std::span<const Position> positions);
+    
+    // Custom copy constructor and copy assignment to optimize MCTS hot path
+    PositionHistory(const PositionHistory& other);
+    PositionHistory& operator=(const PositionHistory& other);
 
     const Position& Last() const { return last_position_; }
     const Position& Starting() const { return starting_position_; }
     int GetLength() const { return history_size_ + 1; }
     void Reserve(size_t) {}
     
-    std::vector<Position> GetPositions() const;
+    const std::vector<Position>& GetPositions() const;
     void Trim(size_t size);
     void Pop();
 
@@ -87,6 +91,7 @@ private:
     Position starting_position_;
     Position last_position_;
     std::array<LightweightPosition, 256> history_; // Mảng tĩnh tránh heap allocation
+    std::vector<Position> position_cache_; // Cache các Position tương ứng để tối ưu Trim/Pop thành O(1)
     size_t history_size_ = 0;
 };
 

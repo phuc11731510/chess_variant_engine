@@ -2,6 +2,8 @@
 #include <cstdint>
 #include "../../chess/types.h"
 #include "../../chess/movegen.h"
+#include "../../chess/uci.h"
+#include "../../chess/variant.h"
 
 namespace lczero {
 
@@ -24,7 +26,22 @@ public:
         Stockfish::PieceType pt = Stockfish::promotion_type(m_);
         
         auto flip_sq = [](Stockfish::Square s) {
-            return Stockfish::flip_rank(s, Stockfish::RANK_MAX);
+            static thread_local std::string cached_variant;
+            static thread_local int cached_max_rank = Stockfish::RANK_8;
+            static thread_local const Stockfish::UCI::Option* variant_opt = []() {
+                auto it = Stockfish::Options.find("UCI_Variant");
+                return it != Stockfish::Options.end() ? &it->second : nullptr;
+            }();
+            
+            if (variant_opt) {
+                std::string current_variant = *variant_opt;
+                if (current_variant != cached_variant) {
+                    cached_variant = current_variant;
+                    auto it = Stockfish::variants.find(current_variant);
+                    cached_max_rank = (it != Stockfish::variants.end() && it->second) ? it->second->maxRank : Stockfish::RANK_8;
+                }
+            }
+            return Stockfish::flip_rank(s, Stockfish::Rank(cached_max_rank));
         };
         
         if (from != Stockfish::SQ_NONE) from = flip_sq(from);
