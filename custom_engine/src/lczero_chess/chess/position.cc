@@ -27,8 +27,9 @@ PositionHistory::PositionHistory(std::span<const Position> positions) {
     if (!positions.empty()) {
         starting_position_ = positions.front();
         last_position_ = positions.back();
-        size_t limit = std::min(positions.size() - 1, history_.size());
         position_cache_.reserve(256);
+        position_cache_.push_back(positions.front());
+        size_t limit = std::min(positions.size() - 1, history_.size());
         for (size_t i = 0; i < limit; ++i) {
             history_[history_size_] = {
                 positions[i].Hash(),
@@ -68,6 +69,7 @@ void PositionHistory::Reset(const ChessBoard& board, int rule50_ply, int game_pl
     history_size_ = 0;
     position_cache_.clear();
     position_cache_.reserve(256);
+    position_cache_.push_back(starting_position_);
 }
 
 void PositionHistory::Reset(const Position& pos) {
@@ -76,6 +78,7 @@ void PositionHistory::Reset(const Position& pos) {
     history_size_ = 0;
     position_cache_.clear();
     position_cache_.reserve(256);
+    position_cache_.push_back(pos);
 }
 
 void PositionHistory::Append(Move m) {
@@ -191,35 +194,22 @@ GameResult PositionHistory::ComputeMctsResult(const MoveList& legal_moves) const
 }
 
 const std::vector<Position>& PositionHistory::GetPositions() const {
-    static thread_local std::vector<Position> buffer;
-    buffer.clear();
-    buffer.reserve(256);
-    buffer.push_back(starting_position_);
-    buffer.insert(buffer.end(), position_cache_.begin(), position_cache_.end());
-    return buffer;
+    return position_cache_;
 }
 
 void PositionHistory::Trim(size_t size) {
-    if (size > 0 && size <= history_size_ + 1) {
+    if (size > 0 && size <= position_cache_.size()) {
         history_size_ = size - 1;
-        position_cache_.resize(history_size_);
-        if (history_size_ == 0) {
-            last_position_ = starting_position_;
-        } else {
-            last_position_ = position_cache_.back();
-        }
+        position_cache_.resize(size);
+        last_position_ = position_cache_.back();
     }
 }
 
 void PositionHistory::Pop() {
-    if (history_size_ > 0) {
+    if (position_cache_.size() > 1) {
         --history_size_;
         position_cache_.pop_back();
-        if (history_size_ == 0) {
-            last_position_ = starting_position_;
-        } else {
-            last_position_ = position_cache_.back();
-        }
+        last_position_ = position_cache_.back();
     }
 }
 
