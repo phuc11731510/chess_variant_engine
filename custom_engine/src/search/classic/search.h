@@ -29,6 +29,7 @@
 
 #include <array>
 #include <condition_variable>
+#include <deque>
 #include <functional>
 #include <optional>
 #include <shared_mutex>
@@ -331,6 +332,7 @@ class SearchWorker {
 
     // Details that are filled in as we go.
     bool ooo_completed = false;
+    bool is_erased = false;
 
     static NodeToProcess Collision(Node* node, uint16_t depth,
                                    int collision_count) {
@@ -391,7 +393,7 @@ class SearchWorker {
     int base_depth;
     int collision_limit;
     std::vector<Move> moves_to_base;
-    std::vector<NodeToProcess> results;
+    std::deque<NodeToProcess> results;
 
     // Task type post gather processing.
     int start_idx;
@@ -420,7 +422,7 @@ class SearchWorker {
   void PickNodesToExtendTask(Node* starting_point, int base_depth,
                              int collision_limit,
                              const std::vector<Move>& moves_to_base,
-                             std::vector<NodeToProcess>* receiver,
+                             std::deque<NodeToProcess>* receiver,
                              TaskWorkspace* workspace);
   void EnsureNodeTwoFoldCorrectForDepth(Node* node, int depth);
   void ProcessPickedTask(int batch_start, int batch_end,
@@ -435,7 +437,7 @@ class SearchWorker {
 
   Search* const search_;
   // List of nodes to process.
-  std::vector<NodeToProcess> minibatch_;
+  std::deque<NodeToProcess> minibatch_;
   std::unique_ptr<BackendComputation> computation_;
   int task_workers_;
   int target_minibatch_size_;

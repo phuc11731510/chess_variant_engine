@@ -1265,7 +1265,9 @@ void SearchWorker::InitializeIteration() {
   computation_.reset();
   computation_ = search_->backend_->CreateComputation();
   minibatch_.clear();
+#if 0
   minibatch_.reserve(2 * target_minibatch_size_);
+#endif
 }
 
 // 2. Gather minibatch.
@@ -1347,6 +1349,7 @@ void SearchWorker::GatherMinibatch() {
     int non_collisions = 0;
     for (int i = new_start; i < static_cast<int>(minibatch_.size()); i++) {
       auto& picked_node = minibatch_[i];
+      if (picked_node.is_erased) continue;
       if (picked_node.IsCollision()) {
         continue;
       }
@@ -1368,6 +1371,7 @@ void SearchWorker::GatherMinibatch() {
       int found = 0;
       for (int i = new_start; i < static_cast<int>(minibatch_.size()); i++) {
         auto& picked_node = minibatch_[i];
+        if (picked_node.is_erased) continue;
         if (picked_node.IsCollision()) {
           continue;
         }
@@ -1390,6 +1394,7 @@ void SearchWorker::GatherMinibatch() {
     }
     bool some_ooo = false;
     for (int i = static_cast<int>(minibatch_.size()) - 1; i >= new_start; i--) {
+      if (minibatch_[i].is_erased) continue;
       if (minibatch_[i].ooo_completed) {
         some_ooo = true;
         break;
@@ -1400,6 +1405,7 @@ void SearchWorker::GatherMinibatch() {
       SharedMutex::Lock lock(search_->nodes_mutex_);
       for (int i = static_cast<int>(minibatch_.size()) - 1; i >= new_start;
            i--) {
+        if (minibatch_[i].is_erased) continue;
         // If there was any OOO, revert 'all' new collisions - it isn't possible
         // to identify exactly which ones are afterwards and only prune those.
         // This may remove too many items, but hopefully most of the time they
@@ -1411,10 +1417,18 @@ void SearchWorker::GatherMinibatch() {
                node = node->GetParent()) {
             node->CancelScoreUpdate(minibatch_[i].multivisit);
           }
+#if 0
           minibatch_.erase(minibatch_.begin() + i);
+#else
+          minibatch_[i].is_erased = true;
+#endif
         } else if (minibatch_[i].ooo_completed) {
           DoBackupUpdateSingleNode(minibatch_[i]);
+#if 0
           minibatch_.erase(minibatch_.begin() + i);
+#else
+          minibatch_[i].is_erased = true;
+#endif
           --minibatch_size;
           ++number_out_of_order_;
         }
@@ -1425,6 +1439,7 @@ void SearchWorker::GatherMinibatch() {
     // Check for stop at the end so we have at least one node.
     for (size_t i = new_start; i < minibatch_.size(); i++) {
       auto& picked_node = minibatch_[i];
+      if (picked_node.is_erased) continue;
 
       if (picked_node.IsCollision()) {
         // Check to see if we can upsize the collision to exit sooner.
@@ -1456,6 +1471,7 @@ void SearchWorker::ProcessPickedTask(int start_idx, int end_idx,
 
   for (int i = start_idx; i < end_idx; i++) {
     auto& picked_node = minibatch_[i];
+    if (picked_node.is_erased) continue;
     if (picked_node.IsCollision()) continue;
     auto* node = picked_node.node;
 
@@ -1594,7 +1610,7 @@ void SearchWorker::EnsureNodeTwoFoldCorrectForDepth(Node* child_node,
 void SearchWorker::PickNodesToExtendTask(
     Node* node, int base_depth, int collision_limit,
     const std::vector<Move>& moves_to_base,
-    std::vector<NodeToProcess>* receiver,
+    std::deque<NodeToProcess>* receiver,
     TaskWorkspace* workspace) NO_THREAD_SAFETY_ANALYSIS {
   LCTRACE_FUNCTION_SCOPE;
   // TODO: Bring back pre-cached nodes created outside locks in a way that works
@@ -1611,9 +1627,11 @@ void SearchWorker::PickNodesToExtendTask(
   auto& moves_to_path = workspace->moves_to_path;
   moves_to_path = moves_to_base;
   // Sometimes receiver is reused, othertimes not, so only jump start if small.
+#if 0
   if (receiver->capacity() < 30) {
     receiver->reserve(receiver->size() + 30);
   }
+#endif
 
   // These 2 are 'filled pre-emptively'.
   std::array<float, 256> current_pol;
@@ -2052,6 +2070,7 @@ void SearchWorker::CollectCollisions() {
   SharedMutex::Lock lock(search_->nodes_mutex_);
 
   for (const NodeToProcess& node_to_process : minibatch_) {
+    if (node_to_process.is_erased) continue;
     if (node_to_process.IsCollision()) {
       search_->shared_collisions_.emplace_back(node_to_process.node,
                                                node_to_process.multivisit);
@@ -2195,6 +2214,7 @@ void SearchWorker::FetchMinibatchResults() {
   LCTRACE_FUNCTION_SCOPE;
   // Populate NN/cached results, or terminal results, into nodes.
   for (auto& node_to_process : minibatch_) {
+    if (node_to_process.is_erased) continue;
     FetchSingleNodeResult(&node_to_process);
   }
 }
@@ -2270,6 +2290,7 @@ void SearchWorker::DoBackupUpdate() {
 
   bool work_done = number_out_of_order_ > 0;
   for (const NodeToProcess& node_to_process : minibatch_) {
+    if (node_to_process.is_erased) continue;
     DoBackupUpdateSingleNode(node_to_process);
     if (!node_to_process.IsCollision()) {
       work_done = true;
@@ -2454,6 +2475,7 @@ void SearchWorker::UpdateCounters() {
   bool work_done = number_out_of_order_ > 0;
   if (!work_done) {
     for (NodeToProcess& node_to_process : minibatch_) {
+      if (node_to_process.is_erased) continue;
       if (!node_to_process.IsCollision()) {
         work_done = true;
         break;
