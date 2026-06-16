@@ -597,7 +597,7 @@ checkCounting = true
     PSQT::init(v);
 
     // 1. Dựng thế cờ 10x10 variant
-    std::string fen = "5k4/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1";
+    std::string fen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w - - 7+7 0 1";
     lczero::ChessBoard board(fen);
     
     std::cout << "Starting MCTS NodeTree setup from FEN: " << fen << std::endl;

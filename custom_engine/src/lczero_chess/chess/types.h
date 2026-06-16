@@ -63,8 +63,8 @@ public:
         Stockfish::Square to = Stockfish::to_sq(m_);
         
         auto sq_to_string = [](Stockfish::Square sq) {
-            int f = sq % 10;
-            int r = sq / 10;
+            int f = Stockfish::file_of(sq);
+            int r = Stockfish::rank_of(sq);
             char file_c = 'a' + f;
             std::string rank_s = std::to_string(r + 1);
             return file_c + rank_s;
