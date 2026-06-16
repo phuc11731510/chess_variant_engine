@@ -39,7 +39,8 @@ public:
     uint64_t GetHash() const { return Hash(); }
 
     MoveList GenerateLegalMoves() const { return us_board_.GenerateLegalMoves(); }
-    int GetPliesSincePrevRepetition() const { return 10000; }
+    int GetPliesSincePrevRepetition() const { return plies_since_prev_repetition_; }
+    void SetPliesSincePrevRepetition(int plies) { plies_since_prev_repetition_ = plies; }
 
     int GetRepetitions() const { return repetitions_; }
     void SetRepetitions(int repetitions) {
@@ -54,6 +55,7 @@ private:
     int rule50_ply_ = 0;
     int repetitions_ = 0;
     int ply_count_ = 0;
+    int plies_since_prev_repetition_ = 10000;
 };
 
 #include <array>
@@ -87,7 +89,7 @@ public:
     bool DidRepeatSinceLastZeroingMove() const;
 
 private:
-    int ComputeLastMoveRepetitions() const;
+    int ComputeLastMoveRepetitions(int& plies_since_prev) const;
     
     Position starting_position_;
     Position last_position_;

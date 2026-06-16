@@ -92,15 +92,18 @@ void PositionHistory::Append(Move m) {
     // Thực hiện nước đi m
     last_position_ = Position(last_position_, m);
     
-    int repetitions = ComputeLastMoveRepetitions();
+    int plies_since_prev = 10000;
+    int repetitions = ComputeLastMoveRepetitions(plies_since_prev);
     last_position_.SetRepetitions(repetitions);
+    last_position_.SetPliesSincePrevRepetition(plies_since_prev);
 
     // Cache position mới để hỗ trợ Trim/Pop O(1)
     position_cache_.push_back(last_position_);
 }
 
-int PositionHistory::ComputeLastMoveRepetitions() const {
+int PositionHistory::ComputeLastMoveRepetitions(int& plies_since_prev) const {
     const auto& last = last_position_;
+    plies_since_prev = 10000;
     if (last.GetRule50Ply() < 4) return 0;
     
     int size = (int)history_size_;
@@ -108,6 +111,7 @@ int PositionHistory::ComputeLastMoveRepetitions() const {
     for (int idx = size - 4; idx >= 0; idx -= 2) {
         const auto& pos = history_[idx];
         if (pos.hash == last.Hash()) {
+            plies_since_prev = size - idx;
             return 1 + pos.repetitions;
         }
         if (pos.rule50_ply < 2) return 0;
