@@ -511,6 +511,7 @@ public:
             std::cout << "[MCTS TEST] info depth " << info.depth 
                       << " seldepth " << info.seldepth 
                       << " nodes " << info.nodes 
+                      << " nps " << info.nps 
                       << " score cp " << (info.score ? *info.score : 0);
             if (!info.pv.empty()) {
                 std::cout << " pv";
