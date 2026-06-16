@@ -7,5 +7,13 @@ chỉ cần duyệt mảng phẳng này để đối chiếu nhanh và tránh tr
 
 Được rồi, bạn hãy kiểm tra kĩ lại logic và liệu có cách nào để tối ưu thêm hiệu năng để sau này sinh dữ liệu huấn luyện hoặc tối ưu hiệu năng dành cho việc thiết kế "mcts kế thừa từ lc0" sau này hay không của những gì đã triển khai ở "custom_engine\src\lczero_chess\chess" và ở "custom_engine\src\chess\position.h" và ở "custom_engine\src\chess\position.cpp" và ở "custom_engine\src\chess\evaluate.cpp". Lưu ý nếu có chỗ nào có thể tối ưu thêm hiệu năng thì bạn hãy viết đề xuất chứ không chỉnh sửa code
 
-Đối chiếu thực tế: Việc đối chiếu với lc0-master xác nhận thiết kế này là hoàn toàn chính xác. Trong Lc0, lớp classic::Node có kích thước đúng 64 bytes trên hệ thống 64-bit và không hề chứa trạng thái bàn cờ. Luồng tìm kiếm tự động tái tạo trạng thái bằng cách đi thử nước đi từ Root bằng đối tượng PositionHistory trên stack.
-Kế hoạch áp dụng: Chúng ta sẽ tuân thủ nghiêm ngặt nguyên lý này khi xây dựng lớp MCTS Node ở Phase 4 sắp tới để ngăn chặn triệt để hiện tượng ngốn RAM (Memory Bloat).
+Được rồi, bạn là claude opus, trước khi đi tiếp qua Phase 4 thì bây giờ bạn hãy kiểm tra kĩ lại logic của "custom_engine\src\lczero_chess\chess", "custom_engine\src\lczero_chess\neural", "custom_engine\src\lczero_chess\utils" xem là hiện tại nó có chạy đúng với logic cờ biến thể này và chạy đúng với "custom_engine\src\search\classic" hay chưa. Ngoài ra bạn hãy xem xét là liệu có cách nào để tăng hiệu năng của những cái trên để sau này phục vụ cho việc sinh dữ liệu huấn luyện hay không. Nếu có thì bạn hãy chỉ viết đề xuất chứ không có chỉnh sửa code nhé
+
+Trong Phase 4 (Sắp tới): Chúng ta sẽ chỉ tập trung vào việc cài đặt thư viện ONNX Runtime, viết code tải file .onnx, mã hóa bàn cờ 10x10 thành Tensor đầu vào, và giải mã kết quả (Policy/Value) đầu ra để bộ tìm kiếm MCTS hiện tại chạy được với mạng NN thật. Mọi thứ sẽ chạy đơn giản trên luồng MCTS hiện tại (sử dụng Batch size = 1 hoặc cấu hình đơn giản). Điều này giúp kiểm tra tính chính xác của nước đi và độ ổn định của mạng NN cực kỳ dễ dàng.
+Sau Phase 4: Khi hệ thống đã chạy ổn định với mạng NN thật, chúng ta mới nâng cấp lên Parallel Game Pipeline (Arena Manager) để tối ưu hóa hiệu suất sinh dữ liệu (throughput) phục vụ cho Google Colab. Lúc này nếu có lỗi phát sinh, ta sẽ biết chắc chắn đó là lỗi do bất đồng bộ/hàng đợi của Arena chứ không phải lỗi của mạng NN hay luật chơi.
+
+[GHI CHÚ NÂNG CẤP MCTS DAG] Hãy thay thế bộ tìm kiếm search/classic bằng search/dag_classic từ lc0-master để kích hoạt tính năng gộp nhánh đồ thị (Transposition Sharing). Các bước cần làm:
+Copy thư mục dag_classic vào dự án.
+Sửa uint8_t num_edges_ thành uint16_t trong node.h để hỗ trợ cờ 10x10.
+Cập nhật CMakeLists.txt, đảm bảo liên kết thư viện absl (cho bảng băm).
+Lưu ý tương thích: Rào cản undo_move của Stockfish ĐÃ ĐƯỢC GIẢI QUYẾT nhờ cơ chế Deep Copy (pos.copy_from) trong wrapper ChessBoard hiện tại.

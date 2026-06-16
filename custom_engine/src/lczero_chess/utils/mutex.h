@@ -63,7 +63,13 @@ class CAPABILITY("mutex") RpSharedMutex {
       if (waiting_readers_ == 0) return;
       mutex_.unlock();
       ++spins;
-      if (spins % 512 == 0) {
+      if (spins < 64) {
+        SpinloopPause();
+      } else if (spins < 1024) {
+        for (int i = 0; i < 10; ++i) {
+          SpinloopPause();
+        }
+      } else if (spins % 256 == 0) {
         std::this_thread::yield();
       } else {
         SpinloopPause();
@@ -164,7 +170,13 @@ class CAPABILITY("mutex") SpinMutex {
       ++spins;
       // Help avoid complete resource starvation by yielding occasionally if
       // needed.
-      if (spins % 512 == 0) {
+      if (spins < 64) {
+        SpinloopPause();
+      } else if (spins < 1024) {
+        for (int i = 0; i < 10; ++i) {
+          SpinloopPause();
+        }
+      } else if (spins % 256 == 0) {
         std::this_thread::yield();
       } else {
         SpinloopPause();

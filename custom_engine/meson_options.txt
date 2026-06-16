@@ -1,0 +1,9 @@
+option('malloc',
+       type : 'string',
+       value: '',
+       description: 'Use alternative memory allocator, e.g. tcmalloc/jemalloc/mimalloc')
+
+option('mimalloc_libdir',
+       type : 'string',
+       value: '',
+       description: 'Library directory for malloc=mimalloc')

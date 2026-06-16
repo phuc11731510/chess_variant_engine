@@ -56,7 +56,7 @@ void ChessBoard::SetFromFen(std::string_view fen, int* rule50_ply, int* moves) {
 void ChessBoard::Clear() {
     state_index = 0;
     Stockfish::Thread* th = nullptr;
-    pos.set(variant_def, "10/10/10/10/10/10/10/10/10/10 w - - 0 1", false, &states[state_index], th);
+    pos.set(variant_def, "10/10/10/10/10/10/10/10/10/10 w - - 7+7 0 1", false, &states[state_index], th);
 }
 
 MoveList ChessBoard::GenerateLegalMoves() const {
@@ -66,7 +66,7 @@ MoveList ChessBoard::GenerateLegalMoves() const {
     bool is_black = (pos.side_to_move() == Stockfish::BLACK);
     for (auto ext_move : list) {
         Move m(ext_move.move);
-        if (is_black) m.Flip();
+        if (is_black) m.Flip(pos.max_rank());
         result.push_back(m);
     }
     return result;
@@ -76,7 +76,7 @@ bool ChessBoard::ApplyMove(Move move) {
     int next_index = 1 - state_index;
     state_index = next_index;
     if (pos.side_to_move() == Stockfish::BLACK) {
-        move.Flip();
+        move.Flip(pos.max_rank());
     }
     pos.do_move(move, states[state_index]);
     // Stockfish resets rule50 to 0 for all zeroing moves (captures, pawn/sergeant moves, drops, etc.)
@@ -98,7 +98,7 @@ bool ChessBoard::IsUnderCheck() const {
 
 std::string ChessBoard::MoveToString(Move move) const {
     if (pos.side_to_move() == Stockfish::BLACK) {
-        move.Flip();
+        move.Flip(pos.max_rank());
     }
     return Stockfish::UCI::move(pos, move);
 }
@@ -107,7 +107,7 @@ Move ChessBoard::ParseMove(std::string_view move_str) const {
     std::string s(move_str);
     Move m = Stockfish::UCI::to_move(pos, s);
     if (pos.side_to_move() == Stockfish::BLACK) {
-        m.Flip();
+        m.Flip(pos.max_rank());
     }
     return m;
 }

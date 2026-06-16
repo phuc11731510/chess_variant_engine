@@ -85,10 +85,23 @@ engine_sources = files(
   'src/main.cc'
 )
 
+# Allocator options linking
+deps = [thread_dep]
+malloc_opt = get_option('malloc')
+if malloc_opt == 'mimalloc' and cc.get_id() == 'msvc'
+  if get_option('b_vscrt') != 'md' and get_option('b_vscrt') != 'mdd'
+    error('You need -Db_vscrt=md (or mdd) to use mimalloc')
+  endif
+  add_project_link_arguments('/INCLUDE:mi_version', language : 'cpp')
+  deps += cc.find_library('mimalloc-override', dirs: get_option('mimalloc_libdir'), required: true)
+elif malloc_opt != ''
+  deps += cc.find_library(malloc_opt, required: true)
+endif
+
 # Build the executable
 executable('custom_engine',
   sources: [chess_sources, search_sources, engine_sources],
   include_directories: inc_dirs,
-  dependencies: [thread_dep],
+  dependencies: deps,
   install: true
 )

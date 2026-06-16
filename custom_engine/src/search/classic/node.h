@@ -178,7 +178,11 @@ class Node {
   bool IsTwoFoldTerminal() const { return terminal_type_ == Terminal::TwoFold; }
   typedef std::pair<GameResult, GameResult> Bounds;
   Bounds GetBounds() const { return {lower_bound_, upper_bound_}; }
+#if 0
   uint8_t GetNumEdges() const { return num_edges_; }
+#else
+  uint16_t GetNumEdges() const { return num_edges_; }
+#endif
 
   // Output must point to at least max_needed floats.
   void CopyPolicy(int max_needed, float* output) const {
@@ -318,7 +322,11 @@ class Node {
 
   // 1 byte fields.
   // Number of edges in @edges_.
+#if 0
   uint8_t num_edges_ = 0;
+#else
+  uint16_t num_edges_ = 0;
+#endif
 
   // Bit fields using parts of uint8_t fields initialized in the constructor.
   // Whether or not this node end game (with a winning of either sides or draw).

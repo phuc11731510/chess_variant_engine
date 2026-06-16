@@ -52,24 +52,25 @@ void UnpackInputPlanes(
     const int plane_size = width * height;
     assert(width <= Stockfish::FILE_NB && height <= Stockfish::RANK_NB);
     
+    // 1. Khởi tạo toàn bộ tensor về 0.0f bằng một lệnh memset toàn cục duy nhất
+    std::memset(float_planes, 0, planes.size() * plane_size * sizeof(float));
+    
+    // 2. Duyệt qua từng plane, chỉ ghi đè giá trị nếu plane đó không trống (mask != 0)
     for (size_t p = 0; p < planes.size(); ++p) {
         const auto& plane = planes[p];
-        float* dest = float_planes + p * plane_size;
-        
-        // 1. Nếu plane trống (mask == 0), ta gán toàn bộ = 0.0f
         if (!plane.mask) {
-            std::memset(dest, 0, plane_size * sizeof(float));
-            continue;
+            continue; // Bỏ qua nhanh vì vùng nhớ đã được zero-init toàn cục
         }
         
-        // 2. Nếu plane được lấp đầy hoàn toàn (mask == AllSquares), ta gán giá trị plane.value
+        float* dest = float_planes + p * plane_size;
+        
+        // 3. Nếu plane được lấp đầy hoàn toàn (mask == AllSquares), ta điền giá trị plane.value
         if (plane.mask == Stockfish::AllSquares) {
             std::fill_n(dest, plane_size, plane.value);
             continue;
         }
         
-        // 3. Ngược lại, gán toàn bộ = 0.0f, sau đó duyệt qua các bit 1 trong mask (không cần boundary check thừa)
-        std::memset(dest, 0, plane_size * sizeof(float));
+        // 4. Ngược lại, duyệt qua các bit 1 trong mask
         Stockfish::Bitboard b = plane.mask;
         while (b) {
             Stockfish::Square sq = Stockfish::pop_lsb(b);

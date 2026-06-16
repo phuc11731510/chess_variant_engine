@@ -19,26 +19,15 @@ public:
     bool operator==(const Move& other) const { return m_ == other.m_; }
     bool operator!=(const Move& other) const { return m_ != other.m_; }
     
-    void Flip() {
+    void Flip(Stockfish::Rank max_rank = Stockfish::RANK_10) {
         if (m_ == Stockfish::MOVE_NONE || m_ == Stockfish::MOVE_NULL) return;
         Stockfish::Square from = Stockfish::from_sq(m_);
         Stockfish::Square to = Stockfish::to_sq(m_);
         Stockfish::MoveType mt = Stockfish::type_of(m_);
         Stockfish::PieceType pt = Stockfish::promotion_type(m_);
         
-        auto flip_sq = [](Stockfish::Square s) {
-            static thread_local int cached_max_rank = []() -> int {
-                auto it = Stockfish::Options.find("UCI_Variant");
-                if (it != Stockfish::Options.end()) {
-                    std::string current_variant = it->second;
-                    auto vit = Stockfish::variants.find(current_variant);
-                    if (vit != Stockfish::variants.end() && vit->second) {
-                        return (int)vit->second->maxRank;
-                    }
-                }
-                return (int)Stockfish::RANK_8;
-            }();
-            return Stockfish::flip_rank(s, Stockfish::Rank(cached_max_rank));
+        auto flip_sq = [max_rank](Stockfish::Square s) {
+            return Stockfish::flip_rank(s, max_rank);
         };
         
         if (from != Stockfish::SQ_NONE) from = flip_sq(from);

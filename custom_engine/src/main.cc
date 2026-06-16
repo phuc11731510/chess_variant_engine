@@ -455,6 +455,159 @@ checkCounting = true
         std::cout << "[PASS] TEST 5 passed! (Encoder & Unpacker validation correct)\n" << std::endl;
     }
 
+    // TEST 6: MCTS Relative & Absolute Result Verification (Checkmate & Stalemate & 7-checks)
+    {
+        std::cout << "TEST 6: MCTS Relative & Absolute Result Verification..." << std::endl;
+
+        // Part A: White is checkmated. It is White's turn to move (board.flipped() == false).
+        // White King on a1, Black Rooks on b1 and b2.
+        std::string white_checkmated_fen = "9k/10/10/10/10/10/10/10/1r8/Kr8 w - - 7+7 0 1";
+        lczero::ChessBoard board_white_cm(white_checkmated_fen);
+        lczero::PositionHistory history_white_cm;
+        history_white_cm.Reset(board_white_cm, 0, 1);
+
+        auto moves_white_cm = board_white_cm.GenerateLegalMoves();
+        if (!moves_white_cm.empty() || !board_white_cm.IsUnderCheck()) {
+            std::cerr << "[FAIL] Test setup error: White should be checkmated!" << std::endl;
+            std::exit(1);
+        }
+
+        // Check Absolute Game Result (BLACK_WON - Black won the game)
+        lczero::GameResult abs_white_cm = history_white_cm.ComputeGameResult();
+        if (abs_white_cm != lczero::GameResult::BLACK_WON) {
+            std::cerr << "[FAIL] Absolute checkmate on White should return BLACK_WON, but got: " 
+                      << (int)abs_white_cm << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - White checkmated returns absolute BLACK_WON (Correct)" << std::endl;
+
+        // Check Relative MCTS Result (WHITE_WON - relative Win for the player who just moved: Black)
+        lczero::GameResult res_white_cm = history_white_cm.ComputeMctsResult(moves_white_cm);
+        if (res_white_cm != lczero::GameResult::WHITE_WON) {
+            std::cerr << "[FAIL] Checkmate on White should return WHITE_WON in MCTS, but got: " 
+                      << (int)res_white_cm << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - White checkmated returns relative GameResult::WHITE_WON (Correct)" << std::endl;
+
+        // Part B: Black is checkmated. It is Black's turn to move (board.flipped() == true).
+        // Black King on a10, White Rooks on b10 and b9.
+        std::string black_checkmated_fen = "kR8/1R8/10/10/10/10/10/10/10/9K b - - 7+7 0 1";
+        lczero::ChessBoard board_black_cm(black_checkmated_fen);
+        lczero::PositionHistory history_black_cm;
+        history_black_cm.Reset(board_black_cm, 0, 1);
+
+        auto moves_black_cm = board_black_cm.GenerateLegalMoves();
+        if (!moves_black_cm.empty() || !board_black_cm.IsUnderCheck()) {
+            std::cerr << "[FAIL] Test setup error: Black should be checkmated!" << std::endl;
+            std::exit(1);
+        }
+
+        // Check Absolute Game Result (WHITE_WON - White won the game)
+        lczero::GameResult abs_black_cm = history_black_cm.ComputeGameResult();
+        if (abs_black_cm != lczero::GameResult::WHITE_WON) {
+            std::cerr << "[FAIL] Absolute checkmate on Black should return WHITE_WON, but got: " 
+                      << (int)abs_black_cm << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - Black checkmated returns absolute WHITE_WON (Correct)" << std::endl;
+
+        // Check Relative MCTS Result (WHITE_WON - relative Win for the player who just moved: White)
+        lczero::GameResult res_black_cm = history_black_cm.ComputeMctsResult(moves_black_cm);
+        if (res_black_cm != lczero::GameResult::WHITE_WON) {
+            std::cerr << "[FAIL] Checkmate on Black should return WHITE_WON in MCTS, but got: " 
+                      << (int)res_black_cm << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - Black checkmated returns relative GameResult::WHITE_WON (Correct)" << std::endl;
+
+        // Part C: Verify 7-checks in both absolute and MCTS.
+        // Scenario 1: White has 0 checks remaining (White won absolute).
+        {
+            // Case A: Black to move (board.flipped() == true). White just checked.
+            std::string white_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 0+7 0 1";
+            lczero::ChessBoard board(white_win_black_turn);
+            lczero::PositionHistory history;
+            history.Reset(board, 0, 1);
+
+            // Absolute check
+            lczero::GameResult abs = history.ComputeGameResult();
+            if (abs != lczero::GameResult::WHITE_WON) {
+                std::cerr << "[FAIL] White win 7-checks absolute should be WHITE_WON, got: " << (int)abs << std::endl;
+                std::exit(1);
+            }
+            // MCTS check (relative Win for White, who just moved)
+            lczero::GameResult res = history.ComputeMctsResult(board.GenerateLegalMoves());
+            if (res != lczero::GameResult::WHITE_WON) {
+                std::cerr << "[FAIL] White win 7-checks (Black's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
+                std::exit(1);
+            }
+
+            // Case B: White to move (board.flipped() == false). Black just moved (but White won).
+            std::string white_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+7 0 1";
+            lczero::ChessBoard board_wt(white_win_white_turn);
+            lczero::PositionHistory history_wt;
+            history_wt.Reset(board_wt, 0, 1);
+
+            // Absolute check
+            lczero::GameResult abs_wt = history_wt.ComputeGameResult();
+            if (abs_wt != lczero::GameResult::WHITE_WON) {
+                std::cerr << "[FAIL] White win 7-checks absolute should be WHITE_WON, got: " << (int)abs_wt << std::endl;
+                std::exit(1);
+            }
+            // MCTS check (relative Loss for Black, who just moved)
+            lczero::GameResult res_wt = history_wt.ComputeMctsResult(board_wt.GenerateLegalMoves());
+            if (res_wt != lczero::GameResult::BLACK_WON) {
+                std::cerr << "[FAIL] White win 7-checks (White's turn) MCTS should be BLACK_WON, got: " << (int)res_wt << std::endl;
+                std::exit(1);
+            }
+        }
+
+        // Scenario 2: Black has 0 checks remaining (Black won absolute).
+        {
+            // Case C: White to move (board.flipped() == false). Black just checked.
+            std::string black_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 7+0 0 1";
+            lczero::ChessBoard board(black_win_white_turn);
+            lczero::PositionHistory history;
+            history.Reset(board, 0, 1);
+
+            // Absolute check
+            lczero::GameResult abs = history.ComputeGameResult();
+            if (abs != lczero::GameResult::BLACK_WON) {
+                std::cerr << "[FAIL] Black win 7-checks absolute should be BLACK_WON, got: " << (int)abs << std::endl;
+                std::exit(1);
+            }
+            // MCTS check (relative Win for Black, who just moved)
+            lczero::GameResult res = history.ComputeMctsResult(board.GenerateLegalMoves());
+            if (res != lczero::GameResult::WHITE_WON) {
+                std::cerr << "[FAIL] Black win 7-checks (White's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
+                std::exit(1);
+            }
+
+            // Case D: Black to move (board.flipped() == true). White just moved (but Black won).
+            std::string black_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 7+0 0 1";
+            lczero::ChessBoard board_bt(black_win_black_turn);
+            lczero::PositionHistory history_bt;
+            history_bt.Reset(board_bt, 0, 1);
+
+            // Absolute check
+            lczero::GameResult abs_bt = history_bt.ComputeGameResult();
+            if (abs_bt != lczero::GameResult::BLACK_WON) {
+                std::cerr << "[FAIL] Black win 7-checks absolute should be BLACK_WON, got: " << (int)abs_bt << std::endl;
+                std::exit(1);
+            }
+            // MCTS check (relative Loss for White, who just moved)
+            lczero::GameResult res_bt = history_bt.ComputeMctsResult(board_bt.GenerateLegalMoves());
+            if (res_bt != lczero::GameResult::BLACK_WON) {
+                std::cerr << "[FAIL] Black win 7-checks (Black's turn) MCTS should be BLACK_WON, got: " << (int)res_bt << std::endl;
+                std::exit(1);
+            }
+        }
+        std::cout << "  - [VERIFIED] All 7-checks absolute and relative evaluations checked successfully." << std::endl;
+
+        std::cout << "[PASS] TEST 6 passed! (MCTS and Game absolute/relative checkmate and 7-checks values verified)\n" << std::endl;
+    }
+
     std::cout << "========================================" << std::endl;
     std::cout << "ALL CHESSBOARD BRIDGE TESTS PASSED!" << std::endl;
     std::cout << "========================================\n" << std::endl;
