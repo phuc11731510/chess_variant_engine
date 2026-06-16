@@ -40,6 +40,16 @@
 
 namespace lczero {
 
+static inline void SpinloopPause() {
+#if defined(__x86_64__) || defined(_M_X64)
+  _mm_pause();
+#elif defined(_MSC_VER)
+  __asm {}
+#else
+  asm volatile("");
+#endif
+}
+
 // Implementation of reader-preferenced shared mutex. Based on fair shared
 // mutex.
 class CAPABILITY("mutex") RpSharedMutex {
@@ -47,10 +57,17 @@ class CAPABILITY("mutex") RpSharedMutex {
   RpSharedMutex() : waiting_readers_(0) {}
 
   void lock() ACQUIRE() {
+    int spins = 0;
     while (true) {
       mutex_.lock();
       if (waiting_readers_ == 0) return;
       mutex_.unlock();
+      ++spins;
+      if (spins % 512 == 0) {
+        std::this_thread::yield();
+      } else {
+        SpinloopPause();
+      }
     }
   }
   void unlock() RELEASE() { mutex_.unlock(); }
@@ -64,7 +81,7 @@ class CAPABILITY("mutex") RpSharedMutex {
   }
 
  private:
-  std::shared_timed_mutex mutex_;
+  std::shared_mutex mutex_;
   std::atomic<int> waiting_readers_;
 };
 
@@ -100,7 +117,7 @@ class CAPABILITY("mutex") SharedMutex {
     ~Lock() RELEASE() {}
 
    private:
-    std::unique_lock<std::shared_timed_mutex> lock_;
+    std::unique_lock<std::shared_mutex> lock_;
   };
 
   // std::shared_lock<std::shared_mutex> wrapper.
@@ -110,7 +127,7 @@ class CAPABILITY("mutex") SharedMutex {
     ~SharedLock() RELEASE() {}
 
    private:
-    std::shared_lock<std::shared_timed_mutex> lock_;
+    std::shared_lock<std::shared_mutex> lock_;
   };
 
   void lock() ACQUIRE() { mutex_.lock(); }
@@ -118,21 +135,11 @@ class CAPABILITY("mutex") SharedMutex {
   void lock_shared() ACQUIRE_SHARED() { mutex_.lock_shared(); }
   void unlock_shared() RELEASE_SHARED() { mutex_.unlock_shared(); }
 
-  std::shared_timed_mutex& get_raw() { return mutex_; }
+  std::shared_mutex& get_raw() { return mutex_; }
 
  private:
-  std::shared_timed_mutex mutex_;
+  std::shared_mutex mutex_;
 };
-
-static inline void SpinloopPause() {
-#if defined(__x86_64__) || defined(_M_X64)
-  _mm_pause();
-#elif defined(_MSC_VER)
-  __asm {}
-#else
-  asm volatile("");
-#endif
-}
 
 // A very simple spin lock.
 class CAPABILITY("mutex") SpinMutex {
