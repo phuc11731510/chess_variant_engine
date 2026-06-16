@@ -20,11 +20,11 @@ void EncodePositionForNN(
         if (output_planes->size() != target_size) {
             output_planes->resize(target_size);
         }
-        // Khởi tạo/Reset lại các plane để tái sử dụng buffer cũ
-        for (auto& plane : *output_planes) {
-            plane.mask = 0;
-            plane.value = 1.0f;
-        }
+        // Khởi tạo/Reset lại các plane để tái sử dụng buffer cũ bằng std::fill_n (được compiler tối ưu thành memset/SIMD)
+        InputPlane zero_plane;
+        zero_plane.mask = 0;
+        zero_plane.value = 0.0f;
+        std::fill_n(output_planes->data(), target_size, zero_plane);
     }
 }
 
@@ -44,10 +44,10 @@ void EncodePositionForNN(
         if (output_planes->size() != target_size) {
             output_planes->resize(target_size);
         }
-        for (auto& plane : *output_planes) {
-            plane.mask = 0;
-            plane.value = 1.0f;
-        }
+        InputPlane zero_plane;
+        zero_plane.mask = 0;
+        zero_plane.value = 0.0f;
+        std::fill_n(output_planes->data(), target_size, zero_plane);
     }
 }
 

@@ -27,6 +27,16 @@ struct GameState {
         }
         return positions;
     }
+
+    template <typename F>
+    void ForEachPosition(F&& callback) const {
+        Position pos = startpos;
+        callback(pos, 0);
+        for (size_t i = 0; i < moves.size(); ++i) {
+            pos = Position(pos, moves[i]);
+            callback(pos, (int)(i + 1));
+        }
+    }
 };
 
 } // namespace lczero
