@@ -1471,7 +1471,11 @@ void SearchWorker::ProcessPickedTask(int start_idx, int end_idx,
         std::transform(node->Edges().begin(), node->Edges().end(),
                        std::back_inserter(legal_moves),
                        [](const auto& edge) { return edge.GetMove(); });
+#if 0
         picked_node.eval->p.resize(legal_moves.size());
+#else
+        picked_node.eval.p.resize(legal_moves.size());
+#endif
 #if 0
         // Lc0-master original code:
         picked_node.is_cache_hit = computation_->AddInput(
@@ -1487,7 +1491,7 @@ void SearchWorker::ProcessPickedTask(int start_idx, int end_idx,
                                            .history = &history,
                                            .legal_moves = legal_moves,
                                        },
-                                       picked_node.eval->AsPtr()) ==
+                                       picked_node.eval.AsPtr()) ==
                                    BackendComputation::FETCHED_IMMEDIATELY;
 #endif
       }
@@ -2201,12 +2205,22 @@ void SearchWorker::FetchSingleNodeResult(NodeToProcess* node_to_process) {
   if (!node_to_process->nn_queried) {
     // Terminal nodes don't involve the neural NetworkComputation, nor do
     // they require any further processing after value retrieval.
+#if 0
     node_to_process->eval->q = node->GetWL();
     node_to_process->eval->d = node->GetD();
     node_to_process->eval->m = node->GetM();
+#else
+    node_to_process->eval.q = node->GetWL();
+    node_to_process->eval.d = node->GetD();
+    node_to_process->eval.m = node->GetM();
+#endif
     return;
   }
+#if 0
   node_to_process->eval->q = -node_to_process->eval->q;
+#else
+  node_to_process->eval.q = -node_to_process->eval.q;
+#endif
   // For NN results, we need to populate policy as well as value.
   // First the value...
   if (params_.GetWDLRescaleRatio() != 1.0f ||
@@ -2216,15 +2230,28 @@ void SearchWorker::FetchSingleNodeResult(NodeToProcess* node_to_process) {
     bool root_stm = (search_->contempt_mode_ == ContemptMode::BLACK) ==
                     search_->played_history_.Last().IsBlackToMove();
     auto sign = (root_stm ^ (node_to_process->depth & 1)) ? 1.0f : -1.0f;
+#if 0
     WDLRescale(node_to_process->eval->q, node_to_process->eval->d,
                params_.GetWDLRescaleRatio(),
                search_->contempt_mode_ == ContemptMode::NONE
                    ? 0
                    : params_.GetWDLRescaleDiff(),
                sign, false, params_.GetWDLMaxS());
+#else
+    WDLRescale(node_to_process->eval.q, node_to_process->eval.d,
+               params_.GetWDLRescaleRatio(),
+               search_->contempt_mode_ == ContemptMode::NONE
+                   ? 0
+                   : params_.GetWDLRescaleDiff(),
+               sign, false, params_.GetWDLMaxS());
+#endif
   }
   for (size_t p_idx = 0; auto& edge : node->Edges()) {
+#if 0
     edge.edge()->SetP(node_to_process->eval->p[p_idx++]);
+#else
+    edge.edge()->SetP(node_to_process->eval.p[p_idx++]);
+#endif
   }
   // Add Dirichlet noise if enabled and at root.
   if (params_.GetNoiseEpsilon() && node == search_->root_node_) {
@@ -2266,9 +2293,15 @@ void SearchWorker::DoBackupUpdateSingleNode(
       params_.GetStickyEndgames() && node->IsTerminal() && !node->GetN();
 
   // Backup V value up to a root. After 1 visit, V = Q.
+#if 0
   float v = node_to_process.eval->q;
   float d = node_to_process.eval->d;
   float m = node_to_process.eval->m;
+#else
+  float v = node_to_process.eval.q;
+  float d = node_to_process.eval.d;
+  float m = node_to_process.eval.m;
+#endif
   int n_to_fix = 0;
   float v_delta = 0.0f;
   float d_delta = 0.0f;

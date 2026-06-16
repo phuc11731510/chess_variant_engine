@@ -9,7 +9,44 @@
 #include "chess/position.h"
 #include "utils/optionsdict.h"
 
+#include <cassert>
+
 namespace lczero {
+
+// Minimalistic static vector to avoid heap allocation
+template <typename T, size_t N>
+class StaticVector {
+ public:
+  StaticVector() : size_(0) {}
+
+  void resize(size_t new_size) {
+    assert(new_size <= N);
+    size_ = new_size;
+  }
+
+  size_t size() const { return size_; }
+  bool empty() const { return size_ == 0; }
+  void clear() { size_ = 0; }
+
+  T& operator[](size_t idx) { return data_[idx]; }
+  const T& operator[](size_t idx) const { return data_[idx]; }
+
+  T* begin() { return data_; }
+  const T* begin() const { return data_; }
+  T* end() { return data_ + size_; }
+  const T* end() const { return data_ + size_; }
+
+  T* data() { return data_; }
+  const T* data() const { return data_; }
+
+  // Implicit conversion to std::span for seamless integration
+  operator std::span<T>() { return std::span<T>(data_, size_); }
+  operator std::span<const T>() const { return std::span<const T>(data_, size_); }
+
+ private:
+  T data_[N];
+  size_t size_;
+};
 
 struct BackendAttributes {
   bool has_mlh;
@@ -31,7 +68,11 @@ struct EvalResult {
   float q;
   float d;
   float m;
+#if 0
   std::vector<float> p;
+#else
+  StaticVector<float, 384> p;
+#endif
 
   EvalResultPtr AsPtr() {
     return EvalResultPtr{.q = &q, .d = &d, .m = &m, .p = p};

@@ -312,7 +312,11 @@ class SearchWorker {
 
     // The node to extend.
     Node* node;
+#if 0
     std::unique_ptr<EvalResult> eval;
+#else
+    EvalResult eval;
+#endif
     int multivisit = 0;
     // If greater than multivisit, and other parameters don't imply a lower
     // limit, multivist could be increased to this value without additional
@@ -344,7 +348,11 @@ class SearchWorker {
     NodeToProcess(Node* node, uint16_t depth, bool is_collision, int multivisit,
                   int max_count)
         : node(node),
+#if 0
           eval(std::make_unique<EvalResult>()),
+#else
+          eval{},
+#endif
           multivisit(multivisit),
           maxvisit(max_count),
           depth(depth),
