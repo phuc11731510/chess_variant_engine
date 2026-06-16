@@ -231,14 +231,7 @@ Key Position::material_key(EndgameEval e) const {
 
 
 Position& Position::copy_from(const Position& other, StateInfo* newSt) {
-  std::memcpy(board, other.board, sizeof(board));
-  std::memcpy(unpromotedBoard, other.unpromotedBoard, sizeof(unpromotedBoard));
-  std::memcpy(byTypeBB, other.byTypeBB, sizeof(byTypeBB));
-  std::memcpy(byColorBB, other.byColorBB, sizeof(byColorBB));
-  std::memcpy(pieceCount, other.pieceCount, sizeof(pieceCount));
-  std::memcpy(castlingRightsMask, other.castlingRightsMask, sizeof(castlingRightsMask));
-  std::memcpy(castlingRookSquare, other.castlingRookSquare, sizeof(castlingRookSquare));
-  std::memcpy(castlingPath, other.castlingPath, sizeof(castlingPath));
+  std::memcpy(board, other.board, offsetof(Position, thisThread) - offsetof(Position, board));
   
   thisThread = other.thisThread;
   st = newSt;
