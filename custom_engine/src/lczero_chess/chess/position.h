@@ -18,6 +18,8 @@ struct LightweightPosition {
     int rule50_ply;
     int repetitions;
     Move move; // Lưu nước đi dẫn tới vị trí tiếp theo
+    std::array<uint8_t, 120> board; // Quân cờ của vị trí trước đó (120 bytes)
+    bool flipped; // side_to_move có phải là Black không
 };
 
 class Position {
@@ -25,6 +27,10 @@ public:
     Position() = default;
     Position(const Position& parent, Move m);
     Position(const ChessBoard& board, int rule50_ply, int game_ply);
+
+    void CopyFrom(const Position& other, Stockfish::StateInfo* external_state = nullptr);
+    void DoMove(Move m, Stockfish::StateInfo* external_state = nullptr);
+    void UndoMove(int rule50_ply, int repetitions);
 
     static Position FromFen(std::string_view fen);
 
@@ -74,7 +80,9 @@ public:
     int GetLength() const { return history_size_ + 1; }
     void Reserve(size_t) {}
     
-    const std::vector<Position>& GetPositions() const;
+    std::span<const LightweightPosition> GetPositions() const {
+        return std::span<const LightweightPosition>(history_.data(), history_size_);
+    }
     void Trim(size_t size);
     void Pop();
 
@@ -94,7 +102,7 @@ private:
     Position starting_position_;
     Position last_position_;
     std::array<LightweightPosition, 256> history_; // Mảng tĩnh tránh heap allocation
-    std::vector<Position> position_cache_; // Cache các Position tương ứng để tối ưu Trim/Pop thành O(1)
+    std::array<Stockfish::StateInfo, 256> mcts_states_; // Stack lưu StateInfo dùng riêng cho MCTS
     size_t history_size_ = 0;
 };
 

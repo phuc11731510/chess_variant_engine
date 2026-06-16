@@ -24,24 +24,7 @@ void EncodePositionForNN(
     }
 }
 
-void EncodePositionForNN(
-    std::span<const Position> positions,
-    int history_planes,
-    FillEmptyHistory fill_empty_history,
-    InputPlanes* output_planes,
-    int* transform_out) {
-    
-    if (transform_out) {
-        *transform_out = 0;
-    }
-    
-    if (output_planes) {
-        InputPlane zero_plane;
-        zero_plane.mask = 0;
-        zero_plane.value = 0.0f;
-        output_planes->fill(zero_plane);
-    }
-}
+
 
 void UnpackInputPlanes(
     const InputPlanes& planes,

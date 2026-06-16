@@ -4,6 +4,7 @@
 #include "../../chess/thread.h"
 #include <cstring>
 #include <iostream>
+#include <cassert>
 
 namespace lczero {
 
@@ -45,6 +46,17 @@ ChessBoard& ChessBoard::operator=(const ChessBoard& other) {
     return *this;
 }
 
+void ChessBoard::CopyFrom(const ChessBoard& other, Stockfish::StateInfo* external_state) {
+    variant_def = other.variant_def;
+    state_index = other.state_index;
+    if (external_state) {
+        pos.copy_from(other.pos, external_state);
+    } else {
+        states[state_index] = other.states[state_index];
+        pos.copy_from(other.pos, &states[state_index]);
+    }
+}
+
 void ChessBoard::SetFromFen(std::string_view fen, int* rule50_ply, int* moves) {
     state_index = 0;
     Stockfish::Thread* th = nullptr;
@@ -72,24 +84,27 @@ MoveList ChessBoard::GenerateLegalMoves() const {
     return result;
 }
 
-bool ChessBoard::ApplyMove(Move move) {
-    int next_index = 1 - state_index;
-    state_index = next_index;
+bool ChessBoard::ApplyMove(Move move, Stockfish::StateInfo* external_state) {
     if (pos.side_to_move() == Stockfish::BLACK) {
         move.Flip(pos.max_rank());
     }
-    pos.do_move(move, states[state_index]);
+    if (external_state) {
+        pos.do_move(move, *external_state);
+    } else {
+        int next_index = 1 - state_index;
+        state_index = next_index;
+        pos.do_move(move, states[state_index]);
+    }
     // Stockfish resets rule50 to 0 for all zeroing moves (captures, pawn/sergeant moves, drops, etc.)
     return pos.state()->rule50 == 0;
 }
 
-// MCTS WARNING: Do not call this in MCTS search. ChessBoard should be cloned
-// before ApplyMove. UndoMove is only kept for unit testing/debugging.
 void ChessBoard::UndoMove() {
-    int prev_index = 1 - state_index;
     Move last_move = pos.state()->move;
     pos.undo_move(last_move);
-    state_index = prev_index;
+    if (pos.state() >= &states[0] && pos.state() <= &states[1]) {
+        state_index = pos.state() - &states[0];
+    }
 }
 
 bool ChessBoard::IsUnderCheck() const {

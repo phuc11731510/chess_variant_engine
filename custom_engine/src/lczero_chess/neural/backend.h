@@ -39,7 +39,7 @@ struct EvalResult {
 };
 
 struct EvalPosition {
-  std::span<const Position> pos;
+  const PositionHistory* history;
   std::span<const Move> legal_moves;
 };
 

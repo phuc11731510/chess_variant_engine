@@ -4,6 +4,27 @@
 
 namespace lczero {
 
+void Position::CopyFrom(const Position& other, Stockfish::StateInfo* external_state) {
+    us_board_.CopyFrom(other.us_board_, external_state);
+    rule50_ply_ = other.rule50_ply_;
+    repetitions_ = other.repetitions_;
+    ply_count_ = other.ply_count_;
+    plies_since_prev_repetition_ = other.plies_since_prev_repetition_;
+}
+
+void Position::DoMove(Move m, Stockfish::StateInfo* external_state) {
+    const bool is_zeroing = us_board_.ApplyMove(m, external_state);
+    rule50_ply_ = is_zeroing ? 0 : rule50_ply_ + 1;
+    ply_count_++;
+}
+
+void Position::UndoMove(int rule50_ply, int repetitions) {
+    us_board_.UndoMove();
+    rule50_ply_ = rule50_ply;
+    repetitions_ = repetitions;
+    ply_count_--;
+}
+
 Position::Position(const Position& parent, Move m)
     : us_board_(parent.us_board_),
       rule50_ply_(parent.rule50_ply_ + 1),
@@ -23,42 +44,48 @@ Position Position::FromFen(std::string_view fen) {
 
 PositionHistory::PositionHistory(std::span<const Position> positions) {
     history_size_ = 0;
-    position_cache_.clear();
     if (!positions.empty()) {
         starting_position_ = positions.front();
-        last_position_ = positions.back();
-        position_cache_.reserve(256);
-        position_cache_.push_back(positions.front());
-        size_t limit = std::min(positions.size() - 1, history_.size());
-        for (size_t i = 0; i < limit; ++i) {
-            history_[history_size_] = {
-                positions[i].Hash(),
-                positions[i].GetRule50Ply(),
-                positions[i].GetRepetitions(),
-                positions[i + 1].GetLastMove()
-            };
-            position_cache_.push_back(positions[i + 1]);
-            history_size_++;
+        last_position_ = starting_position_;
+        for (size_t i = 1; i < positions.size(); ++i) {
+            Append(positions[i].GetLastMove());
         }
     }
 }
 
 PositionHistory::PositionHistory(const PositionHistory& other) {
     starting_position_ = other.starting_position_;
-    last_position_ = other.last_position_;
     history_size_ = other.history_size_;
     std::copy_n(other.history_.begin(), history_size_, history_.begin());
-    position_cache_.reserve(256);
-    position_cache_ = other.position_cache_;
+    
+    if (history_size_ > 0) {
+        std::copy_n(other.mcts_states_.begin(), history_size_, mcts_states_.begin());
+        last_position_.CopyFrom(other.last_position_, &mcts_states_[history_size_ - 1]);
+        mcts_states_[0].previous = const_cast<Stockfish::StateInfo*>(starting_position_.GetBoard().GetRawPosition().state());
+        for (size_t i = 1; i < history_size_; ++i) {
+            mcts_states_[i].previous = &mcts_states_[i - 1];
+        }
+    } else {
+        last_position_ = other.last_position_;
+    }
 }
 
 PositionHistory& PositionHistory::operator=(const PositionHistory& other) {
     if (this != &other) {
         starting_position_ = other.starting_position_;
-        last_position_ = other.last_position_;
         history_size_ = other.history_size_;
         std::copy_n(other.history_.begin(), history_size_, history_.begin());
-        position_cache_ = other.position_cache_;
+        
+        if (history_size_ > 0) {
+            std::copy_n(other.mcts_states_.begin(), history_size_, mcts_states_.begin());
+            last_position_.CopyFrom(other.last_position_, &mcts_states_[history_size_ - 1]);
+            mcts_states_[0].previous = const_cast<Stockfish::StateInfo*>(starting_position_.GetBoard().GetRawPosition().state());
+            for (size_t i = 1; i < history_size_; ++i) {
+                mcts_states_[i].previous = &mcts_states_[i - 1];
+            }
+        } else {
+            last_position_ = other.last_position_;
+        }
     }
     return *this;
 }
@@ -67,41 +94,40 @@ void PositionHistory::Reset(const ChessBoard& board, int rule50_ply, int game_pl
     starting_position_ = Position(board, rule50_ply, game_ply);
     last_position_ = starting_position_;
     history_size_ = 0;
-    position_cache_.clear();
-    position_cache_.reserve(256);
-    position_cache_.push_back(starting_position_);
 }
 
 void PositionHistory::Reset(const Position& pos) {
     starting_position_ = pos;
     last_position_ = pos;
     history_size_ = 0;
-    position_cache_.clear();
-    position_cache_.reserve(256);
-    position_cache_.push_back(pos);
 }
 
 void PositionHistory::Append(Move m) {
-    // Lưu trạng thái trước nước đi và nước đi chuẩn bị thực hiện
     if (history_size_ < history_.size()) {
-        history_[history_size_++] = {
+        const auto& raw_board = last_position_.GetBoard().GetRawPosition();
+        std::array<uint8_t, 120> board_state;
+        for (int s = 0; s < 120; ++s) {
+            board_state[s] = static_cast<uint8_t>(raw_board.piece_on(Stockfish::Square(s)));
+        }
+        history_[history_size_] = {
             last_position_.Hash(),
             last_position_.GetRule50Ply(),
             last_position_.GetRepetitions(),
-            m
+            m,
+            board_state,
+            last_position_.IsBlackToMove()
         };
+        
+        last_position_.DoMove(m, &mcts_states_[history_size_]);
+        history_size_++;
+    } else {
+        last_position_.DoMove(m, nullptr);
     }
-    
-    // Thực hiện nước đi m
-    last_position_ = Position(last_position_, m);
     
     int plies_since_prev = 10000;
     int repetitions = ComputeLastMoveRepetitions(plies_since_prev);
     last_position_.SetRepetitions(repetitions);
     last_position_.SetPliesSincePrevRepetition(plies_since_prev);
-
-    // Cache position mới để hỗ trợ Trim/Pop O(1)
-    position_cache_.push_back(last_position_);
 }
 
 int PositionHistory::ComputeLastMoveRepetitions(int& plies_since_prev) const {
@@ -193,23 +219,17 @@ GameResult PositionHistory::ComputeMctsResult(const MoveList& legal_moves) const
     return GameResult::UNDECIDED;
 }
 
-const std::vector<Position>& PositionHistory::GetPositions() const {
-    return position_cache_;
-}
-
 void PositionHistory::Trim(size_t size) {
-    if (size > 0 && size <= position_cache_.size()) {
-        history_size_ = size - 1;
-        position_cache_.resize(size);
-        last_position_ = position_cache_.back();
+    while (GetLength() > size) {
+        Pop();
     }
 }
 
 void PositionHistory::Pop() {
-    if (position_cache_.size() > 1) {
+    if (history_size_ > 0) {
         --history_size_;
-        position_cache_.pop_back();
-        last_position_ = position_cache_.back();
+        const auto& prev = history_[history_size_];
+        last_position_.UndoMove(prev.rule50_ply, prev.repetitions);
     }
 }
 

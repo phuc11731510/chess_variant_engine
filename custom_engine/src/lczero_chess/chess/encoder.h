@@ -59,13 +59,6 @@ void EncodePositionForNN(
     InputPlanes* output_planes,
     int* transform_out);
 
-void EncodePositionForNN(
-    std::span<const Position> positions,
-    int history_planes,
-    FillEmptyHistory fill_empty_history,
-    InputPlanes* output_planes,
-    int* transform_out);
-
 // Hàm chuyển đổi (unpack) từ cấu trúc thưa `InputPlanes` (chứa các bitmask/Bitboard)
 // sang mảng float phẳng liên tục `float_planes` để đưa vào ONNX Runtime.
 // `float_planes` phải được cấp phát sẵn với kích thước: planes.size() * width * height

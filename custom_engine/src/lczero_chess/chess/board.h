@@ -44,11 +44,9 @@ public:
     void Clear();
     void Mirror() {} // Không cần làm gì vì Stockfish tự động xoay side_to_move khi do_move
 
+    void CopyFrom(const ChessBoard& other, Stockfish::StateInfo* external_state = nullptr);
     MoveList GenerateLegalMoves() const;
-    bool ApplyMove(Move move);
-    // NOTE: MCTS uses Copy->ApplyMove pattern, not ApplyMove->UndoMove.
-    // UndoMove is kept only for unit testing/debugging purposes.
-    [[deprecated("Do not use UndoMove in MCTS. Clone the ChessBoard before ApplyMove instead.")]]
+    bool ApplyMove(Move move, Stockfish::StateInfo* external_state = nullptr);
     void UndoMove();
     bool IsUnderCheck() const;
 

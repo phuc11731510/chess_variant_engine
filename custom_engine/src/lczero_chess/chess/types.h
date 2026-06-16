@@ -8,6 +8,19 @@
 
 namespace lczero {
 
+struct FlipSquareLUT {
+    Stockfish::Square lut[Stockfish::SQUARE_NB + 1];
+    constexpr FlipSquareLUT() : lut{} {
+        for (int s = 0; s < Stockfish::SQUARE_NB; ++s) {
+            int f = s % 12;
+            int r = s / 12;
+            lut[s] = Stockfish::Square((9 - r) * 12 + f);
+        }
+        lut[Stockfish::SQUARE_NB] = Stockfish::SQ_NONE;
+    }
+};
+inline constexpr FlipSquareLUT flip_square_lut;
+
 class Move {
 public:
     constexpr Move() : m_(Stockfish::MOVE_NONE) {}
@@ -27,6 +40,9 @@ public:
         Stockfish::PieceType pt = Stockfish::promotion_type(m_);
         
         auto flip_sq = [max_rank](Stockfish::Square s) {
+            if (max_rank == Stockfish::RANK_10) {
+                return flip_square_lut.lut[s];
+            }
             return Stockfish::flip_rank(s, max_rank);
         };
         
