@@ -94,7 +94,7 @@ GameResult PositionHistory::ComputeGameResult() const {
     const auto& board = Last().GetBoard();
     const auto& raw_pos = board.GetRawPosition();
     
-    // 1. Kiểm tra giới hạn 7-checks
+    // 1. Kiểm tra giới hạn 7-checks (O(1))
     if (raw_pos.checks_remaining(Stockfish::WHITE) <= 0) {
         return GameResult::BLACK_WON; // Trắng hết lượt chiếu -> Đen thắng
     }
@@ -102,7 +102,17 @@ GameResult PositionHistory::ComputeGameResult() const {
         return GameResult::WHITE_WON; // Đen hết lượt chiếu -> Trắng thắng
     }
 
-    // 2. Kiểm tra nước đi hợp lệ
+    // 2. Luật 50 nước đi (100 plies) (O(1))
+    if (Last().GetRule50Ply() >= 100) {
+        return GameResult::DRAW;
+    }
+
+    // 3. Luật lặp thế cờ (3-fold repetition, repetitions >= 2) (O(1))
+    if (Last().GetRepetitions() >= 2) {
+        return GameResult::DRAW;
+    }
+
+    // 4. Kiểm tra nước đi hợp lệ (Chỉ chạy O(n) movegen khi thực sự cần thiết)
     auto legal_moves = board.GenerateLegalMoves();
     if (legal_moves.empty()) {
         if (board.IsUnderCheck()) {
@@ -111,16 +121,6 @@ GameResult PositionHistory::ComputeGameResult() const {
         }
         // Stalemate = LOSS (Bên bị stalemate thua)
         return IsBlackToMove() ? GameResult::WHITE_WON : GameResult::BLACK_WON;
-    }
-
-    // 3. Luật 50 nước đi (100 plies)
-    if (Last().GetRule50Ply() >= 100) {
-        return GameResult::DRAW;
-    }
-
-    // 4. Luật lặp thế cờ (3-fold repetition, repetitions >= 2)
-    if (Last().GetRepetitions() >= 2) {
-        return GameResult::DRAW;
     }
 
     return GameResult::UNDECIDED;

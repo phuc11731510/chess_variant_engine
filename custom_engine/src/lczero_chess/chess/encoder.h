@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <span>
+#include <array>
 #include "../../chess/position.h"
 #include "types.h"
 #include "position.h"
@@ -31,7 +32,7 @@ struct InputPlane {
     float value = 1.0f;
 };
 
-using InputPlanes = std::vector<InputPlane>;
+using InputPlanes = std::array<InputPlane, kAuxPlaneBase + kAuxPlanesCount>;
 
 /*
  * Cấu trúc 10 mặt phẳng phụ trợ (Auxiliary Planes) bắt đầu từ chỉ số kAuxPlaneBase:

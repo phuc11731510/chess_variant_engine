@@ -1,6 +1,7 @@
 #include "encoder.h"
 #include <cstring>
 #include <algorithm>
+#include <cassert>
 
 namespace lczero {
 
@@ -16,15 +17,10 @@ void EncodePositionForNN(
     }
     
     if (output_planes) {
-        constexpr size_t target_size = kAuxPlaneBase + kAuxPlanesCount;
-        if (output_planes->size() != target_size) {
-            output_planes->resize(target_size);
-        }
-        // Khởi tạo/Reset lại các plane để tái sử dụng buffer cũ bằng std::fill_n (được compiler tối ưu thành memset/SIMD)
         InputPlane zero_plane;
         zero_plane.mask = 0;
         zero_plane.value = 0.0f;
-        std::fill_n(output_planes->data(), target_size, zero_plane);
+        output_planes->fill(zero_plane);
     }
 }
 
@@ -40,14 +36,10 @@ void EncodePositionForNN(
     }
     
     if (output_planes) {
-        constexpr size_t target_size = kAuxPlaneBase + kAuxPlanesCount;
-        if (output_planes->size() != target_size) {
-            output_planes->resize(target_size);
-        }
         InputPlane zero_plane;
         zero_plane.mask = 0;
         zero_plane.value = 0.0f;
-        std::fill_n(output_planes->data(), target_size, zero_plane);
+        output_planes->fill(zero_plane);
     }
 }
 
@@ -58,6 +50,7 @@ void UnpackInputPlanes(
     int height) {
     
     const int plane_size = width * height;
+    assert(width <= Stockfish::FILE_NB && height <= Stockfish::RANK_NB);
     
     for (size_t p = 0; p < planes.size(); ++p) {
         const auto& plane = planes[p];
@@ -75,16 +68,14 @@ void UnpackInputPlanes(
             continue;
         }
         
-        // 3. Ngược lại, gán toàn bộ = 0.0f, sau đó duyệt qua các bit 1 trong mask
+        // 3. Ngược lại, gán toàn bộ = 0.0f, sau đó duyệt qua các bit 1 trong mask (không cần boundary check thừa)
         std::memset(dest, 0, plane_size * sizeof(float));
         Stockfish::Bitboard b = plane.mask;
         while (b) {
             Stockfish::Square sq = Stockfish::pop_lsb(b);
             int f = Stockfish::file_of(sq);
             int r = Stockfish::rank_of(sq);
-            if (f < width && r < height) {
-                dest[r * width + f] = plane.value;
-            }
+            dest[r * width + f] = plane.value;
         }
     }
 }
