@@ -1,0 +1,11 @@
+Hãy thiết kế bộ kiểm tra lặp thế cờ (3-fold repetition) tối ưu cho MCTS Lc0 thay thế Stockfish. 
+Hiện tại, Stockfish dùng danh sách liên kết ngược StateInfo->previous giới hạn bởi 
+pliesFromNull để check trùng Hash, gây chậm do pointer chasing (cache miss). Để tối ưu 
+hiệu năng, hãy thay thế cơ chế này bằng việc duy trì một mảng phẳng tuần tự 
+(flat array/stack) chứa Zobrist Hash của các nước đi trên cây MCTS. Khi check lặp thế, 
+chỉ cần duyệt mảng phẳng này để đối chiếu nhanh và tránh truy cập vùng nhớ rải rác.
+
+Được rồi, bạn hãy kiểm tra kĩ lại logic và liệu có cách nào để tối ưu thêm hiệu năng để sau này sinh dữ liệu huấn luyện hoặc tối ưu hiệu năng dành cho việc thiết kế "mcts kế thừa từ lc0" sau này hay không của những gì đã triển khai ở "custom_engine\src\lczero_chess\chess" và ở "custom_engine\src\chess\position.h" và ở "custom_engine\src\chess\position.cpp" và ở "custom_engine\src\chess\evaluate.cpp". Lưu ý nếu có chỗ nào có thể tối ưu thêm hiệu năng thì bạn hãy viết đề xuất chứ không chỉnh sửa code
+
+Đối chiếu thực tế: Việc đối chiếu với lc0-master xác nhận thiết kế này là hoàn toàn chính xác. Trong Lc0, lớp classic::Node có kích thước đúng 64 bytes trên hệ thống 64-bit và không hề chứa trạng thái bàn cờ. Luồng tìm kiếm tự động tái tạo trạng thái bằng cách đi thử nước đi từ Root bằng đối tượng PositionHistory trên stack.
+Kế hoạch áp dụng: Chúng ta sẽ tuân thủ nghiêm ngặt nguyên lý này khi xây dựng lớp MCTS Node ở Phase 4 sắp tới để ngăn chặn triệt để hiện tượng ngốn RAM (Memory Bloat).

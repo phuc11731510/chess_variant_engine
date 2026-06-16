@@ -80,4 +80,12 @@ void UnpackInputPlanes(
     }
 }
 
+uint16_t MoveToNNIndex(Move move, int transform) {
+    return 0;
+}
+
+Move MoveFromNNIndex(int idx, int transform) {
+    return Move(Stockfish::MOVE_NONE);
+}
+
 } // namespace lczero

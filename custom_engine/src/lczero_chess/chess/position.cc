@@ -24,6 +24,7 @@ Position Position::FromFen(std::string_view fen) {
 PositionHistory::PositionHistory(std::span<const Position> positions) {
     history_size_ = 0;
     if (!positions.empty()) {
+        starting_position_ = positions.front();
         last_position_ = positions.back();
         size_t limit = std::min(positions.size() - 1, history_.size());
         for (size_t i = 0; i < limit; ++i) {
@@ -38,11 +39,13 @@ PositionHistory::PositionHistory(std::span<const Position> positions) {
 }
 
 void PositionHistory::Reset(const ChessBoard& board, int rule50_ply, int game_ply) {
-    last_position_ = Position(board, rule50_ply, game_ply);
+    starting_position_ = Position(board, rule50_ply, game_ply);
+    last_position_ = starting_position_;
     history_size_ = 0;
 }
 
 void PositionHistory::Reset(const Position& pos) {
+    starting_position_ = pos;
     last_position_ = pos;
     history_size_ = 0;
 }
@@ -126,6 +129,36 @@ GameResult PositionHistory::ComputeGameResult() const {
     }
 
     return GameResult::UNDECIDED;
+}
+
+std::vector<Position> PositionHistory::GetPositions() const {
+    std::vector<Position> result;
+    result.reserve(history_size_ + 1);
+    result.push_back(starting_position_);
+    for (size_t i = 0; i < history_size_; ++i) {
+        result.push_back(Position(result.back(), history_[i].move));
+    }
+    return result;
+}
+
+void PositionHistory::Trim(size_t size) {
+    if (size > 0 && size <= history_size_ + 1) {
+        history_size_ = size - 1;
+        last_position_ = starting_position_;
+        for (size_t i = 0; i < history_size_; ++i) {
+            last_position_ = Position(last_position_, history_[i].move);
+        }
+    }
+}
+
+void PositionHistory::Pop() {
+    if (history_size_ > 0) {
+        --history_size_;
+        last_position_ = starting_position_;
+        for (size_t i = 0; i < history_size_; ++i) {
+            last_position_ = Position(last_position_, history_[i].move);
+        }
+    }
 }
 
 } // namespace lczero

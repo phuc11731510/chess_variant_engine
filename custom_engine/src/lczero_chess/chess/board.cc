@@ -60,7 +60,13 @@ void ChessBoard::Clear() {
 }
 
 MoveList ChessBoard::GenerateLegalMoves() const {
-    return MoveList(pos);
+    Stockfish::MoveList<Stockfish::LEGAL> list(pos);
+    MoveList result;
+    result.reserve(list.size());
+    for (auto ext_move : list) {
+        result.push_back(Move(ext_move.move));
+    }
+    return result;
 }
 
 bool ChessBoard::ApplyMove(Move move) {

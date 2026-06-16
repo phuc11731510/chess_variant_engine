@@ -7,12 +7,36 @@
 
 namespace lczero {
 
+struct BitboardWrapper {
+    Stockfish::Bitboard b;
+    BitboardWrapper(Stockfish::Bitboard bb) : b(bb) {}
+    int count() const {
+        return Stockfish::popcount(b);
+    }
+    BitboardWrapper operator|(BitboardWrapper other) const {
+        return BitboardWrapper(b | other.b);
+    }
+};
+
+struct CastlingsWrapper {
+    bool no_legal_castle() const { return true; }
+};
+
 class ChessBoard {
 public:
     ChessBoard();
     ChessBoard(const ChessBoard& other);
     ChessBoard(const std::string& fen) : ChessBoard() { SetFromFen(fen); }
     ChessBoard& operator=(const ChessBoard& other);
+
+    BitboardWrapper ours() const {
+        return BitboardWrapper(pos.pieces(pos.side_to_move()));
+    }
+    BitboardWrapper theirs() const {
+        return BitboardWrapper(pos.pieces(~pos.side_to_move()));
+    }
+    CastlingsWrapper castlings() const { return CastlingsWrapper{}; }
+    bool HasMatingMaterial() const { return true; }
 
     static const char* kStartposFen;
 

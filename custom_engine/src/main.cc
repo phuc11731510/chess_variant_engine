@@ -21,6 +21,10 @@
 #include "chess/position.h"
 #include "chess/gamestate.h"
 #include "chess/encoder.h"
+#include "search/classic/search.h"
+#include "neural/backend.h"
+#include "neural/shared_params.h"
+#include "chess/callbacks.h"
 
 using namespace Stockfish;
 
@@ -456,10 +460,198 @@ checkCounting = true
     std::cout << "========================================\n" << std::endl;
 }
 
+class MockComputation : public lczero::BackendComputation {
+public:
+    MockComputation() : enqueued_(0) {}
+    size_t UsedBatchSize() const override { return enqueued_; }
+    AddInputResult AddInput(const lczero::EvalPosition& pos, lczero::EvalResultPtr result) override {
+        size_t num_legal = pos.legal_moves.size();
+        if (num_legal > 0 && !result.p.empty()) {
+            float prob = 1.0f / num_legal;
+            for (size_t i = 0; i < num_legal && i < result.p.size(); ++i) {
+                result.p[i] = prob;
+            }
+        }
+        if (result.q) *result.q = 0.0f;
+        if (result.d) *result.d = 1.0f;
+        if (result.m) *result.m = 50.0f;
+        enqueued_ = 1;
+        return FETCHED_IMMEDIATELY;
+    }
+    void ComputeBlocking() override { enqueued_ = 0; }
+private:
+    size_t enqueued_;
+};
+
+class MockBackend : public lczero::Backend {
+public:
+    lczero::BackendAttributes GetAttributes() const override {
+        return lczero::BackendAttributes{
+            .has_mlh = false,
+            .has_wdl = false,
+            .runs_on_cpu = true,
+            .suggested_num_search_threads = 1,
+            .recommended_batch_size = 1,
+            .maximum_batch_size = 1
+        };
+    }
+    std::unique_ptr<lczero::BackendComputation> CreateComputation() override {
+        return std::make_unique<MockComputation>();
+    }
+};
+
+class TestUciResponder : public lczero::UciResponder {
+public:
+    void OutputBestMove(lczero::BestMoveInfo* info) override {
+        std::cout << "[MCTS TEST] Bestmove: " << info->bestmove.ToString() << std::endl;
+    }
+    void OutputThinkingInfo(std::vector<lczero::ThinkingInfo>* infos) override {
+        if (infos && !infos->empty()) {
+            const auto& info = infos->front();
+            std::cout << "[MCTS TEST] info depth " << info.depth 
+                      << " seldepth " << info.seldepth 
+                      << " nodes " << info.nodes 
+                      << " score cp " << (info.score ? *info.score : 0);
+            if (!info.pv.empty()) {
+                std::cout << " pv";
+                for (auto m : info.pv) {
+                    std::cout << " " << m.ToString();
+                }
+            }
+            std::cout << std::endl;
+        }
+    }
+};
+
+class NodeLimitStopper : public lczero::classic::SearchStopper {
+public:
+    NodeLimitStopper(int64_t max_nodes) : max_nodes_(max_nodes) {}
+    bool ShouldStop(const lczero::classic::IterationStats& stats, lczero::classic::StoppersHints*) override {
+        return stats.total_nodes >= max_nodes_;
+    }
+    void OnSearchDone(const lczero::classic::IterationStats&) override {}
+private:
+    int64_t max_nodes_;
+};
+
+void run_mcts_tests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "RUNNING MCTS INTEGRATION TESTS..." << std::endl;
+    std::cout << "========================================" << std::endl;
+
+    // Load custom variant
+    std::string ini_text = R"(
+[custom_10x10_variant]
+maxRank = 10
+maxFile = j
+
+pawn = p
+knight = n
+bishop = b
+rook = r
+queen = q
+king = k:KN
+
+amazon = a
+chancellor = e
+archbishop = h
+centaur = m
+customPiece1 = v:CN
+customPiece2 = y:AD
+customPiece3 = s:fKifmnDifmnA
+
+pawnTypes = p s
+promotionPawnTypes = p s
+enPassantTypes = p s
+nMoveRuleTypes = p s
+
+doubleStep = true
+doubleStepRegionWhite = *1 *2 *3
+doubleStepRegionBlack = *10 *9 *8
+
+promotionRegionWhite = *9 *10
+promotionRegionBlack = *2 *1
+mandatoryPawnPromotion = true
+promotionPieceTypes = b h m n v y
+
+castling = true
+castlingKingsideFile = h
+castlingQueensideFile = d
+castlingRookKingsideFile = i
+castlingRookQueensideFile = b
+
+stalemateValue = loss
+checkCounting = true
+)";
+
+    std::istringstream ss(ini_text);
+    variants.parse_istream<false>(ss);
+
+    const Variant* v = variants.find("custom_10x10_variant")->second;
+    if (!v) {
+        std::cerr << "[FAIL] Failed to find custom_10x10_variant!" << std::endl;
+        std::exit(1);
+    }
+    UCI::init_variant(v);
+    PSQT::init(v);
+
+    // 1. Dựng thế cờ 10x10 variant
+    std::string fen = "5k4/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1";
+    lczero::ChessBoard board(fen);
+    
+    std::cout << "Starting MCTS NodeTree setup from FEN: " << fen << std::endl;
+    lczero::classic::NodeTree tree;
+    tree.ResetToPosition(fen, {}); // set to FEN
+    
+    // 2. Setup components
+    auto backend = std::make_unique<MockBackend>();
+    auto uci_responder = std::make_unique<TestUciResponder>();
+    auto stopper = std::make_unique<NodeLimitStopper>(100); // Stop after 100 nodes
+    
+    lczero::OptionsParser parser;
+    lczero::classic::SearchParams::Populate(&parser);
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+    const lczero::OptionsDict& options = parser.GetOptionsDict();
+    
+    std::cout << "Initializing search with 1 thread, 100 max nodes limit..." << std::endl;
+    auto start_time = std::chrono::steady_clock::now();
+    
+    lczero::classic::Search search(
+        tree,
+        backend.get(),
+        std::move(uci_responder),
+        lczero::MoveList{},
+        start_time,
+        std::move(stopper),
+        false, // infinite
+        false, // ponder
+        options,
+        nullptr // syzygy_tb
+    );
+    
+    std::cout << "Starting search thread and blocking..." << std::endl;
+    search.RunBlocking(1); // Run search on 1 thread
+    
+    auto result = search.GetBestMove();
+    std::cout << "MCTS Search finished successfully!" << std::endl;
+    std::cout << "Best move found: " << result.first.ToString() << std::endl;
+    std::cout << "Total playouts: " << search.GetTotalPlayouts() << std::endl;
+    
+    if (search.GetTotalPlayouts() >= 100) {
+        std::cout << "[PASS] MCTS Integration Test passed!" << std::endl;
+    } else {
+        std::cerr << "[FAIL] MCTS Search did not run the expected number of playouts: " 
+                  << search.GetTotalPlayouts() << std::endl;
+        std::exit(1);
+    }
+}
+
 int main(int argc, char* argv[]) {
     bool selfplay_mode = false;
     bool test_ep_mode = false;
     bool test_board_mode = false;
+    bool test_mcts_mode = false;
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
             selfplay_mode = true;
@@ -467,6 +659,8 @@ int main(int argc, char* argv[]) {
             test_ep_mode = true;
         } else if (std::string(argv[i]) == "--test-board") {
             test_board_mode = true;
+        } else if (std::string(argv[i]) == "--test-mcts") {
+            test_mcts_mode = true;
         }
     }
 
@@ -490,6 +684,8 @@ int main(int argc, char* argv[]) {
         run_ep_tests();
     } else if (test_board_mode) {
         run_board_tests();
+    } else if (test_mcts_mode) {
+        run_mcts_tests();
     } else if (selfplay_mode) {
         std::cout << "Starting custom selfplay mode..." << std::endl;
         // Selfplay logic will go here

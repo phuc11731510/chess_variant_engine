@@ -68,7 +68,16 @@ chess_sources = files(
   'src/chess/nnue/features/half_ka_v2_variants.cpp',
   'src/lczero_chess/chess/board.cc',
   'src/lczero_chess/chess/position.cc',
-  'src/lczero_chess/chess/encoder.cc'
+  'src/lczero_chess/chess/encoder.cc',
+  'src/lczero_chess/utils/string.cc'
+)
+
+# Classic search source files (Lc0-master)
+search_sources = files(
+  'src/search/classic/node.cc',
+  'src/search/classic/search.cc',
+  'src/search/classic/params.cc',
+  'src/search/classic/stoppers/timemgr.cc'
 )
 
 # Engine sources
@@ -78,7 +87,7 @@ engine_sources = files(
 
 # Build the executable
 executable('custom_engine',
-  sources: [chess_sources, engine_sources],
+  sources: [chess_sources, search_sources, engine_sources],
   include_directories: inc_dirs,
   dependencies: [thread_dep],
   install: true

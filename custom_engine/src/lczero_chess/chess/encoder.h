@@ -75,4 +75,7 @@ void UnpackInputPlanes(
     int width,
     int height);
 
+uint16_t MoveToNNIndex(Move move, int transform = 0);
+Move MoveFromNNIndex(int idx, int transform = 0);
+
 } // namespace lczero
