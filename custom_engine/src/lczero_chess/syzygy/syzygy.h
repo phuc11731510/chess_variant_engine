@@ -35,10 +35,10 @@ class SyzygyTablebase {
     return 0;
   }
   bool root_probe(const Position& pos, bool has_repeated, bool win_only,
-                  std::vector<Move>* safe_moves) {
+                  MoveList* safe_moves) {
     return false;
   }
-  bool root_probe_wdl(const Position& pos, std::vector<Move>* safe_moves) {
+  bool root_probe_wdl(const Position& pos, MoveList* safe_moves) {
     return false;
   }
 

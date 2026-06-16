@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <initializer_list>
 #include "../../chess/types.h"
 #include "../../chess/movegen.h"
 #include "../../chess/uci.h"
@@ -26,21 +27,17 @@ public:
         Stockfish::PieceType pt = Stockfish::promotion_type(m_);
         
         auto flip_sq = [](Stockfish::Square s) {
-            static thread_local std::string cached_variant;
-            static thread_local int cached_max_rank = Stockfish::RANK_8;
-            static thread_local const Stockfish::UCI::Option* variant_opt = []() {
+            static thread_local int cached_max_rank = []() -> int {
                 auto it = Stockfish::Options.find("UCI_Variant");
-                return it != Stockfish::Options.end() ? &it->second : nullptr;
-            }();
-            
-            if (variant_opt) {
-                std::string current_variant = *variant_opt;
-                if (current_variant != cached_variant) {
-                    cached_variant = current_variant;
-                    auto it = Stockfish::variants.find(current_variant);
-                    cached_max_rank = (it != Stockfish::variants.end() && it->second) ? it->second->maxRank : Stockfish::RANK_8;
+                if (it != Stockfish::Options.end()) {
+                    std::string current_variant = it->second;
+                    auto vit = Stockfish::variants.find(current_variant);
+                    if (vit != Stockfish::variants.end() && vit->second) {
+                        return (int)vit->second->maxRank;
+                    }
                 }
-            }
+                return (int)Stockfish::RANK_8;
+            }();
             return Stockfish::flip_rank(s, Stockfish::Rank(cached_max_rank));
         };
         
@@ -113,6 +110,68 @@ using Square = Stockfish::Square;
 constexpr Move MOVE_NONE = Move(Stockfish::MOVE_NONE);
 constexpr Move MOVE_NULL = Move(Stockfish::MOVE_NULL);
 
-using MoveList = std::vector<Move>;
+class MoveList {
+public:
+    using value_type = Move;
+    using iterator = Move*;
+    using const_iterator = const Move*;
+    using reference = Move&;
+    using const_reference = const Move&;
+
+    MoveList() = default;
+
+    MoveList(std::initializer_list<Move> init) {
+        for (const auto& m : init) {
+            push_back(m);
+        }
+    }
+
+    void push_back(const Move& m) {
+        if (size_ < 384) {
+            moves_[size_++] = m;
+        }
+    }
+
+    template<typename... Args>
+    void emplace_back(Args&&... args) {
+        if (size_ < 384) {
+            moves_[size_++] = Move(std::forward<Args>(args)...);
+        }
+    }
+
+    void reserve(size_t) {}
+    void resize(size_t new_size) {
+        if (new_size <= 384) {
+            size_ = new_size;
+        }
+    }
+
+    void clear() { size_ = 0; }
+    size_t size() const { return size_; }
+    bool empty() const { return size_ == 0; }
+
+    const Move& operator[](size_t idx) const { return moves_[idx]; }
+    Move& operator[](size_t idx) { return moves_[idx]; }
+
+    const Move& at(size_t idx) const { return moves_[idx]; }
+    Move& at(size_t idx) { return moves_[idx]; }
+
+    iterator begin() { return moves_; }
+    const_iterator begin() const { return moves_; }
+    iterator end() { return moves_ + size_; }
+    const_iterator end() const { return moves_ + size_; }
+
+    const Move& front() const { return moves_[0]; }
+    Move& front() { return moves_[0]; }
+    const Move& back() const { return moves_[size_ - 1]; }
+    Move& back() { return moves_[size_ - 1]; }
+
+    const Move* data() const { return moves_; }
+    Move* data() { return moves_; }
+
+private:
+    Move moves_[384];
+    size_t size_ = 0;
+};
 
 } // namespace lczero
