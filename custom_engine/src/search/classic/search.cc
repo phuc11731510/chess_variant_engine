@@ -1932,6 +1932,15 @@ void SearchWorker::ExtendNode(Node* node, int depth,
   const auto& board = history->Last().GetBoard();
   auto legal_moves = board.GenerateLegalMoves();
 
+  // Check game termination from bridge layer (including 7-checks, checkmate, stalemate)
+  GameResult mcts_res = history->ComputeMctsResult(legal_moves);
+  if (mcts_res != GameResult::UNDECIDED) {
+    node->MakeTerminal(mcts_res);
+    return;
+  }
+
+#if 0
+  // Lc0 original code (kept for reference, not executed)
   // Check whether it's a draw/lose by position. Importantly, we must check
   // these before doing the by-rule checks below.
   if (legal_moves.empty()) {
@@ -1943,6 +1952,7 @@ void SearchWorker::ExtendNode(Node* node, int depth,
     }
     return;
   }
+#endif
 
   // We can shortcircuit these draws-by-rule only if they aren't root;
   // if they are root, then thinking about them is the point.

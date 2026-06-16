@@ -162,6 +162,30 @@ GameResult PositionHistory::ComputeGameResult() const {
     return GameResult::UNDECIDED;
 }
 
+GameResult PositionHistory::ComputeMctsResult(const MoveList& legal_moves) const {
+    const auto& board = Last().GetBoard();
+    const auto& raw_pos = board.GetRawPosition();
+    
+    // 1. Luật 7-checks (Kiểm tra O(1) siêu nhanh)
+    if (raw_pos.checks_remaining(Stockfish::WHITE) <= 0) {
+        // Trắng thắng. Nếu Đen chuẩn bị đi (Trắng vừa đi) -> Trắng thắng là WHITE_WON đối với MCTS
+        return board.flipped() ? GameResult::WHITE_WON : GameResult::BLACK_WON;
+    }
+    if (raw_pos.checks_remaining(Stockfish::BLACK) <= 0) {
+        // Đen thắng. Nếu Đen chuẩn bị đi (Trắng vừa đi) -> Đen thắng là BLACK_WON đối với MCTS
+        return board.flipped() ? GameResult::BLACK_WON : GameResult::WHITE_WON;
+    }
+
+    // 2. Luật kết thúc do hết nước đi (Checkmate hoặc Stalemate)
+    if (legal_moves.empty()) {
+        // Cả Checkmate và Stalemate đều dẫn đến bên bị Stalemate/Checkmate thua (to_move thua),
+        // tức là bên vừa đi thắng -> Trả về GameResult::WHITE_WON
+        return GameResult::WHITE_WON;
+    }
+
+    return GameResult::UNDECIDED;
+}
+
 const std::vector<Position>& PositionHistory::GetPositions() const {
     static thread_local std::vector<Position> buffer;
     buffer.clear();

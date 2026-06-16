@@ -83,6 +83,7 @@ public:
     bool IsBlackToMove() const { return last_position_.IsBlackToMove(); }
     
     GameResult ComputeGameResult() const;
+    GameResult ComputeMctsResult(const MoveList& legal_moves) const;
     bool DidRepeatSinceLastZeroingMove() const;
 
 private:
