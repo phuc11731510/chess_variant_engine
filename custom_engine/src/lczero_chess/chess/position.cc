@@ -95,11 +95,13 @@ GameResult PositionHistory::ComputeGameResult() const {
     const auto& raw_pos = board.GetRawPosition();
     
     // 1. Kiểm tra giới hạn 7-checks (O(1))
+    // checks_remaining(color) là số lần chiếu MÀ color cần thực hiện để chiến thắng.
+    // Nếu <= 0, color ĐÃ CHIẾU đủ 7 lần và chiến thắng!
     if (raw_pos.checks_remaining(Stockfish::WHITE) <= 0) {
-        return GameResult::BLACK_WON; // Trắng hết lượt chiếu -> Đen thắng
+        return GameResult::WHITE_WON; // Trắng đã chiếu đủ 7 lần -> Trắng thắng
     }
     if (raw_pos.checks_remaining(Stockfish::BLACK) <= 0) {
-        return GameResult::WHITE_WON; // Đen hết lượt chiếu -> Trắng thắng
+        return GameResult::BLACK_WON; // Đen đã chiếu đủ 7 lần -> Đen thắng
     }
 
     // 2. Luật 50 nước đi (100 plies) (O(1))
