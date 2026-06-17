@@ -44,3 +44,4 @@ Thumbs.db
 # External repositories
 /Fairy-Stockfish/
 /lc0/
+custom_engine/third_party/
