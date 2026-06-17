@@ -1,7 +1,7 @@
 project('custom_engine', 'cpp',
   version: '1.0.0',
   default_options: [
-    'cpp_std=c++20',
+    'cpp_std=gnu++20',
     'optimization=3',
     'warning_level=1',
   ]
@@ -26,6 +26,7 @@ endif
 
 # Include directories
 inc_dirs = include_directories(
+  'third_party/onnxruntime-win-x64-1.18.0/include',
   'src/lczero_chess',
   'src',
   'src/chess',
@@ -80,13 +81,31 @@ search_sources = files(
   'src/search/classic/stoppers/timemgr.cc'
 )
 
+# Phase 4 neural backend source files
+neural_sources = files(
+  'src/lczero_chess/neural/onnx_backend.cc',
+  'src/lczero_chess/neural/zero_heap_cache.cc'
+)
+
 # Engine sources
 engine_sources = files(
   'src/main.cc'
 )
 
+# ONNX Runtime link dependency
+onnx_lib_dir = meson.current_source_dir() / 'third_party/onnxruntime-win-x64-1.18.0/lib'
+onnx_dep = cc.find_library('onnxruntime', dirs: onnx_lib_dir, required: true)
+
+if host_machine.system() == 'windows'
+  configure_file(
+    input: 'third_party/onnxruntime-win-x64-1.18.0/lib/onnxruntime.dll',
+    output: 'onnxruntime.dll',
+    copy: true
+  )
+endif
+
 # Allocator options linking
-deps = [thread_dep]
+deps = [thread_dep, onnx_dep]
 malloc_opt = get_option('malloc')
 if malloc_opt == 'mimalloc' and cc.get_id() == 'msvc'
   if get_option('b_vscrt') != 'md' and get_option('b_vscrt') != 'mdd'
@@ -100,7 +119,7 @@ endif
 
 # Build the executable
 executable('custom_engine',
-  sources: [chess_sources, search_sources, engine_sources],
+  sources: [chess_sources, search_sources, neural_sources, engine_sources],
   include_directories: inc_dirs,
   dependencies: deps,
   install: true

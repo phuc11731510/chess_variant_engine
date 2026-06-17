@@ -13,6 +13,8 @@
 
 namespace lczero {
 
+constexpr size_t MaxBatchSize = 64;
+
 // Minimalistic static vector to avoid heap allocation
 template <typename T, size_t N>
 class StaticVector {
@@ -111,6 +113,9 @@ class Backend {
   virtual std::optional<EvalResult> GetCachedEvaluation(const EvalPosition&) {
     return std::nullopt;
   }
+
+  virtual void UpdateConfiguration(const OptionsDict& opts) {}
+  virtual bool IsSameConfiguration(const OptionsDict& opts) const { return true; }
 };
 
 }  // namespace lczero

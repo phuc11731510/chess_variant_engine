@@ -25,6 +25,8 @@
 #include "search/classic/params.h"
 #include "neural/backend.h"
 #include "neural/shared_params.h"
+#include "neural/onnx_backend.h"
+#include "neural/zero_heap_cache.h"
 #include "utils/random.h"
 #include "chess/callbacks.h"
 
@@ -690,10 +692,11 @@ private:
     int64_t max_nodes_;
 };
 
-void run_mcts_tests() {
+void run_mcts_tests(const std::string& weights_path = "weights_0_elo.onnx") {
     std::cout << "\n========================================" << std::endl;
     std::cout << "RUNNING MCTS INTEGRATION TESTS..." << std::endl;
     std::cout << "========================================" << std::endl;
+    std::cout << "Weights path: " << weights_path << std::endl;
 
     // Load custom variant
     std::string ini_text = R"(
@@ -767,8 +770,21 @@ checkCounting = true
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kTemperatureId, 10.0f);
     parser.GetMutableDefaultsOptions()->Set<int>(lczero::classic::BaseSearchParams::kTempDecayMovesId, 15);
     
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_path);
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "threads=1,inter_op_threads=1");
     const lczero::OptionsDict& options = parser.GetOptionsDict();
-    auto backend = std::make_unique<MockBackend>();
+    
+    std::unique_ptr<lczero::Backend> backend;
+    try {
+        auto raw_backend = std::make_unique<lczero::OnnxBackend>();
+        raw_backend->UpdateConfiguration(options);
+        backend = lczero::CreateMemCache(std::move(raw_backend), options);
+        std::cout << "[MCTS TEST] Loaded OnnxBackend successfully." << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "[MCTS TEST] Error loading OnnxBackend: " << e.what() << std::endl;
+        std::cerr << "[MCTS TEST] Falling back to MockBackend!" << std::endl;
+        backend = std::make_unique<MockBackend>();
+    }
 
     std::cout << "Starting 5 MCTS test runs (800 playouts) with 100% Noise & Temp=10.0..." << std::endl;
     std::cout << "RNG Test: " << lczero::Random::Get().GetFloat(1.0f) << ", " 
@@ -813,10 +829,11 @@ checkCounting = true
 }
 
 int main(int argc, char* argv[]) {
+    bool test_mcts_mode = false;
     bool selfplay_mode = false;
     bool test_ep_mode = false;
     bool test_board_mode = false;
-    bool test_mcts_mode = false;
+    std::string weights_file = "weights_0_elo.onnx";
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
             selfplay_mode = true;
@@ -826,6 +843,9 @@ int main(int argc, char* argv[]) {
             test_board_mode = true;
         } else if (std::string(argv[i]) == "--test-mcts") {
             test_mcts_mode = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                weights_file = argv[i + 1];
+            }
         }
     }
 
@@ -850,7 +870,7 @@ int main(int argc, char* argv[]) {
     } else if (test_board_mode) {
         run_board_tests();
     } else if (test_mcts_mode) {
-        run_mcts_tests();
+        run_mcts_tests(weights_file);
     } else if (selfplay_mode) {
         std::cout << "Starting custom selfplay mode..." << std::endl;
         // Selfplay logic will go here
