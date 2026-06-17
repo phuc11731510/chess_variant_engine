@@ -107,12 +107,14 @@ void PositionHistory::TrimHistory(size_t keep_count) {
     std::copy_n(mcts_states_.begin() + discard_count, keep_count, mcts_states_.begin());
     history_size_ = keep_count;
 
+    // SỬA LẠI THỨ TỰ: Gọi CopyFrom trước để nó ghi đè nullptr lên previous,
+    // sau đó mới thiết lập các liên kết previous để phục hồi hoàn toàn chain!
+    last_position_.CopyFrom(last_position_, &mcts_states_[history_size_ - 1]);
+
     mcts_states_[0].previous = const_cast<Stockfish::StateInfo*>(starting_position_.GetBoard().GetRawPosition().state());
     for (size_t i = 1; i < history_size_; ++i) {
         mcts_states_[i].previous = &mcts_states_[i - 1];
     }
-
-    last_position_.CopyFrom(last_position_, &mcts_states_[history_size_ - 1]);
 }
 
 void PositionHistory::Reset(const ChessBoard& board, int rule50_ply, int game_ply) {
