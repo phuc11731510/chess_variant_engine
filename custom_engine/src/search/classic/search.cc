@@ -849,15 +849,11 @@ EdgeAndNode Search::GetBestRootChildWithTemperature(float temperature) const {
   const float fpu =
       GetFpu(params_, root_node_, /* is_root= */ true, draw_score);
 
-  std::cout << "[DEBUG Temp] Children visits:" << std::endl;
   for (auto& edge : root_node_->Edges()) {
     if (!root_move_filter_.empty() &&
         std::find(root_move_filter_.begin(), root_move_filter_.end(),
                   edge.GetMove()) == root_move_filter_.end()) {
       continue;
-    }
-    if (edge.GetN() > 0) {
-      std::cout << "  Move: " << edge.GetMove().ToString() << " | N: " << edge.GetN() << " | P: " << edge.GetP() << std::endl;
     }
     if (edge.GetN() + offset > max_n) {
       max_n = edge.GetN() + offset;
