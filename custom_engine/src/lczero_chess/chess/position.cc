@@ -90,6 +90,31 @@ PositionHistory& PositionHistory::operator=(const PositionHistory& other) {
     return *this;
 }
 
+void PositionHistory::TrimHistory(size_t keep_count) {
+    if (history_size_ <= keep_count) return;
+
+    // BẮT BUỘC: Không bao giờ được cắt tỉa sâu hơn giới hạn luật 50 nước.
+    // Nếu keep_count < 100, MCTS sẽ dò ngược lọt vào circular linked list.
+    assert(keep_count >= 100 && "TrimHistory requires keep_count >= max_rule50 limit");
+
+    size_t discard_count = history_size_ - keep_count;
+
+    for (size_t i = 0; i < discard_count; ++i) {
+        starting_position_.DoMove(history_[i].move, nullptr);
+    }
+
+    std::copy_n(history_.begin() + discard_count, keep_count, history_.begin());
+    std::copy_n(mcts_states_.begin() + discard_count, keep_count, mcts_states_.begin());
+    history_size_ = keep_count;
+
+    mcts_states_[0].previous = const_cast<Stockfish::StateInfo*>(starting_position_.GetBoard().GetRawPosition().state());
+    for (size_t i = 1; i < history_size_; ++i) {
+        mcts_states_[i].previous = &mcts_states_[i - 1];
+    }
+
+    last_position_.CopyFrom(last_position_, &mcts_states_[history_size_ - 1]);
+}
+
 void PositionHistory::Reset(const ChessBoard& board, int rule50_ply, int game_ply) {
     starting_position_ = Position(board, rule50_ply, game_ply);
     last_position_ = starting_position_;

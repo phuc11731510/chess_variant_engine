@@ -83,6 +83,7 @@ public:
     std::span<const LightweightPosition> GetPositions() const {
         return std::span<const LightweightPosition>(history_.data(), history_size_);
     }
+    void TrimHistory(size_t keep_count);
     void Trim(size_t size);
     void Pop();
 
