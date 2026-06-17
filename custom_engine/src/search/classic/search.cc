@@ -1633,6 +1633,7 @@ void SearchWorker::PickNodesToExtendTask(
   }
 #endif
 
+#if 0
   // These 2 are 'filled pre-emptively'.
   std::array<float, 256> current_pol;
   std::array<float, 256> current_util;
@@ -1640,6 +1641,15 @@ void SearchWorker::PickNodesToExtendTask(
   // These 3 are 'filled on demand'.
   std::array<float, 256> current_score;
   std::array<int, 256> current_nstarted;
+#else
+  // These 2 are 'filled pre-emptively'.
+  std::array<float, 384> current_pol;
+  std::array<float, 384> current_util;
+
+  // These 3 are 'filled on demand'.
+  std::array<float, 384> current_score;
+  std::array<int, 384> current_nstarted;
+#endif
   auto& cur_iters = workspace->cur_iters;
 
   Node::Iterator best_edge;
@@ -1706,12 +1716,21 @@ void SearchWorker::PickNodesToExtendTask(
       }
 
       // Create visits_to_perform new back entry for this level.
+#if 0
       if (vtp_buffer.size() > 0) {
         visits_to_perform.push_back(std::move(vtp_buffer.back()));
         vtp_buffer.pop_back();
       } else {
         visits_to_perform.push_back(std::make_unique<std::array<int, 256>>());
       }
+#else
+      if (vtp_buffer.size() > 0) {
+        visits_to_perform.push_back(std::move(vtp_buffer.back()));
+        vtp_buffer.pop_back();
+      } else {
+        visits_to_perform.push_back(std::make_unique<std::array<int, 384>>());
+      }
+#endif
       vtp_last_filled.push_back(-1);
 
       // Cache all constant UCT parameters.

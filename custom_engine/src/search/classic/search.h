@@ -363,9 +363,15 @@ class SearchWorker {
 
   // Holds per task worker scratch data
   struct TaskWorkspace {
+#if 0
     std::array<Node::Iterator, 256> cur_iters;
     std::vector<std::unique_ptr<std::array<int, 256>>> vtp_buffer;
     std::vector<std::unique_ptr<std::array<int, 256>>> visits_to_perform;
+#else
+    std::array<Node::Iterator, 384> cur_iters;
+    std::vector<std::unique_ptr<std::array<int, 384>>> vtp_buffer;
+    std::vector<std::unique_ptr<std::array<int, 384>>> visits_to_perform;
+#endif
     std::vector<int> vtp_last_filled;
     std::vector<int> current_path;
     std::vector<Move> moves_to_path;
