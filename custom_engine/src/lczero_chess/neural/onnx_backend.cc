@@ -125,6 +125,16 @@ void OnnxComputation::ComputeBlocking() {
         float draw = raw_value[1];
         float loss = raw_value[2];
         
+        // Softmax normalization for WDL output (raw logits to probabilities)
+        float max_wdl = std::max({win, draw, loss});
+        float exp_w = std::exp(win - max_wdl);
+        float exp_d = std::exp(draw - max_wdl);
+        float exp_l = std::exp(loss - max_wdl);
+        float sum_wdl = exp_w + exp_d + exp_l;
+        win = exp_w / sum_wdl;
+        draw = exp_d / sum_wdl;
+        loss = exp_l / sum_wdl;
+        
         if (res.q) *res.q = win - loss; // Q value in [-1.0, 1.0]
         if (res.d) *res.d = draw;       // Draw probability in [0.0, 1.0]
         if (res.m) *res.m = 50.0f;      // Fallback moves left value

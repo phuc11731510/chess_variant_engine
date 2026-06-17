@@ -112,6 +112,10 @@ public:
             else if (pt == Stockfish::BISHOP) pt_c = 'b';
             else if (pt == Stockfish::ROOK) pt_c = 'r';
             else if (pt == Stockfish::QUEEN) pt_c = 'q';
+            else if (pt == Stockfish::ARCHBISHOP) pt_c = 'h';
+            else if (pt == Stockfish::CENTAUR) pt_c = 'm';
+            else if (pt == Stockfish::CUSTOM_PIECE_1) pt_c = 'v';
+            else if (pt == Stockfish::CUSTOM_PIECE_2) pt_c = 'y';
             if (pt_c != ' ') s += pt_c;
         }
         return s;
