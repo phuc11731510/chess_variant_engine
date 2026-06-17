@@ -101,8 +101,8 @@ private:
     
     Position starting_position_;
     Position last_position_;
-    std::array<LightweightPosition, 512> history_; // Mảng tĩnh tránh heap allocation
-    std::array<Stockfish::StateInfo, 512> mcts_states_; // Stack lưu StateInfo dùng riêng cho MCTS
+    std::array<LightweightPosition, 256> history_; // Mảng tĩnh tránh heap allocation
+    std::array<Stockfish::StateInfo, 256> mcts_states_; // Stack lưu StateInfo dùng riêng cho MCTS
     size_t history_size_ = 0;
 };
 
