@@ -13,12 +13,12 @@ constexpr size_t InputPlanesCount = 226;
 constexpr size_t BoardWidth = 10;
 constexpr size_t BoardHeight = 10;
 constexpr size_t InputBufferUnitSize = InputPlanesCount * BoardWidth * BoardHeight; // 22600
-constexpr size_t PolicyOutputSize = 11800; // 118 directions/promotions * 100 squares
+constexpr size_t PolicyOutputSize = 10600; // 106 directions/promotions * 100 squares
 constexpr size_t ValueOutputSize = 3;     // WDL (Win, Draw, Loss)
 
 class OnnxComputation : public BackendComputation {
  public:
-  OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info);
+  OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp = 1.0f);
   ~OnnxComputation() override = default;
 
   size_t UsedBatchSize() const override { return enqueued_; }
@@ -42,7 +42,7 @@ class OnnxComputation : public BackendComputation {
   
   EvalResultPtr results_[MaxBatchSize];
   StaticVector<Move, 384> position_moves_[MaxBatchSize];
-  bool position_is_black_[MaxBatchSize];
+  float softmax_temp_;
 };
 
 class OnnxBackend : public Backend {
@@ -68,6 +68,7 @@ class OnnxBackend : public Backend {
   std::string backend_opts_;
   int intra_op_threads_ = 1;
   int inter_op_threads_ = 1;
+  float softmax_temp_ = 1.0f;
 };
 
 } // namespace lczero

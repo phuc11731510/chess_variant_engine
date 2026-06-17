@@ -239,7 +239,14 @@ void ZeroHeapCache::Insert(uint64_t hash, uint16_t num_moves, float q, float d, 
     auto& bucket = cache_buckets_[idx];
     
     uint32_t seq = bucket.sequence.load(std::memory_order_relaxed);
-    bucket.sequence.store(seq + 1, std::memory_order_release); // Start writing lock
+    while (true) {
+        if ((seq & 1) != 0) {
+            return; // Another thread is writing, skip caching to avoid stall
+        }
+        if (bucket.sequence.compare_exchange_strong(seq, seq + 1, std::memory_order_acquire, std::memory_order_relaxed)) {
+            break;
+        }
+    }
     
     bucket.hash.store(hash, std::memory_order_relaxed);
     bucket.value.q = q;

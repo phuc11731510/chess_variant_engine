@@ -83,7 +83,9 @@ public:
         uint32_t gate_flipped = flip_square_lut.lut[max_rank][gate_old];
         uint32_t gate_new = is_gate ? gate_flipped : gate_old;
         
-        m_ = Stockfish::Move((m_ & ~0x7F003FFF) | (gate_new << 24) | (from_to_flipped & mask));
+        uint32_t preserved_bits = is_drop ? (m_ & (0x7F << 7)) : 0;
+        
+        m_ = Stockfish::Move((m_ & ~0x7F003FFF) | (gate_new << 24) | (from_to_flipped & mask) | preserved_bits);
     }
     
     std::string ToString(bool is_chess960 = false) const {

@@ -8,14 +8,32 @@ import torch
 import torch.nn as nn
 import os
 
+class SEBlock(nn.Module):
+    def __init__(self, channels, reduction=8):
+        super(SEBlock, self).__init__()
+        self.squeeze = nn.AdaptiveAvgPool2d(1)
+        self.fc1 = nn.Conv2d(channels, channels // reduction, kernel_size=1, bias=True)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Conv2d(channels // reduction, channels, kernel_size=1, bias=True)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        out = self.squeeze(x)
+        out = self.fc1(out)
+        out = self.relu(out)
+        out = self.fc2(out)
+        out = self.sigmoid(out)
+        return x * out
+
 class ResidualBlock(nn.Module):
-    def __init__(self, filters):
+    def __init__(self, filters, reduction=8):
         super(ResidualBlock, self).__init__()
         self.conv1 = nn.Conv2d(filters, filters, kernel_size=3, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(filters)
         self.relu = nn.ReLU()
         self.conv2 = nn.Conv2d(filters, filters, kernel_size=3, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(filters)
+        self.se = SEBlock(filters, reduction=reduction)
 
     def forward(self, x):
         residual = x
@@ -24,6 +42,7 @@ class ResidualBlock(nn.Module):
         out = self.relu(out)
         out = self.conv2(out)
         out = self.bn2(out)
+        out = self.se(out)
         out += residual
         out = self.relu(out)
         return out
@@ -40,12 +59,12 @@ class ChessNet10x10(nn.Module):
         # 2. Backbone: 10 Residual Blocks
         self.backbone = nn.Sequential(*[ResidualBlock(filters) for _ in range(num_blocks)])
         
-        # 3. Policy Head: 
-        # Tích chập 1x1 từ 128 -> 118 channels
-        self.policy_conv = nn.Conv2d(filters, 118, kernel_size=1, bias=False)
-        self.policy_bn = nn.BatchNorm2d(118)
-        # Lưu ý: Softmax sẽ được thực thi trong C++ trên tập hợp các legal moves 
-        # nên ở đây chúng ta chỉ xuất logits thô phẳng [batch_size, 10600].
+        # 3. Policy Head (Standard Lc0 Style):
+        # Lớp trung gian: 128 -> 32 channels
+        self.policy_conv_int = nn.Conv2d(filters, 32, kernel_size=1, bias=False)
+        self.policy_bn_int = nn.BatchNorm2d(32)
+        # Lớp chiếu cuối cùng ra logits: 32 -> 106 channels, có bias, không dùng BatchNorm/ReLU
+        self.policy_conv_out = nn.Conv2d(32, 106, kernel_size=1, bias=True)
         
         # 4. Value Head (WDL):
         # Tích chập 1x1 từ 128 -> 32 channels
@@ -65,11 +84,12 @@ class ChessNet10x10(nn.Module):
         
         out = self.backbone(out) # shape: [batch_size, 128, 10, 10]
         
-        # Policy Head
-        pol = self.policy_conv(out)
-        pol = self.policy_bn(pol)
+        # Policy Head (Standard Lc0 Style)
+        pol = self.policy_conv_int(out)
+        pol = self.policy_bn_int(pol)
         pol = self.relu(pol)
-        pol_flat = pol.reshape(-1, 11800) # shape: [batch_size, 11800]
+        pol = self.policy_conv_out(pol)   # Xuất logits thô (không áp dụng BN / ReLU)
+        pol_flat = pol.reshape(-1, 10600) # shape: [batch_size, 10600]
         
         # Value Head (WDL)
         val = self.value_conv(out)
@@ -79,9 +99,12 @@ class ChessNet10x10(nn.Module):
         val_fc = self.value_fc1(val_flat)
         val_fc = self.relu(val_fc)
         val_logits = self.value_fc2(val_fc)      # shape: [batch_size, 3]
-        val_wdl = self.softmax(val_logits)        # shape: [batch_size, 3]
         
-        return pol_flat, val_wdl
+        if self.training:
+            return pol_flat, val_logits
+        else:
+            val_wdl = self.softmax(val_logits)    # shape: [batch_size, 3]
+            return pol_flat, val_wdl
 
 def export_model():
     print("Initializing ChessNet10x10 model (10 blocks, 128 filters)...")

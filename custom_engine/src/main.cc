@@ -771,7 +771,7 @@ checkCounting = true
     parser.GetMutableDefaultsOptions()->Set<int>(lczero::classic::BaseSearchParams::kTempDecayMovesId, 15);
     
     parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_path);
-    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "threads=1,inter_op_threads=1");
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "threads=4,inter_op_threads=2");
     const lczero::OptionsDict& options = parser.GetOptionsDict();
     
     std::unique_ptr<lczero::Backend> backend;
@@ -813,7 +813,7 @@ checkCounting = true
             nullptr // syzygy_tb
         );
         
-        search.RunBlocking(1); // Run search on 1 thread
+        search.RunBlocking(4); // Run search on 4 threads
         
         auto result = search.GetBestMove();
         best_moves.push_back(result.first.ToString());

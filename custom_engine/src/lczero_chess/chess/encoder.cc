@@ -110,23 +110,28 @@ void EncodePositionForNN(
     
     const auto& raw_pos = last_position.GetBoard().GetRawPosition();
     
-    if (raw_pos.can_castle(Stockfish::WHITE_OOO)) {
-        Stockfish::Square rook_sq = raw_pos.castling_rook_square(Stockfish::WHITE_OOO);
+    Stockfish::CastlingRights us_ooo   = (us == Stockfish::WHITE) ? Stockfish::WHITE_OOO : Stockfish::BLACK_OOO;
+    Stockfish::CastlingRights us_oo    = (us == Stockfish::WHITE) ? Stockfish::WHITE_OO  : Stockfish::BLACK_OO;
+    Stockfish::CastlingRights them_ooo = (us == Stockfish::WHITE) ? Stockfish::BLACK_OOO : Stockfish::WHITE_OOO;
+    Stockfish::CastlingRights them_oo  = (us == Stockfish::WHITE) ? Stockfish::BLACK_OO  : Stockfish::WHITE_OO;
+
+    if (raw_pos.can_castle(us_ooo)) {
+        Stockfish::Square rook_sq = raw_pos.castling_rook_square(us_ooo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
         output_planes->at(kAuxPlaneBase + 0).mask |= rook_sq;
     }
-    if (raw_pos.can_castle(Stockfish::WHITE_OO)) {
-        Stockfish::Square rook_sq = raw_pos.castling_rook_square(Stockfish::WHITE_OO);
+    if (raw_pos.can_castle(us_oo)) {
+        Stockfish::Square rook_sq = raw_pos.castling_rook_square(us_oo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
         output_planes->at(kAuxPlaneBase + 1).mask |= rook_sq;
     }
-    if (raw_pos.can_castle(Stockfish::BLACK_OOO)) {
-        Stockfish::Square rook_sq = raw_pos.castling_rook_square(Stockfish::BLACK_OOO);
+    if (raw_pos.can_castle(them_ooo)) {
+        Stockfish::Square rook_sq = raw_pos.castling_rook_square(them_ooo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
         output_planes->at(kAuxPlaneBase + 2).mask |= rook_sq;
     }
-    if (raw_pos.can_castle(Stockfish::BLACK_OO)) {
-        Stockfish::Square rook_sq = raw_pos.castling_rook_square(Stockfish::BLACK_OO);
+    if (raw_pos.can_castle(them_oo)) {
+        Stockfish::Square rook_sq = raw_pos.castling_rook_square(them_oo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
         output_planes->at(kAuxPlaneBase + 3).mask |= rook_sq;
     }
@@ -146,8 +151,8 @@ void EncodePositionForNN(
     
     output_planes->at(kAuxPlaneBase + 5).Fill(static_cast<float>(last_position.GetRule50Ply()) / 100.0f);
     output_planes->at(kAuxPlaneBase + 7).Fill(1.0f);
-    output_planes->at(kAuxPlaneBase + 8).Fill(static_cast<float>(raw_pos.checks_remaining(Stockfish::WHITE)) / 7.0f);
-    output_planes->at(kAuxPlaneBase + 9).Fill(static_cast<float>(raw_pos.checks_remaining(Stockfish::BLACK)) / 7.0f);
+    output_planes->at(kAuxPlaneBase + 8).Fill(static_cast<float>(raw_pos.checks_remaining(us)) / 7.0f);
+    output_planes->at(kAuxPlaneBase + 9).Fill(static_cast<float>(raw_pos.checks_remaining(them)) / 7.0f);
 }
 
 
@@ -246,6 +251,13 @@ uint16_t MoveToNNIndex(Move move, int transform) {
     int from_rank = Stockfish::rank_of(from);
     int from_flat = from_rank * 10 + from_file;
 
+    int to_file = Stockfish::file_of(to);
+    int to_rank = Stockfish::rank_of(to);
+
+    int dx = to_file - from_file;
+    int dy = to_rank - from_rank;
+
+    // 1. Kiểm tra nước đi Phong cấp (Promotion) -> Kênh 88 - 105
     if (Stockfish::type_of(move) == Stockfish::PROMOTION) {
         Stockfish::PieceType promo_type = Stockfish::promotion_type(move);
         int piece_idx = -1;
@@ -260,28 +272,78 @@ uint16_t MoveToNNIndex(Move move, int transform) {
         }
 
         if (piece_idx != -1) {
-            int to_file = Stockfish::file_of(to);
-            int dir = to_file - from_file;
             int dir_idx = -1;
-            if (dir == -1) dir_idx = 0;
-            else if (dir == 0) dir_idx = 1;
-            else if (dir == 1) dir_idx = 2;
+            if (dx == -1) dir_idx = 0;
+            else if (dx == 0) dir_idx = 1;
+            else if (dx == 1) dir_idx = 2;
 
             if (dir_idx != -1) {
-                int type_idx = 100 + piece_idx * 3 + dir_idx;
+                int type_idx = 88 + piece_idx * 3 + dir_idx;
                 return type_idx * 100 + from_flat;
             }
         }
     }
 
-    int to_file = Stockfish::file_of(to);
-    int to_rank = Stockfish::rank_of(to);
-    int to_flat = to_rank * 10 + to_file;
-    return to_flat * 100 + from_flat;
+    // 2. Kiểm tra nước nhảy của Mã (Knight) -> Kênh 72 - 79
+    int abs_dx = std::abs(dx);
+    int abs_dy = std::abs(dy);
+    if ((abs_dx == 1 && abs_dy == 2) || (abs_dx == 2 && abs_dy == 1)) {
+        // Clockwise offsets: (1,2), (2,1), (2,-1), (1,-2), (-1,-2), (-2,-1), (-2,1), (-1,2)
+        int knight_idx = -1;
+        if      (dx == 1  && dy == 2)  knight_idx = 0;
+        else if (dx == 2  && dy == 1)  knight_idx = 1;
+        else if (dx == 2  && dy == -1) knight_idx = 2;
+        else if (dx == 1  && dy == -2) knight_idx = 3;
+        else if (dx == -1 && dy == -2) knight_idx = 4;
+        else if (dx == -2 && dy == -1) knight_idx = 5;
+        else if (dx == -2 && dy == 1)  knight_idx = 6;
+        else if (dx == -1 && dy == 2)  knight_idx = 7;
+
+        if (knight_idx != -1) {
+            return (72 + knight_idx) * 100 + from_flat;
+        }
+    }
+
+    // 3. Kiểm tra nước nhảy của Lạc đà (Camel) -> Kênh 80 - 87
+    if ((abs_dx == 1 && abs_dy == 3) || (abs_dx == 3 && abs_dy == 1)) {
+        // Clockwise offsets: (1,3), (3,1), (3,-1), (1,-3), (-1,-3), (-3,-1), (-3,1), (-1,3)
+        int camel_idx = -1;
+        if      (dx == 1  && dy == 3)  camel_idx = 0;
+        else if (dx == 3  && dy == 1)  camel_idx = 1;
+        else if (dx == 3  && dy == -1) camel_idx = 2;
+        else if (dx == 1  && dy == -3) camel_idx = 3;
+        else if (dx == -1 && dy == -3) camel_idx = 4;
+        else if (dx == -3 && dy == -1) camel_idx = 5;
+        else if (dx == -3 && dy == 1)  camel_idx = 6;
+        else if (dx == -1 && dy == 3)  camel_idx = 7;
+
+        if (camel_idx != -1) {
+            return (80 + camel_idx) * 100 + from_flat;
+        }
+    }
+
+    // 4. Kiểm tra nước đi dạng tia (Sliding / Alibaba) -> Kênh 0 - 71
+    int dir_idx = -1;
+    int distance = 0;
+    if (dx == 0 && dy > 0)       { dir_idx = 0; distance = dy; }
+    else if (dx > 0 && dy == dx)  { dir_idx = 1; distance = dx; }
+    else if (dx > 0 && dy == 0)   { dir_idx = 2; distance = dx; }
+    else if (dx > 0 && dy == -dx) { dir_idx = 3; distance = dx; }
+    else if (dx == 0 && dy < 0)   { dir_idx = 4; distance = -dy; }
+    else if (dx < 0 && dy == dx)  { dir_idx = 5; distance = -dx; }
+    else if (dx < 0 && dy == 0)   { dir_idx = 6; distance = -dx; }
+    else if (dx < 0 && dy == -dx) { dir_idx = 7; distance = -dx; }
+
+    if (dir_idx != -1 && distance >= 1 && distance <= 9) {
+        int type_idx = dir_idx * 9 + (distance - 1);
+        return type_idx * 100 + from_flat;
+    }
+
+    return 0;
 }
 
 Move MoveFromNNIndex(int idx, int transform) {
-    if (idx < 0 || idx >= 11800) return Move(Stockfish::MOVE_NONE);
+    if (idx < 0 || idx >= 10600) return Move(Stockfish::MOVE_NONE);
 
     int type_idx = idx / 100;
     int from_flat = idx % 100;
@@ -289,10 +351,63 @@ Move MoveFromNNIndex(int idx, int transform) {
     int from_rank = from_flat / 10;
     Stockfish::Square from = Stockfish::make_square(static_cast<Stockfish::File>(from_file), static_cast<Stockfish::Rank>(from_rank));
 
-    if (type_idx >= 100) {
-        int promo_val = type_idx - 100;
-        int piece_idx = promo_val / 3;
-        int dir_idx = promo_val % 3;
+    // 1. Sliding / Alibaba moves -> Kênh 0 - 71
+    if (type_idx >= 0 && type_idx <= 71) {
+        int dir_idx = type_idx / 9;
+        int distance = (type_idx % 9) + 1;
+        int dx = 0, dy = 0;
+        switch (dir_idx) {
+            case 0: dx = 0;         dy = distance;  break;
+            case 1: dx = distance;  dy = distance;  break;
+            case 2: dx = distance;  dy = 0;         break;
+            case 3: dx = distance;  dy = -distance; break;
+            case 4: dx = 0;         dy = -distance; break;
+            case 5: dx = -distance; dy = -distance; break;
+            case 6: dx = -distance; dy = 0;         break;
+            case 7: dx = -distance; dy = distance;  break;
+            default: break;
+        }
+
+        int to_file = from_file + dx;
+        int to_rank = from_rank + dy;
+        if (to_file >= 0 && to_file < 10 && to_rank >= 0 && to_rank < 10) {
+            Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), static_cast<Stockfish::Rank>(to_rank));
+            return Stockfish::make_move(from, to);
+        }
+    }
+    // 2. Knight moves -> Kênh 72 - 79
+    else if (type_idx >= 72 && type_idx <= 79) {
+        int knight_idx = type_idx - 72;
+        static const int dx_list[] = {1, 2, 2, 1, -1, -2, -2, -1};
+        static const int dy_list[] = {2, 1, -1, -2, -2, -1, 1, 2};
+        int dx = dx_list[knight_idx];
+        int dy = dy_list[knight_idx];
+        int to_file = from_file + dx;
+        int to_rank = from_rank + dy;
+        if (to_file >= 0 && to_file < 10 && to_rank >= 0 && to_rank < 10) {
+            Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), static_cast<Stockfish::Rank>(to_rank));
+            return Stockfish::make_move(from, to);
+        }
+    }
+    // 3. Camel moves -> Kênh 80 - 87
+    else if (type_idx >= 80 && type_idx <= 87) {
+        int camel_idx = type_idx - 80;
+        static const int dx_list[] = {1, 3, 3, 1, -1, -3, -3, -1};
+        static const int dy_list[] = {3, 1, -1, -3, -3, -1, 1, 3};
+        int dx = dx_list[camel_idx];
+        int dy = dy_list[camel_idx];
+        int to_file = from_file + dx;
+        int to_rank = from_rank + dy;
+        if (to_file >= 0 && to_file < 10 && to_rank >= 0 && to_rank < 10) {
+            Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), static_cast<Stockfish::Rank>(to_rank));
+            return Stockfish::make_move(from, to);
+        }
+    }
+    // 4. Promotion moves -> Kênh 88 - 105
+    else if (type_idx >= 88 && type_idx <= 105) {
+        int promo_idx = type_idx - 88;
+        int piece_idx = promo_idx / 3;
+        int dir_idx = promo_idx % 3;
 
         Stockfish::PieceType promo_pt = Stockfish::NO_PIECE_TYPE;
         switch (piece_idx) {
@@ -305,24 +420,13 @@ Move MoveFromNNIndex(int idx, int transform) {
             default: break;
         }
 
-        Stockfish::Rank to_rank = Stockfish::RANK_1;
-        if (from_rank > 5) {
-            to_rank = Stockfish::RANK_10;
-        } else if (from_rank < 4) {
-            to_rank = Stockfish::RANK_1;
-        }
+        Stockfish::Rank to_rank = static_cast<Stockfish::Rank>(from_rank + 1);
 
         int to_file = from_file + (dir_idx - 1);
         if (to_file >= 0 && to_file < 10) {
             Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), to_rank);
             return Stockfish::make<Stockfish::PROMOTION>(from, to, promo_pt);
         }
-    } else {
-        int to_flat = type_idx;
-        int to_file = to_flat % 10;
-        int to_rank = to_flat / 10;
-        Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), static_cast<Stockfish::Rank>(to_rank));
-        return Stockfish::make_move(from, to);
     }
 
     return Move(Stockfish::MOVE_NONE);

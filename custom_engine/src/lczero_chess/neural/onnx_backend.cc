@@ -24,8 +24,8 @@ static std::vector<std::string> split_options(const std::string& s, char delimit
 // OnnxComputation Implementation
 // ==========================================
 
-OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info)
-    : session_(session), memory_info_(memory_info) {
+OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp)
+    : session_(session), memory_info_(memory_info), softmax_temp_(softmax_temp) {
     std::memset(input_buffer_, 0, sizeof(input_buffer_));
     std::memset(policy_output_buffer_, 0, sizeof(policy_output_buffer_));
     std::memset(value_output_buffer_, 0, sizeof(value_output_buffer_));
@@ -41,7 +41,6 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
     
     // Save pointers to output destination
     results_[enqueued_] = result;
-    position_is_black_[enqueued_] = pos.history->Last().IsBlackToMove();
     
     // Save legal moves list
     size_t num_moves = pos.legal_moves.size();
@@ -137,12 +136,8 @@ void OnnxComputation::ComputeBlocking() {
             float max_logit = -1e9f;
             
             // Map legal moves to ONNX output indices and fetch logits
-            bool is_black = position_is_black_[b];
             for (size_t i = 0; i < num_legal; ++i) {
                 Move NN_move = position_moves_[b][i];
-                if (is_black) {
-                    NN_move.Flip();
-                }
                 int index = MoveToNNIndex(NN_move, 0);
                 legal_logits[i] = raw_policy[index];
                 if (legal_logits[i] > max_logit) {
@@ -152,8 +147,9 @@ void OnnxComputation::ComputeBlocking() {
             
             // Calculate Softmax
             float sum = 0.0f;
+            float temp = std::max(1e-3f, softmax_temp_); // Avoid division by zero
             for (size_t i = 0; i < num_legal; ++i) {
-                legal_logits[i] = std::exp(legal_logits[i] - max_logit);
+                legal_logits[i] = std::exp((legal_logits[i] - max_logit) / temp);
                 sum += legal_logits[i];
             }
             
@@ -189,7 +185,7 @@ BackendAttributes OnnxBackend::GetAttributes() const {
 }
 
 std::unique_ptr<BackendComputation> OnnxBackend::CreateComputation() {
-    return std::make_unique<OnnxComputation>(session_.get(), memory_info_);
+    return std::make_unique<OnnxComputation>(session_.get(), memory_info_, softmax_temp_);
 }
 
 void OnnxBackend::InitializeSession() {
@@ -224,6 +220,8 @@ void OnnxBackend::InitializeSession() {
 void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     weights_path_ = opts.Get<std::string>(SharedBackendParams::kWeightsId);
     backend_opts_ = opts.GetOrDefault<std::string>(SharedBackendParams::kBackendOptionsId, "");
+    
+    softmax_temp_ = opts.GetOrDefault<float>(SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
     
     // Parse backend options (e.g. "threads=4,inter_op_threads=1")
     intra_op_threads_ = 1;
