@@ -22,8 +22,10 @@
 #include "chess/gamestate.h"
 #include "chess/encoder.h"
 #include "search/classic/search.h"
+#include "search/classic/params.h"
 #include "neural/backend.h"
 #include "neural/shared_params.h"
+#include "utils/random.h"
 #include "chess/callbacks.h"
 
 using namespace Stockfish;
@@ -753,52 +755,61 @@ checkCounting = true
     std::string fen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w - - 7+7 0 1";
     lczero::ChessBoard board(fen);
     
-    std::cout << "Starting MCTS NodeTree setup from FEN: " << fen << std::endl;
-    lczero::classic::NodeTree tree;
-    tree.ResetToPosition(fen, {}); // set to FEN
-    
-    // 2. Setup components
-    auto backend = std::make_unique<MockBackend>();
-    auto uci_responder = std::make_unique<TestUciResponder>();
-    auto stopper = std::make_unique<NodeLimitStopper>(100); // Stop after 100 nodes
-    
+    // 2. Setup options
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
     parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+    
+    // Kích hoạt Nhiễu Dirichlet và Nhiệt độ cực đại để tạo ngẫu nhiên tuyệt đối
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 1.0f);
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, 0.3f);
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kTemperatureId, 10.0f);
+    parser.GetMutableDefaultsOptions()->Set<int>(lczero::classic::BaseSearchParams::kTempDecayMovesId, 15);
+    
     const lczero::OptionsDict& options = parser.GetOptionsDict();
+    auto backend = std::make_unique<MockBackend>();
+
+    std::cout << "Starting 5 MCTS test runs (800 playouts) with 100% Noise & Temp=10.0..." << std::endl;
+    std::cout << "RNG Test: " << lczero::Random::Get().GetFloat(1.0f) << ", " 
+              << lczero::Random::Get().GetFloat(1.0f) << ", " 
+              << lczero::Random::Get().GetFloat(1.0f) << std::endl;
     
-    std::cout << "Initializing search with 1 thread, 100 max nodes limit..." << std::endl;
-    auto start_time = std::chrono::steady_clock::now();
-    
-    lczero::classic::Search search(
-        tree,
-        backend.get(),
-        std::move(uci_responder),
-        lczero::MoveList{},
-        start_time,
-        std::move(stopper),
-        false, // infinite
-        false, // ponder
-        options,
-        nullptr // syzygy_tb
-    );
-    
-    std::cout << "Starting search thread and blocking..." << std::endl;
-    search.RunBlocking(1); // Run search on 1 thread
-    
-    auto result = search.GetBestMove();
-    std::cout << "MCTS Search finished successfully!" << std::endl;
-    std::cout << "Best move found: " << result.first.ToString() << std::endl;
-    std::cout << "Total playouts: " << search.GetTotalPlayouts() << std::endl;
-    
-    if (search.GetTotalPlayouts() >= 100) {
-        std::cout << "[PASS] MCTS Integration Test passed!" << std::endl;
-    } else {
-        std::cerr << "[FAIL] MCTS Search did not run the expected number of playouts: " 
-                  << search.GetTotalPlayouts() << std::endl;
-        std::exit(1);
+    std::vector<std::string> best_moves;
+    for (int run = 1; run <= 5; ++run) {
+        lczero::classic::NodeTree tree;
+        tree.ResetToPosition(fen, {}); // set to FEN
+        
+        auto uci_responder = std::make_unique<TestUciResponder>();
+        auto stopper = std::make_unique<NodeLimitStopper>(800); // Stop after 800 nodes
+        auto start_time = std::chrono::steady_clock::now();
+        
+        lczero::classic::Search search(
+            tree,
+            backend.get(),
+            std::move(uci_responder),
+            lczero::MoveList{},
+            start_time,
+            std::move(stopper),
+            false, // infinite
+            false, // ponder
+            options,
+            nullptr // syzygy_tb
+        );
+        
+        search.RunBlocking(1); // Run search on 1 thread
+        
+        auto result = search.GetBestMove();
+        best_moves.push_back(result.first.ToString());
+        std::cout << "[RUN " << run << "] Finished playouts: " << search.GetTotalPlayouts() 
+                  << " | Best move: " << result.first.ToString() << " (RNG: " << lczero::Random::Get().GetFloat(1.0f) << ")" << std::endl;
     }
+
+    std::cout << "\n=== MCTS RANDOMNESS TEST RESULTS ===" << std::endl;
+    for (size_t i = 0; i < best_moves.size(); ++i) {
+        std::cout << "Run " << (i + 1) << ": " << best_moves[i] << std::endl;
+    }
+    std::cout << "====================================" << std::endl;
 }
 
 int main(int argc, char* argv[]) {
