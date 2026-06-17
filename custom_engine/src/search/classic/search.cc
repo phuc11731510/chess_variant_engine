@@ -913,8 +913,8 @@ void Search::StartThreads(size_t how_many) {
   // Start working threads.
   for (size_t i = 0; i < how_many; i++) {
     threads_.emplace_back([this]() {
-      SearchWorker worker(this, params_);
-      worker.RunBlocking();
+      auto worker = std::make_unique<SearchWorker>(this, params_);
+      worker->RunBlocking();
     });
   }
   LOGFILE << "Search started. "
