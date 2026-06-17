@@ -231,11 +231,13 @@ Key Position::material_key(EndgameEval e) const {
 
 
 Position& Position::copy_from(const Position& other, StateInfo* newSt) {
-  std::memcpy(board, other.board, offsetof(Position, promotedPieces) + sizeof(promotedPieces) - offsetof(Position, board));
+  if (this != &other) {
+      std::memcpy(board, other.board, offsetof(Position, promotedPieces) + sizeof(promotedPieces) - offsetof(Position, board));
+      thisThread = other.thisThread;
+      var = other.var;
+  }
   
-  thisThread = other.thisThread;
   st = newSt;
-  var = other.var;
 
 #ifdef LCZERO_MCTS
   newSt->previous = nullptr;
