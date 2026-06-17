@@ -217,6 +217,8 @@ bool ZeroHeapCache::TryRead(uint64_t hash, uint16_t num_moves, EvalResultPtr& ou
     // Fetch copy structure
     CachedValue cv = bucket.value;
     
+    std::atomic_thread_fence(std::memory_order_acquire);
+    
     uint32_t seq2 = bucket.sequence.load(std::memory_order_acquire);
     if (seq1 != seq2) return false;
     if (cv.num_moves != num_moves) return false;

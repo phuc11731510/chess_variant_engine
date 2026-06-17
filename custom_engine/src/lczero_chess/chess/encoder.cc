@@ -235,7 +235,9 @@ void UnpackInputPlanes(
                 Stockfish::Square sq = Stockfish::pop_lsb(b);
                 int f = Stockfish::file_of(sq);
                 int r = Stockfish::rank_of(sq);
-                dest[r * width + f] = plane.value;
+                if (f < width && r < height) {
+                    dest[r * width + f] = plane.value;
+                }
             }
         }
     }
