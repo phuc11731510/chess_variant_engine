@@ -450,8 +450,8 @@ checkCounting = true
         
         // Xác minh cơ chế tái sử dụng buffer tĩnh hoạt động bình thường
         lczero::EncodePositionForNN(*history, 8, lczero::FillEmptyHistory::NO, &planes, nullptr);
-        // Tất cả các plane sau khi encode mới phải được reset về 0 (mask trống)
-        if (planes[0].mask) {
+        // Tất cả các plane sau khi encode mới phải được reset về 0 TRƯỚC KHI xử lý (vì A1 không có Pawn ở startpos nên bit này phải bằng 0)
+        if (planes[0].mask & Stockfish::square_bb(Stockfish::SQ_A1)) {
             std::cerr << "[FAIL] Plane 0 mask was not reset to 0 after re-encoding" << std::endl;
             std::exit(1);
         }

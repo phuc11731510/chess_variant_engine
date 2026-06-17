@@ -33,26 +33,21 @@ void EncodePositionForNN(
     
     for (int d = 0; d < kMoveHistory; ++d) {
         bool has_board = false;
-        std::array<uint8_t, 120> board_state{};
+        const Stockfish::Position* raw_board_ptr = nullptr;
+        const uint8_t* hist_board_ptr = nullptr;
         int rep = 0;
         
         if (d == 0) {
-            const auto& raw_board = last_position.GetBoard().GetRawPosition();
-            for (int s = 0; s < 120; ++s) {
-                board_state[s] = static_cast<uint8_t>(raw_board.piece_on(Stockfish::Square(s)));
-            }
+            raw_board_ptr = &last_position.GetBoard().GetRawPosition();
             rep = last_position.GetRepetitions();
             has_board = true;
         } else if (history_size >= d) {
             const auto& hist_pos = history.GetPositions()[history_size - d];
-            board_state = hist_pos.board;
+            hist_board_ptr = hist_pos.board.data();
             rep = hist_pos.repetitions;
             has_board = true;
         } else if (fill_empty_history == FillEmptyHistory::ALWAYS) {
-            const auto& raw_board = starting_position.GetBoard().GetRawPosition();
-            for (int s = 0; s < 120; ++s) {
-                board_state[s] = static_cast<uint8_t>(raw_board.piece_on(Stockfish::Square(s)));
-            }
+            raw_board_ptr = &starting_position.GetBoard().GetRawPosition();
             rep = starting_position.GetRepetitions();
             has_board = true;
         }
@@ -61,13 +56,17 @@ void EncodePositionForNN(
             continue;
         }
         
-        for (int s = 0; s < 120; ++s) {
-            int file = s % 12;
-            int rank = s / 12;
-            if (file >= 10 || rank >= 10) continue;
-            
-            Stockfish::Piece pc = static_cast<Stockfish::Piece>(board_state[s]);
-            if (pc == Stockfish::NO_PIECE) continue;
+        for (int rank = 0; rank < 10; ++rank) {
+            for (int file = 0; file < 10; ++file) {
+                int s = rank * 12 + file;
+                
+                Stockfish::Piece pc = Stockfish::NO_PIECE;
+                if (hist_board_ptr) {
+                    pc = static_cast<Stockfish::Piece>(hist_board_ptr[s]);
+                } else if (raw_board_ptr) {
+                    pc = static_cast<Stockfish::Piece>(raw_board_ptr->piece_on(static_cast<Stockfish::Square>(s)));
+                }
+                if (pc == Stockfish::NO_PIECE) continue;
             
             Stockfish::PieceType pt = Stockfish::type_of(pc);
             Stockfish::Color c = Stockfish::color_of(pc);
@@ -100,6 +99,7 @@ void EncodePositionForNN(
                 }
                 
                 output_planes->at(dest_plane).mask |= dest_sq;
+            }
             }
         }
         

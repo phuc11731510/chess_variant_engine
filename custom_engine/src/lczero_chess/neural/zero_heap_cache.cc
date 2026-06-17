@@ -82,8 +82,9 @@ class ZeroHeapCacheComputation : public BackendComputation {
           if (entry.result_ptr.m) *entry.result_ptr.m = temp.m;
           
           uint16_t num_moves = temp.p.size();
-          for (size_t j = 0; j < num_moves && j < entry.result_ptr.p.size(); ++j) {
-              entry.result_ptr.p[j] = temp.p[j];
+          size_t copy_moves = std::min(static_cast<size_t>(num_moves), entry.result_ptr.p.size());
+          if (copy_moves > 0) {
+              std::memcpy(entry.result_ptr.p.data(), temp.p.data(), copy_moves * sizeof(float));
           }
           
           // Insert into cache buckets
@@ -159,8 +160,8 @@ std::optional<EvalResult> ZeroHeapCache::GetCachedEvaluation(const EvalPosition&
     result.d = cv.d;
     result.m = cv.m;
     result.p.resize(num_moves);
-    for (size_t i = 0; i < num_moves; ++i) {
-        result.p[i] = cv.p[i];
+    if (num_moves > 0) {
+        std::memcpy(result.p.data(), cv.p, num_moves * sizeof(float));
     }
     
     return result;
@@ -224,8 +225,9 @@ bool ZeroHeapCache::TryRead(uint64_t hash, uint16_t num_moves, EvalResultPtr& ou
     if (out.q) *out.q = cv.q;
     if (out.d) *out.d = cv.d;
     if (out.m) *out.m = cv.m;
-    for (size_t i = 0; i < num_moves && i < out.p.size(); ++i) {
-        out.p[i] = cv.p[i];
+    size_t copy_moves = std::min(static_cast<size_t>(num_moves), out.p.size());
+    if (copy_moves > 0) {
+        std::memcpy(out.p.data(), cv.p, copy_moves * sizeof(float));
     }
     
     return true;
@@ -253,8 +255,9 @@ void ZeroHeapCache::Insert(uint64_t hash, uint16_t num_moves, float q, float d, 
     bucket.value.d = d;
     bucket.value.m = m;
     bucket.value.num_moves = num_moves;
-    for (size_t i = 0; i < num_moves && i < 384; ++i) {
-        bucket.value.p[i] = p[i];
+    size_t copy_moves = std::min(static_cast<size_t>(num_moves), static_cast<size_t>(384));
+    if (copy_moves > 0) {
+        std::memcpy(bucket.value.p, p.data(), copy_moves * sizeof(float));
     }
     
     bucket.sequence.store(seq + 2, std::memory_order_release); // End writing lock
