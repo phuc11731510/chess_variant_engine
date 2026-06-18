@@ -110,7 +110,7 @@ void EncodePositionForNN(
                     dest_sq = Stockfish::relative_square(Stockfish::BLACK, dest_sq, Stockfish::RANK_10);
                 }
                 
-                output_planes->at(dest_plane).mask |= dest_sq;
+                output_planes->at(dest_plane).mask |= Stockfish::square_bb(dest_sq);
             }
             }
         }
@@ -133,22 +133,22 @@ void EncodePositionForNN(
     if (raw_pos.can_castle(us_ooo)) {
         Stockfish::Square rook_sq = raw_pos.castling_rook_square(us_ooo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        output_planes->at(kAuxPlaneBase + 0).mask |= rook_sq;
+        output_planes->at(kAuxPlaneBase + 0).mask |= Stockfish::square_bb(rook_sq);
     }
     if (raw_pos.can_castle(us_oo)) {
         Stockfish::Square rook_sq = raw_pos.castling_rook_square(us_oo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        output_planes->at(kAuxPlaneBase + 1).mask |= rook_sq;
+        output_planes->at(kAuxPlaneBase + 1).mask |= Stockfish::square_bb(rook_sq);
     }
     if (raw_pos.can_castle(them_ooo)) {
         Stockfish::Square rook_sq = raw_pos.castling_rook_square(them_ooo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        output_planes->at(kAuxPlaneBase + 2).mask |= rook_sq;
+        output_planes->at(kAuxPlaneBase + 2).mask |= Stockfish::square_bb(rook_sq);
     }
     if (raw_pos.can_castle(them_oo)) {
         Stockfish::Square rook_sq = raw_pos.castling_rook_square(them_oo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        output_planes->at(kAuxPlaneBase + 3).mask |= rook_sq;
+        output_planes->at(kAuxPlaneBase + 3).mask |= Stockfish::square_bb(rook_sq);
     }
     
     // Plane 4: Ô cờ có khả năng ăn tốt qua đường (En Passant)
@@ -158,7 +158,7 @@ void EncodePositionForNN(
             Stockfish::Bitboard flipped_ep = 0;
             while (ep) {
                 Stockfish::Square sq = Stockfish::pop_lsb(ep);
-                flipped_ep |= Stockfish::relative_square(Stockfish::BLACK, sq, Stockfish::RANK_10);
+                flipped_ep |= Stockfish::square_bb(Stockfish::relative_square(Stockfish::BLACK, sq, Stockfish::RANK_10));
             }
             ep = flipped_ep;
         }
@@ -269,6 +269,10 @@ void UnpackInputPlanes(
 // Hàm mã hóa một nước đi thực tế (Move) thành một chỉ số index trong mảng phẳng NN 10,600 phần tử
 uint16_t MoveToNNIndex(Move move, int transform) {
     if (move.is_null()) return 0;
+
+    if (transform) {
+        move.Flip(Stockfish::RANK_10);
+    }
 
     Stockfish::Square from = Stockfish::from_sq(move);
     Stockfish::Square to = Stockfish::to_sq(move);
@@ -383,6 +387,7 @@ Move MoveFromNNIndex(int idx, int transform) {
     int from_rank = from_flat / 10;
     Stockfish::Square from = Stockfish::make_square(static_cast<Stockfish::File>(from_file), static_cast<Stockfish::Rank>(from_rank));
 
+    Move res = MOVE_NONE;
     // 1. Giải mã nước đi dạng tia (Sliding moves) -> Kênh 0 đến 71
     if (type_idx >= 0 && type_idx <= 71) {
         int dir_idx = type_idx / 9;
@@ -405,7 +410,7 @@ Move MoveFromNNIndex(int idx, int transform) {
         // Kiểm tra toạ độ nằm trong phạm vi hợp lệ của bàn cờ 10x10
         if (to_file >= 0 && to_file < 10 && to_rank >= 0 && to_rank < 10) {
             Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), static_cast<Stockfish::Rank>(to_rank));
-            return Stockfish::make_move(from, to);
+            res = Stockfish::make_move(from, to);
         }
     }
     // 2. Giải mã nước nhảy của Mã (Knight moves) -> Kênh 72 đến 79
@@ -419,7 +424,7 @@ Move MoveFromNNIndex(int idx, int transform) {
         int to_rank = from_rank + dy;
         if (to_file >= 0 && to_file < 10 && to_rank >= 0 && to_rank < 10) {
             Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), static_cast<Stockfish::Rank>(to_rank));
-            return Stockfish::make_move(from, to);
+            res = Stockfish::make_move(from, to);
         }
     }
     // 3. Giải mã nước nhảy của Lạc đà (Camel moves) -> Kênh 80 đến 87
@@ -433,7 +438,7 @@ Move MoveFromNNIndex(int idx, int transform) {
         int to_rank = from_rank + dy;
         if (to_file >= 0 && to_file < 10 && to_rank >= 0 && to_rank < 10) {
             Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), static_cast<Stockfish::Rank>(to_rank));
-            return Stockfish::make_move(from, to);
+            res = Stockfish::make_move(from, to);
         }
     }
     // 4. Giải mã nước đi Phong cấp (Promotion moves) -> Kênh 88 đến 105
@@ -459,11 +464,15 @@ Move MoveFromNNIndex(int idx, int transform) {
         int to_file = from_file + (dir_idx - 1);
         if (to_file >= 0 && to_file < 10) {
             Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), to_rank);
-            return Stockfish::make<Stockfish::PROMOTION>(from, to, promo_pt);
+            res = Stockfish::make<Stockfish::PROMOTION>(from, to, promo_pt);
         }
     }
 
-    return Move(Stockfish::MOVE_NONE);
+    if (transform && !res.is_null()) {
+        res.Flip(Stockfish::RANK_10);
+    }
+
+    return res;
 }
 
 } // namespace lczero

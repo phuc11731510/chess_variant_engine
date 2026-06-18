@@ -6,8 +6,81 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <immintrin.h>
 
 namespace lczero {
+
+// AVX2 exp approximation helper function compiled with AVX2 and FMA
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((target("avx2,fma")))
+#endif
+inline __m256 avx2_exp_approx(__m256 x) {
+    // Clamp to prevent negative base when squaring
+    __m256 x_clamped = _mm256_max_ps(x, _mm256_set1_ps(-80.0f));
+    
+    // (1 + x/1024)^1024
+    __m256 y = _mm256_fmadd_ps(x_clamped, _mm256_set1_ps(1.0f / 1024.0f), _mm256_set1_ps(1.0f));
+    
+    // 10 squarings to compute power of 1024
+    y = _mm256_mul_ps(y, y); // 2nd power
+    y = _mm256_mul_ps(y, y); // 4th
+    y = _mm256_mul_ps(y, y); // 8th
+    y = _mm256_mul_ps(y, y); // 16th
+    y = _mm256_mul_ps(y, y); // 32nd
+    y = _mm256_mul_ps(y, y); // 64th
+    y = _mm256_mul_ps(y, y); // 128th
+    y = _mm256_mul_ps(y, y); // 256th
+    y = _mm256_mul_ps(y, y); // 512th
+    y = _mm256_mul_ps(y, y); // 1024th
+    
+    return y;
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((target("avx2,fma")))
+#endif
+inline void avx2_softmax(float* legal_logits, size_t num_legal, float softmax_temp, float max_logit, float* out_p, size_t max_out_size) {
+    size_t num_legal_rounded = (num_legal + 7) & ~7;
+    for (size_t i = num_legal; i < num_legal_rounded; ++i) {
+        legal_logits[i] = -100.0f;
+    }
+    
+    float temp = std::max(1e-3f, softmax_temp);
+    float inv_temp = 1.0f / temp;
+    
+    __m256 max_val_vec = _mm256_set1_ps(max_logit);
+    __m256 inv_temp_vec = _mm256_set1_ps(inv_temp);
+    __m256 sum_vec = _mm256_setzero_ps();
+    
+    for (size_t i = 0; i < num_legal_rounded; i += 8) {
+        __m256 val = _mm256_load_ps(&legal_logits[i]);
+        __m256 diff = _mm256_sub_ps(val, max_val_vec);
+        __m256 scaled = _mm256_mul_ps(diff, inv_temp_vec);
+        __m256 res_exp = avx2_exp_approx(scaled);
+        _mm256_store_ps(&legal_logits[i], res_exp);
+        sum_vec = _mm256_add_ps(sum_vec, res_exp);
+    }
+    
+    alignas(32) float sum_arr[8];
+    _mm256_store_ps(sum_arr, sum_vec);
+    float sum = 0.0f;
+    for (int i = 0; i < 8; ++i) {
+        sum += sum_arr[i];
+    }
+    
+    float inv_sum = 1.0f / (sum > 0.0f ? sum : 1.0f);
+    __m256 inv_sum_vec = _mm256_set1_ps(inv_sum);
+    
+    for (size_t i = 0; i < num_legal_rounded; i += 8) {
+        __m256 val = _mm256_load_ps(&legal_logits[i]);
+        __m256 normalized = _mm256_mul_ps(val, inv_sum_vec);
+        _mm256_store_ps(&legal_logits[i], normalized);
+    }
+    
+    for (size_t i = 0; i < num_legal && i < max_out_size; ++i) {
+        out_p[i] = legal_logits[i];
+    }
+}
 
 // Helper function to split strings
 static std::vector<std::string> split_options(const std::string& s, char delimiter) {
@@ -41,6 +114,9 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
     
     // Save pointers to output destination
     results_[enqueued_] = result;
+    
+    // Save whether the board was flipped (Black to move)
+    is_flipped_[enqueued_] = pos.history->Last().IsBlackToMove();
     
     // Save legal moves list
     size_t num_moves = pos.legal_moves.size();
@@ -138,24 +214,15 @@ void OnnxComputation::ComputeBlocking() {
             // Map legal moves to ONNX output indices and fetch logits
             for (size_t i = 0; i < num_legal; ++i) {
                 Move NN_move = position_moves_[b][i];
-                int index = MoveToNNIndex(NN_move, 0);
+                int index = MoveToNNIndex(NN_move, is_flipped_[b] ? 1 : 0);
                 legal_logits[i] = raw_policy[index];
                 if (legal_logits[i] > max_logit) {
                     max_logit = legal_logits[i];
                 }
             }
             
-            // Calculate Softmax
-            float sum = 0.0f;
-            float temp = std::max(1e-3f, softmax_temp_); // Avoid division by zero
-            for (size_t i = 0; i < num_legal; ++i) {
-                legal_logits[i] = std::exp((legal_logits[i] - max_logit) / temp);
-                sum += legal_logits[i];
-            }
-            
-            for (size_t i = 0; i < num_legal && i < res.p.size(); ++i) {
-                res.p[i] = legal_logits[i] / sum;
-            }
+            // Calculate Softmax using AVX2 SIMD helper
+            avx2_softmax(legal_logits, num_legal, softmax_temp_, max_logit, res.p.data(), res.p.size());
         }
     }
     
