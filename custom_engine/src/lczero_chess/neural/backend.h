@@ -22,7 +22,9 @@ class StaticVector {
   StaticVector() : size_(0) {}
 
   void resize(size_t new_size) {
-    assert(new_size <= N);
+    if (new_size > N) {
+      new_size = N;
+    }
     size_ = new_size;
   }
 

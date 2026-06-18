@@ -116,7 +116,7 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
     results_[enqueued_] = result;
     
     // Save legal moves list
-    size_t num_moves = pos.legal_moves.size();
+    size_t num_moves = std::min(pos.legal_moves.size(), static_cast<size_t>(384));
     position_moves_[enqueued_].resize(num_moves);
     for (size_t i = 0; i < num_moves; ++i) {
         position_moves_[enqueued_][i] = pos.legal_moves[i];
@@ -203,7 +203,7 @@ void OnnxComputation::ComputeBlocking() {
         if (res.m) *res.m = 50.0f;      // Fallback moves left value
         
         // 4.2. Extract Policy probabilities
-        size_t num_legal = position_moves_[b].size();
+        size_t num_legal = std::min(position_moves_[b].size(), static_cast<size_t>(384));
         if (num_legal > 0 && !res.p.empty()) {
             alignas(64) float legal_logits[384];
             float max_logit = -1e9f;

@@ -8,7 +8,7 @@
 
 namespace lczero {
 
-const char* ChessBoard::kStartposFen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w - - 7+7 0 1";
+const char* ChessBoard::kStartposFen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
 
 ChessBoard::ChessBoard() {
     auto it = Stockfish::variants.find("custom_10x10_variant");
@@ -73,6 +73,11 @@ void ChessBoard::Clear() {
 
 MoveList ChessBoard::GenerateLegalMoves() const {
     Stockfish::MoveList<Stockfish::LEGAL> list(pos);
+    if (list.size() > 384) {
+        std::cerr << "CRITICAL ERROR: Legal moves count (" << list.size() 
+                  << ") exceeded the 384 cap at FEN: " << pos.fen() << std::endl;
+        assert(list.size() <= 384 && "Legal moves exceeded 384 cap - policy/data will be truncated!");
+    }
     MoveList result;
     result.reserve(list.size());
     bool is_black = (pos.side_to_move() == Stockfish::BLACK);
