@@ -275,11 +275,17 @@ uint16_t MoveToNNIndex(Move move, int transform) {
 
     int from_file = Stockfish::file_of(from);
     int from_rank = Stockfish::rank_of(from);
-    // Ô cờ xuất phát được làm phẳng từ 0 đến 99 (cho bàn cờ 10x10)
-    int from_flat = from_rank * 10 + from_file;
-
     int to_file = Stockfish::file_of(to);
     int to_rank = Stockfish::rank_of(to);
+
+    // Kiểm tra toạ độ nằm trong phạm vi bàn cờ 10x10
+    if (from_file < 0 || from_file >= 10 || from_rank < 0 || from_rank >= 10 ||
+        to_file < 0 || to_file >= 10 || to_rank < 0 || to_rank >= 10) {
+        return 0;
+    }
+
+    // Ô cờ xuất phát được làm phẳng từ 0 đến 99 (cho bàn cờ 10x10)
+    int from_flat = from_rank * 10 + from_file;
 
     // Tính toán khoảng cách và hướng đi dọc theo trục X và Y
     int dx = to_file - from_file;

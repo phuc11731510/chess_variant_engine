@@ -212,7 +212,11 @@ void OnnxComputation::ComputeBlocking() {
             for (size_t i = 0; i < num_legal; ++i) {
                 Move NN_move = position_moves_[b][i];
                 int index = MoveToNNIndex(NN_move, 0);
-                legal_logits[i] = raw_policy[index];
+                if (index >= 0 && index < 10600) {
+                    legal_logits[i] = raw_policy[index];
+                } else {
+                    legal_logits[i] = -100.0f; // An extremely low probability for safety
+                }
                 if (legal_logits[i] > max_logit) {
                     max_logit = legal_logits[i];
                 }
