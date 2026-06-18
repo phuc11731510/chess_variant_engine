@@ -709,12 +709,12 @@ checkCounting = true
             std::exit(1);
         }
         // Verify Black castling rights
-        // Plane 218 (Queenside): Black Rook on b10 (SQ_B10 = 91)
+        // Plane 218 (Queenside): Black Rook on b10 (SQ_B10 = 109)
         if (!(planes[218].mask & Stockfish::square_bb(Stockfish::SQ_B10))) {
             std::cerr << "[FAIL] Plane 218 should cover Black Rook on b10!" << std::endl;
             std::exit(1);
         }
-        // Plane 219 (Kingside): Black Rook on i10 (SQ_I10 = 98)
+        // Plane 219 (Kingside): Black Rook on i10 (SQ_I10 = 116)
         if (!(planes[219].mask & Stockfish::square_bb(Stockfish::SQ_I10))) {
             std::cerr << "[FAIL] Plane 219 should cover Black Rook on i10!" << std::endl;
             std::exit(1);
