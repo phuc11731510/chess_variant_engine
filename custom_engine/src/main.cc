@@ -759,7 +759,85 @@ checkCounting = true
         }
         std::cout << "  - [VERIFIED] ApplyMove executed Queenside castling correctly (King on d1, Rook on e1)." << std::endl;
         
-        std::cout << "[PASS] TEST 7 passed! (Castling generation, encoding, and execution verified)\n" << std::endl;
+        // 5. Test Black Castling with Flip logic
+        std::cout << "Testing Black Castling (with Flip logic)..." << std::endl;
+        std::string black_castling_fen = "1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 b BIbi - 7+7 0 1";
+        lczero::ChessBoard board_black(black_castling_fen);
+        
+        auto moves_black = board_black.GenerateLegalMoves();
+        bool found_black_oo = false;
+        bool found_black_ooo = false;
+        lczero::Move move_black_oo = lczero::MOVE_NONE;
+        lczero::Move move_black_ooo = lczero::MOVE_NONE;
+        
+        for (const auto& m : moves_black) {
+            std::string m_str = board_black.MoveToString(m);
+            if (m_str == "f10h10") {
+                found_black_oo = true;
+                move_black_oo = m;
+            } else if (m_str == "f10d10") {
+                found_black_ooo = true;
+                move_black_ooo = m;
+            }
+        }
+        
+        if (!found_black_oo) {
+            std::cerr << "[FAIL] Black Kingside castling f10h10 not found!" << std::endl;
+            std::exit(1);
+        }
+        if (!found_black_ooo) {
+            std::cerr << "[FAIL] Black Queenside castling f10d10 not found!" << std::endl;
+            std::exit(1);
+        }
+        
+        // Remap to NN index (should be mapped to the same index as White because it is flipped to White's perspective)
+        uint16_t index_black_oo = lczero::MoveToNNIndex(move_black_oo, 0);
+        uint16_t index_black_ooo = lczero::MoveToNNIndex(move_black_ooo, 0);
+        
+        if (index_black_oo != 2005) {
+            std::cerr << "[FAIL] Black Kingside castling index mismatch! Expected 2005, got " << index_black_oo << std::endl;
+            std::exit(1);
+        }
+        if (index_black_ooo != 5705) {
+            std::cerr << "[FAIL] Black Queenside castling index mismatch! Expected 5705, got " << index_black_ooo << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - [VERIFIED] Black castling moves map to identical indices (2005 and 5705) via Flip logic." << std::endl;
+        
+        // ApplyMove Black castling
+        // Kingside: King f10 (file 5) -> Destination h10 (file 7)
+        // Rook i10 (file 8) -> Destination g10 (file 6)
+        std::cout << "Applying Black Kingside castling (f10h10)..." << std::endl;
+        board_black.ApplyMove(move_black_oo);
+        
+        const auto& raw_pos_black = board_black.GetRawPosition();
+        if (raw_pos_black.piece_on(Stockfish::SQ_H10) != Stockfish::B_KING) {
+            std::cerr << "[FAIL] After f10h10, Black King is not on h10! Got: " << raw_pos_black.piece_on(Stockfish::SQ_H10) << std::endl;
+            std::exit(1);
+        }
+        if (raw_pos_black.piece_on(Stockfish::SQ_G10) != Stockfish::B_ROOK) {
+            std::cerr << "[FAIL] After f10h10, Black Rook is not on g10! Got: " << raw_pos_black.piece_on(Stockfish::SQ_G10) << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - [VERIFIED] ApplyMove executed Black Kingside castling correctly (King on h10, Rook on g10)." << std::endl;
+        
+        // Undo and test Queenside
+        std::cout << "Undoing Black castling..." << std::endl;
+        board_black.UndoMove();
+        
+        std::cout << "Applying Black Queenside castling (f10d10)..." << std::endl;
+        board_black.ApplyMove(move_black_ooo);
+        if (raw_pos_black.piece_on(Stockfish::SQ_D10) != Stockfish::B_KING) {
+            std::cerr << "[FAIL] After f10d10, Black King is not on d10! Got: " << raw_pos_black.piece_on(Stockfish::SQ_D10) << std::endl;
+            std::exit(1);
+        }
+        if (raw_pos_black.piece_on(Stockfish::SQ_E10) != Stockfish::B_ROOK) {
+            std::cerr << "[FAIL] After f10d10, Black Rook is not on e10! Got: " << raw_pos_black.piece_on(Stockfish::SQ_E10) << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - [VERIFIED] ApplyMove executed Black Queenside castling correctly (King on d10, Rook on e10)." << std::endl;
+        
+        std::cout << "[PASS] TEST 7 passed! (Castling generation, encoding, and execution verified for White & Black)\n" << std::endl;
     }
 
     std::cout << "========================================" << std::endl;
