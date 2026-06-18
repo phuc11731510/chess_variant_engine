@@ -184,6 +184,7 @@ bool PositionHistory::DidRepeatSinceLastZeroingMove() const {
     return false;
 }
 
+// ComputeGameResult: hệ quy chiếu TUYỆT ĐỐI (WHITE_WON = Trắng thắng thật) — dùng cho nhãn ván/adjudication.
 GameResult PositionHistory::ComputeGameResult() const {
     const auto& board = Last().GetBoard();
     const auto& raw_pos = board.GetRawPosition();
@@ -222,6 +223,7 @@ GameResult PositionHistory::ComputeGameResult() const {
     return GameResult::UNDECIDED;
 }
 
+// ComputeMctsResult: hệ quy chiếu TƯƠNG ĐỐI theo bên-vừa-đi (WHITE_WON = bên-tới-lượt THUA) — dùng cho backup MCTS.
 GameResult PositionHistory::ComputeMctsResult(const MoveList& legal_moves) const {
     const auto& board = Last().GetBoard();
     const auto& raw_pos = board.GetRawPosition();
