@@ -672,7 +672,7 @@ checkCounting = true
             std::exit(1);
         }
         
-        // Ensure they decode back uniquely
+        // Ensure they decode back to equivalent NORMAL moves with same square coordinates
         lczero::Move decoded_oo = lczero::MoveFromNNIndex(index_oo, 0);
         lczero::Move decoded_ooo = lczero::MoveFromNNIndex(index_ooo, 0);
         
@@ -684,7 +684,7 @@ checkCounting = true
             std::cerr << "[FAIL] Queenside castling index did not decode back! Got: " << board.MoveToString(decoded_ooo) << std::endl;
             std::exit(1);
         }
-        std::cout << "  - [VERIFIED] MoveToNNIndex maps castling to sliding slots uniquely (2005 and 5705) and decodes back." << std::endl;
+        std::cout << "  - [VERIFIED] MoveToNNIndex maps castling to sliding slots uniquely (2005 and 5705) and decodes back to coordinate-equivalent normal moves." << std::endl;
         
         // 3. Encoder check for aux planes 216-219:
         // Before castling, rights are BIbi.
