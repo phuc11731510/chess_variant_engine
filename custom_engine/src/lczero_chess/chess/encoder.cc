@@ -58,6 +58,9 @@ void EncodePositionForNN(
             rep = starting_position.GetRepetitions();
             has_board = true;
         }
+        // Chú ý: FillEmptyHistory::FEN_ONLY hiện tại chưa được xử lý riêng biệt
+        // và sẽ rơi xuống nhánh mặc định (để trống lịch sử, tương đương với NO).
+        // Điều này là tự nhất quán cho cả sinh dữ liệu tự chơi và suy luận.
         
         if (!has_board) {
             continue;
