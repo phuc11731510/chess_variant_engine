@@ -793,15 +793,15 @@ checkCounting = true
     
     std::vector<std::string> best_moves;
     for (int run = 1; run <= 5; ++run) {
-        lczero::classic::NodeTree tree;
-        tree.ResetToPosition(fen, {}); // set to FEN
+        auto tree = std::make_unique<lczero::classic::NodeTree>();
+        tree->ResetToPosition(fen, {}); // set to FEN
         
         auto uci_responder = std::make_unique<TestUciResponder>();
         auto stopper = std::make_unique<NodeLimitStopper>(800); // Stop after 800 nodes
         auto start_time = std::chrono::steady_clock::now();
         
-        lczero::classic::Search search(
-            tree,
+        auto search = std::make_unique<lczero::classic::Search>(
+            *tree,
             backend.get(),
             std::move(uci_responder),
             lczero::MoveList{},
@@ -813,11 +813,11 @@ checkCounting = true
             nullptr // syzygy_tb
         );
         
-        search.RunBlocking(4); // Run search on 4 threads
+        search->RunBlocking(4); // Run search on 4 threads
         
-        auto result = search.GetBestMove();
+        auto result = search->GetBestMove();
         best_moves.push_back(result.first.ToString());
-        std::cout << "[RUN " << run << "] Finished playouts: " << search.GetTotalPlayouts() 
+        std::cout << "[RUN " << run << "] Finished playouts: " << search->GetTotalPlayouts() 
                   << " | Best move: " << result.first.ToString() << " (RNG: " << lczero::Random::Get().GetFloat(1.0f) << ")" << std::endl;
     }
 

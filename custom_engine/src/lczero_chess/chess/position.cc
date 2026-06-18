@@ -1,6 +1,7 @@
 #include "position.h"
 #include <algorithm>
 #include <iostream>
+#include <cassert>
 
 namespace lczero {
 
@@ -148,6 +149,8 @@ void PositionHistory::Append(Move m) {
         last_position_.DoMove(m, &mcts_states_[history_size_]);
         history_size_++;
     } else {
+        std::cerr << "CRITICAL ERROR: PositionHistory capacity exceeded!" << std::endl;
+        assert(history_size_ < history_.size() && "PositionHistory capacity exceeded!");
         last_position_.DoMove(m, nullptr);
     }
     

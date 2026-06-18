@@ -482,7 +482,7 @@ void NodeTree::MakeMove(Move move) {
   history_.Append(move);
 
   // Tỉa lịch sử ván đấu thực tế khi đạt 200 nước về còn 100 nước
-  // Điều này đảm bảo mảng tĩnh 256 phần tử trong PositionHistory không bao giờ bị đầy,
+  // Điều này đảm bảo mảng tĩnh 512 phần tử trong PositionHistory không bao giờ bị đầy,
   // giúp tăng tốc độ sao chép mảng khi MCTS Expand các Node.
   if (history_.GetLength() >= 200) {
       history_.TrimHistory(100);
