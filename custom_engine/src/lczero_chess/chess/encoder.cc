@@ -271,7 +271,7 @@ void UnpackInputPlanes(
 
 // Hàm mã hóa một nước đi thực tế (Move) thành một chỉ số index trong mảng phẳng NN 10,600 phần tử
 uint16_t MoveToNNIndex(Move move, int transform) {
-    if (move.is_null()) return 0;
+    if (move.is_null()) return 65535;
 
     Stockfish::Square from = Stockfish::from_sq(move);
     Stockfish::Square to = Stockfish::to_sq(move);
@@ -284,7 +284,7 @@ uint16_t MoveToNNIndex(Move move, int transform) {
     // Kiểm tra toạ độ nằm trong phạm vi bàn cờ 10x10
     if (from_file < 0 || from_file >= 10 || from_rank < 0 || from_rank >= 10 ||
         to_file < 0 || to_file >= 10 || to_rank < 0 || to_rank >= 10) {
-        return 0;
+        return 65535;
     }
 
     // Ô cờ xuất phát được làm phẳng từ 0 đến 99 (cho bàn cờ 10x10)
@@ -378,7 +378,10 @@ uint16_t MoveToNNIndex(Move move, int transform) {
         return type_idx * 100 + from_flat;
     }
 
-    return 0;
+#ifndef NDEBUG
+    assert(false && "Unmapped move in MoveToNNIndex!");
+#endif
+    return 65535;
 }
 
 // Hàm giải mã ngược từ chỉ số index của mảng phẳng NN 10,600 phần tử thành nước đi thực tế (Move)
