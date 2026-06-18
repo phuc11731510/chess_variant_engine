@@ -5,6 +5,7 @@
 
 namespace lczero {
 
+// Hàm mã hóa lịch sử thế cờ thành các mặt phẳng đầu vào (InputPlanes) cho Neural Network
 void EncodePositionForNN(
     const PositionHistory& history,
     int history_planes,
@@ -13,11 +14,12 @@ void EncodePositionForNN(
     int* transform_out) {
     
     if (transform_out) {
-        *transform_out = 0; // NoTransform
+        *transform_out = 0; // Không áp dụng phép quay/lật ảnh (NoTransform)
     }
     
     if (!output_planes) return;
     
+    // Khởi tạo toàn bộ các mặt phẳng đầu ra về 0
     InputPlane zero_plane;
     zero_plane.mask = 0;
     zero_plane.value = 0.0f;
@@ -27,10 +29,12 @@ void EncodePositionForNN(
     const auto& starting_position = history.Starting();
     int history_size = static_cast<int>(history.GetPositions().size());
     
+    // Xác định màu quân của lượt đi hiện tại (us) và đối phương (them)
     Stockfish::Color us = last_position.IsBlackToMove() ? Stockfish::BLACK : Stockfish::WHITE;
     Stockfish::Color them = ~us;
-    bool is_flipped = (us == Stockfish::BLACK);
+    bool is_flipped = (us == Stockfish::BLACK); // Lật bàn cờ nếu quân đen đi để đồng bộ góc nhìn NN
     
+    // Duyệt qua lịch sử 8 nước đi (kMoveHistory = 8)
     for (int d = 0; d < kMoveHistory; ++d) {
         bool has_board = false;
         const Stockfish::Position* raw_board_ptr = nullptr;
@@ -38,15 +42,18 @@ void EncodePositionForNN(
         int rep = 0;
         
         if (d == 0) {
+            // Lấy bàn cờ ở trạng thái hiện tại
             raw_board_ptr = &last_position.GetBoard().GetRawPosition();
             rep = last_position.GetRepetitions();
             has_board = true;
         } else if (history_size >= d) {
+            // Lấy bàn cờ từ lịch sử lưu trữ
             const auto& hist_pos = history.GetPositions()[history_size - d];
             hist_board_ptr = hist_pos.board.data();
             rep = hist_pos.repetitions;
             has_board = true;
         } else if (fill_empty_history == FillEmptyHistory::ALWAYS) {
+            // Điền bàn cờ xuất phát nếu lịch sử chưa đủ sâu
             raw_board_ptr = &starting_position.GetBoard().GetRawPosition();
             rep = starting_position.GetRepetitions();
             has_board = true;
@@ -56,8 +63,10 @@ void EncodePositionForNN(
             continue;
         }
         
+        // Duyệt qua bàn cờ 10x10 (hàng 0-9, cột 0-9)
         for (int rank = 0; rank < 10; ++rank) {
             for (int file = 0; file < 10; ++file) {
+                // Chỉ số ô cờ vật lý trong Stockfish (mỗi hàng rộng 12 ô do LARGEBOARDS)
                 int s = rank * 12 + file;
                 
                 Stockfish::Piece pc = Stockfish::NO_PIECE;
@@ -71,6 +80,7 @@ void EncodePositionForNN(
             Stockfish::PieceType pt = Stockfish::type_of(pc);
             Stockfish::Color c = Stockfish::color_of(pc);
             
+            // Tìm chỉ số mặt phẳng (plane index) tương ứng với loại quân cờ (13 loại)
             int plane_idx = -1;
             switch (pt) {
                 case Stockfish::PAWN:           plane_idx = 0; break;
@@ -90,11 +100,13 @@ void EncodePositionForNN(
             }
             
             if (plane_idx != -1) {
+                // Plane offset: 0 cho quân mình (us), 13 cho quân đối thủ (them)
                 int plane_offset = (c == us) ? 0 : 13;
                 int dest_plane = d * kPlanesPerBoard + plane_offset + plane_idx;
                 
                 Stockfish::Square dest_sq = static_cast<Stockfish::Square>(s);
                 if (is_flipped) {
+                    // Lật ô cờ dọc theo bàn cờ 10 hàng để giữ đồng bộ góc nhìn của quân đen
                     dest_sq = Stockfish::relative_square(Stockfish::BLACK, dest_sq, Stockfish::RANK_10);
                 }
                 
@@ -103,11 +115,13 @@ void EncodePositionForNN(
             }
         }
         
+        // Mặt phẳng thứ 27 của mỗi bước lịch sử: Chỉ thị trạng thái lặp lại thế cờ
         if (rep >= 1) {
             output_planes->at(d * kPlanesPerBoard + 26).Fill(1.0f);
         }
     }
     
+    // Mã hóa các mặt phẳng phụ trợ (Auxiliary Planes) ở phần cuối
     const auto& raw_pos = last_position.GetBoard().GetRawPosition();
     
     Stockfish::CastlingRights us_ooo   = (us == Stockfish::WHITE) ? Stockfish::WHITE_OOO : Stockfish::BLACK_OOO;
@@ -115,6 +129,7 @@ void EncodePositionForNN(
     Stockfish::CastlingRights them_ooo = (us == Stockfish::WHITE) ? Stockfish::BLACK_OOO : Stockfish::WHITE_OOO;
     Stockfish::CastlingRights them_oo  = (us == Stockfish::WHITE) ? Stockfish::BLACK_OO  : Stockfish::WHITE_OO;
 
+    // Plane 0-3: Quyền nhập thành Queenside & Kingside của Ta và Đối thủ
     if (raw_pos.can_castle(us_ooo)) {
         Stockfish::Square rook_sq = raw_pos.castling_rook_square(us_ooo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
@@ -136,6 +151,7 @@ void EncodePositionForNN(
         output_planes->at(kAuxPlaneBase + 3).mask |= rook_sq;
     }
     
+    // Plane 4: Ô cờ có khả năng ăn tốt qua đường (En Passant)
     Stockfish::Bitboard ep = raw_pos.ep_squares();
     if (ep) {
         if (is_flipped) {
@@ -149,8 +165,13 @@ void EncodePositionForNN(
         output_planes->at(kAuxPlaneBase + 4).mask = ep;
     }
     
+    // Plane 5: Đếm luật 50 nước đi (chuẩn hóa rule50 / 100.0f)
     output_planes->at(kAuxPlaneBase + 5).Fill(static_cast<float>(last_position.GetRule50Ply()) / 100.0f);
+    
+    // Plane 7: Đầy 1.0f giúp mạng nơ-ron nhận biết biên bàn cờ 10x10
     output_planes->at(kAuxPlaneBase + 7).Fill(1.0f);
+    
+    // Plane 8 & 9: Số lượt chiếu còn lại trước khi đạt mốc thắng cuộc 7-checks (chuẩn hóa checks / 7.0f)
     output_planes->at(kAuxPlaneBase + 8).Fill(static_cast<float>(raw_pos.checks_remaining(us)) / 7.0f);
     output_planes->at(kAuxPlaneBase + 9).Fill(static_cast<float>(raw_pos.checks_remaining(them)) / 7.0f);
 }
@@ -179,6 +200,8 @@ constexpr auto sq_to_tensor_lut = SqToTensorLUT<10, 10, Stockfish::FILE_NB, Stoc
 
 } // namespace
 
+// Hàm giải nén (unpack) dữ liệu từ cấu trúc mặt phẳng thưa (InputPlanes)
+// thành mảng float phẳng liên tục để truyền trực tiếp vào ONNX Runtime.
 void UnpackInputPlanes(
     const InputPlanes& planes,
     float* float_planes,
@@ -188,15 +211,15 @@ void UnpackInputPlanes(
     const int plane_size = width * height;
     assert(width <= Stockfish::FILE_NB && height <= Stockfish::RANK_NB);
     
-    // 1. Khởi tạo toàn bộ tensor về 0.0f bằng một lệnh memset toàn cục duy nhất
+    // 1. Khởi tạo toàn bộ mảng đầu ra về 0.0f bằng một lệnh memset hiệu năng cao
     std::memset(float_planes, 0, planes.size() * plane_size * sizeof(float));
     
     if (width == 10 && height == 10) {
-        // 2. Nhánh tối ưu sử dụng LUT O(1) cho bàn cờ 10x10
+        // 2. Nhánh tối ưu hóa cho bàn cờ 10x10 sử dụng LUT (bảng tra cứu) O(1)
         for (size_t p = 0; p < planes.size(); ++p) {
             const auto& plane = planes[p];
             if (!plane.mask) {
-                continue; // Bỏ qua nhanh vì vùng nhớ đã được zero-init toàn cục
+                continue; // Bỏ qua nhanh các mặt phẳng trống để tiết kiệm thời gian
             }
             
             float* dest = float_planes + p * plane_size;
@@ -209,7 +232,7 @@ void UnpackInputPlanes(
             Stockfish::Bitboard b = plane.mask;
             while (b) {
                 Stockfish::Square sq = Stockfish::pop_lsb(b);
-                int idx = sq_to_tensor_lut.lut[sq];
+                int idx = sq_to_tensor_lut.lut[sq]; // Ánh xạ nhanh chỉ số ô cờ 12-cột sang 10-cột
                 if (idx != -1) {
                     dest[idx] = plane.value;
                 }
@@ -243,6 +266,7 @@ void UnpackInputPlanes(
     }
 }
 
+// Hàm mã hóa một nước đi thực tế (Move) thành một chỉ số index trong mảng phẳng NN 10,600 phần tử
 uint16_t MoveToNNIndex(Move move, int transform) {
     if (move.is_null()) return 0;
 
@@ -251,18 +275,21 @@ uint16_t MoveToNNIndex(Move move, int transform) {
 
     int from_file = Stockfish::file_of(from);
     int from_rank = Stockfish::rank_of(from);
+    // Ô cờ xuất phát được làm phẳng từ 0 đến 99 (cho bàn cờ 10x10)
     int from_flat = from_rank * 10 + from_file;
 
     int to_file = Stockfish::file_of(to);
     int to_rank = Stockfish::rank_of(to);
 
+    // Tính toán khoảng cách và hướng đi dọc theo trục X và Y
     int dx = to_file - from_file;
     int dy = to_rank - from_rank;
 
-    // 1. Kiểm tra nước đi Phong cấp (Promotion) -> Kênh 88 - 105
+    // 1. Kiểm tra nước đi Phong cấp (Promotion) -> Kênh 88 đến 105
     if (Stockfish::type_of(move) == Stockfish::PROMOTION) {
         Stockfish::PieceType promo_type = Stockfish::promotion_type(move);
         int piece_idx = -1;
+        // Xác định loại quân phong cấp (6 loại quân)
         switch (promo_type) {
             case Stockfish::BISHOP:         piece_idx = 0; break;
             case Stockfish::ARCHBISHOP:     piece_idx = 1; break;
@@ -275,9 +302,9 @@ uint16_t MoveToNNIndex(Move move, int transform) {
 
         if (piece_idx != -1) {
             int dir_idx = -1;
-            if (dx == -1) dir_idx = 0;
-            else if (dx == 0) dir_idx = 1;
-            else if (dx == 1) dir_idx = 2;
+            if (dx == -1) dir_idx = 0;      // Ăn chéo trái
+            else if (dx == 0) dir_idx = 1;  // Đi thẳng lên
+            else if (dx == 1) dir_idx = 2;   // Ăn chéo phải
 
             if (dir_idx != -1) {
                 int type_idx = 88 + piece_idx * 3 + dir_idx;
@@ -286,11 +313,11 @@ uint16_t MoveToNNIndex(Move move, int transform) {
         }
     }
 
-    // 2. Kiểm tra nước nhảy của Mã (Knight) -> Kênh 72 - 79
+    // 2. Kiểm tra nước nhảy của Mã (Knight moves) -> Kênh 72 đến 79
     int abs_dx = std::abs(dx);
     int abs_dy = std::abs(dy);
     if ((abs_dx == 1 && abs_dy == 2) || (abs_dx == 2 && abs_dy == 1)) {
-        // Clockwise offsets: (1,2), (2,1), (2,-1), (1,-2), (-1,-2), (-2,-1), (-2,1), (-1,2)
+        // 8 hướng nhảy theo chiều kim đồng hồ
         int knight_idx = -1;
         if      (dx == 1  && dy == 2)  knight_idx = 0;
         else if (dx == 2  && dy == 1)  knight_idx = 1;
@@ -306,9 +333,9 @@ uint16_t MoveToNNIndex(Move move, int transform) {
         }
     }
 
-    // 3. Kiểm tra nước nhảy của Lạc đà (Camel) -> Kênh 80 - 87
+    // 3. Kiểm tra nước nhảy của Lạc đà (Camel moves) -> Kênh 80 đến 87
     if ((abs_dx == 1 && abs_dy == 3) || (abs_dx == 3 && abs_dy == 1)) {
-        // Clockwise offsets: (1,3), (3,1), (3,-1), (1,-3), (-1,-3), (-3,-1), (-3,1), (-1,3)
+        // 8 hướng nhảy của Lạc đà theo chiều kim đồng hồ
         int camel_idx = -1;
         if      (dx == 1  && dy == 3)  camel_idx = 0;
         else if (dx == 3  && dy == 1)  camel_idx = 1;
@@ -324,18 +351,19 @@ uint16_t MoveToNNIndex(Move move, int transform) {
         }
     }
 
-    // 4. Kiểm tra nước đi dạng tia (Sliding / Alibaba) -> Kênh 0 - 71
+    // 4. Kiểm tra nước đi dạng tia (Sliding / Alibaba moves) -> Kênh 0 đến 71
     int dir_idx = -1;
     int distance = 0;
-    if (dx == 0 && dy > 0)       { dir_idx = 0; distance = dy; }
-    else if (dx > 0 && dy == dx)  { dir_idx = 1; distance = dx; }
-    else if (dx > 0 && dy == 0)   { dir_idx = 2; distance = dx; }
-    else if (dx > 0 && dy == -dx) { dir_idx = 3; distance = dx; }
-    else if (dx == 0 && dy < 0)   { dir_idx = 4; distance = -dy; }
-    else if (dx < 0 && dy == dx)  { dir_idx = 5; distance = -dx; }
-    else if (dx < 0 && dy == 0)   { dir_idx = 6; distance = -dx; }
-    else if (dx < 0 && dy == -dx) { dir_idx = 7; distance = -dx; }
+    if (dx == 0 && dy > 0)       { dir_idx = 0; distance = dy; }       // Hướng Bắc
+    else if (dx > 0 && dy == dx)  { dir_idx = 1; distance = dx; }       // Hướng Đông Bắc
+    else if (dx > 0 && dy == 0)   { dir_idx = 2; distance = dx; }       // Hướng Đông
+    else if (dx > 0 && dy == -dx) { dir_idx = 3; distance = dx; }       // Hướng Đông Nam
+    else if (dx == 0 && dy < 0)   { dir_idx = 4; distance = -dy; }      // Hướng Nam
+    else if (dx < 0 && dy == dx)  { dir_idx = 5; distance = -dx; }      // Hướng Tây Nam
+    else if (dx < 0 && dy == 0)   { dir_idx = 6; distance = -dx; }      // Hướng Tây
+    else if (dx < 0 && dy == -dx) { dir_idx = 7; distance = -dx; }      // Hướng Tây Bắc
 
+    // Khoảng cách tối đa cho phép trên bàn cờ 10x10 là 9 ô cờ
     if (dir_idx != -1 && distance >= 1 && distance <= 9) {
         int type_idx = dir_idx * 9 + (distance - 1);
         return type_idx * 100 + from_flat;
@@ -344,16 +372,18 @@ uint16_t MoveToNNIndex(Move move, int transform) {
     return 0;
 }
 
+// Hàm giải mã ngược từ chỉ số index của mảng phẳng NN 10,600 phần tử thành nước đi thực tế (Move)
 Move MoveFromNNIndex(int idx, int transform) {
     if (idx < 0 || idx >= 10600) return Move(Stockfish::MOVE_NONE);
 
+    // Tách chỉ số index thành loại nước đi (type_idx) và ô cờ xuất phát (from_flat)
     int type_idx = idx / 100;
     int from_flat = idx % 100;
     int from_file = from_flat % 10;
     int from_rank = from_flat / 10;
     Stockfish::Square from = Stockfish::make_square(static_cast<Stockfish::File>(from_file), static_cast<Stockfish::Rank>(from_rank));
 
-    // 1. Sliding / Alibaba moves -> Kênh 0 - 71
+    // 1. Giải mã nước đi dạng tia (Sliding moves) -> Kênh 0 đến 71
     if (type_idx >= 0 && type_idx <= 71) {
         int dir_idx = type_idx / 9;
         int distance = (type_idx % 9) + 1;
@@ -372,12 +402,13 @@ Move MoveFromNNIndex(int idx, int transform) {
 
         int to_file = from_file + dx;
         int to_rank = from_rank + dy;
+        // Kiểm tra toạ độ nằm trong phạm vi hợp lệ của bàn cờ 10x10
         if (to_file >= 0 && to_file < 10 && to_rank >= 0 && to_rank < 10) {
             Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), static_cast<Stockfish::Rank>(to_rank));
             return Stockfish::make_move(from, to);
         }
     }
-    // 2. Knight moves -> Kênh 72 - 79
+    // 2. Giải mã nước nhảy của Mã (Knight moves) -> Kênh 72 đến 79
     else if (type_idx >= 72 && type_idx <= 79) {
         int knight_idx = type_idx - 72;
         static const int dx_list[] = {1, 2, 2, 1, -1, -2, -2, -1};
@@ -391,7 +422,7 @@ Move MoveFromNNIndex(int idx, int transform) {
             return Stockfish::make_move(from, to);
         }
     }
-    // 3. Camel moves -> Kênh 80 - 87
+    // 3. Giải mã nước nhảy của Lạc đà (Camel moves) -> Kênh 80 đến 87
     else if (type_idx >= 80 && type_idx <= 87) {
         int camel_idx = type_idx - 80;
         static const int dx_list[] = {1, 3, 3, 1, -1, -3, -3, -1};
@@ -405,7 +436,7 @@ Move MoveFromNNIndex(int idx, int transform) {
             return Stockfish::make_move(from, to);
         }
     }
-    // 4. Promotion moves -> Kênh 88 - 105
+    // 4. Giải mã nước đi Phong cấp (Promotion moves) -> Kênh 88 đến 105
     else if (type_idx >= 88 && type_idx <= 105) {
         int promo_idx = type_idx - 88;
         int piece_idx = promo_idx / 3;
@@ -422,6 +453,7 @@ Move MoveFromNNIndex(int idx, int transform) {
             default: break;
         }
 
+        // Tịnh tiến hàng đích lên 1 đơn vị: hỗ trợ chính xác cả việc phong cấp tại hàng 9 hoặc hàng 10
         Stockfish::Rank to_rank = static_cast<Stockfish::Rank>(from_rank + 1);
 
         int to_file = from_file + (dir_idx - 1);
