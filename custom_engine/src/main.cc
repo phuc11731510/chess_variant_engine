@@ -612,6 +612,156 @@ checkCounting = true
         std::cout << "[PASS] TEST 6 passed! (MCTS and Game absolute/relative checkmate and 7-checks values verified)\n" << std::endl;
     }
 
+    // TEST 7: Castling Generation, Encoding, and Execution
+    {
+        std::cout << "TEST 7: Castling Generation, Encoding, and Execution..." << std::endl;
+        
+        // Dựng thế cờ trắng nhập thành (f1->i1 hoặc f1->b1)
+        // 1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 w BIbi - 7+7 0 1
+        std::string castling_fen = "1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 w BIbi - 7+7 0 1";
+        lczero::ChessBoard board(castling_fen);
+        std::cout << "Castling Board State:\n" << board.GetRawPosition() << std::endl;
+        
+        // 1. GenerateLegalMoves: check if Kingside (f1i1) and Queenside (f1b1) castling are generated
+        auto moves = board.GenerateLegalMoves();
+        bool found_oo = false;
+        bool found_ooo = false;
+        lczero::Move move_oo = lczero::MOVE_NONE;
+        lczero::Move move_ooo = lczero::MOVE_NONE;
+        
+        std::cout << "Generated Moves:" << std::endl;
+        for (const auto& m : moves) {
+            std::string m_str = board.MoveToString(m);
+            std::cout << "  " << m_str << " (type: " << (int)Stockfish::type_of(m.raw()) << ")" << std::endl;
+            if (m_str == "f1h1") {
+                found_oo = true;
+                move_oo = m;
+            } else if (m_str == "f1d1") {
+                found_ooo = true;
+                move_ooo = m;
+            }
+        }
+        
+        if (!found_oo) {
+            std::cerr << "[FAIL] Kingside castling f1h1 not found in legal moves!" << std::endl;
+            std::exit(1);
+        }
+        if (!found_ooo) {
+            std::cerr << "[FAIL] Queenside castling f1d1 not found in legal moves!" << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - [VERIFIED] Both Kingside (f1h1) and Queenside (f1d1) castling moves are generated." << std::endl;
+        
+        // 2. MoveToNNIndex check:
+        // Kingside f1->i1 (dx = 3, dy = 0). Hướng Đông-3 (East-3)
+        // type_idx = 2 * 9 + 2 = 20. from_flat = 5. index = 2005.
+        // Queenside f1->b1 (dx = -4, dy = 0). Hướng Tây-4 (West-4)
+        // type_idx = 6 * 9 + 3 = 57. from_flat = 5. index = 5705.
+        uint16_t index_oo = lczero::MoveToNNIndex(move_oo, 0);
+        uint16_t index_ooo = lczero::MoveToNNIndex(move_ooo, 0);
+        
+        std::cout << "f1i1 Index: " << index_oo << std::endl;
+        std::cout << "f1b1 Index: " << index_ooo << std::endl;
+        
+        if (index_oo != 2005) {
+            std::cerr << "[FAIL] Kingside castling index mismatch! Expected 2005, got " << index_oo << std::endl;
+            std::exit(1);
+        }
+        if (index_ooo != 5705) {
+            std::cerr << "[FAIL] Queenside castling index mismatch! Expected 5705, got " << index_ooo << std::endl;
+            std::exit(1);
+        }
+        
+        // Ensure they decode back uniquely
+        lczero::Move decoded_oo = lczero::MoveFromNNIndex(index_oo, 0);
+        lczero::Move decoded_ooo = lczero::MoveFromNNIndex(index_ooo, 0);
+        
+        if (board.MoveToString(decoded_oo) != "f1i1") {
+            std::cerr << "[FAIL] Kingside castling index did not decode back! Got: " << board.MoveToString(decoded_oo) << std::endl;
+            std::exit(1);
+        }
+        if (board.MoveToString(decoded_ooo) != "f1b1") {
+            std::cerr << "[FAIL] Queenside castling index did not decode back! Got: " << board.MoveToString(decoded_ooo) << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - [VERIFIED] MoveToNNIndex maps castling to sliding slots uniquely (2005 and 5705) and decodes back." << std::endl;
+        
+        // 3. Encoder check for aux planes 216-219:
+        // Before castling, rights are BIbi.
+        // For White: Queenside (B / b1) is plane 216, Kingside (I / i1) is plane 217.
+        // For Black: Queenside (b / b10) is plane 218, Kingside (i / i10) is plane 219.
+        auto history = std::make_unique<lczero::PositionHistory>();
+        history->Reset(board, 0, 1);
+        
+        lczero::InputPlanes planes;
+        int transform = -1;
+        lczero::EncodePositionForNN(*history, 8, lczero::FillEmptyHistory::NO, &planes, &transform);
+        
+        // Verify White castling rights
+        // Plane 216 (Queenside): White Rook on b1 (SQ_B1 = 1)
+        if (!(planes[216].mask & Stockfish::square_bb(Stockfish::SQ_B1))) {
+            std::cerr << "[FAIL] Plane 216 should cover White Rook on b1!" << std::endl;
+            std::exit(1);
+        }
+        // Plane 217 (Kingside): White Rook on i1 (SQ_I1 = 8)
+        if (!(planes[217].mask & Stockfish::square_bb(Stockfish::SQ_I1))) {
+            std::cerr << "[FAIL] Plane 217 should cover White Rook on i1!" << std::endl;
+            std::exit(1);
+        }
+        // Verify Black castling rights
+        // Plane 218 (Queenside): Black Rook on b10 (SQ_B10 = 91)
+        if (!(planes[218].mask & Stockfish::square_bb(Stockfish::SQ_B10))) {
+            std::cerr << "[FAIL] Plane 218 should cover Black Rook on b10!" << std::endl;
+            std::exit(1);
+        }
+        // Plane 219 (Kingside): Black Rook on i10 (SQ_I10 = 98)
+        if (!(planes[219].mask & Stockfish::square_bb(Stockfish::SQ_I10))) {
+            std::cerr << "[FAIL] Plane 219 should cover Black Rook on i10!" << std::endl;
+            std::exit(1);
+        }
+        
+        std::cout << "  - [VERIFIED] Encoder writes castling rights to aux planes 216-219 correctly." << std::endl;
+        
+        // 4. ApplyMove: Kingside castling
+        // King f1 (file 5) -> Destination h1 (file 7)
+        // Rook i1 (file 8) -> Destination g1 (file 6)
+        std::cout << "Applying Kingside castling (f1i1)..." << std::endl;
+        board.ApplyMove(move_oo);
+        
+        const auto& raw_pos = board.GetRawPosition();
+        if (raw_pos.piece_on(Stockfish::SQ_H1) != Stockfish::W_KING) {
+            std::cerr << "[FAIL] After f1i1, White King is not on h1! Got: " << raw_pos.piece_on(Stockfish::SQ_H1) << std::endl;
+            std::exit(1);
+        }
+        if (raw_pos.piece_on(Stockfish::SQ_G1) != Stockfish::W_ROOK) {
+            std::cerr << "[FAIL] After f1i1, White Rook is not on g1! Got: " << raw_pos.piece_on(Stockfish::SQ_G1) << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - [VERIFIED] ApplyMove executed Kingside castling correctly (King on h1, Rook on g1)." << std::endl;
+        
+        // Undo and test Queenside castling
+        std::cout << "Undoing castling..." << std::endl;
+        board.UndoMove();
+        
+        // Apply Queenside castling:
+        // King f1 (file 5) -> Destination d1 (file 3)
+        // Rook b1 (file 1) -> Destination e1 (file 4)
+        std::cout << "Applying Queenside castling (f1b1)..." << std::endl;
+        board.ApplyMove(move_ooo);
+        
+        if (raw_pos.piece_on(Stockfish::SQ_D1) != Stockfish::W_KING) {
+            std::cerr << "[FAIL] After f1b1, White King is not on d1! Got: " << raw_pos.piece_on(Stockfish::SQ_D1) << std::endl;
+            std::exit(1);
+        }
+        if (raw_pos.piece_on(Stockfish::SQ_E1) != Stockfish::W_ROOK) {
+            std::cerr << "[FAIL] After f1b1, White Rook is not on e1! Got: " << raw_pos.piece_on(Stockfish::SQ_E1) << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  - [VERIFIED] ApplyMove executed Queenside castling correctly (King on d1, Rook on e1)." << std::endl;
+        
+        std::cout << "[PASS] TEST 7 passed! (Castling generation, encoding, and execution verified)\n" << std::endl;
+    }
+
     std::cout << "========================================" << std::endl;
     std::cout << "ALL CHESSBOARD BRIDGE TESTS PASSED!" << std::endl;
     std::cout << "========================================\n" << std::endl;
