@@ -828,11 +828,50 @@ checkCounting = true
     std::cout << "====================================" << std::endl;
 }
 
+void run_policy_tests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "RUNNING POLICY ENCODER/DECODER BIJECTION TESTS..." << std::endl;
+    std::cout << "========================================\n" << std::endl;
+
+    int total_tested = 0;
+    int valid_decoded = 0;
+    int mismatches = 0;
+
+    for (int idx = 0; idx < 10600; ++idx) {
+        total_tested++;
+        Stockfish::Move move = lczero::MoveFromNNIndex(idx, 0);
+        if (move == Stockfish::MOVE_NONE) {
+            continue; // Not a valid square-move combination on 10x10 board (e.g. sliding out of bounds)
+        }
+
+        valid_decoded++;
+        uint16_t re_encoded = lczero::MoveToNNIndex(move, 0);
+        if (re_encoded != idx) {
+            mismatches++;
+            std::cout << "Mismatch found at index " << idx << ":" << std::endl;
+            std::cout << "  Decoded Move: " << move << " (from " << Stockfish::from_sq(move) << " to " << Stockfish::to_sq(move) << ")" << std::endl;
+            std::cout << "  Re-encoded Index: " << re_encoded << std::endl;
+        }
+    }
+
+    std::cout << "Total Policy Indices: " << total_tested << std::endl;
+    std::cout << "Valid 10x10 Moves Decoded: " << valid_decoded << std::endl;
+    std::cout << "Mismatches: " << mismatches << std::endl;
+
+    if (mismatches == 0) {
+        std::cout << "\n[PASS] POLICY BIJECTION TEST PASSED SUCCESSFULLY!" << std::endl;
+    } else {
+        std::cerr << "\n[FAIL] POLICY BIJECTION TEST FAILED WITH " << mismatches << " MISMATCHES!" << std::endl;
+        std::exit(1);
+    }
+}
+
 int main(int argc, char* argv[]) {
     bool test_mcts_mode = false;
     bool selfplay_mode = false;
     bool test_ep_mode = false;
     bool test_board_mode = false;
+    bool test_policy_mode = false;
     std::string weights_file = "weights_0_elo.onnx";
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
@@ -841,6 +880,8 @@ int main(int argc, char* argv[]) {
             test_ep_mode = true;
         } else if (std::string(argv[i]) == "--test-board") {
             test_board_mode = true;
+        } else if (std::string(argv[i]) == "--test-policy") {
+            test_policy_mode = true;
         } else if (std::string(argv[i]) == "--test-mcts") {
             test_mcts_mode = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -869,6 +910,8 @@ int main(int argc, char* argv[]) {
         run_ep_tests();
     } else if (test_board_mode) {
         run_board_tests();
+    } else if (test_policy_mode) {
+        run_policy_tests();
     } else if (test_mcts_mode) {
         run_mcts_tests(weights_file);
     } else if (selfplay_mode) {

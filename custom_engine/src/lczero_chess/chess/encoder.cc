@@ -458,7 +458,7 @@ Move MoveFromNNIndex(int idx, int transform) {
         Stockfish::Rank to_rank = static_cast<Stockfish::Rank>(from_rank + 1);
 
         int to_file = from_file + (dir_idx - 1);
-        if (to_file >= 0 && to_file < 10) {
+        if (to_file >= 0 && to_file < 10 && to_rank >= 0 && to_rank < 10) {
             Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), to_rank);
             res = Stockfish::make<Stockfish::PROMOTION>(from, to, promo_pt);
         }
