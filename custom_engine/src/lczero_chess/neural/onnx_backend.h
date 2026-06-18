@@ -42,7 +42,6 @@ class OnnxComputation : public BackendComputation {
   
   EvalResultPtr results_[MaxBatchSize];
   StaticVector<Move, 384> position_moves_[MaxBatchSize];
-  bool is_flipped_[MaxBatchSize];
   float softmax_temp_;
 };
 

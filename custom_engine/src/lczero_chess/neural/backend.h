@@ -29,6 +29,9 @@ class StaticVector {
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
   void clear() { size_ = 0; }
+  void reserve(size_t new_cap) {
+    assert(new_cap <= N);
+  }
 
   T& operator[](size_t idx) { return data_[idx]; }
   const T& operator[](size_t idx) const { return data_[idx]; }

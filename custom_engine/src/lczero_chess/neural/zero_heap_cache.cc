@@ -26,6 +26,7 @@ class ZeroHeapCacheComputation : public BackendComputation {
           temp_results_[i].q = 0.0f;
           temp_results_[i].d = 0.0f;
           temp_results_[i].m = 0.0f;
+          temp_results_[i].p.reserve(384);
           temp_results_[i].p.clear();
       }
   }
@@ -155,13 +156,14 @@ std::optional<EvalResult> ZeroHeapCache::GetCachedEvaluation(const EvalPosition&
     if (seq1 != seq2) return std::nullopt;
     if (cv.num_moves != num_moves) return std::nullopt;
     
+    size_t copy_moves = std::min(static_cast<size_t>(num_moves), static_cast<size_t>(384));
     EvalResult result;
     result.q = cv.q;
     result.d = cv.d;
     result.m = cv.m;
-    result.p.resize(num_moves);
-    if (num_moves > 0) {
-        std::memcpy(result.p.data(), cv.p, num_moves * sizeof(float));
+    result.p.resize(copy_moves);
+    if (copy_moves > 0) {
+        std::memcpy(result.p.data(), cv.p, copy_moves * sizeof(float));
     }
     
     return result;
@@ -227,7 +229,7 @@ bool ZeroHeapCache::TryRead(uint64_t hash, uint16_t num_moves, EvalResultPtr& ou
     if (out.q) *out.q = cv.q;
     if (out.d) *out.d = cv.d;
     if (out.m) *out.m = cv.m;
-    size_t copy_moves = std::min(static_cast<size_t>(num_moves), out.p.size());
+    size_t copy_moves = std::min({static_cast<size_t>(num_moves), out.p.size(), static_cast<size_t>(384)});
     if (copy_moves > 0) {
         std::memcpy(out.p.data(), cv.p, copy_moves * sizeof(float));
     }

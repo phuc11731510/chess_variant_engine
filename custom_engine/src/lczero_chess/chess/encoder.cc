@@ -270,10 +270,6 @@ void UnpackInputPlanes(
 uint16_t MoveToNNIndex(Move move, int transform) {
     if (move.is_null()) return 0;
 
-    if (transform) {
-        move.Flip(Stockfish::RANK_10);
-    }
-
     Stockfish::Square from = Stockfish::from_sq(move);
     Stockfish::Square to = Stockfish::to_sq(move);
 
@@ -466,10 +462,6 @@ Move MoveFromNNIndex(int idx, int transform) {
             Stockfish::Square to = Stockfish::make_square(static_cast<Stockfish::File>(to_file), to_rank);
             res = Stockfish::make<Stockfish::PROMOTION>(from, to, promo_pt);
         }
-    }
-
-    if (transform && !res.is_null()) {
-        res.Flip(Stockfish::RANK_10);
     }
 
     return res;

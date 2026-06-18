@@ -115,9 +115,6 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
     // Save pointers to output destination
     results_[enqueued_] = result;
     
-    // Save whether the board was flipped (Black to move)
-    is_flipped_[enqueued_] = pos.history->Last().IsBlackToMove();
-    
     // Save legal moves list
     size_t num_moves = pos.legal_moves.size();
     position_moves_[enqueued_].resize(num_moves);
@@ -214,7 +211,7 @@ void OnnxComputation::ComputeBlocking() {
             // Map legal moves to ONNX output indices and fetch logits
             for (size_t i = 0; i < num_legal; ++i) {
                 Move NN_move = position_moves_[b][i];
-                int index = MoveToNNIndex(NN_move, is_flipped_[b] ? 1 : 0);
+                int index = MoveToNNIndex(NN_move, 0);
                 legal_logits[i] = raw_policy[index];
                 if (legal_logits[i] > max_logit) {
                     max_logit = legal_logits[i];
@@ -245,8 +242,8 @@ BackendAttributes OnnxBackend::GetAttributes() const {
         .has_mlh = false,
         .has_wdl = true,
         .runs_on_cpu = true,
-        .suggested_num_search_threads = 1,
-        .recommended_batch_size = 1,
+        .suggested_num_search_threads = 2,
+        .recommended_batch_size = 16,
         .maximum_batch_size = static_cast<int>(MaxBatchSize)
     };
 }

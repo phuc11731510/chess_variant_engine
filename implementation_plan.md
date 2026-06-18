@@ -684,3 +684,83 @@ Không có thay đổi mã nguồn nào được thực hiện trong giai đoạ
 
 ### Manual Verification
 - Chạy thử nghiệm CLI của `custom_engine` bằng cách gọi lệnh nạp FEN mẫu để quan sát danh sách nước đi sinh ra từ C++, đảm bảo các quân cờ đi đúng luật Betza đã khai báo.
+
+---
+
+## 13. Kế hoạch Nghiên cứu & Huấn luyện NNUE Tự học từ 0 ELO (Fairy-Stockfish)
+
+Bản kế hoạch này mô tả quy trình huấn luyện mạng NNUE hoàn toàn mới từ số 0 (không dùng hàm đánh giá tĩnh cổ điển) cho cờ biến thể 10x10, sử dụng bộ công cụ tích hợp trong thư mục `chess_variant_nnue` (bao gồm `engine/` chạy Fairy-Stockfish học máy và `trainer/` chạy PyTorch training).
+
+### Bước 1: Thiết lập cấu hình biến thể và Biên dịch Engine
+- **Mục tiêu**: Khai báo luật chơi của cờ biến thể 10x10 và biên dịch phiên bản Fairy-Stockfish hỗ trợ các công cụ học máy (`gensfen`, `convert_bin`).
+- **Các bước thực hiện**:
+  1. Thêm định nghĩa biến thể `[custom_10x10_variant]` vào cuối file `chess_variant_nnue/engine/src/variants.ini`.
+  2. Mở Terminal tại thư mục `chess_variant_nnue/engine/src/` và chạy lệnh biên dịch:
+     `make nnue-learn ARCH=x86-64-modern -j`
+
+### Bước 2: Tạo tệp trọng số NNUE ngẫu nhiên F0 (Gen 0)
+- **Mục tiêu**: Tạo tệp `gen0_random.nnue` chứa các trọng số ngẫu nhiên để làm điểm xuất phát.
+- **Các bước thực hiện**:
+  1. Tạo file Python `create_random_net.py` trong thư mục `chess_variant_nnue/trainer/` để khởi tạo mô hình PyTorch `M.NNUE` với cấu trúc đặc trưng `HalfKAv2^` hoặc `HalfKP` phù hợp cho bàn cờ 10x10.
+  2. Dùng thư viện `serialize.py` ghi trực tiếp mô hình chưa qua huấn luyện này thành định dạng nhị phân `.nnue`:
+     ```python
+     import torch
+     import model as M
+     import features
+     from serialize import NNUEWriter
+     feature_set = features.get_feature_set_from_name("HalfKAv2^")
+     model = M.NNUE(feature_set)
+     writer = NNUEWriter(model)
+     with open("gen0_random.nnue", "wb") as f:
+         f.write(writer.buf)
+     ```
+
+### Bước 3: Chu kỳ Tự chơi và Sinh dữ liệu Thế hệ 0 (Gensfen)
+- **Mục tiêu**: Cho Engine sử dụng mạng ngẫu nhiên F0 tự chơi để tích lũy dữ liệu.
+- **Các bước thực hiện**:
+  1. Khởi động file thực thi `stockfish` trong thư mục `chess_variant_nnue/engine/src/`.
+  2. Chạy lệnh UCI để nạp tệp mạng ngẫu nhiên và bắt đầu sinh thế cờ:
+     ```uci
+     setoption name EvalFile value ../../trainer/gen0_random.nnue
+     setoption name Use NNUE value pure
+     gensfen depth 5 loops 10000000 min_ply 8 max_ply 150 eval_limit 1000 random_move_count 8 random_move_max_ply 20 keep_draws 1.0 output_file_name gen0_data.bin
+     ```
+     *Lưu ý*: Giữ nguyên `keep_draws 1.0` do cờ đi ngẫu nhiên rất dễ hòa, cần lưu hết để tối ưu dữ liệu thô. Đặt `depth 5` hoặc `depth 6` để tăng tốc độ chơi vì mạng F0 chưa cần tìm kiếm quá sâu.
+
+### Bước 4: Huấn luyện Mạng thế hệ F1 bằng PyTorch với `--lambda 0.0`
+- **Mục tiêu**: Huấn luyện mạng thế hệ 1 học hoàn toàn từ kết quả WDL (thắng/thua/hòa) thực tế để tự định hình giá trị các quân cờ.
+- **Các bước thực hiện**:
+  1. Di chuyển file dữ liệu `gen0_data.bin` thu được vào thư mục `chess_variant_nnue/trainer/`.
+  2. Thực hiện lệnh huấn luyện PyTorch:
+     `python train.py --lambda 0.0 --features="HalfKAv2^" --smart-fen-skipping --batch-size 16384 gen0_data.bin val_data.bin`
+     *Chú ý*: Giá trị `--lambda 0.0` là bắt buộc để mạng bỏ qua điểm số đánh giá ngẫu nhiên của F0 và bám sát kết quả kết thúc ván cờ thực tế.
+  3. Xuất file checkpoint tốt nhất sang định dạng `.nnue`:
+     `python serialize.py last.ckpt gen1.nnue`
+
+### Bước 5: Tiếp tục Vòng lặp Tiến hóa Tự chơi (Gen 1 -> Gen 2 -> ...)
+- **Mục tiêu**: Lặp lại chu kỳ để tăng dần trình độ của AI qua từng thế hệ.
+- **Các bước thực hiện**:
+  1. Nạp mạng mới `gen1.nnue` vào Engine thay thế mạng cũ.
+  2. Thực hiện sinh ván đấu tự chơi lần hai để thu được `gen1_data.bin` (ở thế hệ này, có thể giảm `keep_draws` xuống `0.5` hoặc `0.2` để tối ưu chất lượng).
+  3. Huấn luyện mạng tiếp theo với hệ số lambda tăng dần (ví dụ `--lambda 0.2` cho F2, `--lambda 0.5` cho F3, `--lambda 0.8` cho F4) giúp mạng vừa tham chiếu kết quả WDL vừa học nhanh hơn từ điểm số tìm kiếm sâu của thế hệ trước.
+
+
+---
+
+## 14. Tối ưu hóa Tốc độ NPS (Nodes Per Second) trên CPU
+
+Tốc độ tìm kiếm NPS hiện tại trong quá trình kiểm thử MCTS trên CPU tương đối thấp (khoảng 34–60 NPS). Điều này xảy ra do hai nguyên nhân chính:
+1. **Thiếu cờ biên dịch tối ưu hóa phần cứng**: Trình biên dịch hiện tại chưa được kích hoạt phát xạ tập lệnh AVX2/FMA trên toàn bộ dự án, làm giảm hiệu suất của cả Stockfish engine lẫn các phép tính toán học SIMD.
+2. **Kích thước Batch đề xuất bằng 1**: Đặt `.recommended_batch_size = 1` khiến MCTS Search không kích hoạt cơ chế gom lô (minibatch), mỗi lần tìm kiếm chỉ gửi duy nhất 1 node đến ONNX Runtime làm gia tăng đáng kể overhead.
+
+### Giải pháp Đề xuất
+1. **[meson.build](file:///d:/chess_variant/custom_engine/meson.build)**:
+   - Thêm cấu hình tự động nhận diện compiler và áp dụng cờ tối ưu hóa kiến trúc CPU: `/arch:AVX2` cho MSVC hoặc `-mavx2 -mfma` cho GCC/Clang.
+2. **[onnx_backend.cc](file:///d:/chess_variant/custom_engine/src/lczero_chess/neural/onnx_backend.cc)**:
+   - Thay đổi các thuộc tính mặc định của backend để kích hoạt gom batch trong MCTS:
+     - Đặt `.recommended_batch_size = 16` (thay vì 1).
+     - Đặt `.suggested_num_search_threads = 2` (thay vì 1).
+
+### Kế hoạch Kiểm thử & Xác minh
+- Biên dịch lại dự án bằng `ninja` để xác nhận cấu hình biên dịch mới hoạt động tốt.
+- Chạy CLI kiểm thử MCTS: `custom_engine.exe --test-mcts custom_engine/weights_0_elo.onnx` để đo lường tốc độ NPS mới và so sánh hiệu năng.

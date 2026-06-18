@@ -9,6 +9,14 @@ project('custom_engine', 'cpp',
 
 cc = meson.get_compiler('cpp')
 
+# CPU Architecture specific flags
+if cc.get_id() == 'msvc'
+  add_project_arguments('/arch:AVX2', language: 'cpp')
+else
+  add_project_arguments('-mavx2', '-mfma', language: 'cpp')
+endif
+
+
 # Preprocessor definitions
 add_project_arguments('-DLARGEBOARDS', language: 'cpp')
 add_project_arguments('-DALLVARS', language: 'cpp')
