@@ -23,8 +23,10 @@
 #include "chess/encoder.h"
 #include "trainingdata/trainingdata_v1.h"
 #include "trainingdata/writer.h"
+#include "selfplay/training_extract.h"
 #include <cstring>
 #include <cstdio>
+#include <cmath>
 #include "search/classic/search.h"
 #include "search/classic/params.h"
 #include "neural/backend.h"
@@ -1185,6 +1187,192 @@ checkCounting = true
     std::cout << "====================================" << std::endl;
 }
 
+// Silent responder to avoid search log spam during the T2 test.
+class SilentUciResponder : public lczero::UciResponder {
+public:
+    void OutputBestMove(lczero::BestMoveInfo*) override {}
+    void OutputThinkingInfo(std::vector<lczero::ThinkingInfo>*) override {}
+};
+
+// T2: extract pi (from visits) + policy_kld (from raw NN prior) + z (parity).
+// Plays a short game and verifies: sum(pi) == 1.0, policy_kld finite & >= 0,
+// and z assigned with correct side-to-move parity.
+void run_extract_tests(const std::string& weights_path = "weights_0_elo.onnx") {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "RUNNING T2 (EXTRACT pi / policy_kld / z) TESTS..." << std::endl;
+    std::cout << "========================================\n" << std::endl;
+
+    std::string ini_text = R"(
+[custom_10x10_variant]
+maxRank = 10
+maxFile = j
+pawn = p
+knight = n
+bishop = b
+rook = r
+queen = q
+king = k:KN
+amazon = a
+chancellor = e
+archbishop = h
+centaur = m
+customPiece1 = v:CN
+customPiece2 = y:AD
+customPiece3 = s:fKifmnDifmnA
+pawnTypes = p s
+promotionPawnTypes = p s
+enPassantTypes = p s
+nMoveRuleTypes = p s
+doubleStep = true
+doubleStepRegionWhite = *1 *2 *3
+doubleStepRegionBlack = *10 *9 *8
+promotionRegionWhite = *8 *9 *10
+promotionRegionBlack = *3 *2 *1
+mandatoryPawnPromotion = true
+promotionPieceTypes = b h m n v y
+castling = true
+castlingKingsideFile = h
+castlingQueensideFile = d
+castlingRookKingsideFile = i
+castlingRookQueensideFile = b
+stalemateValue = loss
+checkCounting = true
+)";
+    std::istringstream ss(ini_text);
+    variants.parse_istream<false>(ss);
+    const Variant* v = variants.find("custom_10x10_variant")->second;
+    if (!v) { std::cerr << "[FAIL] custom_10x10_variant not found!" << std::endl; std::exit(1); }
+    UCI::init_variant(v);
+    PSQT::init(v);
+
+    std::string fen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+
+    lczero::OptionsParser parser;
+    lczero::classic::SearchParams::Populate(&parser);
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.25f);
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, 0.3f);
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_path);
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "threads=2");
+    const lczero::OptionsDict& options = parser.GetOptionsDict();
+
+    std::unique_ptr<lczero::Backend> backend;
+    bool has_cache = true;
+    try {
+        auto raw_backend = std::make_unique<lczero::OnnxBackend>();
+        raw_backend->UpdateConfiguration(options);
+        backend = lczero::CreateMemCache(std::move(raw_backend), options);
+        std::cout << "[T2] OnnxBackend + MemCache loaded." << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "[T2] OnnxBackend failed (" << e.what()
+                  << "); using MockBackend (no cache, kld=0)." << std::endl;
+        backend = std::make_unique<MockBackend>();
+        has_cache = false;
+    }
+
+    auto tree = std::make_unique<lczero::classic::NodeTree>();
+    tree->ResetToPosition(fen, {});
+
+    std::vector<lczero::TrainingDataV1> records;
+    std::vector<bool> stm_black;
+    const int kMaxMoves = 6;
+    const int kVisits = 64;
+    lczero::GameResult final_result = lczero::GameResult::UNDECIDED;
+
+    for (int m = 0; m < kMaxMoves; ++m) {
+        auto responder = std::make_unique<SilentUciResponder>();
+        auto stopper = std::make_unique<NodeLimitStopper>(kVisits);
+        auto start = std::chrono::steady_clock::now();
+        auto search = std::make_unique<lczero::classic::Search>(
+            *tree, backend.get(), std::move(responder), lczero::MoveList{},
+            start, std::move(stopper), false, false, options, nullptr);
+        search->RunBlocking(2);
+
+        lczero::classic::Node* root = tree->GetCurrentHead();
+        lczero::TrainingDataV1 rec;
+        std::memset(&rec, 0, sizeof(rec));
+        rec.version = lczero::kTrainingDataVersion;
+        rec.input_format = lczero::kInputFormat10x10;
+        bool black = tree->IsBlackToMove();
+        rec.side_to_move = black ? 1 : 0;
+
+        lczero::Move best = lczero::FillSearchTargets(
+            root, tree->GetPositionHistory(), backend.get(), rec);
+
+        double sum = 0.0;
+        for (int i = 0; i < lczero::kPolicySize; ++i) sum += rec.probabilities[i];
+        if (std::abs(sum - 1.0) > 1e-3) {
+            std::cerr << "[FAIL] move " << m << ": sum(pi) = " << sum
+                      << " (expected 1.0)" << std::endl;
+            std::exit(1);
+        }
+        if (!std::isfinite(rec.policy_kld) || rec.policy_kld < -1e-6f) {
+            std::cerr << "[FAIL] move " << m << ": invalid policy_kld = "
+                      << rec.policy_kld << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  move " << m << " (" << (black ? "black" : "white")
+                  << "): sum(pi)=" << sum << " visits=" << rec.visits
+                  << " root_q=" << rec.root_q << " best_q=" << rec.best_q
+                  << " orig_q=" << rec.orig_q << " kld=" << rec.policy_kld
+                  << std::endl;
+
+        records.push_back(rec);
+        stm_black.push_back(black);
+
+        tree->MakeMove(best);
+        lczero::GameResult r = tree->GetPositionHistory().ComputeGameResult();
+        if (r != lczero::GameResult::UNDECIDED) { final_result = r; break; }
+    }
+
+    if (records.empty()) { std::cerr << "[FAIL] no records produced!" << std::endl; std::exit(1); }
+    std::cout << "[PASS] sum(pi)==1.0 and policy_kld valid for all "
+              << records.size() << " positions." << std::endl;
+    if (has_cache) {
+        bool any_positive = false;
+        for (const auto& r : records) if (r.policy_kld > 0.0f) any_positive = true;
+        std::cout << (any_positive
+            ? "  policy_kld > 0 observed (search diverged from raw NN prior). OK."
+            : "  [WARN] all policy_kld == 0 (possible cache miss).") << std::endl;
+    }
+
+    // z parity: use the real outcome if the game ended, else inject WHITE_WON
+    // purely to exercise AssignResult's parity logic.
+    lczero::GameResult test_result =
+        (final_result != lczero::GameResult::UNDECIDED) ? final_result
+                                                        : lczero::GameResult::WHITE_WON;
+    std::cout << "  Assigning z with result=" << (int)test_result
+              << (final_result == lczero::GameResult::UNDECIDED
+                      ? " (injected for parity test)" : " (actual game result)")
+              << std::endl;
+    for (size_t i = 0; i < records.size(); ++i)
+        lczero::AssignResult(records[i], test_result, stm_black[i]);
+
+    for (size_t i = 0; i < records.size(); ++i) {
+        const float q = records[i].result_q, d = records[i].result_d;
+        if (test_result == lczero::GameResult::DRAW) {
+            if (q != 0.0f || d != 1.0f) {
+                std::cerr << "[FAIL] draw z wrong at " << i << std::endl; std::exit(1);
+            }
+        } else {
+            const bool white_won = (test_result == lczero::GameResult::WHITE_WON);
+            const bool stm_white = !stm_black[i];
+            const float expected = (white_won == stm_white) ? 1.0f : -1.0f;
+            if (q != expected || d != 0.0f) {
+                std::cerr << "[FAIL] z parity wrong at " << i << ": stm_black="
+                          << stm_black[i] << " got q=" << q << " expected " << expected << std::endl;
+                std::exit(1);
+            }
+        }
+    }
+    std::cout << "[PASS] z parity correct for all positions." << std::endl;
+
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "ALL T2 (EXTRACT) TESTS PASSED!" << std::endl;
+    std::cout << "========================================\n" << std::endl;
+}
+
 void run_policy_tests() {
     std::cout << "\n========================================" << std::endl;
     std::cout << "RUNNING POLICY ENCODER/DECODER BIJECTION TESTS..." << std::endl;
@@ -1303,6 +1491,7 @@ int main(int argc, char* argv[]) {
     bool test_board_mode = false;
     bool test_policy_mode = false;
     bool test_trainingdata_mode = false;
+    bool test_extract_mode = false;
     std::string weights_file = "weights_0_elo.onnx";
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
@@ -1315,6 +1504,8 @@ int main(int argc, char* argv[]) {
             test_policy_mode = true;
         } else if (std::string(argv[i]) == "--test-trainingdata") {
             test_trainingdata_mode = true;
+        } else if (std::string(argv[i]) == "--test-extract") {
+            test_extract_mode = true;
         } else if (std::string(argv[i]) == "--test-mcts") {
             test_mcts_mode = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -1347,6 +1538,8 @@ int main(int argc, char* argv[]) {
         run_policy_tests();
     } else if (test_trainingdata_mode) {
         run_trainingdata_tests();
+    } else if (test_extract_mode) {
+        run_extract_tests(weights_file);
     } else if (test_mcts_mode) {
         run_mcts_tests(weights_file);
     } else if (selfplay_mode) {
