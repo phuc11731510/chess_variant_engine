@@ -95,6 +95,11 @@ neural_sources = files(
   'src/lczero_chess/neural/zero_heap_cache.cc'
 )
 
+# Training data (self-play) source files
+trainingdata_sources = files(
+  'src/lczero_chess/trainingdata/writer.cc'
+)
+
 # Engine sources
 engine_sources = files(
   'src/main.cc'
@@ -112,8 +117,23 @@ if host_machine.system() == 'windows'
   )
 endif
 
+# zlib for gzip training data (optional: falls back to raw .bin if absent)
+zlib_dep = dependency('zlib', required: false)
+if not zlib_dep.found()
+  zlib_dep = cc.find_library('z', required: false)
+endif
+if zlib_dep.found()
+  add_project_arguments('-DHAVE_ZLIB', language: 'cpp')
+  message('zlib found: training data will be gzip-compressed (.gz)')
+else
+  message('zlib NOT found: training data will be uncompressed (.bin)')
+endif
+
 # Allocator options linking
 deps = [thread_dep, onnx_dep]
+if zlib_dep.found()
+  deps += zlib_dep
+endif
 malloc_opt = get_option('malloc')
 if malloc_opt == 'mimalloc' and cc.get_id() == 'msvc'
   if get_option('b_vscrt') != 'md' and get_option('b_vscrt') != 'mdd'
@@ -127,7 +147,7 @@ endif
 
 # Build the executable
 executable('custom_engine',
-  sources: [chess_sources, search_sources, neural_sources, engine_sources],
+  sources: [chess_sources, search_sources, neural_sources, trainingdata_sources, engine_sources],
   include_directories: inc_dirs,
   dependencies: deps,
   install: true

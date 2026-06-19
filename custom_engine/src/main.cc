@@ -21,6 +21,10 @@
 #include "chess/position.h"
 #include "chess/gamestate.h"
 #include "chess/encoder.h"
+#include "trainingdata/trainingdata_v1.h"
+#include "trainingdata/writer.h"
+#include <cstring>
+#include <cstdio>
 #include "search/classic/search.h"
 #include "search/classic/params.h"
 #include "neural/backend.h"
@@ -1219,12 +1223,86 @@ void run_policy_tests() {
     }
 }
 
+// Fills every byte of a record with a deterministic, record-specific pattern so
+// the round-trip compares all 45940 bytes (not just a few named fields).
+static void fill_deterministic(lczero::TrainingDataV1& rec, int seed) {
+    auto* bytes = reinterpret_cast<uint8_t*>(&rec);
+    for (size_t k = 0; k < sizeof(rec); ++k) {
+        bytes[k] = static_cast<uint8_t>((seed * 131 + static_cast<int>(k) * 7 + 17) & 0xFF);
+    }
+    // Set a couple of named fields to sane values for human-readable sanity.
+    rec.version = lczero::kTrainingDataVersion;
+    rec.input_format = lczero::kInputFormat10x10;
+}
+
+// T1: verify TrainingDataV1 layout (45940 bytes) and Writer/Reader round-trip.
+void run_trainingdata_tests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "RUNNING TRAINING DATA (T1) TESTS..." << std::endl;
+    std::cout << "========================================\n" << std::endl;
+
+    // TEST 1: struct layout size is locked at 45940 bytes.
+    std::cout << "TEST 1: sizeof(TrainingDataV1) = " << sizeof(lczero::TrainingDataV1)
+              << " (expected 45940)" << std::endl;
+    if (sizeof(lczero::TrainingDataV1) != 45940) {
+        std::cerr << "[FAIL] Unexpected struct size!" << std::endl;
+        std::exit(1);
+    }
+    std::cout << "[PASS] TEST 1: layout size correct.\n" << std::endl;
+
+    // TEST 2: write N records, read them back, compare bit-for-bit.
+    std::cout << "TEST 2: Writer/Reader round-trip (bit-exact)..." << std::endl;
+    const int kNumRecords = 5;
+    std::vector<lczero::TrainingDataV1> originals(kNumRecords);
+    for (int n = 0; n < kNumRecords; ++n) fill_deterministic(originals[n], n + 1);
+
+    std::string fname =
+        std::string("test_trainingdata_t1") + lczero::TrainingDataWriter::Extension();
+
+    {
+        lczero::TrainingDataWriter writer(fname);
+        if (!writer.IsOpen()) {
+            std::cerr << "[FAIL] Could not open output file: " << fname << std::endl;
+            std::exit(1);
+        }
+        for (const auto& r : originals) writer.WriteChunk(r);
+        writer.Finalize();
+    }
+    std::cout << "  - Wrote " << kNumRecords << " records to " << fname << std::endl;
+
+    std::vector<lczero::TrainingDataV1> readback;
+    if (!lczero::ReadTrainingData(fname, readback)) {
+        std::cerr << "[FAIL] ReadTrainingData failed (open or truncated)!" << std::endl;
+        std::exit(1);
+    }
+    if (readback.size() != originals.size()) {
+        std::cerr << "[FAIL] Record count mismatch: wrote " << originals.size()
+                  << ", read " << readback.size() << std::endl;
+        std::exit(1);
+    }
+    for (int n = 0; n < kNumRecords; ++n) {
+        if (std::memcmp(&originals[n], &readback[n], sizeof(lczero::TrainingDataV1)) != 0) {
+            std::cerr << "[FAIL] Record " << n << " differs after round-trip!" << std::endl;
+            std::exit(1);
+        }
+    }
+    std::remove(fname.c_str());
+    std::cout << "  - Read back " << readback.size()
+              << " records, all bytes match." << std::endl;
+    std::cout << "[PASS] TEST 2: round-trip bit-exact.\n" << std::endl;
+
+    std::cout << "========================================" << std::endl;
+    std::cout << "ALL TRAINING DATA (T1) TESTS PASSED!" << std::endl;
+    std::cout << "========================================\n" << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     bool test_mcts_mode = false;
     bool selfplay_mode = false;
     bool test_ep_mode = false;
     bool test_board_mode = false;
     bool test_policy_mode = false;
+    bool test_trainingdata_mode = false;
     std::string weights_file = "weights_0_elo.onnx";
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
@@ -1235,6 +1313,8 @@ int main(int argc, char* argv[]) {
             test_board_mode = true;
         } else if (std::string(argv[i]) == "--test-policy") {
             test_policy_mode = true;
+        } else if (std::string(argv[i]) == "--test-trainingdata") {
+            test_trainingdata_mode = true;
         } else if (std::string(argv[i]) == "--test-mcts") {
             test_mcts_mode = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -1265,6 +1345,8 @@ int main(int argc, char* argv[]) {
         run_board_tests();
     } else if (test_policy_mode) {
         run_policy_tests();
+    } else if (test_trainingdata_mode) {
+        run_trainingdata_tests();
     } else if (test_mcts_mode) {
         run_mcts_tests(weights_file);
     } else if (selfplay_mode) {
