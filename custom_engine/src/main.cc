@@ -28,6 +28,7 @@
 #include "selfplay/selfplay_driver.h"
 #include <cstring>
 #include <cstdlib>
+#include <fstream>
 #include <cstdio>
 #include <cmath>
 #include "search/classic/search.h"
@@ -573,11 +574,16 @@ checkCounting = true
             }
         }
         
-        // Xác minh mặt phẳng 1 (không có gì, tất cả là 0.0f)
+        // Xác minh mặt phẳng 1 (us KNIGHT): startpos có 2 Mã trắng ở e2,f2
+        // => tensor index 14 (rank1,file4) và 15 (rank1,file5) phải là 1.0f, còn lại 0.0f.
+        // (Đây là kiểm tra trực tiếp việc encode quân cờ — chính chỗ trước đây bị lỗi
+        //  value=0.0f khiến mọi plane quân cờ bung ra toàn 0.)
         const float* plane1_start = float_planes.data() + 1 * plane_size;
         for (int i = 0; i < plane_size; ++i) {
-            if (plane1_start[i] != 0.0f) {
-                std::cerr << "[FAIL] Plane 1 index " << i << " should be 0.0f, got " << plane1_start[i] << std::endl;
+            float expected = (i == 14 || i == 15) ? 1.0f : 0.0f;
+            if (plane1_start[i] != expected) {
+                std::cerr << "[FAIL] Plane 1 (knight) index " << i << " should be "
+                          << expected << ", got " << plane1_start[i] << std::endl;
                 std::exit(1);
             }
         }
@@ -1671,6 +1677,451 @@ checkCounting = true
     return v;
 }
 
+// T5 helper: emit ground-truth round-trip data so the Python reader can be
+// verified bit/value-exact. For each case writes BOTH:
+//   <prefix>_records.gz  : TrainingDataV1 records (the sparse format).
+//   <prefix>_dense.bin   : the [226*100] float tensor from UnpackInputPlanes
+//                          (exactly what the NN sees) for the SAME position.
+// Python reconstructs the dense tensor from the record and compares to _dense.bin.
+void run_roundtrip_emit(const std::string& prefix) {
+    std::cout << "=== Emitting round-trip ground-truth data ===" << std::endl;
+    setup_custom_variant();
+
+    lczero::TrainingDataWriter writer(prefix + "_records.gz");
+    std::ofstream dense_out(prefix + "_dense.bin", std::ios::binary);
+    if (!dense_out) { std::cerr << "[FAIL] cannot open dense output" << std::endl; std::exit(1); }
+    int num_cases = 0;
+
+    auto emit = [&](const lczero::PositionHistory& h) {
+        lczero::InputPlanes planes;
+        int t = 0;
+        lczero::EncodePositionForNN(h, lczero::kMoveHistory,
+                                    lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
+        std::vector<float> dense(226 * 100, 0.0f);
+        lczero::UnpackInputPlanes(planes, dense.data(), 10, 10);
+        dense_out.write(reinterpret_cast<const char*>(dense.data()),
+                        dense.size() * sizeof(float));
+
+        lczero::TrainingDataV1 rec;
+        std::memset(&rec, 0, sizeof(rec));
+        rec.version = lczero::kTrainingDataVersion;
+        rec.input_format = lczero::kInputFormat10x10;
+        lczero::EncodePlanesIntoRecord(h, rec);
+        // Synthetic scalar/policy fields to verify field-level unpack in Python.
+        rec.probabilities[100] = 0.25f;
+        rec.probabilities[2005] = 0.75f;
+        rec.result_q = -1.0f; rec.result_d = 0.0f;
+        rec.root_q = 0.1f; rec.best_q = 0.5f; rec.orig_q = 0.123f;
+        rec.policy_kld = 0.456f; rec.visits = 777;
+        rec.played_idx = 2005; rec.best_idx = 2005;
+        writer.WriteChunk(rec);
+        ++num_cases;
+    };
+
+    // Case 0: startpos (white to move, castling BIbi, checks 7+7, no ep).
+    {
+        auto board = std::make_unique<lczero::ChessBoard>();
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(*board, 0, 1);
+        emit(*h);
+    }
+    // Case 1: black to move with an active Sergeant en-passant (no castling).
+    {
+        auto board = std::make_unique<lczero::ChessBoard>(
+            std::string("5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1"));
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(*board, 0, 1);
+        lczero::Move m = board->ParseMove("a3c5");
+        if (!m.is_null()) h->Append(m);
+        emit(*h);
+    }
+    // Case 2: position after several moves -> populates HISTORY plies 1-7.
+    // This exercises the LightweightPosition board snapshot + per-ply flip path
+    // (which T5's startpos/ep cases barely touched).
+    {
+        auto board = std::make_unique<lczero::ChessBoard>();
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(*board, 0, 1);
+        for (int k = 0; k < 7; ++k) {
+            lczero::MoveList lm = h->Last().GenerateLegalMoves();
+            if (lm.empty()) break;
+            h->Append(lm[0]);  // deterministic: first legal move
+        }
+        emit(*h);
+    }
+
+    writer.Finalize();
+    dense_out.close();
+    std::cout << "[roundtrip] Emitted " << num_cases << " cases -> "
+              << prefix << "_records.gz / " << prefix << "_dense.bin" << std::endl;
+}
+
+// ============================================================================
+// PERFT cross-check: validates the ADAPTER move mechanics (GenerateLegalMoves +
+// flip + ApplyMove + board copy) against RAW Fairy-Stockfish (do_move/undo_move).
+// Both use the same movegen, so any node-count mismatch == an adapter-layer bug
+// in flip / state handling / copy. This is the gold-standard test for the FS
+// boundary that a random NN can never expose.
+// ============================================================================
+static uint64_t perft_raw(Stockfish::Position& pos, int depth) {
+    if (depth == 0) return 1;
+    uint64_t nodes = 0;
+    Stockfish::StateInfo st;
+    for (const auto& em : Stockfish::MoveList<Stockfish::LEGAL>(pos)) {
+        if (depth == 1) { ++nodes; continue; }
+        pos.do_move(em.move, st);
+        nodes += perft_raw(pos, depth - 1);
+        pos.undo_move(em.move);
+    }
+    return nodes;
+}
+
+static uint64_t perft_adapter(const lczero::ChessBoard& board, int depth) {
+    if (depth == 0) return 1;
+    lczero::MoveList moves = board.GenerateLegalMoves();
+    if (depth == 1) return moves.size();
+    uint64_t nodes = 0;
+    for (size_t i = 0; i < moves.size(); ++i) {
+        lczero::ChessBoard child(board);     // copy (mirrors MCTS hot path)
+        child.ApplyMove(moves[i]);           // flips internally for Black
+        nodes += perft_adapter(child, depth - 1);
+    }
+    return nodes;
+}
+
+void run_perft_tests() {
+    std::cout << "\n=== PERFT cross-check (adapter path vs raw Fairy-Stockfish) ===" << std::endl;
+    const Variant* v = setup_custom_variant();
+
+    struct Case { const char* fen; int max_depth; };
+    const std::vector<Case> cases = {
+        {lczero::ChessBoard::kStartposFen, 3},
+        {"5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1", 4},        // sparse: Sergeant + kings
+        {"5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 7+7 0 1", 4},       // pawn tension
+    };
+
+    bool all_ok = true;
+    for (const auto& c : cases) {
+        lczero::ChessBoard board(std::string(c.fen));   // adapter board (reused; perft copies)
+        std::cout << "FEN: " << c.fen << std::endl;
+        for (int d = 1; d <= c.max_depth; ++d) {
+            Stockfish::StateInfo st;
+            Stockfish::Position pos;
+            pos.set(v, c.fen, false, &st, nullptr);     // fresh raw pos per depth
+            const uint64_t raw = perft_raw(pos, d);
+            const uint64_t adp = perft_adapter(board, d);
+            const bool ok = (raw == adp);
+            all_ok &= ok;
+            std::cout << "  depth " << d << ": raw=" << raw << " adapter=" << adp
+                      << (ok ? "  OK" : "  *** MISMATCH ***") << std::endl;
+        }
+    }
+    if (all_ok) {
+        std::cout << "\n[PASS] PERFT: adapter path matches raw Fairy-Stockfish at all depths." << std::endl;
+    } else {
+        std::cerr << "\n[FAIL] PERFT mismatch — adapter wrapping diverges from raw FS!" << std::endl;
+        std::exit(1);
+    }
+}
+
+// ============================================================================
+// BIT-LEVEL verification (paranoid): proves the raw bit handling of the 128-bit
+// Bitboard <-> serialized [lo,hi] words, and that every piece lands on exactly
+// the right plane bit. A wrong bit-shift / lo-hi swap / overlap is caught here.
+// ============================================================================
+void run_bits_tests() {
+    std::cout << "\n=== BIT-LEVEL verification (extreme paranoia) ===" << std::endl;
+    setup_custom_variant();
+
+    const Stockfish::Bitboard low64 = Stockfish::Bitboard(0xFFFFFFFFFFFFFFFFULL);
+    auto split = [&](const Stockfish::Bitboard& m, uint64_t out[2]) {
+        out[0] = static_cast<uint64_t>(m & low64);  // squares 0-63
+        out[1] = static_cast<uint64_t>(m >> 64);    // squares 64-127
+    };
+
+    // E1: square_bb(s) must serialize to EXACTLY bit s for all 120 squares
+    // (covers the 64-bit word boundary and the high word).
+    {
+        bool ok = true;
+        for (int s = 0; s < 120; ++s) {
+            Stockfish::Bitboard b = Stockfish::square_bb(static_cast<Stockfish::Square>(s));
+            uint64_t w[2];
+            split(b, w);
+            int bits = __builtin_popcountll(w[0]) + __builtin_popcountll(w[1]);
+            int global = w[1] ? (64 + __builtin_ctzll(w[1])) : __builtin_ctzll(w[0]);
+            if (bits != 1 || global != s) {
+                std::cerr << "[FAIL] E1 square " << s << ": popcount=" << bits
+                          << " serialized_bit=" << global << std::endl;
+                ok = false;
+            }
+        }
+        if (!ok) std::exit(1);
+        std::cout << "  [OK] E1: square_bb(s) -> exactly serialized bit s for ALL 120 squares" << std::endl;
+    }
+
+    // E2: occupancy invariant — for white-to-move positions, the union of the 26
+    // ply-0 piece planes must equal the board occupancy EXACTLY, with no square in
+    // two planes (catches mis-placement, overlap, or padding leakage).
+    {
+        const std::vector<std::string> wfens = {
+            lczero::ChessBoard::kStartposFen,
+            "5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 7+7 0 1",
+            "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 7+7 0 1",
+        };
+        for (const auto& fen : wfens) {
+            auto board = std::make_unique<lczero::ChessBoard>(fen);
+            auto h = std::make_unique<lczero::PositionHistory>();
+            h->Reset(*board, 0, 1);
+            lczero::InputPlanes planes; int t = 0;
+            lczero::EncodePositionForNN(*h, lczero::kMoveHistory,
+                                        lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
+            Stockfish::Bitboard plane_union = Stockfish::Bitboard(static_cast<uint64_t>(0));
+            int total_bits = 0;
+            for (int p = 0; p <= 25; ++p) {
+                plane_union = plane_union | planes[p].mask;
+                total_bits += Stockfish::popcount(planes[p].mask);
+            }
+            const auto& pos = board->GetRawPosition();
+            Stockfish::Bitboard occ = pos.pieces();
+            int occ_count = Stockfish::popcount(occ);
+            bool no_overlap = (Stockfish::popcount(plane_union) == total_bits);
+            bool match = !bool(plane_union ^ occ);
+            if (!no_overlap || !match || total_bits != occ_count) {
+                std::cerr << "[FAIL] E2 occupancy: " << fen << " planes_bits=" << total_bits
+                          << " occ=" << occ_count << " overlap=" << (!no_overlap)
+                          << " union_match=" << match << std::endl;
+                std::exit(1);
+            }
+            std::cout << "  [OK] E2 occupancy: " << occ_count
+                      << " pieces each on exactly 1 plane at the exact square" << std::endl;
+        }
+    }
+    std::cout << "[PASS] BIT-LEVEL tests." << std::endl;
+}
+
+// ============================================================================
+// RULES: repetition (3-fold) / rule50 (100-ply) / DYNAMIC 7-check counting.
+// ============================================================================
+void run_rules_tests() {
+    std::cout << "\n=== RULES: repetition / rule50 / dynamic 7-check ===" << std::endl;
+    setup_custom_variant();
+
+    auto drive = [](const std::string& fen, int rule50, const std::vector<std::string>& ucis,
+                    lczero::GameResult& out) {
+        auto board = std::make_unique<lczero::ChessBoard>(fen);
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(*board, rule50, 1);
+        out = h->ComputeGameResult();
+        for (const auto& uci : ucis) {
+            lczero::Move m = h->Last().GetBoard().ParseMove(uci);
+            if (m.is_null()) { std::cerr << "[FAIL] illegal move " << uci << " in " << fen << std::endl; std::exit(1); }
+            h->Append(m);
+            out = h->ComputeGameResult();
+        }
+    };
+
+    // 1. 3-fold repetition: kings shuffle back to the start twice -> DRAW.
+    {
+        lczero::GameResult res;
+        drive("k9/10/10/10/10/10/10/10/10/K9 w - - 7+7 0 1", 0,
+              {"a1b1","a10b10","b1a1","b10a10","a1b1","a10b10","b1a1","b10a10"}, res);
+        if (res != lczero::GameResult::DRAW) { std::cerr << "[FAIL] 3-fold repetition not DRAW (got " << (int)res << ")" << std::endl; std::exit(1); }
+        std::cout << "  [OK] 3-fold repetition -> DRAW" << std::endl;
+    }
+    // 2. rule50: start at 99, one non-zeroing king move -> 100 plies -> DRAW.
+    {
+        lczero::GameResult res;
+        drive("k9/10/10/10/10/10/10/10/10/K9 w - - 7+7 99 1", 99, {"a1b1"}, res);
+        if (res != lczero::GameResult::DRAW) { std::cerr << "[FAIL] rule50=100 not DRAW (got " << (int)res << ")" << std::endl; std::exit(1); }
+        std::cout << "  [OK] rule50 reaches 100 plies -> DRAW" << std::endl;
+    }
+    // 3. Dynamic 7-check: White needs 1 more check, delivers it -> WHITE_WON.
+    {
+        lczero::GameResult res;
+        drive("4k5/10/10/10/10/10/10/10/10/R8K w - - 1+7 0 1", 0, {"a1e1"}, res);
+        if (res != lczero::GameResult::WHITE_WON) { std::cerr << "[FAIL] dynamic 7th check not WHITE_WON (got " << (int)res << ")" << std::endl; std::exit(1); }
+        std::cout << "  [OK] White delivers final (7th) check -> WHITE_WON" << std::endl;
+    }
+    std::cout << "[PASS] RULES tests." << std::endl;
+}
+
+// ============================================================================
+// ADAPTER round-trip: FEN idempotence + MoveToString<->ParseMove (both colors).
+// ============================================================================
+void run_adapter_tests() {
+    std::cout << "\n=== ADAPTER: FEN + move-string round-trip ===" << std::endl;
+    setup_custom_variant();
+
+    const std::vector<std::string> fens = {
+        lczero::ChessBoard::kStartposFen,
+        "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1",
+        "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 7+7 0 1",
+        "4k5/10/10/10/10/10/10/10/10/R8K b - - 1+7 0 1",  // BLACK to move
+    };
+
+    for (const auto& fen : fens) {
+        lczero::ChessBoard b1(fen);
+        std::string f1 = b1.GetRawPosition().fen();
+        lczero::ChessBoard b2(f1);
+        std::string f2 = b2.GetRawPosition().fen();
+        if (f1 != f2) { std::cerr << "[FAIL] FEN not idempotent:\n  " << f1 << "\n  " << f2 << std::endl; std::exit(1); }
+    }
+    std::cout << "  [OK] FEN round-trip idempotent for " << fens.size() << " positions" << std::endl;
+
+    int total = 0;
+    for (const auto& fen : fens) {
+        lczero::ChessBoard board(fen);
+        lczero::MoveList moves = board.GenerateLegalMoves();  // canonical frame
+        for (size_t i = 0; i < moves.size(); ++i) {
+            std::string s = board.MoveToString(moves[i]);
+            lczero::Move back = board.ParseMove(s);
+            if (!(back == moves[i])) {
+                std::cerr << "[FAIL] move round-trip mismatch: '" << s
+                          << "' did not parse back to the same canonical move" << std::endl;
+                std::exit(1);
+            }
+            ++total;
+        }
+    }
+    std::cout << "  [OK] MoveToString<->ParseMove for " << total << " legal moves (incl. Black-to-move)" << std::endl;
+    std::cout << "[PASS] ADAPTER round-trip tests." << std::endl;
+}
+
+// ============================================================================
+// NN-INTERFACE tests: MoveToNNIndex / MoveFromNNIndex / UnpackInputPlanes.
+// These are the adapter<->(MCTS/NN) boundary. The existing --test-policy only
+// checks the idx->move->idx direction; here we add the FORWARD direction from
+// every geometric move-shape AND from every real legal move, plus a dedicated
+// value-semantics test of UnpackInputPlanes (not just the indirect round-trip).
+// ============================================================================
+
+// Recursively check that every legal move at every node maps to an in-range
+// index, decodes back to the same from/to geometry, and is injective per node.
+static void nn_check_moves(const lczero::ChessBoard& board, int depth,
+                           long& total, long& unmapped, long& geo_fail, long& inj_fail) {
+    lczero::MoveList moves = board.GenerateLegalMoves();
+    std::vector<int> idxs;
+    idxs.reserve(moves.size());
+    for (size_t i = 0; i < moves.size(); ++i) {
+        const uint16_t idx = lczero::MoveToNNIndex(moves[i], 0);
+        ++total;
+        if (idx >= 10600) {
+            ++unmapped;
+            if (unmapped <= 5) std::cerr << "  [UNMAPPED] " << moves[i].ToString() << std::endl;
+            continue;
+        }
+        idxs.push_back(idx);
+        Stockfish::Move back = lczero::MoveFromNNIndex(idx, 0);
+        if (Stockfish::from_sq(back) != Stockfish::from_sq(moves[i]) ||
+            Stockfish::to_sq(back) != Stockfish::to_sq(moves[i])) {
+            ++geo_fail;
+            if (geo_fail <= 5) std::cerr << "  [GEO] " << moves[i].ToString() << " idx=" << idx << std::endl;
+        }
+    }
+    std::sort(idxs.begin(), idxs.end());
+    for (size_t i = 1; i < idxs.size(); ++i)
+        if (idxs[i] == idxs[i - 1]) { ++inj_fail; break; }
+
+    if (depth > 1) {
+        for (size_t i = 0; i < moves.size(); ++i) {
+            lczero::ChessBoard child(board);
+            child.ApplyMove(moves[i]);
+            nn_check_moves(child, depth - 1, total, unmapped, geo_fail, inj_fail);
+        }
+    }
+}
+
+void run_nn_tests() {
+    std::cout << "\n=== NN-INTERFACE tests (MoveToNNIndex / MoveFromNNIndex / UnpackInputPlanes) ===" << std::endl;
+    setup_custom_variant();
+
+    auto make_sq = [](int r, int f) { return Stockfish::make_square((Stockfish::File)f, (Stockfish::Rank)r); };
+    auto inb = [](int r, int f) { return r >= 0 && r < 10 && f >= 0 && f < 10; };
+
+    // --- Part 1: EXHAUSTIVE geometric enumeration of every move-shape ---
+    // forward direction (move -> idx), exact round-trip, in-range, no collisions.
+    {
+        std::vector<uint32_t> owner(10600, 0xFFFFFFFFu);
+        long enumc = 0, range_err = 0, rt_err = 0, collide = 0;
+        auto check = [&](Stockfish::Move m) {
+            ++enumc;
+            const uint16_t idx = lczero::MoveToNNIndex(m, 0);
+            if (idx >= 10600) { ++range_err; return; }
+            Stockfish::Move back = lczero::MoveFromNNIndex(idx, 0);
+            if (back != m) { ++rt_err; if (rt_err <= 5) std::cerr << "  [RT] idx=" << idx << std::endl; }
+            const uint32_t raw = static_cast<uint32_t>(m);
+            if (owner[idx] != 0xFFFFFFFFu && owner[idx] != raw) { ++collide; if (collide <= 5) std::cerr << "  [COLLIDE] idx=" << idx << std::endl; }
+            owner[idx] = raw;
+        };
+        const int sdx[8] = {0,1,1,1,0,-1,-1,-1}, sdy[8] = {1,1,0,-1,-1,-1,0,1};
+        const int ndx[8] = {1,2,2,1,-1,-2,-2,-1}, ndy[8] = {2,1,-1,-2,-2,-1,1,2};
+        const int cdx[8] = {1,3,3,1,-1,-3,-3,-1}, cdy[8] = {3,1,-1,-3,-3,-1,1,3};
+        const Stockfish::PieceType promos[6] = {Stockfish::BISHOP, Stockfish::ARCHBISHOP,
+            Stockfish::CENTAUR, Stockfish::KNIGHT, Stockfish::CUSTOM_PIECE_1, Stockfish::CUSTOM_PIECE_2};
+        for (int r = 0; r < 10; ++r) for (int f = 0; f < 10; ++f) {
+            for (int d = 0; d < 8; ++d) for (int dist = 1; dist <= 9; ++dist) {
+                int tr = r + sdy[d] * dist, tf = f + sdx[d] * dist;
+                if (inb(tr, tf)) check(Stockfish::make_move(make_sq(r, f), make_sq(tr, tf)));
+            }
+            for (int k = 0; k < 8; ++k) { int tr = r + ndy[k], tf = f + ndx[k]; if (inb(tr, tf)) check(Stockfish::make_move(make_sq(r, f), make_sq(tr, tf))); }
+            for (int k = 0; k < 8; ++k) { int tr = r + cdy[k], tf = f + cdx[k]; if (inb(tr, tf)) check(Stockfish::make_move(make_sq(r, f), make_sq(tr, tf))); }
+            for (int pi = 0; pi < 6; ++pi) for (int dir = -1; dir <= 1; ++dir) {
+                int tr = r + 1, tf = f + dir;
+                if (inb(tr, tf)) check(Stockfish::make<Stockfish::PROMOTION>(make_sq(r, f), make_sq(tr, tf), promos[pi]));
+            }
+        }
+        if (range_err || rt_err || collide) {
+            std::cerr << "[FAIL] Part 1: range_err=" << range_err << " rt_err=" << rt_err << " collide=" << collide << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  [OK] Part 1: " << enumc << " geometric move-shapes -> all in-range, exact round-trip, ZERO collisions" << std::endl;
+    }
+
+    // --- Part 2: every REAL legal move (depth-3 from startpos + promotion FEN) ---
+    // Critical safety: a 65535 here would mean an out-of-bounds write into pi[10600].
+    {
+        long total = 0, unmapped = 0, geo_fail = 0, inj_fail = 0;
+        lczero::ChessBoard start(std::string(lczero::ChessBoard::kStartposFen));
+        nn_check_moves(start, 3, total, unmapped, geo_fail, inj_fail);
+        lczero::ChessBoard promo(std::string("5k4/P9/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1"));
+        nn_check_moves(promo, 2, total, unmapped, geo_fail, inj_fail);
+        if (unmapped || geo_fail || inj_fail) {
+            std::cerr << "[FAIL] Part 2: unmapped=" << unmapped << " geo_fail=" << geo_fail << " inj_fail=" << inj_fail << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  [OK] Part 2: " << total << " real legal moves -> none unmapped, geometry round-trips, injective per position" << std::endl;
+    }
+
+    // --- Part 3: UnpackInputPlanes value semantics (independent of round-trip) ---
+    {
+        lczero::InputPlanes planes;
+        for (auto& p : planes) { p.mask = 0; p.value = 1.0f; }
+        planes[0].mask = Stockfish::square_bb((Stockfish::Square)(5 * 12 + 3)); planes[0].value = 0.7f;  // single (5,3)
+        planes[5].Fill(0.3f);                                                                            // AllSquares
+        planes[10].mask = Stockfish::square_bb((Stockfish::Square)(2 * 12 + 10)); planes[10].value = 0.9f; // PADDING (file10)
+        planes[20].mask = Stockfish::square_bb((Stockfish::Square)(0)) | Stockfish::square_bb((Stockfish::Square)(9 * 12 + 9)); planes[20].value = 0.5f;
+
+        std::vector<float> out(226 * 100, 0.0f);
+        lczero::UnpackInputPlanes(planes, out.data(), 10, 10);
+        auto cell = [&](int p, int r, int f) { return out[p * 100 + r * 10 + f]; };
+
+        bool ok = true;
+        for (int r = 0; r < 10; ++r) for (int f = 0; f < 10; ++f) {
+            float e0 = (r == 5 && f == 3) ? 0.7f : 0.0f;
+            float e20 = ((r == 0 && f == 0) || (r == 9 && f == 9)) ? 0.5f : 0.0f;
+            if (cell(0, r, f) != e0)    { ok = false; std::cerr << "[FAIL] P3 plane0 (" << r << "," << f << ")=" << cell(0, r, f) << "\n"; }
+            if (cell(5, r, f) != 0.3f)  { ok = false; std::cerr << "[FAIL] P3 plane5 AllSquares (" << r << "," << f << ")=" << cell(5, r, f) << "\n"; }
+            if (cell(10, r, f) != 0.0f) { ok = false; std::cerr << "[FAIL] P3 plane10 PADDING leaked (" << r << "," << f << ")=" << cell(10, r, f) << "\n"; }
+            if (cell(20, r, f) != e20)  { ok = false; std::cerr << "[FAIL] P3 plane20 (" << r << "," << f << ")=" << cell(20, r, f) << "\n"; }
+            if (cell(1, r, f) != 0.0f)  { ok = false; std::cerr << "[FAIL] P3 plane1 untouched leaked\n"; }
+        }
+        if (!ok) std::exit(1);
+        std::cout << "  [OK] Part 3: UnpackInputPlanes -> single-value, AllSquares fast-path, padding-reject, plane-independence ALL correct" << std::endl;
+    }
+
+    std::cout << "[PASS] NN-INTERFACE tests." << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     bool test_mcts_mode = false;
     bool selfplay_mode = false;
@@ -1680,6 +2131,13 @@ int main(int argc, char* argv[]) {
     bool test_trainingdata_mode = false;
     bool test_extract_mode = false;
     bool test_selfplay_mode = false;
+    bool emit_roundtrip_mode = false;
+    bool test_perft_mode = false;
+    bool test_bits_mode = false;
+    bool test_rules_mode = false;
+    bool test_adapter_mode = false;
+    bool test_nn_mode = false;
+    std::string rt_prefix = "roundtrip";
     std::string weights_file = "weights_0_elo.onnx";
     // Self-play driver options.
     int sp_games = 100, sp_visits = 200, sp_parallel = 1, sp_threads_per_game = 1;
@@ -1716,6 +2174,19 @@ int main(int argc, char* argv[]) {
             test_extract_mode = true;
         } else if (std::string(argv[i]) == "--test-selfplay") {
             test_selfplay_mode = true;
+        } else if (std::string(argv[i]) == "--emit-roundtrip") {
+            emit_roundtrip_mode = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') rt_prefix = argv[++i];
+        } else if (std::string(argv[i]) == "--test-perft") {
+            test_perft_mode = true;
+        } else if (std::string(argv[i]) == "--test-bits") {
+            test_bits_mode = true;
+        } else if (std::string(argv[i]) == "--test-rules") {
+            test_rules_mode = true;
+        } else if (std::string(argv[i]) == "--test-adapter") {
+            test_adapter_mode = true;
+        } else if (std::string(argv[i]) == "--test-nn") {
+            test_nn_mode = true;
         } else if (std::string(argv[i]) == "--test-mcts") {
             test_mcts_mode = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -1752,6 +2223,18 @@ int main(int argc, char* argv[]) {
         run_extract_tests(weights_file);
     } else if (test_selfplay_mode) {
         run_selfplay_tests(weights_file);
+    } else if (emit_roundtrip_mode) {
+        run_roundtrip_emit(rt_prefix);
+    } else if (test_perft_mode) {
+        run_perft_tests();
+    } else if (test_bits_mode) {
+        run_bits_tests();
+    } else if (test_rules_mode) {
+        run_rules_tests();
+    } else if (test_adapter_mode) {
+        run_adapter_tests();
+    } else if (test_nn_mode) {
+        run_nn_tests();
     } else if (test_mcts_mode) {
         run_mcts_tests(weights_file);
     } else if (selfplay_mode) {

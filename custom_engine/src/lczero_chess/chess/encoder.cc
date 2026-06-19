@@ -19,10 +19,14 @@ void EncodePositionForNN(
     
     if (!output_planes) return;
     
-    // Khởi tạo toàn bộ các mặt phẳng đầu ra về 0
+    // Khởi tạo: mask rỗng, value = 1.0f.
+    // QUAN TRỌNG: các plane nhị phân (quân cờ, nhập thành, en passant) chỉ OR mask
+    // mà KHÔNG đặt lại value, nên value mặc định phải là 1.0f để UnpackInputPlanes
+    // ghi 1.0 tại các ô có bit. (value=0.0f trước đây khiến NN KHÔNG thấy quân nào.)
+    // Các plane vô hướng (rule50/checks/biên/lặp) tự Fill() đè lại value của chúng.
     InputPlane zero_plane;
     zero_plane.mask = 0;
-    zero_plane.value = 0.0f;
+    zero_plane.value = 1.0f;
     output_planes->fill(zero_plane);
     
     const auto& last_position = history.Last();

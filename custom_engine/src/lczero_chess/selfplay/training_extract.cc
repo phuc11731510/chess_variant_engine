@@ -113,16 +113,23 @@ void EncodePlanesIntoRecord(const PositionHistory& history,
   EncodePositionForNN(history, kMoveHistory, FillEmptyHistory::FEN_ONLY,
                       &planes, &transform);
 
-  // 216 history piece planes -> 128-bit bitboard masks (lo64, hi64).
-  // memcpy preserves the exact bits for both the __int128 and {u64[2]}
-  // representations of Stockfish::Bitboard on little-endian.
+  // 216 history piece planes -> 128-bit bitboard masks, split into a WELL-DEFINED
+  // on-disk order: word[0] = squares 0-63, word[1] = squares 64-127. Extract via
+  // shift/mask (NOT memcpy) so the format is independent of the internal
+  // Stockfish::Bitboard layout (struct {hi,lo} vs __int128); Python then reads
+  // word[0] as the low 64 squares, matching UnpackInputPlanes' pop_lsb order.
   static_assert(sizeof(planes[0].mask) == 2 * sizeof(uint64_t),
                 "Bitboard is not 128-bit");
+  const Stockfish::Bitboard low64 = Stockfish::Bitboard(0xFFFFFFFFFFFFFFFFULL);
+  auto split = [&low64](const Stockfish::Bitboard& m, uint64_t out[2]) {
+    out[0] = static_cast<uint64_t>(m & low64);  // squares 0-63
+    out[1] = static_cast<uint64_t>(m >> 64);    // squares 64-127
+  };
   for (int p = 0; p < kHistoryPlanes; ++p) {
-    std::memcpy(rec.piece_planes[p], &planes[p].mask, 2 * sizeof(uint64_t));
+    split(planes[p].mask, rec.piece_planes[p]);
   }
   // En-passant plane is aux index 4 (kAuxPlaneBase + 4).
-  std::memcpy(rec.ep_mask, &planes[kAuxPlaneBase + 4].mask, 2 * sizeof(uint64_t));
+  split(planes[kAuxPlaneBase + 4].mask, rec.ep_mask);
 
   // --- Scalar aux read directly from the position (raw; Python normalizes) ---
   const Position& last = history.Last();
