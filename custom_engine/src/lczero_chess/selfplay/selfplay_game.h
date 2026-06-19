@@ -21,9 +21,11 @@ namespace lczero {
 // At game end, z (result_q/d) is assigned to all records with correct parity.
 // Search/NodeTree are heap-allocated (PositionHistory has 512-ply static arrays).
 // Returns the (possibly adjudicated) game result.
+// `verbose`: print each played move to stdout (kept ON for single-game tests;
+//            the parallel driver passes false to avoid interleaved log spam).
 GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        const OptionsDict& options, int visits, int max_moves,
                        int temp_cutoff_ply, const std::string& out_filename,
-                       int search_threads = 1);
+                       int search_threads = 1, bool verbose = true);
 
 }  // namespace lczero

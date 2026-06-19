@@ -71,7 +71,7 @@ classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, int ply,
 GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        const OptionsDict& options, int visits, int max_moves,
                        int temp_cutoff_ply, const std::string& out_filename,
-                       int search_threads) {
+                       int search_threads, bool verbose) {
   auto tree = std::make_unique<classic::NodeTree>();
   tree->ResetToPosition(start_fen, {});
 
@@ -124,12 +124,14 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     stm_black.push_back(black);
 
     // In nuoc co ra console de con nguoi doc duoc (lat lai ve he toa do ban co that neu la quan Den)
-    Move display_move = played;
-    if (black) {
-      display_move.Flip(Stockfish::RANK_10);
+    if (verbose) {
+      Move display_move = played;
+      if (black) {
+        display_move.Flip(Stockfish::RANK_10);
+      }
+      std::cout << "  Ply " << (ply + 1) << " (" << (black ? "black" : "white")
+                << "): " << display_move.ToString() << std::endl;
     }
-    std::cout << "  Ply " << (ply + 1) << " (" << (black ? "black" : "white") 
-              << "): " << display_move.ToString() << std::endl;
 
     tree->MakeMove(played);
     result = tree->GetPositionHistory().ComputeGameResult();

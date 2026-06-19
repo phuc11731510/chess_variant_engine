@@ -25,7 +25,9 @@
 #include "trainingdata/writer.h"
 #include "selfplay/training_extract.h"
 #include "selfplay/selfplay_game.h"
+#include "selfplay/selfplay_driver.h"
 #include <cstring>
+#include <cstdlib>
 #include <cstdio>
 #include <cmath>
 #include "search/classic/search.h"
@@ -1618,6 +1620,57 @@ void run_trainingdata_tests() {
     std::cout << "========================================\n" << std::endl;
 }
 
+// Parses + registers the custom 10x10 variant from an inline ini (so self-play
+// and tests don't depend on an external variants.ini being loaded).
+static const Variant* setup_custom_variant() {
+    std::string ini_text = R"(
+[custom_10x10_variant]
+maxRank = 10
+maxFile = j
+pawn = p
+knight = n
+bishop = b
+rook = r
+queen = q
+king = k:KN
+amazon = a
+chancellor = e
+archbishop = h
+centaur = m
+customPiece1 = v:CN
+customPiece2 = y:AD
+customPiece3 = s:fKifmnDifmnA
+pawnTypes = p s
+promotionPawnTypes = p s
+enPassantTypes = p s
+nMoveRuleTypes = p s
+doubleStep = true
+doubleStepRegionWhite = *1 *2 *3
+doubleStepRegionBlack = *10 *9 *8
+promotionRegionWhite = *8 *9 *10
+promotionRegionBlack = *3 *2 *1
+mandatoryPawnPromotion = true
+promotionPieceTypes = b h m n v y
+castling = true
+castlingKingsideFile = h
+castlingQueensideFile = d
+castlingRookKingsideFile = i
+castlingRookQueensideFile = b
+stalemateValue = loss
+checkCounting = true
+)";
+    std::istringstream ss(ini_text);
+    variants.parse_istream<false>(ss);
+    const Variant* v = variants.find("custom_10x10_variant")->second;
+    if (!v) {
+        std::cerr << "[FATAL] custom_10x10_variant not found!" << std::endl;
+        std::exit(1);
+    }
+    UCI::init_variant(v);
+    PSQT::init(v);
+    return v;
+}
+
 int main(int argc, char* argv[]) {
     bool test_mcts_mode = false;
     bool selfplay_mode = false;
@@ -1628,9 +1681,29 @@ int main(int argc, char* argv[]) {
     bool test_extract_mode = false;
     bool test_selfplay_mode = false;
     std::string weights_file = "weights_0_elo.onnx";
+    // Self-play driver options.
+    int sp_games = 100, sp_visits = 200, sp_parallel = 1, sp_threads_per_game = 1;
+    int sp_max_moves = 200, sp_temp_cutoff = 30;
+    std::string sp_out = "selfplay_data";
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
             selfplay_mode = true;
+        } else if (std::string(argv[i]) == "--games" && i + 1 < argc) {
+            sp_games = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--out" && i + 1 < argc) {
+            sp_out = argv[++i];
+        } else if (std::string(argv[i]) == "--visits" && i + 1 < argc) {
+            sp_visits = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--parallel" && i + 1 < argc) {
+            sp_parallel = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--threads-per-game" && i + 1 < argc) {
+            sp_threads_per_game = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--max-moves" && i + 1 < argc) {
+            sp_max_moves = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--temp-cutoff" && i + 1 < argc) {
+            sp_temp_cutoff = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--weights" && i + 1 < argc) {
+            weights_file = argv[++i];
         } else if (std::string(argv[i]) == "--test-ep") {
             test_ep_mode = true;
         } else if (std::string(argv[i]) == "--test-board") {
@@ -1682,8 +1755,42 @@ int main(int argc, char* argv[]) {
     } else if (test_mcts_mode) {
         run_mcts_tests(weights_file);
     } else if (selfplay_mode) {
-        std::cout << "Starting custom selfplay mode..." << std::endl;
-        // Selfplay logic will go here
+        std::cout << "=== Self-play data generation ===" << std::endl;
+        setup_custom_variant();
+        const std::string fen =
+            "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+
+        lczero::OptionsParser parser;
+        lczero::classic::SearchParams::Populate(&parser);
+        parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
+        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+        parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.25f);
+        parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, 0.3f);
+        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_file);
+        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "threads=2");
+        const lczero::OptionsDict& sp_options = parser.GetOptionsDict();
+
+        std::unique_ptr<lczero::Backend> backend;
+        try {
+            auto raw_backend = std::make_unique<lczero::OnnxBackend>();
+            raw_backend->UpdateConfiguration(sp_options);
+            backend = lczero::CreateMemCache(std::move(raw_backend), sp_options);
+        } catch (const std::exception& e) {
+            std::cerr << "[selfplay] FATAL: could not load backend: " << e.what() << std::endl;
+            Threads.set(0);
+            return 1;
+        }
+
+        lczero::SelfPlayConfig cfg;
+        cfg.start_fen = fen;
+        cfg.out_dir = sp_out;
+        cfg.num_games = sp_games;
+        cfg.visits = sp_visits;
+        cfg.max_moves = sp_max_moves;
+        cfg.temp_cutoff_ply = sp_temp_cutoff;
+        cfg.parallel = sp_parallel;
+        cfg.threads_per_game = sp_threads_per_game;
+        lczero::RunSelfPlay(cfg, backend.get(), sp_options);
     } else {
         UCI::loop(argc, argv);
     }

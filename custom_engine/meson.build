@@ -99,7 +99,8 @@ neural_sources = files(
 trainingdata_sources = files(
   'src/lczero_chess/trainingdata/writer.cc',
   'src/lczero_chess/selfplay/training_extract.cc',
-  'src/lczero_chess/selfplay/selfplay_game.cc'
+  'src/lczero_chess/selfplay/selfplay_game.cc',
+  'src/lczero_chess/selfplay/selfplay_driver.cc'
 )
 
 # Engine sources
