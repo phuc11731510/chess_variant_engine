@@ -153,8 +153,6 @@ void OnnxComputation::ComputeBlocking() {
         if (fixed_batch_ && run_batch > current_batch) {
             size_t pad_count = run_batch - current_batch;
             std::memset(input_buffer_ + (offset + current_batch) * InputBufferUnitSize, 0, pad_count * InputBufferUnitSize * sizeof(float));
-            std::memset(policy_output_buffer_ + (offset + current_batch) * PolicyOutputSize, 0, pad_count * PolicyOutputSize * sizeof(float));
-            std::memset(value_output_buffer_ + (offset + current_batch) * ValueOutputSize, 0, pad_count * ValueOutputSize * sizeof(float));
         }
         
         // 1. Direct Memory Mapping: map C++ float arrays directly into Ort::Value (zero-copy)
@@ -257,7 +255,6 @@ void OnnxComputation::ComputeBlocking() {
 OnnxBackend::OnnxBackend()
     : env_(ORT_LOGGING_LEVEL_WARNING, "ONNX_Backend"),
       memory_info_(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)) {
-    session_options_.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 }
 
 BackendAttributes OnnxBackend::GetAttributes() const {
