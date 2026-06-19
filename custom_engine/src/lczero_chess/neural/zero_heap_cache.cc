@@ -130,7 +130,7 @@ std::unique_ptr<BackendComputation> ZeroHeapCache::CreateComputation() {
     return std::make_unique<ZeroHeapCacheComputation>(
         wrapped_backend_->CreateComputation(),
         this,
-        wrapped_backend_->GetAttributes().maximum_batch_size
+        MaxBatchSize
     );
 }
 

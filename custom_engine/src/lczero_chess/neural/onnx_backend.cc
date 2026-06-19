@@ -141,65 +141,70 @@ void OnnxComputation::ComputeBlocking() {
         throw Exception("ONNX Backend: ORT session is not initialized!");
     }
     
-    size_t batch_size = fixed_batch_ ? fixed_batch_size_ : enqueued_;
-    if (fixed_batch_) {
-        if (batch_size > MaxBatchSize) {
-            batch_size = MaxBatchSize;
+    size_t offset = 0;
+    while (offset < enqueued_) {
+        size_t current_batch = enqueued_ - offset;
+        if (fixed_batch_ && current_batch > fixed_batch_size_) {
+            current_batch = fixed_batch_size_;
         }
-        // Zero out unused slots to avoid NaN/Inf propagation
-        if (batch_size > enqueued_) {
-            size_t pad_count = batch_size - enqueued_;
-            std::memset(input_buffer_ + enqueued_ * InputBufferUnitSize, 0, pad_count * InputBufferUnitSize * sizeof(float));
-            std::memset(policy_output_buffer_ + enqueued_ * PolicyOutputSize, 0, pad_count * PolicyOutputSize * sizeof(float));
-            std::memset(value_output_buffer_ + enqueued_ * ValueOutputSize, 0, pad_count * ValueOutputSize * sizeof(float));
+        
+        size_t run_batch = fixed_batch_ ? fixed_batch_size_ : current_batch;
+        
+        if (fixed_batch_ && run_batch > current_batch) {
+            size_t pad_count = run_batch - current_batch;
+            std::memset(input_buffer_ + (offset + current_batch) * InputBufferUnitSize, 0, pad_count * InputBufferUnitSize * sizeof(float));
+            std::memset(policy_output_buffer_ + (offset + current_batch) * PolicyOutputSize, 0, pad_count * PolicyOutputSize * sizeof(float));
+            std::memset(value_output_buffer_ + (offset + current_batch) * ValueOutputSize, 0, pad_count * ValueOutputSize * sizeof(float));
         }
+        
+        // 1. Direct Memory Mapping: map C++ float arrays directly into Ort::Value (zero-copy)
+        std::array<int64_t, 4> input_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(InputPlanesCount), static_cast<int64_t>(BoardHeight), static_cast<int64_t>(BoardWidth) };
+        Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
+            memory_info_,
+            input_buffer_ + offset * InputBufferUnitSize,
+            run_batch * InputBufferUnitSize,
+            input_shape.data(),
+            input_shape.size()
+        );
+        
+        std::array<int64_t, 2> policy_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(PolicyOutputSize) };
+        Ort::Value policy_tensor = Ort::Value::CreateTensor<float>(
+            memory_info_,
+            policy_output_buffer_ + offset * PolicyOutputSize,
+            run_batch * PolicyOutputSize,
+            policy_shape.data(),
+            policy_shape.size()
+        );
+        
+        std::array<int64_t, 2> value_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(ValueOutputSize) };
+        Ort::Value value_tensor = Ort::Value::CreateTensor<float>(
+            memory_info_,
+            value_output_buffer_ + offset * ValueOutputSize,
+            run_batch * ValueOutputSize,
+            value_shape.data(),
+            value_shape.size()
+        );
+        
+        // 2. Setup inputs and outputs pointers
+        const char* input_names[] = { "input" };
+        char* output_names[] = { "policy", "value" };
+        
+        Ort::Value inputs[] = { std::move(input_tensor) };
+        Ort::Value outputs[] = { std::move(policy_tensor), std::move(value_tensor) };
+        
+        // 3. Execute inference synchronously on CPU/GPU
+        session_->Run(
+            Ort::RunOptions{nullptr},
+            input_names,
+            inputs,
+            1,
+            output_names,
+            outputs,
+            2
+        );
+        
+        offset += current_batch;
     }
-    
-    // 1. Direct Memory Mapping: map C++ float arrays directly into Ort::Value (zero-copy)
-    std::array<int64_t, 4> input_shape = { static_cast<int64_t>(batch_size), static_cast<int64_t>(InputPlanesCount), static_cast<int64_t>(BoardHeight), static_cast<int64_t>(BoardWidth) };
-    Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
-        memory_info_,
-        input_buffer_,
-        batch_size * InputBufferUnitSize,
-        input_shape.data(),
-        input_shape.size()
-    );
-    
-    std::array<int64_t, 2> policy_shape = { static_cast<int64_t>(batch_size), static_cast<int64_t>(PolicyOutputSize) };
-    Ort::Value policy_tensor = Ort::Value::CreateTensor<float>(
-        memory_info_,
-        policy_output_buffer_,
-        batch_size * PolicyOutputSize,
-        policy_shape.data(),
-        policy_shape.size()
-    );
-    
-    std::array<int64_t, 2> value_shape = { static_cast<int64_t>(batch_size), static_cast<int64_t>(ValueOutputSize) };
-    Ort::Value value_tensor = Ort::Value::CreateTensor<float>(
-        memory_info_,
-        value_output_buffer_,
-        batch_size * ValueOutputSize,
-        value_shape.data(),
-        value_shape.size()
-    );
-    
-    // 2. Setup inputs and outputs pointers
-    const char* input_names[] = { "input" };
-    char* output_names[] = { "policy", "value" };
-    
-    Ort::Value inputs[] = { std::move(input_tensor) };
-    Ort::Value outputs[] = { std::move(policy_tensor), std::move(value_tensor) };
-    
-    // 3. Execute inference synchronously on CPU
-    session_->Run(
-        Ort::RunOptions{nullptr},
-        input_names,
-        inputs,
-        1,
-        output_names,
-        outputs,
-        2
-    );
     
     // 4. Fill results and execute Softmax for legal moves
     for (size_t b = 0; b < enqueued_; ++b) {
@@ -256,13 +261,15 @@ OnnxBackend::OnnxBackend()
 }
 
 BackendAttributes OnnxBackend::GetAttributes() const {
+    int rec_batch = fixed_batch_ ? static_cast<int>(fixed_batch_size_) : 16;
+    int max_batch = fixed_batch_ ? static_cast<int>(fixed_batch_size_) : static_cast<int>(MaxBatchSize);
     return BackendAttributes{
         .has_mlh = false,
         .has_wdl = true,
-        .runs_on_cpu = true,
+        .runs_on_cpu = (provider_ == "cpu"),
         .suggested_num_search_threads = 2,
-        .recommended_batch_size = 16,
-        .maximum_batch_size = static_cast<int>(MaxBatchSize)
+        .recommended_batch_size = rec_batch,
+        .maximum_batch_size = max_batch
     };
 }
 
@@ -288,24 +295,18 @@ void OnnxBackend::InitializeSession() {
     session_options_ = Ort::SessionOptions();
     session_options_.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     
-    if (provider_ == "cpu") {
-        // CPU Profile: Dynamic batching, Disable memory pattern, physical core optimization
-        session_options_.SetIntraOpNumThreads(intra_op_threads_);
-        session_options_.SetInterOpNumThreads(1);
-        session_options_.DisableMemPattern();
-        
-        std::cout << "[ONNX Backend] CPU profile activated: Dynamic batching, DisableMemPattern, IntraOp=" 
-                  << intra_op_threads_ << std::endl;
-    } else {
+    if (provider_ != "cpu" && fixed_batch_) {
         // GPU Profile (CUDA / TensorRT)
         session_options_.EnableMemPattern();
         
-        // Override batch dimension using raw C API through C++ wrapper GetApi()
-        try {
-            Ort::ThrowOnError(Ort::GetApi().AddFreeDimensionOverrideByName(session_options_, "batch", fixed_batch_size_));
-            std::cout << "[ONNX Backend] GPU profile options set: Fixed batch size = " << fixed_batch_size_ << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "[ONNX Backend] Warning: Failed to set batch size override: " << e.what() << std::endl;
+        if (fixed_batch_size_ > 0) {
+            // Override batch dimension using raw C API through C++ wrapper GetApi()
+            try {
+                Ort::ThrowOnError(Ort::GetApi().AddFreeDimensionOverrideByName(session_options_, "batch", fixed_batch_size_));
+                std::cout << "[ONNX Backend] GPU profile options set: Fixed batch size = " << fixed_batch_size_ << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "[ONNX Backend] Warning: Failed to set batch size override: " << e.what() << std::endl;
+            }
         }
         
         // Append execution providers (CUDA / TensorRT) - placeholders for Colab compiling
@@ -316,6 +317,14 @@ void OnnxBackend::InitializeSession() {
         
         std::cout << "[ONNX Backend] GPU profile activated (" << provider_ << "): Fixed batch=" 
                   << fixed_batch_size_ << std::endl;
+    } else {
+        // CPU Profile: Dynamic batching, Disable memory pattern, physical core optimization
+        session_options_.SetIntraOpNumThreads(intra_op_threads_);
+        session_options_.SetInterOpNumThreads(1);
+        session_options_.DisableMemPattern();
+        
+        std::cout << "[ONNX Backend] CPU profile activated: Dynamic batching, DisableMemPattern, IntraOp=" 
+                  << intra_op_threads_ << std::endl;
     }
     
     std::cout << "[ONNX Backend] Loading model weights from: " << weights_path_ << std::endl;
@@ -370,13 +379,15 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
         }
     }
 
-    if (provider_ == "cuda" || provider_ == "tensorrt") {
-        if (fixed_batch_size_ == 0) {
-            fixed_batch_ = false;
-        } else {
-            fixed_batch_ = true;
-        }
+    // Validate provider
+    if (provider_ != "cpu" && provider_ != "cuda" && provider_ != "tensorrt") {
+        std::cerr << "[ONNX Backend] Warning: Unknown provider '" << provider_ 
+                  << "', fallback to 'cpu'" << std::endl;
+        provider_ = "cpu";
     }
+
+    // Single source of truth for fixed batch
+    fixed_batch_ = (provider_ != "cpu" && fixed_batch_size_ > 0);
 
     // Reload model with new settings
     InitializeSession();
