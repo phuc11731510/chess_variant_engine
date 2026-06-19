@@ -376,6 +376,14 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
         }
     }
 
+    // Clamp fixed_batch_size to MaxBatchSize to prevent static buffer overflow
+    if (fixed_batch_size_ > MaxBatchSize) {
+        std::cerr << "[ONNX Backend] Warning: fixed_batch (" << fixed_batch_size_ 
+                  << ") exceeds MaxBatchSize (" << MaxBatchSize 
+                  << "). Clamping to " << MaxBatchSize << std::endl;
+        fixed_batch_size_ = MaxBatchSize;
+    }
+
     // Validate provider
     if (provider_ != "cpu" && provider_ != "cuda" && provider_ != "tensorrt") {
         std::cerr << "[ONNX Backend] Warning: Unknown provider '" << provider_ 
