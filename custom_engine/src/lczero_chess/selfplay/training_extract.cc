@@ -2,10 +2,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <optional>
 #include <span>
 
-#include "chess/encoder.h"  // MoveToNNIndex
+#include "chess/encoder.h"  // MoveToNNIndex, EncodePositionForNN, InputPlanes
 
 namespace lczero {
 
@@ -103,6 +104,59 @@ void AssignResult(TrainingDataV1& rec, GameResult abs_result,
   const bool stm_won = (white_won == stm_is_white);
   rec.result_q = stm_won ? 1.0f : -1.0f;
   rec.result_d = 0.0f;
+}
+
+void EncodePlanesIntoRecord(const PositionHistory& history,
+                            TrainingDataV1& rec) {
+  InputPlanes planes;
+  int transform = 0;
+  EncodePositionForNN(history, kMoveHistory, FillEmptyHistory::FEN_ONLY,
+                      &planes, &transform);
+
+  // 216 history piece planes -> 128-bit bitboard masks (lo64, hi64).
+  // memcpy preserves the exact bits for both the __int128 and {u64[2]}
+  // representations of Stockfish::Bitboard on little-endian.
+  static_assert(sizeof(planes[0].mask) == 2 * sizeof(uint64_t),
+                "Bitboard is not 128-bit");
+  for (int p = 0; p < kHistoryPlanes; ++p) {
+    std::memcpy(rec.piece_planes[p], &planes[p].mask, 2 * sizeof(uint64_t));
+  }
+  // En-passant plane is aux index 4 (kAuxPlaneBase + 4).
+  std::memcpy(rec.ep_mask, &planes[kAuxPlaneBase + 4].mask, 2 * sizeof(uint64_t));
+
+  // --- Scalar aux read directly from the position (raw; Python normalizes) ---
+  const Position& last = history.Last();
+  const Stockfish::Position& pos = last.GetBoard().GetRawPosition();
+  const Stockfish::Color us = pos.side_to_move();
+  const Stockfish::Color them = ~us;
+
+  rec.side_to_move = (us == Stockfish::BLACK) ? 1 : 0;
+  rec.rule50_count =
+      static_cast<uint8_t>(std::clamp(last.GetRule50Ply(), 0, 255));
+  rec.checks_remaining_us = static_cast<uint8_t>(
+      std::clamp(static_cast<int>(pos.checks_remaining(us)), 0, 255));
+  rec.checks_remaining_them = static_cast<uint8_t>(
+      std::clamp(static_cast<int>(pos.checks_remaining(them)), 0, 255));
+
+  // Castling: store the rook FILE (0-9) for each right, 0xFF if no right.
+  // The vertical flip used for the canonical frame preserves file, so the file
+  // of the actual rook square equals the file in the canonical frame.
+  auto castle_file = [&](Stockfish::CastlingRights cr) -> uint8_t {
+    if (!pos.can_castle(cr)) return kNoCastlingFile;
+    return static_cast<uint8_t>(Stockfish::file_of(pos.castling_rook_square(cr)));
+  };
+  const Stockfish::CastlingRights us_ooo =
+      (us == Stockfish::WHITE) ? Stockfish::WHITE_OOO : Stockfish::BLACK_OOO;
+  const Stockfish::CastlingRights us_oo =
+      (us == Stockfish::WHITE) ? Stockfish::WHITE_OO : Stockfish::BLACK_OO;
+  const Stockfish::CastlingRights them_ooo =
+      (us == Stockfish::WHITE) ? Stockfish::BLACK_OOO : Stockfish::WHITE_OOO;
+  const Stockfish::CastlingRights them_oo =
+      (us == Stockfish::WHITE) ? Stockfish::BLACK_OO : Stockfish::WHITE_OO;
+  rec.castling_us_ooo_file = castle_file(us_ooo);
+  rec.castling_us_oo_file = castle_file(us_oo);
+  rec.castling_them_ooo_file = castle_file(them_ooo);
+  rec.castling_them_oo_file = castle_file(them_oo);
 }
 
 }  // namespace lczero

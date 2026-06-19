@@ -24,6 +24,7 @@
 #include "trainingdata/trainingdata_v1.h"
 #include "trainingdata/writer.h"
 #include "selfplay/training_extract.h"
+#include "selfplay/selfplay_game.h"
 #include <cstring>
 #include <cstdio>
 #include <cmath>
@@ -1373,6 +1374,139 @@ checkCounting = true
     std::cout << "========================================\n" << std::endl;
 }
 
+// T3: full self-play game -> writes all positions to a .gz, then verifies the
+// file round-trips with a result assigned to every record.
+void run_selfplay_tests(const std::string& weights_path = "weights_0_elo.onnx") {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "RUNNING T3 (SELF-PLAY 1 GAME) TESTS..." << std::endl;
+    std::cout << "========================================\n" << std::endl;
+
+    std::string ini_text = R"(
+[custom_10x10_variant]
+maxRank = 10
+maxFile = j
+pawn = p
+knight = n
+bishop = b
+rook = r
+queen = q
+king = k:KN
+amazon = a
+chancellor = e
+archbishop = h
+centaur = m
+customPiece1 = v:CN
+customPiece2 = y:AD
+customPiece3 = s:fKifmnDifmnA
+pawnTypes = p s
+promotionPawnTypes = p s
+enPassantTypes = p s
+nMoveRuleTypes = p s
+doubleStep = true
+doubleStepRegionWhite = *1 *2 *3
+doubleStepRegionBlack = *10 *9 *8
+promotionRegionWhite = *8 *9 *10
+promotionRegionBlack = *3 *2 *1
+mandatoryPawnPromotion = true
+promotionPieceTypes = b h m n v y
+castling = true
+castlingKingsideFile = h
+castlingQueensideFile = d
+castlingRookKingsideFile = i
+castlingRookQueensideFile = b
+stalemateValue = loss
+checkCounting = true
+)";
+    std::istringstream ss(ini_text);
+    variants.parse_istream<false>(ss);
+    const Variant* v = variants.find("custom_10x10_variant")->second;
+    if (!v) { std::cerr << "[FAIL] custom_10x10_variant not found!" << std::endl; std::exit(1); }
+    UCI::init_variant(v);
+    PSQT::init(v);
+
+    std::string fen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+
+    lczero::OptionsParser parser;
+    lczero::classic::SearchParams::Populate(&parser);
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.25f);
+    parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, 0.3f);
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_path);
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "threads=2");
+    const lczero::OptionsDict& options = parser.GetOptionsDict();
+
+    std::unique_ptr<lczero::Backend> backend;
+    try {
+        auto raw_backend = std::make_unique<lczero::OnnxBackend>();
+        raw_backend->UpdateConfiguration(options);
+        backend = lczero::CreateMemCache(std::move(raw_backend), options);
+        std::cout << "[T3] OnnxBackend + MemCache loaded." << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "[T3] OnnxBackend failed (" << e.what()
+                  << "); using MockBackend." << std::endl;
+        backend = std::make_unique<MockBackend>();
+    }
+
+    const std::string out_file =
+        std::string("test_selfplay_game") + lczero::TrainingDataWriter::Extension();
+
+    std::cout << "Playing 1 game (visits=32, max_moves=30, temp_cutoff_ply=8)..." << std::endl;
+    lczero::GameResult result = lczero::PlayOneGame(
+        fen, backend.get(), options, /*visits=*/32, /*max_moves=*/30,
+        /*temp_cutoff_ply=*/8, out_file, /*search_threads=*/2);
+    std::cout << "Game finished: result=" << (int)result << ", file=" << out_file << std::endl;
+
+    // --- Verify the file round-trips and every record is valid ---
+    std::vector<lczero::TrainingDataV1> recs;
+    if (!lczero::ReadTrainingData(out_file, recs)) {
+        std::cerr << "[FAIL] Could not read back " << out_file << std::endl; std::exit(1);
+    }
+    if (recs.empty()) { std::cerr << "[FAIL] No records in file!" << std::endl; std::exit(1); }
+
+    for (size_t i = 0; i < recs.size(); ++i) {
+        const auto& r = recs[i];
+        if (r.version != lczero::kTrainingDataVersion ||
+            r.input_format != lczero::kInputFormat10x10) {
+            std::cerr << "[FAIL] rec " << i << ": bad version/input_format" << std::endl; std::exit(1);
+        }
+        double sum = 0.0;
+        for (int k = 0; k < lczero::kPolicySize; ++k) sum += r.probabilities[k];
+        if (std::abs(sum - 1.0) > 1e-3) {
+            std::cerr << "[FAIL] rec " << i << ": sum(pi)=" << sum << std::endl; std::exit(1);
+        }
+        const bool z_draw = (r.result_d == 1.0f && r.result_q == 0.0f);
+        const bool z_decisive = (r.result_d == 0.0f && (r.result_q == 1.0f || r.result_q == -1.0f));
+        if (!z_draw && !z_decisive) {
+            std::cerr << "[FAIL] rec " << i << ": z not assigned (q=" << r.result_q
+                      << " d=" << r.result_d << ")" << std::endl; std::exit(1);
+        }
+    }
+
+    // The first (startpos) record must have non-empty piece planes (pieces exist).
+    bool any_plane = false;
+    for (int p = 0; p < 26; ++p)
+        if (recs[0].piece_planes[p][0] != 0 || recs[0].piece_planes[p][1] != 0) any_plane = true;
+    if (!any_plane) {
+        std::cerr << "[FAIL] startpos record has all-empty piece planes!" << std::endl; std::exit(1);
+    }
+
+    std::cout << "  Records written/read: " << recs.size()
+              << " | side_to_move[0]=" << (int)recs[0].side_to_move
+              << " rule50[0]=" << (int)recs[0].rule50_count
+              << " checks_us[0]=" << (int)recs[0].checks_remaining_us
+              << " castle_us_oo_file[0]=" << (int)recs[0].castling_us_oo_file
+              << std::endl;
+    std::cout << "[PASS] All " << recs.size()
+              << " records valid (pi=1, z assigned, planes non-empty)." << std::endl;
+
+    std::remove(out_file.c_str());
+
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "ALL T3 (SELF-PLAY) TESTS PASSED!" << std::endl;
+    std::cout << "========================================\n" << std::endl;
+}
+
 void run_policy_tests() {
     std::cout << "\n========================================" << std::endl;
     std::cout << "RUNNING POLICY ENCODER/DECODER BIJECTION TESTS..." << std::endl;
@@ -1492,6 +1626,7 @@ int main(int argc, char* argv[]) {
     bool test_policy_mode = false;
     bool test_trainingdata_mode = false;
     bool test_extract_mode = false;
+    bool test_selfplay_mode = false;
     std::string weights_file = "weights_0_elo.onnx";
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
@@ -1506,6 +1641,8 @@ int main(int argc, char* argv[]) {
             test_trainingdata_mode = true;
         } else if (std::string(argv[i]) == "--test-extract") {
             test_extract_mode = true;
+        } else if (std::string(argv[i]) == "--test-selfplay") {
+            test_selfplay_mode = true;
         } else if (std::string(argv[i]) == "--test-mcts") {
             test_mcts_mode = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -1540,6 +1677,8 @@ int main(int argc, char* argv[]) {
         run_trainingdata_tests();
     } else if (test_extract_mode) {
         run_extract_tests(weights_file);
+    } else if (test_selfplay_mode) {
+        run_selfplay_tests(weights_file);
     } else if (test_mcts_mode) {
         run_mcts_tests(weights_file);
     } else if (selfplay_mode) {
