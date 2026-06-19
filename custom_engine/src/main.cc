@@ -63,8 +63,8 @@ doubleStep = true
 doubleStepRegionWhite = *1 *2 *3
 doubleStepRegionBlack = *10 *9 *8
 
-promotionRegionWhite = *9 *10
-promotionRegionBlack = *2 *1
+promotionRegionWhite = *8 *9 *10
+promotionRegionBlack = *3 *2 *1
 mandatoryPawnPromotion = true
 
 stalemateValue = loss
@@ -371,8 +371,8 @@ doubleStep = true
 doubleStepRegionWhite = *1 *2 *3
 doubleStepRegionBlack = *10 *9 *8
 
-promotionRegionWhite = *9 *10
-promotionRegionBlack = *2 *1
+promotionRegionWhite = *8 *9 *10
+promotionRegionBlack = *3 *2 *1
 mandatoryPawnPromotion = true
 promotionPieceTypes = b h m n v y
 
@@ -1081,8 +1081,8 @@ doubleStep = true
 doubleStepRegionWhite = *1 *2 *3
 doubleStepRegionBlack = *10 *9 *8
 
-promotionRegionWhite = *9 *10
-promotionRegionBlack = *2 *1
+promotionRegionWhite = *8 *9 *10
+promotionRegionBlack = *3 *2 *1
 mandatoryPawnPromotion = true
 promotionPieceTypes = b h m n v y
 
