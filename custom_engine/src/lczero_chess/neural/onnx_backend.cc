@@ -97,8 +97,8 @@ static std::vector<std::string> split_options(const std::string& s, char delimit
 // OnnxComputation Implementation
 // ==========================================
 
-OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp)
-    : session_(session), memory_info_(memory_info), softmax_temp_(softmax_temp) {
+OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size)
+    : session_(session), memory_info_(memory_info), softmax_temp_(softmax_temp), fixed_batch_(fixed_batch), fixed_batch_size_(fixed_batch_size) {
     std::memset(input_buffer_, 0, sizeof(input_buffer_));
     std::memset(policy_output_buffer_, 0, sizeof(policy_output_buffer_));
     std::memset(value_output_buffer_, 0, sizeof(value_output_buffer_));
@@ -141,30 +141,44 @@ void OnnxComputation::ComputeBlocking() {
         throw Exception("ONNX Backend: ORT session is not initialized!");
     }
     
+    size_t batch_size = fixed_batch_ ? fixed_batch_size_ : enqueued_;
+    if (fixed_batch_) {
+        if (batch_size > MaxBatchSize) {
+            batch_size = MaxBatchSize;
+        }
+        // Zero out unused slots to avoid NaN/Inf propagation
+        if (batch_size > enqueued_) {
+            size_t pad_count = batch_size - enqueued_;
+            std::memset(input_buffer_ + enqueued_ * InputBufferUnitSize, 0, pad_count * InputBufferUnitSize * sizeof(float));
+            std::memset(policy_output_buffer_ + enqueued_ * PolicyOutputSize, 0, pad_count * PolicyOutputSize * sizeof(float));
+            std::memset(value_output_buffer_ + enqueued_ * ValueOutputSize, 0, pad_count * ValueOutputSize * sizeof(float));
+        }
+    }
+    
     // 1. Direct Memory Mapping: map C++ float arrays directly into Ort::Value (zero-copy)
-    std::array<int64_t, 4> input_shape = { static_cast<int64_t>(enqueued_), static_cast<int64_t>(InputPlanesCount), static_cast<int64_t>(BoardHeight), static_cast<int64_t>(BoardWidth) };
+    std::array<int64_t, 4> input_shape = { static_cast<int64_t>(batch_size), static_cast<int64_t>(InputPlanesCount), static_cast<int64_t>(BoardHeight), static_cast<int64_t>(BoardWidth) };
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
         memory_info_,
         input_buffer_,
-        enqueued_ * InputBufferUnitSize,
+        batch_size * InputBufferUnitSize,
         input_shape.data(),
         input_shape.size()
     );
     
-    std::array<int64_t, 2> policy_shape = { static_cast<int64_t>(enqueued_), static_cast<int64_t>(PolicyOutputSize) };
+    std::array<int64_t, 2> policy_shape = { static_cast<int64_t>(batch_size), static_cast<int64_t>(PolicyOutputSize) };
     Ort::Value policy_tensor = Ort::Value::CreateTensor<float>(
         memory_info_,
         policy_output_buffer_,
-        enqueued_ * PolicyOutputSize,
+        batch_size * PolicyOutputSize,
         policy_shape.data(),
         policy_shape.size()
     );
     
-    std::array<int64_t, 2> value_shape = { static_cast<int64_t>(enqueued_), static_cast<int64_t>(ValueOutputSize) };
+    std::array<int64_t, 2> value_shape = { static_cast<int64_t>(batch_size), static_cast<int64_t>(ValueOutputSize) };
     Ort::Value value_tensor = Ort::Value::CreateTensor<float>(
         memory_info_,
         value_output_buffer_,
-        enqueued_ * ValueOutputSize,
+        batch_size * ValueOutputSize,
         value_shape.data(),
         value_shape.size()
     );
@@ -253,7 +267,13 @@ BackendAttributes OnnxBackend::GetAttributes() const {
 }
 
 std::unique_ptr<BackendComputation> OnnxBackend::CreateComputation() {
-    return std::make_unique<OnnxComputation>(session_.get(), memory_info_, softmax_temp_);
+    return std::make_unique<OnnxComputation>(
+        session_.get(),
+        memory_info_,
+        softmax_temp_,
+        fixed_batch_,
+        fixed_batch_size_
+    );
 }
 
 void OnnxBackend::InitializeSession() {
@@ -264,13 +284,41 @@ void OnnxBackend::InitializeSession() {
     // Reset any old session
     session_.reset();
     
-    // Configure CPU performance settings
-    session_options_.SetIntraOpNumThreads(intra_op_threads_);
-    session_options_.SetInterOpNumThreads(inter_op_threads_);
+    // Reset and rebuild session options
+    session_options_ = Ort::SessionOptions();
+    session_options_.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+    
+    if (provider_ == "cpu") {
+        // CPU Profile: Dynamic batching, Disable memory pattern, physical core optimization
+        session_options_.SetIntraOpNumThreads(intra_op_threads_);
+        session_options_.SetInterOpNumThreads(1);
+        session_options_.DisableMemPattern();
+        
+        std::cout << "[ONNX Backend] CPU profile activated: Dynamic batching, DisableMemPattern, IntraOp=" 
+                  << intra_op_threads_ << std::endl;
+    } else {
+        // GPU Profile (CUDA / TensorRT)
+        session_options_.EnableMemPattern();
+        
+        // Override batch dimension using raw C API through C++ wrapper GetApi()
+        try {
+            Ort::ThrowOnError(Ort::GetApi().AddFreeDimensionOverrideByName(session_options_, "batch", fixed_batch_size_));
+            std::cout << "[ONNX Backend] GPU profile options set: Fixed batch size = " << fixed_batch_size_ << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "[ONNX Backend] Warning: Failed to set batch size override: " << e.what() << std::endl;
+        }
+        
+        // Append execution providers (CUDA / TensorRT) - placeholders for Colab compiling
+        // To enable CUDA on Colab, include <cuda_provider_factory.h> and uncomment below:
+        // OrtCUDAProviderOptions options;
+        // options.device_id = 0;
+        // session_options_.AppendExecutionProvider_CUDA(options);
+        
+        std::cout << "[ONNX Backend] GPU profile activated (" << provider_ << "): Fixed batch=" 
+                  << fixed_batch_size_ << std::endl;
+    }
     
     std::cout << "[ONNX Backend] Loading model weights from: " << weights_path_ << std::endl;
-    std::cout << "[ONNX Backend] Threading configuration: IntraOp=" << intra_op_threads_ 
-              << ", InterOp=" << inter_op_threads_ << std::endl;
               
     try {
 #ifdef _WIN32
@@ -288,13 +336,16 @@ void OnnxBackend::InitializeSession() {
 void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     weights_path_ = opts.Get<std::string>(SharedBackendParams::kWeightsId);
     backend_opts_ = opts.GetOrDefault<std::string>(SharedBackendParams::kBackendOptionsId, "");
-    
+
     softmax_temp_ = opts.GetOrDefault<float>(SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
-    
-    // Parse backend options (e.g. "threads=4,inter_op_threads=1")
+
+    // Parse backend options (e.g. "threads=4,inter_op_threads=1,provider=cpu,fixed_batch=16")
     intra_op_threads_ = 1;
     inter_op_threads_ = 1;
-    
+    provider_ = "cpu";
+    fixed_batch_ = false;
+    fixed_batch_size_ = 16;
+
     if (!backend_opts_.empty()) {
         for (const auto& opt : split_options(backend_opts_, ',')) {
             auto parts = split_options(opt, '=');
@@ -307,11 +358,26 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
                     try {
                         inter_op_threads_ = std::stoi(parts[1]);
                     } catch (...) {}
+                } else if (parts[0] == "provider") {
+                    provider_ = parts[1];
+                } else if (parts[0] == "fixed_batch") {
+                    try {
+                        fixed_batch_size_ = std::stoi(parts[1]);
+                        fixed_batch_ = true;
+                    } catch (...) {}
                 }
             }
         }
     }
-    
+
+    if (provider_ == "cuda" || provider_ == "tensorrt") {
+        if (fixed_batch_size_ == 0) {
+            fixed_batch_ = false;
+        } else {
+            fixed_batch_ = true;
+        }
+    }
+
     // Reload model with new settings
     InitializeSession();
 }

@@ -18,7 +18,7 @@ constexpr size_t ValueOutputSize = 3;     // WDL (Win, Draw, Loss)
 
 class OnnxComputation : public BackendComputation {
  public:
-  OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp = 1.0f);
+  OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size);
   ~OnnxComputation() override = default;
 
   size_t UsedBatchSize() const override { return enqueued_; }
@@ -43,6 +43,8 @@ class OnnxComputation : public BackendComputation {
   EvalResultPtr results_[MaxBatchSize];
   StaticVector<Move, 384> position_moves_[MaxBatchSize];
   float softmax_temp_;
+  bool fixed_batch_;
+  size_t fixed_batch_size_;
 };
 
 class OnnxBackend : public Backend {
@@ -66,6 +68,9 @@ class OnnxBackend : public Backend {
   
   std::string weights_path_;
   std::string backend_opts_;
+  std::string provider_ = "cpu";
+  bool fixed_batch_ = false;
+  size_t fixed_batch_size_ = 16;
   int intra_op_threads_ = 1;
   int inter_op_threads_ = 1;
   float softmax_temp_ = 1.0f;
