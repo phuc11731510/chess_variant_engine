@@ -208,69 +208,124 @@ checkCounting = true
 
     // TEST 3: EP FEN Round-trip
     {
-        std::cout << "\n--- TEST 3: EP FEN Round-trip ---" << std::endl;
-        Position pos;
-        StateListPtr states(new std::deque<StateInfo>(1));
-        std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1";
-        pos.set(v, fen, false, &states->back(), Threads.main());
-
-        std::string move_str_a3c5 = "a3c5";
-        Move m_a3c5 = UCI::to_move(pos, move_str_a3c5);
-        if (m_a3c5 == MOVE_NONE) {
-            std::cerr << "[FAIL] a3c5 is not a valid move in initial position!" << std::endl;
-            std::exit(1);
-        }
-
-        states->emplace_back();
-        pos.do_move(m_a3c5, states->back());
-        std::string fen_after = pos.fen();
-        std::cout << "FEN after a3c5: " << fen_after << std::endl;
-
-        // Verify that the FEN contains the multi-square EP "b4c5"
-        if (fen_after.find("b4c5") == std::string::npos) {
-            std::cerr << "[WARNING] FEN does not contain 'b4c5' as expected. Actual FEN: " << fen_after << std::endl;
-        }
-
-        // Try to parse this FEN back into a new Position object
-        Position pos2;
-        StateListPtr states2(new std::deque<StateInfo>(1));
-        try {
-            pos2.set(v, fen_after, false, &states2->back(), Threads.main());
-            std::cout << "Successfully parsed FEN back into Position object!" << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "[FAIL] Exception thrown while parsing FEN: " << e.what() << std::endl;
-            std::exit(1);
-        }
-
-        // Verify that legal moves for Black generated from pos2 include b5b4 as EN_PASSANT
-        bool b5b4_found = false;
-        Move m_b5b4 = MOVE_NONE;
-        for (const auto& m : MoveList<LEGAL>(pos2)) {
-            std::string move_str = UCI::move(pos2, m);
-            if (move_str == "b5b4") {
-                b5b4_found = true;
-                m_b5b4 = m;
-            }
-        }
-
-        if (!b5b4_found) {
-            std::cerr << "[FAIL] b5b4 not found in legal moves after parsing FEN!" << std::endl;
-            std::exit(1);
-        }
-
-        if (type_of(m_b5b4) != EN_PASSANT) {
-            std::cerr << "[FAIL] b5b4 parsed from FEN is NOT registered as EN_PASSANT! Type=" << type_of(m_b5b4) << std::endl;
-            std::exit(1);
-        }
-
-        states2->emplace_back();
-        pos2.do_move(m_b5b4, states2->back());
+        std::cout << "\n--- TEST 3: EP FEN Round-trip (Straight & Diagonal, Stockfish & Adapter) ---" << std::endl;
         
-        // Check if White Sergeant on c5 is removed
-        Square sq_c5 = make_square(FILE_C, RANK_5);
-        if (pos2.piece_on(sq_c5) != NO_PIECE) {
-            std::cerr << "[FAIL] White Sergeant is still on c5 after EP capture on parsed board!" << std::endl;
-            std::exit(1);
+        // Sub-test 3.1: Straight EP Round-trip using Stockfish::Position (FS Layer)
+        {
+            Position pos;
+            StateListPtr states(new std::deque<StateInfo>(1));
+            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1";
+            pos.set(v, fen, false, &states->back(), Threads.main());
+
+            std::string move_str_a3c5 = "a3c5";
+            Move m_a3c5 = UCI::to_move(pos, move_str_a3c5);
+            states->emplace_back();
+            pos.do_move(m_a3c5, states->back());
+            std::string fen_after = pos.fen();
+            std::cout << "  FEN after a3c5 (Straight): " << fen_after << std::endl;
+
+            Position pos2;
+            StateListPtr states2(new std::deque<StateInfo>(1));
+            pos2.set(v, fen_after, false, &states2->back(), Threads.main());
+
+            bool b5b4_found = false;
+            Move m_b5b4 = MOVE_NONE;
+            for (const auto& m : MoveList<LEGAL>(pos2)) {
+                if (UCI::move(pos2, m) == "b5b4") {
+                    b5b4_found = true;
+                    m_b5b4 = m;
+                }
+            }
+
+            if (!b5b4_found || type_of(m_b5b4) != EN_PASSANT) {
+                std::cerr << "[FAIL] b5b4 straight EP not found or invalid type after FEN round-trip!" << std::endl;
+                std::exit(1);
+            }
+
+            states2->emplace_back();
+            pos2.do_move(m_b5b4, states2->back());
+            if (pos2.piece_on(make_square(FILE_C, RANK_5)) != NO_PIECE) {
+                std::cerr << "[FAIL] White Sergeant still on c5 after straight EP capture on parsed board!" << std::endl;
+                std::exit(1);
+            }
+            std::cout << "  Sub-test 3.1: Straight EP via FS layer passed!" << std::endl;
+        }
+
+        // Sub-test 3.2: Diagonal EP Round-trip using Stockfish::Position (FS Layer)
+        {
+            Position pos;
+            StateListPtr states(new std::deque<StateInfo>(1));
+            std::string fen = "5k4/10/10/10/10/s9/10/S9/10/5K4 w - - 7+7 0 1";
+            pos.set(v, fen, false, &states->back(), Threads.main());
+
+            std::string move_str_a3c5 = "a3c5";
+            Move m_a3c5 = UCI::to_move(pos, move_str_a3c5);
+            states->emplace_back();
+            pos.do_move(m_a3c5, states->back());
+            std::string fen_after = pos.fen();
+            std::cout << "  FEN after a3c5 (Diagonal): " << fen_after << std::endl;
+
+            Position pos2;
+            StateListPtr states2(new std::deque<StateInfo>(1));
+            pos2.set(v, fen_after, false, &states2->back(), Threads.main());
+
+            bool a5b4_found = false;
+            Move m_a5b4 = MOVE_NONE;
+            for (const auto& m : MoveList<LEGAL>(pos2)) {
+                if (UCI::move(pos2, m) == "a5b4") {
+                    a5b4_found = true;
+                    m_a5b4 = m;
+                }
+            }
+
+            if (!a5b4_found || type_of(m_a5b4) != EN_PASSANT) {
+                std::cerr << "[FAIL] a5b4 diagonal EP not found or invalid type after FEN round-trip!" << std::endl;
+                std::exit(1);
+            }
+
+            states2->emplace_back();
+            pos2.do_move(m_a5b4, states2->back());
+            if (pos2.piece_on(make_square(FILE_C, RANK_5)) != NO_PIECE) {
+                std::cerr << "[FAIL] White Sergeant still on c5 after diagonal EP capture on parsed board!" << std::endl;
+                std::exit(1);
+            }
+            std::cout << "  Sub-test 3.2: Diagonal EP via FS layer passed!" << std::endl;
+        }
+
+        // Sub-test 3.3: Round-trip using lczero::ChessBoard (Adapter Layer)
+        {
+            lczero::ChessBoard board1;
+            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1";
+            board1.SetFromFen(fen);
+
+            lczero::Move m_a3c5 = board1.ParseMove("a3c5");
+            board1.ApplyMove(m_a3c5);
+            std::string fen_after = board1.GetRawPosition().fen();
+
+            lczero::ChessBoard board2;
+            board2.SetFromFen(fen_after);
+
+            bool b5b4_found = false;
+            lczero::MoveList moves = board2.GenerateLegalMoves();
+            for (size_t i = 0; i < moves.size(); ++i) {
+                if (board2.MoveToString(moves[i]) == "b5b4") {
+                    b5b4_found = true;
+                }
+            }
+
+            if (!b5b4_found) {
+                std::cerr << "[FAIL] b5b4 EP not found in legal moves on adapter ChessBoard!" << std::endl;
+                std::exit(1);
+            }
+
+            lczero::Move m_b5b4 = board2.ParseMove("b5b4");
+            board2.ApplyMove(m_b5b4);
+
+            if (board2.GetRawPosition().piece_on(make_square(FILE_C, RANK_5)) != NO_PIECE) {
+                std::cerr << "[FAIL] White Sergeant still on c5 after EP capture on adapter ChessBoard!" << std::endl;
+                std::exit(1);
+            }
+            std::cout << "  Sub-test 3.3: EP Round-trip via Adapter ChessBoard passed!" << std::endl;
         }
 
         std::cout << "[PASS] EP FEN Round-trip test passed!" << std::endl;
