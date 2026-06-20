@@ -1836,9 +1836,11 @@ void run_bits_tests() {
     setup_custom_variant();
 
     const Stockfish::Bitboard low64 = Stockfish::Bitboard(0xFFFFFFFFFFFFFFFFULL);
+    // Cast via unsigned long long first to avoid the ambiguous Bitboard->uint64_t
+    // conversion on Linux (where uint64_t = unsigned long). See training_extract.cc.
     auto split = [&](const Stockfish::Bitboard& m, uint64_t out[2]) {
-        out[0] = static_cast<uint64_t>(m & low64);  // squares 0-63
-        out[1] = static_cast<uint64_t>(m >> 64);    // squares 64-127
+        out[0] = static_cast<uint64_t>(static_cast<unsigned long long>(m & low64));  // squares 0-63
+        out[1] = static_cast<uint64_t>(static_cast<unsigned long long>(m >> 64));    // squares 64-127
     };
 
     // E1: square_bb(s) must serialize to EXACTLY bit s for all 120 squares

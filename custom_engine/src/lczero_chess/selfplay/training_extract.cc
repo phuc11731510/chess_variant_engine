@@ -126,9 +126,15 @@ void EncodePlanesIntoRecord(const PositionHistory& history,
   static_assert(sizeof(planes[0].mask) == 2 * sizeof(uint64_t),
                 "Bitboard is not 128-bit");
   const Stockfish::Bitboard low64 = Stockfish::Bitboard(0xFFFFFFFFFFFFFFFFULL);
+  // Cast via `unsigned long long` first: that exactly matches Bitboard's
+  // conversion operator (so it is unambiguous), then narrow to uint64_t. On
+  // Linux uint64_t is `unsigned long` so a direct static_cast<uint64_t>(bb) is
+  // ambiguous between the struct's `operator unsigned long long` and `operator
+  // unsigned`; the explicit intermediate cast resolves it. Works for both the
+  // struct and __int128 Bitboard representations.
   auto split = [&low64](const Stockfish::Bitboard& m, uint64_t out[2]) {
-    out[0] = static_cast<uint64_t>(m & low64);  // squares 0-63
-    out[1] = static_cast<uint64_t>(m >> 64);    // squares 64-127
+    out[0] = static_cast<uint64_t>(static_cast<unsigned long long>(m & low64));  // squares 0-63
+    out[1] = static_cast<uint64_t>(static_cast<unsigned long long>(m >> 64));    // squares 64-127
   };
   for (int p = 0; p < kHistoryPlanes; ++p) {
     split(planes[p].mask, rec.piece_planes[p]);
