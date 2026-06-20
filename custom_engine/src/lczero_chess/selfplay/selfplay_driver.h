@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 
 #include "neural/backend.h"
 #include "utils/optionsdict.h"
@@ -8,7 +9,8 @@ namespace lczero {
 
 // Configuration for a batch of self-play games.
 struct SelfPlayConfig {
-  std::string start_fen;          // starting position FEN.
+  std::string start_fen;          // starting position FEN (used if start_fens empty).
+  std::vector<std::string> start_fens;  // opening book: pick one per game (diverse openings).
   std::string out_dir = "selfplay_data";  // output directory (1 .gz per game).
   int num_games = 100;            // total games to generate.
   int visits = 200;               // NEW MCTS playouts per move.

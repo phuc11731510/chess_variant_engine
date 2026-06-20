@@ -104,6 +104,11 @@ fi
 set -e
 
 echo ""
-echo "[colab] DONE. To generate data on GPU and train:"
+echo "[colab] DONE. Manual gen-data + train:"
 echo "  $BIN --selfplay --games 1000 --parallel 2 --visits 200 --provider cuda --fixed-batch 32 --weights python/model_gen0.onnx --out python/selfplay_data"
 echo "  python python/train.py --data python/selfplay_data --epochs 20 --batch 256 --init-from python/model_gen0.pt --out python/model_gen1.onnx --pin-memory --workers 2"
+echo ""
+echo "[colab] Or run the FULL AlphaZero loop (T7) on GPU:"
+echo "  python python/loop.py --engine $BIN --gens 10 --games-per-gen 1000 --visits 200 \\"
+echo "      --window-gens 4 --epochs 20 --batch 256 --provider cuda --fixed-batch 32 \\"
+echo "      --parallel 2 --eval-games 40 --diff-focus --workdir python/loop_run"

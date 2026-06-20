@@ -60,6 +60,19 @@ def main():
     ap.add_argument("--fixed-batch", type=int, default=16)
     ap.add_argument("--eval-games", type=int, default=0,
                     help="arena games (new gen vs previous); 0 = skip")
+    # Self-play search hyperparameters (passed through to the engine).
+    ap.add_argument("--noise-epsilon", type=float, default=None)
+    ap.add_argument("--noise-alpha", type=float, default=None)
+    ap.add_argument("--cpuct", type=float, default=None)
+    ap.add_argument("--policy-temp", type=float, default=None)
+    ap.add_argument("--start-fen", default=None, help="FEN or opening-book file (diverse openings)")
+    # Training hyperparameters (passed through to train.py).
+    ap.add_argument("--weight-decay", type=float, default=None)
+    ap.add_argument("--value-weight", type=float, default=None)
+    ap.add_argument("--df-slope", type=float, default=None)
+    ap.add_argument("--df-kld-w", type=float, default=None)
+    ap.add_argument("--df-min", type=float, default=None)
+    ap.add_argument("--swa-start-frac", type=float, default=None)
     args = ap.parse_args()
 
     models = os.path.join(args.workdir, "models")
@@ -89,6 +102,11 @@ def main():
             sp += ["--provider", "cuda", "--fixed-batch", args.fixed_batch]
         else:
             sp += ["--backend-threads", args.backend_threads]
+        for flag, val in [("--noise-epsilon", args.noise_epsilon), ("--noise-alpha", args.noise_alpha),
+                          ("--cpuct", args.cpuct), ("--policy-temp", args.policy_temp),
+                          ("--start-fen", args.start_fen)]:
+            if val is not None:
+                sp += [flag, val]
         run(sp)
 
         # 2. rolling window = the last `window_gens` generation dirs (FIFO).
@@ -105,6 +123,11 @@ def main():
             tr += ["--diff-focus"]
         if args.provider == "cuda":
             tr += ["--pin-memory"]
+        for flag, val in [("--weight-decay", args.weight_decay), ("--value-weight", args.value_weight),
+                          ("--df-slope", args.df_slope), ("--df-kld-w", args.df_kld_w),
+                          ("--df-min", args.df_min), ("--swa-start-frac", args.swa_start_frac)]:
+            if val is not None:
+                tr += [flag, val]
         run(tr)
 
         # 4. arena: does the new generation beat the previous one?

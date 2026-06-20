@@ -106,13 +106,21 @@ def main():
     ap.add_argument("--pin-memory", action="store_true", help="pin host memory (faster CPU->GPU copy)")
     ap.add_argument("--no-cache", action="store_true", help="stream records (lower RAM for big data)")
     ap.add_argument("--diff-focus", action="store_true", help="prefer 'surprising' positions (8.2.6)")
+    ap.add_argument("--df-slope", type=float, default=1.0, help="diff_focus: keep-prob slope")
+    ap.add_argument("--df-kld-w", type=float, default=0.5, help="diff_focus: policy_kld weight")
+    ap.add_argument("--df-min", type=float, default=0.2, help="diff_focus: min keep prob")
+    ap.add_argument("--weight-decay", type=float, default=1e-4, help="L2 regularization (8.2.5)")
+    ap.add_argument("--value-weight", type=float, default=1.0, help="value-loss weight vs policy")
+    ap.add_argument("--swa-start-frac", type=float, default=0.75, help="start SWA at this fraction of epochs")
+    ap.add_argument("--swa-lr", type=float, default=0.0, help="SWA LR (0 => lr*0.5)")
     args = ap.parse_args()
     if args.threads > 0:
         torch.set_num_threads(args.threads)
 
     torch.manual_seed(0)
     ds = FairyDataset(args.data, q_ratio=args.q_ratio, downsample_keep=args.downsample,
-                      cache=not args.no_cache, diff_focus=args.diff_focus)
+                      cache=not args.no_cache, diff_focus=args.diff_focus,
+                      df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min)
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
                     num_workers=args.workers, pin_memory=args.pin_memory,
                     persistent_workers=(args.workers > 0))
@@ -121,10 +129,10 @@ def main():
     if args.init_from:
         net.load_state_dict(torch.load(args.init_from, map_location="cpu"))
         print(f"[warm-start] loaded weights from {args.init_from}")
-    opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=1e-4)
+    opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     swa_net = AveragedModel(net)
-    swa_start = max(1, int(args.epochs * 0.75))
-    swa_sched = SWALR(opt, swa_lr=args.lr * 0.5)
+    swa_start = max(1, int(args.epochs * args.swa_start_frac))
+    swa_sched = SWALR(opt, swa_lr=(args.swa_lr if args.swa_lr > 0 else args.lr * 0.5))
 
     print(f"[train] params={sum(p.numel() for p in net.parameters())/1e6:.2f}M "
           f"swa_start_epoch={swa_start}")
@@ -136,7 +144,7 @@ def main():
             p_logits, v_logits = net(x)
             lp = policy_loss(p_logits, pi)
             lv = value_loss(v_logits, val)
-            (lp + lv).backward()
+            (lp + args.value_weight * lv).backward()
             opt.step()
             bs = x.size(0)
             tp += lp.item() * bs; tv += lv.item() * bs; n += bs

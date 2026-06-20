@@ -1,0 +1,9 @@
+*.onnx
+*.pt
+*.bin
+*.gz
+__pycache__/
+selfplay_data/
+loop_run/
+bench/
+rt_*

@@ -2260,6 +2260,9 @@ int main(int argc, char* argv[]) {
     int sp_fixed_batch = 16;
     std::string sp_out = "selfplay_data";
     std::string sp_provider = "cpu";  // "cpu" or "cuda" (CUDA EP needs a -Duse_cuda build)
+    // Self-play search hyperparameters (tunable).
+    float sp_noise_eps = 0.25f, sp_noise_alpha = 0.3f, sp_policy_temp = 1.0f, sp_cpuct = -1.0f;
+    std::string sp_start_fen;  // empty=default startpos; a FEN; or a path to a file of FENs
     // Arena (model-vs-model evaluation) options.
     bool arena_mode = false;
     std::string arena_a, arena_b;
@@ -2286,6 +2289,16 @@ int main(int argc, char* argv[]) {
             sp_provider = argv[++i];
         } else if (std::string(argv[i]) == "--fixed-batch" && i + 1 < argc) {
             sp_fixed_batch = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--noise-epsilon" && i + 1 < argc) {
+            sp_noise_eps = static_cast<float>(std::atof(argv[++i]));
+        } else if (std::string(argv[i]) == "--noise-alpha" && i + 1 < argc) {
+            sp_noise_alpha = static_cast<float>(std::atof(argv[++i]));
+        } else if (std::string(argv[i]) == "--policy-temp" && i + 1 < argc) {
+            sp_policy_temp = static_cast<float>(std::atof(argv[++i]));
+        } else if (std::string(argv[i]) == "--cpuct" && i + 1 < argc) {
+            sp_cpuct = static_cast<float>(std::atof(argv[++i]));
+        } else if (std::string(argv[i]) == "--start-fen" && i + 1 < argc) {
+            sp_start_fen = argv[++i];
         } else if (std::string(argv[i]) == "--arena") {
             arena_mode = true;
         } else if (std::string(argv[i]) == "--model-a" && i + 1 < argc) {
@@ -2384,10 +2397,12 @@ int main(int argc, char* argv[]) {
 
         lczero::OptionsParser parser;
         lczero::classic::SearchParams::Populate(&parser);
-        parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
+        parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, sp_policy_temp);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
-        parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.25f);
-        parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, 0.3f);
+        parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, sp_noise_eps);
+        parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, sp_noise_alpha);
+        if (sp_cpuct >= 0.0f)
+            parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, sp_cpuct);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_file);
         // Backend options. CPU: game-level parallelism + low intra-op threads.
         // CUDA (Colab GPU, needs a -Duse_cuda build): provider=cuda + fixed_batch.
@@ -2413,7 +2428,20 @@ int main(int argc, char* argv[]) {
         }
 
         lczero::SelfPlayConfig cfg;
-        cfg.start_fen = fen;
+        cfg.start_fen = fen;  // default = startpos
+        if (!sp_start_fen.empty()) {
+            std::ifstream ff(sp_start_fen);
+            if (ff) {  // an opening book: one FEN per line (# = comment)
+                std::string line;
+                while (std::getline(ff, line)) {
+                    if (!line.empty() && line[0] != '#') cfg.start_fens.push_back(line);
+                }
+                std::cout << "[selfplay] opening book: " << cfg.start_fens.size()
+                          << " FENs from " << sp_start_fen << std::endl;
+            } else {
+                cfg.start_fen = sp_start_fen;  // a single FEN string
+            }
+        }
         cfg.out_dir = sp_out;
         cfg.num_games = sp_games;
         cfg.visits = sp_visits;

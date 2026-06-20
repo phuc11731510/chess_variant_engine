@@ -36,8 +36,12 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
 
       const std::string fname = cfg.out_dir + "/game_" + std::to_string(g) +
                                 TrainingDataWriter::Extension();
+      // Diverse openings: cycle through the opening book if provided.
+      const std::string& fen = cfg.start_fens.empty()
+          ? cfg.start_fen
+          : cfg.start_fens[g % static_cast<int>(cfg.start_fens.size())];
       const GameResult r =
-          PlayOneGame(cfg.start_fen, backend, options, cfg.visits,
+          PlayOneGame(fen, backend, options, cfg.visits,
                       cfg.max_moves, cfg.temp_cutoff_ply, fname,
                       cfg.threads_per_game, /*verbose=*/false);
 
