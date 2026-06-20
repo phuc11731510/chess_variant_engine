@@ -154,19 +154,24 @@ python python\loop.py --engine custom_engine.exe --gens 3 `
 Windows của bạn không có GPU nên huấn luyện chậm. Colab có GPU miễn phí. Các bước:
 1. Tải cả thư mục `FairyZero` lên Google Drive (hoặc đẩy mã nguồn lên GitHub rồi `git clone`).
 2. Mở một Colab notebook mới, chọn **Runtime → Change runtime type → GPU**.
-3. Dựng engine bản Linux/GPU từ mã nguồn:
+3. **Chép sang ổ local của Colab rồi build** (build trên Google Drive RẤT chậm và hay lỗi do FUSE):
    ```
-   !cd FairyZero/engine_src && bash ../scripts/colab_setup.sh
+   !cp -r /content/drive/MyDrive/FairyZero /content/FairyZero
+   !bash /content/FairyZero/scripts/colab_setup.sh
    ```
-   (script tự tải onnxruntime GPU, build, chạy test.)
-4. Sinh dữ liệu + huấn luyện trên GPU:
+   Script tự dò vị trí mã nguồn (chạy được cả khi bạn `cd` vào trong), tải onnxruntime GPU, build,
+   chạy test. Engine Linux nằm ở `/content/FairyZero/engine_src/build-linux/custom_engine`.
+   - Nếu Colab dùng CUDA 11.x: `!ORT_VER=1.18.0 bash /content/FairyZero/scripts/colab_setup.sh`
+4. Sinh dữ liệu + huấn luyện trên GPU (dùng đúng đường dẫn engine vừa build):
    ```
-   !python FairyZero/python/loop.py --engine <đường-dẫn-engine-linux> --gens 10 \
-       --games-per-gen 1000 --visits 200 --window-gens 4 --epochs 20 \
+   !python /content/FairyZero/python/loop.py \
+       --engine /content/FairyZero/engine_src/build-linux/custom_engine \
+       --gens 10 --games-per-gen 1000 --visits 200 --window-gens 4 --epochs 20 \
        --provider cuda --fixed-batch 32 --parallel 2 --batch 1024 --eval-games 40
    ```
    (provider=cuda tự bật FP16 mixed-precision cho nhanh.)
-5. Tải các `model_genN.onnx` về máy, đặt vào `FairyZero\models\`, rồi chơi (Mục A).
+5. Chép model về Drive để giữ rồi tải về máy, đặt vào `FairyZero\models\`, rồi chơi (Mục A):
+   `!cp /content/FairyZero/python/loop_run/models/*.onnx /content/drive/MyDrive/FairyZero/models/`
 
 ---
 
