@@ -1,0 +1,7 @@
+# FairyZero Python deps (training + data tools). Install with:
+#   pip install -r requirements.txt
+# On Colab GPU, torch+CUDA is preinstalled; you usually only need onnx/onnxruntime.
+numpy>=2.0
+torch>=2.2
+onnx>=1.16
+onnxruntime>=1.18
