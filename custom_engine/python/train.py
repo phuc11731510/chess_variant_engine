@@ -105,13 +105,14 @@ def main():
     ap.add_argument("--workers", type=int, default=0, help="DataLoader worker processes")
     ap.add_argument("--pin-memory", action="store_true", help="pin host memory (faster CPU->GPU copy)")
     ap.add_argument("--no-cache", action="store_true", help="stream records (lower RAM for big data)")
+    ap.add_argument("--diff-focus", action="store_true", help="prefer 'surprising' positions (8.2.6)")
     args = ap.parse_args()
     if args.threads > 0:
         torch.set_num_threads(args.threads)
 
     torch.manual_seed(0)
     ds = FairyDataset(args.data, q_ratio=args.q_ratio, downsample_keep=args.downsample,
-                      cache=not args.no_cache)
+                      cache=not args.no_cache, diff_focus=args.diff_focus)
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
                     num_workers=args.workers, pin_memory=args.pin_memory,
                     persistent_workers=(args.workers > 0))

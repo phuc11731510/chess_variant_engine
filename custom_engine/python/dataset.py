@@ -30,14 +30,31 @@ def wdl_from_qd(q, d):
 
 
 def _resolve_files(data):
-    if os.path.isdir(data):
-        return sorted(glob.glob(os.path.join(data, "*.gz")) +
-                      glob.glob(os.path.join(data, "*.bin")))
-    return sorted(glob.glob(data))
+    """`data` may be a comma-separated list of dirs and/or globs (the rolling
+    window passes several generation dirs)."""
+    files = []
+    for part in str(data).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if os.path.isdir(part):
+            files += glob.glob(os.path.join(part, "*.gz")) + glob.glob(os.path.join(part, "*.bin"))
+        else:
+            files += glob.glob(part)
+    return sorted(set(files))
+
+
+def _diff_focus_keep(rec, slope, kld_w, pmin):
+    """diff_focus (8.2.6): keep prob rises with how 'surprising' a position is,
+    measured by |orig_q - best_q| (search disagreed with the static net eval) and
+    policy_kld (visit distribution diverged from the raw prior)."""
+    surprise = abs(rec["orig_q"] - rec["best_q"]) + kld_w * max(0.0, rec["policy_kld"])
+    return min(1.0, max(pmin, pmin + slope * surprise))
 
 
 class FairyDataset(Dataset):
-    def __init__(self, data, q_ratio=0.2, downsample_keep=1.0, cache=True, seed=0):
+    def __init__(self, data, q_ratio=0.2, downsample_keep=1.0, cache=True, seed=0,
+                 diff_focus=False, df_slope=1.0, df_kld_w=0.5, df_min=0.2):
         rng = random.Random(seed)
         files = _resolve_files(data)
         if not files:
@@ -47,8 +64,11 @@ class FairyDataset(Dataset):
             records.extend(read_records(f))
         if downsample_keep < 1.0:
             records = [r for r in records if rng.random() < downsample_keep]
+        if diff_focus:
+            records = [r for r in records
+                       if rng.random() < _diff_focus_keep(r, df_slope, df_kld_w, df_min)]
         if not records:
-            raise ValueError("no records after down-sampling")
+            raise ValueError("no records after down-sampling / diff_focus")
 
         self.q_ratio = q_ratio
         self.cache = cache

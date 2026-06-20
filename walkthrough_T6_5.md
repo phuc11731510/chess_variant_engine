@@ -3,7 +3,7 @@
 > Ngày: 2026-06-20 · Dự án: FairyZero (`custom_engine`) — biến thể cờ 10×10.
 > Phạm vi: milestone **T6.5** trong `implementation_plan phase training_1.md` — build hệ thống đa nền tảng + bật CUDA Execution Provider để chạy self-play/train trên Colab GPU.
 > DoD (plan): compile + test 100% pass trên Colab GPU.
-> Trạng thái: ✅ **Mã & build-system SẴN SÀNG cho Linux/CUDA** (đã verify build Windows KHÔNG vỡ — phần tôi kiểm được từ Windows). ⏳ **Bước chạy thật trên Colab GPU do bạn thực hiện** bằng script đã chuẩn bị (`scripts/colab_setup.sh`).
+> Trạng thái: ✅ **HOÀN TẤT** — đã chạy thật trên Colab (Tesla T4, CUDA 12.8): build Linux + **toàn bộ test PASS** + **self-play trên GPU chạy được** (~0.79s/ván, nhanh ~10× so với CPU). Hành trình qua 4 lần chạy Colab (xem §8). Build Windows vẫn xanh suốt.
 
 ---
 
@@ -71,22 +71,23 @@ Một lệnh chạy trên Colab: `!bash custom_engine/scripts/colab_setup.sh`. C
 
 ## 2. Tính tương thích dữ liệu xuyên nền tảng (đã lường trước)
 
-`Stockfish::Bitboard` trên **Windows/MinGW** là `struct {b64[2]}` (vì `IS_64BIT` không định nghĩa), còn trên **Linux/GCC 64-bit** thường là `unsigned __int128` — **hai biểu diễn nội bộ KHÁC nhau**. Tuy nhiên:
-- Mọi truy cập bit đi qua thao tác trừu tượng (`pop_lsb`, `square_bb`, `& / >>`) nên **kết quả logic giống hệt**.
-- Quan trọng nhất: serialize record dùng **split tường minh** `out[0]=m & low64; out[1]=m >> 64` (đã làm ở T5) — **độc lập biểu diễn** → file `.gz` **bit-tương thích Windows↔Linux**.
-→ Dữ liệu sinh trên Colab và đọc bằng Python (hoặc ngược lại) khớp nhau. (Khi chạy Colab, nên chạy lại `--emit-roundtrip` + `test_roundtrip.py` để xác nhận trên đúng môi trường đó.)
+`Stockfish::Bitboard` là `struct {b64[2]}` trên **CẢ Windows/MinGW lẫn Linux/GCC** (thực tế Colab xác nhận: macro `IS_64BIT` không được định nghĩa ở cả hai → nhánh struct, không phải `__int128`). Struct này có 2 toán tử chuyển đổi (`operator unsigned long long` + `operator unsigned`).
+- **Hệ quả lúc build Linux:** `uint64_t` = `unsigned long` trên Linux (khác `unsigned long long` trên Windows) → `static_cast<uint64_t>(bitboard)` **nhập nhằng** (2 toán tử cùng khả thi). Đây là lỗi biên dịch ĐẦU TIÊN gặp trên Colab → sửa bằng ép qua `unsigned long long` trước (xem §8).
+- **Tương thích dữ liệu:** mọi truy cập bit đi qua thao tác trừu tượng (`pop_lsb`, `& / >>`) + serialize dùng **split tường minh** (T5) → file `.gz` **bit-tương thích Windows↔Linux**.
+→ **Đã xác nhận thực tế:** bit-level test E1 (120 ô serialize) PASS trên Colab Linux → dữ liệu khớp 2 nền tảng.
 
 ---
 
-## 3. Đã verify (từ Windows) & cần verify (trên Colab)
+## 3. Đã verify
 
 | Hạng mục | Trạng thái |
 |----------|-----------|
-| Build Windows sau khi sửa meson/backend/main | ✅ link OK, `--test-extract` PASS (CPU profile) |
-| Cờ `--provider/--fixed-batch` không vỡ Windows (mặc định cpu) | ✅ |
-| CUDA EP code biên dịch khi `USE_CUDA` (Linux) | ⏳ cần build Colab |
-| Test suite 100% pass trên Colab GPU | ⏳ chạy `colab_setup.sh` |
-| Self-play GPU (`provider=cuda`) sinh dữ liệu | ⏳ chạy trên Colab |
+| Build Windows (CPU profile) sau mọi thay đổi | ✅ link OK, `--test-extract` PASS |
+| Build Linux trên Colab (GCC 11.4, `-Duse_cuda=true`) | ✅ link OK |
+| Toàn bộ test C++ trên Colab (board/policy/perft/**bit E1+E2**/rules/adapter/nn/T1) | ✅ **100% PASS** |
+| `make_seed.py` → `model_gen0.onnx` + verify I/O | ✅ PASS |
+| CUDA EP nạp trên Colab (Tesla T4) | ✅ "CUDA Execution Provider appended (device 0)" |
+| Self-play GPU (`provider=cuda`) sinh dữ liệu | ✅ 2 ván / 1.577s (**~0.79s/ván, ~10× CPU**) |
 
 ---
 
@@ -120,16 +121,34 @@ python python/train.py --data python/selfplay_data --epochs 20 --batch 256 \
 | `build_rpath` ORT lib trên Linux | Binary tự tìm `.so`, đỡ phải set `LD_LIBRARY_PATH` |
 | `--provider cuda,fixed_batch=N` | Kích hoạt GPU profile + override trục batch tĩnh (khớp model `"batch"`) |
 | Script Colab tham số hóa ORT | Người dùng khớp CUDA của Colab dễ dàng |
-| Split bit tường minh (từ T5) | Dữ liệu `.gz` bit-tương thích dù Bitboard là struct (Win) hay __int128 (Linux) |
+| Default ORT 1.20.1 (CUDA 12) | Colab GPU runtime hiện là CUDA 12.x; 1.18 (CUDA 11) lệch → fail |
+| Thêm nvidia-* libs của torch vào `LD_LIBRARY_PATH` | CUDA EP tìm được `libcublasLt.so.12`/`libcudnn.so.9` mà torch CUDA12 mang theo |
+| Cast qua `unsigned long long` rồi mới `uint64_t` | Tránh nhập nhằng `Bitboard→uint64_t` trên Linux (uint64_t=`unsigned long`) |
+| Split bit tường minh (từ T5) | Dữ liệu `.gz` bit-tương thích (Bitboard là struct trên cả 2 nền tảng) |
 
 ---
 
 ## 6. Trạng thái & việc tiếp theo
 
-- **CHƯA commit.** File đổi/mới: `meson.build`, `meson_options.txt`, `src/lczero_chess/neural/onnx_backend.cc`, `src/main.cc`, `scripts/colab_setup.sh` (MỚI).
-- **Cần bạn chạy trên Colab** để hoàn tất DoD (test 100% pass trên GPU). Nếu gặp lỗi CUDA/cuDNN version, chỉnh `ORT_VER` cho khớp môi trường Colab.
-- **Lưu ý hiệu năng GPU:** mỗi ván self-play hiện gom batch riêng; để đạt throughput "hàng chục lần" của GPU, bước tối ưu tiếp theo là **lớp gom-batch-eval xuyên ván** (nhiều ván chia sẻ một hàng đợi inference) — đây là tinh chỉnh thuộc T7/optimization, không chặn T6.5.
-- **Bước tiếp theo:** **T7** — khép vòng lặp AlphaZero đầy đủ (self-play → train → model mới → lặp; rolling window, diff_focus), chạy chủ yếu trên Colab GPU.
+- **CHƯA commit phần engine** (`meson.build`, `meson_options.txt`, `onnx_backend.cc`, `main.cc`); người dùng đã commit dần để chạy Colab. File mới: `scripts/colab_setup.sh`.
+- ✅ **DoD T6.5 ĐẠT** — đã chạy thật trên Colab GPU (Tesla T4, CUDA 12.8): build + test 100% pass + self-play GPU.
+- **Lưu ý hiệu năng GPU:** mỗi ván self-play hiện gom batch riêng; để đạt throughput tối đa của GPU, bước tối ưu tiếp theo là **lớp gom-batch-eval xuyên ván** (nhiều ván chia sẻ một hàng đợi inference) — tinh chỉnh thuộc T7/optimization, không chặn T6.5.
+- **Bước tiếp theo:** **T7** — khép vòng lặp AlphaZero đầy đủ (self-play → train → model mới → lặp; rolling window, diff_focus). Chạy được trên **CẢ Windows (CPU) lẫn Colab (GPU)** — Colab nhanh hơn nhiều nên dùng cho khối lượng lớn.
+
+---
+
+## 8. Hành trình port Colab thực tế (4 lần chạy)
+
+Phần khó của T6.5 là **port lần đầu sang Linux/CUDA**; mỗi lỗi đều là loại điển hình đa-nền-tảng (KHÔNG phải lỗi logic — phần logic/bit được bộ test canh giữ):
+
+| Lần | Lỗi gặp | Nguyên nhân | Sửa |
+|-----|---------|-------------|-----|
+| 1 | `error: conversion from 'Bitboard' to 'uint64_t' is ambiguous` | `uint64_t`=`unsigned long` trên Linux ≠ `unsigned long long` trên Windows; struct Bitboard có 2 toán tử chuyển đổi | Ép qua `unsigned long long` trước rồi `uint64_t` (`training_extract.cc` + `main.cc`) |
+| 2 | Build + test C++ **PASS**; `ModuleNotFoundError: No module named 'onnx'` | Colab có torch/numpy nhưng thiếu `onnx`/`onnxruntime` (Python) | `pip install onnx onnxruntime` trong script |
+| 3 | `make_seed` PASS; `libcublasLt.so.11: cannot open` khi nạp CUDA EP | ORT 1.18 cần CUDA 11, Colab là **CUDA 12.8** | Default ORT → **1.20.1 (CUDA 12)** + thêm nvidia libs của torch vào `LD_LIBRARY_PATH` |
+| 4 | — | — | ✅ **GPU chạy thật**: `CUDA Execution Provider appended` → 2 ván/1.577s |
+
+> Bài học: bộ test toàn diện (perft/bit-level/round-trip) cho phép **phân biệt rõ lỗi port (build/version) với lỗi logic** — mọi lỗi ở đây đều thuộc loại đầu, sửa nhanh và yên tâm.
 
 ---
 
