@@ -2601,6 +2601,164 @@ void run_uci_tests() {
     else { std::cerr << "[FAIL] " << fail << " UCI conformance failures." << std::endl; std::exit(1); }
 }
 
+// ============================================================================
+// --test-encoder : ground-truth check that EncodePositionForNN produces input
+// planes that FAITHFULLY represent the board (no "fake data" fed to the NN).
+// We re-derive the expected planes from the board's own piece_on()/state — an
+// INDEPENDENT path from the encoder's loop — and assert exact agreement. The
+// strongest checks (occupancy-union, per-type counts, king-count) cannot both
+// be wrong the same way, so they catch dropped pieces, phantom bits, piece-type
+// mislabeling, us/them swaps, and a wrong Black-to-move canonical flip.
+// ============================================================================
+void run_encoder_tests() {
+    std::cout << "\n=== ENCODER ground-truth tests (board -> NN planes) ===" << std::endl;
+    setup_custom_variant();
+
+    // Documented piece-type -> plane index (0..12), written INDEPENDENTLY of the
+    // encoder's switch. A mismatch (e.g. knight<->bishop swap) shows up as a
+    // per-type bit-count error below.
+    auto type_plane = [](Stockfish::PieceType pt) -> int {
+        switch (pt) {
+            case Stockfish::PAWN: return 0;           case Stockfish::KNIGHT: return 1;
+            case Stockfish::BISHOP: return 2;         case Stockfish::ROOK: return 3;
+            case Stockfish::QUEEN: return 4;          case Stockfish::KING: return 5;
+            case Stockfish::AMAZON: return 6;         case Stockfish::CHANCELLOR: return 7;
+            case Stockfish::ARCHBISHOP: return 8;     case Stockfish::CENTAUR: return 9;
+            case Stockfish::CUSTOM_PIECE_1: return 10; case Stockfish::CUSTOM_PIECE_2: return 11;
+            case Stockfish::CUSTOM_PIECE_3: return 12; default: return -1;
+        }
+    };
+
+    const std::string startw = std::string(kUciStartFen);
+    std::string startb = startw; startb[startw.find(" w ") + 1] = 'b';  // same board, Black to move
+    struct Case { std::string fen; const char* name; };
+    std::vector<Case> cases = {
+        {startw, "startpos (White to move)"},
+        {startb, "startpos board, Black to move (flip + us/them swap)"},
+        {"4k5/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1", "two kings (White)"},
+        {"4k5/10/10/10/10/10/10/10/10/5K4 b - - 3+5 0 1", "two kings (Black, flip)"},
+        {"1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 6+7 0 1", "rooks vs lone king (asym)"},
+        {"5k4/10/10/10/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM w - - 7+7 0 1", "many White minors+pawns"},
+    };
+
+    int fail = 0;
+    auto popc = [](Stockfish::Bitboard b) { return Stockfish::popcount(b); };
+
+    for (const auto& c : cases) {
+        auto tree = std::make_unique<lczero::classic::NodeTree>();   // heap (512-ply history)
+        tree->ResetToPosition(c.fen, {});
+        const lczero::PositionHistory& hist = tree->GetPositionHistory();
+        const Stockfish::Position& pos = hist.Last().GetBoard().GetRawPosition();
+        const Stockfish::Color us = tree->IsBlackToMove() ? Stockfish::BLACK : Stockfish::WHITE;
+        const Stockfish::Color them = ~us;
+        const bool flip = (us == Stockfish::BLACK);
+        auto dest = [&](int s) -> Stockfish::Square {
+            Stockfish::Square sq = static_cast<Stockfish::Square>(s);
+            return flip ? Stockfish::relative_square(Stockfish::BLACK, sq, Stockfish::RANK_10) : sq;
+        };
+
+        lczero::InputPlanes planes;
+        int transform = -1;
+        lczero::EncodePositionForNN(hist, lczero::kMoveHistory,
+                                    lczero::FillEmptyHistory::NO, &planes, &transform);
+
+        // --- Build EXPECTED occupancy/per-type masks from the board itself ---
+        Stockfish::Bitboard exp_all = 0, exp_us = 0, exp_them = 0;
+        Stockfish::Bitboard exp_type_us[13] = {0}, exp_type_them[13] = {0};
+        int piece_count = 0;
+        for (int rank = 0; rank < 10; ++rank) {
+            for (int file = 0; file < 10; ++file) {
+                const int s = rank * 12 + file;
+                Stockfish::Piece pc = pos.piece_on(static_cast<Stockfish::Square>(s));
+                if (pc == Stockfish::NO_PIECE) continue;
+                ++piece_count;
+                const int ti = type_plane(Stockfish::type_of(pc));
+                const Stockfish::Bitboard bit = Stockfish::square_bb(dest(s));
+                exp_all |= bit;
+                if (Stockfish::color_of(pc) == us) { exp_us |= bit; if (ti >= 0) exp_type_us[ti] |= bit; }
+                else                               { exp_them |= bit; if (ti >= 0) exp_type_them[ti] |= bit; }
+            }
+        }
+
+        // --- GOT: union the current-step (d=0) piece planes from the encoder ---
+        Stockfish::Bitboard got_all = 0, got_us = 0, got_them = 0;
+        for (int p = 0; p <= 12; ++p) { got_us |= planes[p].mask; }       // us pieces
+        for (int p = 13; p <= 25; ++p) { got_them |= planes[p].mask; }    // them pieces
+        got_all = got_us | got_them;
+
+        int errs = 0;
+        // (1) occupancy union must match EXACTLY (catches dropped/phantom squares).
+        if (popc(got_all ^ exp_all) != 0) { std::cerr << "  [FAIL] " << c.name << ": occupancy union mismatch\n"; ++errs; }
+        // (2) total bits == piece count (no collision/overwrite loses a bit).
+        if (popc(got_all) != piece_count) { std::cerr << "  [FAIL] " << c.name << ": bit-count " << popc(got_all) << " != pieces " << piece_count << "\n"; ++errs; }
+        // (3) us/them split correct (side-to-move pieces in planes 0..12).
+        if (popc(got_us ^ exp_us) != 0)   { std::cerr << "  [FAIL] " << c.name << ": us-plane union mismatch (color/flip bug)\n"; ++errs; }
+        if (popc(got_them ^ exp_them) != 0){ std::cerr << "  [FAIL] " << c.name << ": them-plane union mismatch\n"; ++errs; }
+        // (4) per-piece-type placement (catches piece-type mislabeling/swaps).
+        for (int t = 0; t <= 12; ++t) {
+            if (popc(planes[t].mask ^ exp_type_us[t]) != 0)        { std::cerr << "  [FAIL] " << c.name << ": us type-plane " << t << " mismatch\n"; ++errs; }
+            if (popc(planes[13 + t].mask ^ exp_type_them[t]) != 0) { std::cerr << "  [FAIL] " << c.name << ": them type-plane " << (13+t) << " mismatch\n"; ++errs; }
+        }
+        // (5) king invariant: exactly one king per side present on the board.
+        if (popc(exp_type_us[5]) == 1 && popc(planes[5].mask) != 1)   { std::cerr << "  [FAIL] " << c.name << ": us-king plane != 1 bit\n"; ++errs; }
+        if (popc(exp_type_them[5]) == 1 && popc(planes[18].mask) != 1){ std::cerr << "  [FAIL] " << c.name << ": them-king plane != 1 bit\n"; ++errs; }
+
+        // --- Aux planes vs board ground truth (unpack to float, check cells) ---
+        constexpr int PS = 100;
+        std::vector<float> fp((lczero::kAuxPlaneBase + lczero::kAuxPlanesCount) * PS, -1.0f);
+        lczero::UnpackInputPlanes(planes, fp.data(), 10, 10);
+        auto auxcell = [&](int k, int rank, int file) { return fp[(lczero::kAuxPlaneBase + k) * PS + rank * 10 + file]; };
+        const float exp_r50 = static_cast<float>(hist.Last().GetRule50Ply()) / 100.0f;
+        const float exp_cu = static_cast<float>(pos.checks_remaining(us)) / 7.0f;
+        const float exp_ct = static_cast<float>(pos.checks_remaining(them)) / 7.0f;
+        for (int rk = 0; rk < 10 && errs < 40; ++rk) for (int fl = 0; fl < 10; ++fl) {
+            if (auxcell(7, rk, fl) != 1.0f)       { std::cerr << "  [FAIL] " << c.name << ": aux7 border != 1\n"; ++errs; break; }
+            if (auxcell(6, rk, fl) != 0.0f)       { std::cerr << "  [FAIL] " << c.name << ": aux6 unused != 0\n"; ++errs; break; }
+            if (std::abs(auxcell(5, rk, fl) - exp_r50) > 1e-6) { std::cerr << "  [FAIL] " << c.name << ": aux5 rule50 mismatch\n"; ++errs; break; }
+            if (std::abs(auxcell(8, rk, fl) - exp_cu) > 1e-6)  { std::cerr << "  [FAIL] " << c.name << ": aux8 checks_us mismatch\n"; ++errs; break; }
+            if (std::abs(auxcell(9, rk, fl) - exp_ct) > 1e-6)  { std::cerr << "  [FAIL] " << c.name << ": aux9 checks_them mismatch\n"; ++errs; break; }
+        }
+        // Castling planes: bit count == #rights, placed at the (flipped) rook squares.
+        auto castle_expect = [&](Stockfish::CastlingRights cr) -> Stockfish::Bitboard {
+            if (!pos.can_castle(cr)) return Stockfish::Bitboard(0);
+            return Stockfish::square_bb(dest(pos.castling_rook_square(cr)));
+        };
+        const auto us_ooo = (us == Stockfish::WHITE) ? Stockfish::WHITE_OOO : Stockfish::BLACK_OOO;
+        const auto us_oo  = (us == Stockfish::WHITE) ? Stockfish::WHITE_OO  : Stockfish::BLACK_OO;
+        const auto th_ooo = (us == Stockfish::WHITE) ? Stockfish::BLACK_OOO : Stockfish::WHITE_OOO;
+        const auto th_oo  = (us == Stockfish::WHITE) ? Stockfish::BLACK_OO  : Stockfish::WHITE_OO;
+        if (popc(planes[lczero::kAuxPlaneBase + 0].mask ^ castle_expect(us_ooo)) != 0) { std::cerr << "  [FAIL] " << c.name << ": castle aux0 (us OOO) mismatch\n"; ++errs; }
+        if (popc(planes[lczero::kAuxPlaneBase + 1].mask ^ castle_expect(us_oo))  != 0) { std::cerr << "  [FAIL] " << c.name << ": castle aux1 (us OO) mismatch\n"; ++errs; }
+        if (popc(planes[lczero::kAuxPlaneBase + 2].mask ^ castle_expect(th_ooo)) != 0) { std::cerr << "  [FAIL] " << c.name << ": castle aux2 (them OOO) mismatch\n"; ++errs; }
+        if (popc(planes[lczero::kAuxPlaneBase + 3].mask ^ castle_expect(th_oo))  != 0) { std::cerr << "  [FAIL] " << c.name << ": castle aux3 (them OO) mismatch\n"; ++errs; }
+
+        if (errs == 0) std::cout << "  [OK] " << c.name << ": " << piece_count
+                                 << " pieces -> planes faithful (occupancy/type/us-them/king/aux/castling)" << std::endl;
+        fail += errs;
+    }
+
+    // --- Injectivity: two positions differing by one piece must differ in planes ---
+    {
+        auto enc = [&](const std::string& fen, lczero::InputPlanes& out) {
+            auto t = std::make_unique<lczero::classic::NodeTree>();
+            t->ResetToPosition(fen, {});
+            int tr = 0;
+            lczero::EncodePositionForNN(t->GetPositionHistory(), lczero::kMoveHistory,
+                                        lczero::FillEmptyHistory::NO, &out, &tr);
+        };
+        lczero::InputPlanes a, b;
+        enc("4k5/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1", a);   // white king f1
+        enc("4k5/10/10/10/10/10/10/10/10/6K3 w - - 7+7 0 1", b);   // white king g1
+        int diff = 0;
+        for (size_t p = 0; p < a.size(); ++p) if (Stockfish::popcount(a[p].mask ^ b[p].mask)) ++diff;
+        if (diff == 0) { std::cerr << "  [FAIL] injectivity: distinct positions encoded identically!\n"; ++fail; }
+        else std::cout << "  [OK] injectivity: king f1 vs g1 differ in " << diff << " plane(s)" << std::endl;
+    }
+
+    if (fail == 0) std::cout << "[PASS] ENCODER ground-truth tests (NN input faithfully represents the board)." << std::endl;
+    else { std::cerr << "[FAIL] " << fail << " encoder ground-truth failures." << std::endl; std::exit(1); }
+}
+
 int main(int argc, char* argv[]) {
     bool test_mcts_mode = false;
     bool selfplay_mode = false;
@@ -2618,6 +2776,7 @@ int main(int argc, char* argv[]) {
     bool test_nn_mode = false;
     bool uci_nn_mode = false;
     bool test_uci_mode = false;
+    bool test_encoder_mode = false;
     std::string rt_prefix = "roundtrip";
     std::string weights_file = "weights_0_elo.onnx";
     // Self-play driver options.
@@ -2716,6 +2875,8 @@ int main(int argc, char* argv[]) {
             uci_nn_mode = true;
         } else if (std::string(argv[i]) == "--test-uci") {
             test_uci_mode = true;
+        } else if (std::string(argv[i]) == "--test-encoder") {
+            test_encoder_mode = true;
         }
     }
 
@@ -2761,6 +2922,8 @@ int main(int argc, char* argv[]) {
         run_nn_tests();
     } else if (test_uci_mode) {
         run_uci_tests();
+    } else if (test_encoder_mode) {
+        run_encoder_tests();
     } else if (uci_nn_mode) {
         run_uci_nn(weights_file, sp_provider, sp_fixed_batch);
     } else if (arena_mode) {

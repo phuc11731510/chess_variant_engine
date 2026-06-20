@@ -96,6 +96,7 @@ $BIN --test-adapter
 $BIN --test-nn
 $BIN --test-trainingdata
 $BIN --test-uci
+$BIN --test-encoder
 
 # --- (5) gen-0 seed + GPU self-play smoke ------------------------------------
 echo "[colab] === gen-0 seed (Python) ==="
