@@ -121,6 +121,16 @@ def main():
                     help="cache policy targets sparsely to avoid Colab OOM (8.2.2); default ON")
     ap.add_argument("--dense-cache", dest="sparse_cache", action="store_false",
                     help="cache dense tensors instead (more RAM; the old behavior)")
+    # T8.3 — extra hyperparameters (lczero-training parity).
+    ap.add_argument("--optimizer", default="adamw", choices=["adamw", "sgd", "nadam"],
+                    help="optimizer (lc0 canonical = sgd+momentum)")
+    ap.add_argument("--momentum", type=float, default=0.9, help="momentum for --optimizer sgd")
+    ap.add_argument("--policy-weight", type=float, default=1.0, help="policy-loss weight")
+    ap.add_argument("--grad-clip", type=float, default=0.0, help="clip grad-norm (0 = off)")
+    ap.add_argument("--seed", type=int, default=0, help="RNG seed (reproducibility)")
+    ap.add_argument("--warmup-steps", type=int, default=0, help="linear LR warmup over N optimizer steps")
+    ap.add_argument("--lr-values", default="", help="step LR schedule values, comma-separated (overrides --lr)")
+    ap.add_argument("--lr-boundaries", default="", help="step LR schedule boundaries, comma-separated")
     args = ap.parse_args()
     if args.threads > 0:
         torch.set_num_threads(args.threads)
@@ -132,7 +142,7 @@ def main():
     use_amp = args.amp and device == "cuda"
     print(f"[train] device={device}  amp={use_amp}  sparse_cache={args.sparse_cache}")
 
-    torch.manual_seed(0)
+    torch.manual_seed(args.seed)
     ds = FairyDataset(args.data, q_ratio=args.q_ratio, downsample_keep=args.downsample,
                       cache=not args.no_cache, diff_focus=args.diff_focus,
                       df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min,
@@ -146,19 +156,45 @@ def main():
         net.load_state_dict(torch.load(args.init_from, map_location="cpu"))
         print(f"[warm-start] loaded weights from {args.init_from}")
     net.to(device)
-    opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    if args.optimizer == "sgd":
+        opt = torch.optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
+                              weight_decay=args.weight_decay, nesterov=args.momentum > 0)
+    elif args.optimizer == "nadam":
+        opt = torch.optim.NAdam(net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    else:
+        opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+
+    # Optional step-based LR schedule (lc0-style: linear warmup -> piecewise constant).
+    lr_vals = [float(v) for v in args.lr_values.split(",") if v.strip()]
+    lr_bnds = [int(b) for b in args.lr_boundaries.split(",") if b.strip()]
+    def lr_for_step(step):
+        if args.warmup_steps > 0 and step < args.warmup_steps:
+            return args.lr * (step + 1) / args.warmup_steps
+        if not lr_vals:
+            return args.lr
+        k = sum(1 for b in lr_bnds if step >= b)           # piecewise-constant index
+        return lr_vals[min(k, len(lr_vals) - 1)]
+    use_lr_sched = bool(lr_vals) or args.warmup_steps > 0
+
     # GradScaler keeps FP16 gradients from underflowing; a no-op when use_amp=False.
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    print(f"[train] optimizer={args.optimizer} grad_clip={args.grad_clip} "
+          f"lr_sched={'on' if use_lr_sched else f'const {args.lr}'} seed={args.seed}")
     swa_net = AveragedModel(net)
     swa_start = max(1, int(args.epochs * args.swa_start_frac))
     swa_sched = SWALR(opt, swa_lr=(args.swa_lr if args.swa_lr > 0 else args.lr * 0.5))
 
     print(f"[train] params={sum(p.numel() for p in net.parameters())/1e6:.2f}M "
           f"swa_start_epoch={swa_start}")
+    global_step = 0
     for epoch in range(1, args.epochs + 1):
         net.train()
         tp = tv = n = 0.0
+        in_swa = epoch >= swa_start
         for x, pi, val in dl:
+            if use_lr_sched and not in_swa:        # custom schedule controls LR pre-SWA
+                for g in opt.param_groups:
+                    g["lr"] = lr_for_step(global_step)
             x = x.to(device, non_blocking=True)
             pi = pi.to(device, non_blocking=True)
             val = val.to(device, non_blocking=True)
@@ -169,13 +205,17 @@ def main():
                 p_logits, v_logits = net(x)
                 lp = policy_loss(p_logits, pi)
                 lv = value_loss(v_logits, val)
-                loss = lp + args.value_weight * lv
+                loss = args.policy_weight * lp + args.value_weight * lv
             scaler.scale(loss).backward()
+            if args.grad_clip > 0:
+                scaler.unscale_(opt)
+                torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
             scaler.step(opt)
             scaler.update()
             bs = x.size(0)
             tp += lp.item() * bs; tv += lv.item() * bs; n += bs
-        if epoch >= swa_start:
+            global_step += 1
+        if in_swa:
             swa_net.update_parameters(net)
             swa_sched.step()
         print(f"  epoch {epoch:3d}: policy_loss={tp/n:.4f}  value_loss={tv/n:.4f}")

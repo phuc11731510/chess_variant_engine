@@ -52,6 +52,15 @@ Engine trả về dòng `bestmove <nước đi>` — đó là nước AI chọn.
 GUI của bạn chỉ cần **gửi/nhận đúng các chuỗi này** qua UCI là điều khiển được engine. Engine
 tự xử lý việc lật bàn cho quân Đen — bạn luôn nói chuyện bằng tọa độ thật.
 
+### A.2b. Chơi ngay trong terminal không cần GUI (`--play`)
+Muốn thử nhanh, chạy bàn cờ ASCII trong terminal:
+```
+custom_engine.exe --play --weights models\seed.onnx --visits 800   (bạn cầm Trắng)
+custom_engine.exe --play-black --weights models\seed.onnx           (bạn cầm Đen)
+```
+Engine in bàn cờ (chữ HOA = Trắng, thường = Đen), hỏi `Your move:`, bạn gõ nước (vd `b3b4`), AI đáp.
+Gõ `quit` để thoát. Đây là tiện ích thử nhanh; đường chính để cắm GUI vẫn là `--uci-nn`.
+
 ### A.3. Một ván qua lệnh UCI (mẫu)
 ```
 uci
@@ -79,11 +88,18 @@ Gõ trước khi `go`. Cú pháp: `setoption name <Tên> value <Giá trị>`.
 | `BackendThreads` | 1 | Số luồng tính toán mạng (CPU) |
 | `PolicySoftmaxTemp` | 1.0 | Làm "mềm" gợi ý nước đi của mạng |
 | `MoveOverheadMs` | 30 | Trừ hao thời gian (khi dùng `go movetime`) |
+| `Temperature` | 0 | **Hạ độ khó:** >0 (đơn vị ‰) → AI thỉnh thoảng đi nước hạng 2/3 (đa dạng, yếu đi). 0 = hết sức |
+| `TempCutoffPly` | 0 | Chỉ áp Temperature trong N nước đầu (0 = luôn áp) |
+| `MultiPV` | 1 | Số biến chính (PV) báo cáo trong `info` |
+| `ReuseTree` | true | Giữ cây MCTS giữa các nước (nhanh hơn) |
 
-Điều khiển thời gian: `go nodes N` (theo số nước nghĩ) · `go movetime 3000` (nghĩ 3 giây) ·
-`go infinite` rồi `stop` (nghĩ tới khi bạn bảo dừng).
+Điều khiển thời gian: `go nodes N` · `go movetime 3000` (3 giây) · `go wtime W btime B` (cờ có đồng hồ) ·
+`go infinite` rồi `stop`. Engine phát `info ... score cp ... wdl ... pv ...` để GUI hiển thị đánh giá/biến chính.
 
-> **Độ khó gợi ý:** Dễ = `Visits 80` · Vừa = `go nodes 400` · Khó = `go nodes 5000` (hoặc hơn).
+> **Độ khó gợi ý:** Dễ = `Visits 80` + `Temperature 500` · Vừa = `go nodes 400` · Khó = `go nodes 5000` + `Temperature 0`.
+
+**Chỉnh sâu kiểu lc0 (tùy chọn):** đặt thẳng tham số tìm kiếm của lc0 bằng tên gốc, vd:
+`setoption name cpuct value 2.5` · `setoption name draw-score value -0.2` · `setoption name fpu-value value 0.4`.
 
 ### A.5. Cắm vào GUI tự viết
 GUI chỉ cần chạy tiến trình: `custom_engine.exe --uci-nn --weights models\seed.onnx` rồi nói

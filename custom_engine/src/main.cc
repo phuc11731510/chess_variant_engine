@@ -2359,6 +2359,50 @@ private:
     std::function<void(const std::string&)> send_;
 };
 
+// T8.3 — passthrough of lc0 search params: maps a UCI/lc0 option NAME + string
+// value into the OptionsDict. Returns false for names it doesn't handle (so the
+// caller can ignore unknowns). Curated high-value set; extend by adding cases.
+static bool ApplySearchOpt(lczero::OptionsDict* d, const std::string& name,
+                           const std::string& value) {
+    using BP = lczero::classic::BaseSearchParams;
+    auto F = [&](float def) { try { return std::stof(value); } catch (...) { return def; } };
+    auto I = [&](int def)   { try { return std::stoi(value); } catch (...) { return def; } };
+    auto B = [&]() { return value == "true" || value == "1" || value == "on"; };
+    if      (name == "cpuct")              d->Set<float>(BP::kCpuctId, F(1.745f));
+    else if (name == "cpuct-base")         d->Set<float>(BP::kCpuctBaseId, F(19652.0f));
+    else if (name == "cpuct-factor")       d->Set<float>(BP::kCpuctFactorId, F(2.815f));
+    else if (name == "fpu-value")          d->Set<float>(BP::kFpuValueId, F(0.330f));
+    else if (name == "fpu-strategy")       d->Set<std::string>(BP::kFpuStrategyId, value);
+    else if (name == "draw-score")         d->Set<float>(BP::kDrawScoreId, F(0.0f));
+    else if (name == "temp-decay-moves")   d->Set<int>(BP::kTempDecayMovesId, I(0));
+    else if (name == "temp-cutoff-move")   d->Set<int>(BP::kTemperatureCutoffMoveId, I(0));
+    else if (name == "temp-endgame")       d->Set<float>(BP::kTemperatureEndgameId, F(0.0f));
+    else if (name == "two-fold-draws")     d->Set<bool>(BP::kTwoFoldDrawsId, B());
+    else if (name == "policy-softmax-temp")d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, F(1.0f));
+    else return false;
+    return true;
+}
+
+// Picks a root move by temperature (difficulty knob). temp_permille in (0,..]:
+// weight_i = N_i^(1/T), T = temp_permille/1000 (clamped). T->0 = greedy best;
+// T=1 = proportional to visits; T large = flatter/random. Returns the best edge
+// when temp<=0 or counts are empty.
+static lczero::classic::EdgeAndNode SampleByTemperature(
+    const std::vector<lczero::classic::EdgeAndNode>& edges, int temp_permille) {
+    if (temp_permille <= 0 || edges.empty()) return edges.empty() ? lczero::classic::EdgeAndNode() : edges[0];
+    const double T = std::min(10.0, std::max(0.01, temp_permille / 1000.0));
+    std::vector<double> w(edges.size());
+    double total = 0.0;
+    for (size_t i = 0; i < edges.size(); ++i) {
+        w[i] = std::pow(static_cast<double>(edges[i].GetN()) + 1e-9, 1.0 / T);
+        total += w[i];
+    }
+    if (total <= 0.0) return edges[0];
+    double toss = lczero::Random::Get().GetDouble(total), acc = 0.0;
+    for (size_t i = 0; i < edges.size(); ++i) { acc += w[i]; if (acc > toss) return edges[i]; }
+    return edges.back();
+}
+
 // UCI engine state machine. One search runs on a worker thread (U1.8a) so the
 // main thread keeps reading stdin and can deliver `stop`/`quit` immediately.
 class UciNnEngine {
@@ -2388,6 +2432,7 @@ public:
                 StopSearch();
                 tree_ = std::make_unique<lczero::classic::NodeTree>();  // free old tree (U1.8c)
                 tree_->ResetToPosition(kUciStartFen, {});
+                current_startfen_.clear(); current_moves_.clear();
             } else if (cmd == "position") {
                 StopSearch();
                 HandlePosition(is);
@@ -2428,6 +2473,11 @@ private:
         Send("option name MoveOverheadMs type spin default 30 min 0 max 10000");
         Send("option name MultiPV type spin default 1 min 1 max 64");
         Send("option name Ponder type check default false");
+        Send("option name Temperature type spin default 0 min 0 max 10000");   // permille; difficulty
+        Send("option name TempCutoffPly type spin default 0 min 0 max 1000");   // temp only first N plies (0=always)
+        Send("option name ReuseTree type check default true");                  // keep MCTS tree across moves
+        // Plus any lc0 search param by its native name (T8.3 passthrough), e.g.:
+        // setoption name cpuct value 2.0 ; setoption name draw-score value -0.2
         Send("uciok");
     }
 
@@ -2452,7 +2502,11 @@ private:
         else if (name == "MoveOverheadMs") { move_overhead_ms_ = std::max(0, to_int(move_overhead_ms_)); }
         else if (name == "MultiPV") { multipv_ = std::max(1, to_int(multipv_)); }
         else if (name == "Ponder") { /* accepted; ponder activated via `go ponder` */ }
-        // Unknown options ignored (robustness).
+        else if (name == "Temperature") { temperature_ = std::max(0, to_int(temperature_)); }
+        else if (name == "TempCutoffPly") { temp_cutoff_ply_ = std::max(0, to_int(temp_cutoff_ply_)); }
+        else if (name == "ReuseTree") { reuse_tree_ = (value == "true" || value == "1"); }
+        else if (!name.empty()) { search_opts_[name] = value; }  // lc0 search-param passthrough (applied at `go`)
+        // Unknown / unmatched names are silently ignored at `go` (robustness).
     }
 
     // position [startpos | fen <FEN...>] [moves <m1> <m2> ...]
@@ -2470,25 +2524,47 @@ private:
         } else {
             return;                                 // malformed
         }
-        tree_ = std::make_unique<lczero::classic::NodeTree>();
-        try {
-            tree_->ResetToPosition(fen, {});   // bool = tree-reuse flag, not success
-        } catch (const std::exception& e) {
-            // malformed FEN -> keep engine usable by falling back to startpos
-            Send(std::string("info string bad FEN, using startpos: ") + e.what());
-            tree_->ResetToPosition(kUciStartFen, {});
-            return;
+        std::vector<std::string> moves;
+        if (tok == "moves") { std::string mv; while (is >> mv) moves.push_back(mv); }
+
+        // --- T8.x: tree reuse. If the new line is the SAME start + an EXTENSION
+        // of the moves we already applied, advance the existing tree (keeping the
+        // already-searched subtree's visit stats) instead of rebuilding cold. ---
+        bool reused = false;
+        if (reuse_tree_ && tree_ && !current_startfen_.empty() && fen == current_startfen_ &&
+            moves.size() >= current_moves_.size() &&
+            std::equal(current_moves_.begin(), current_moves_.end(), moves.begin())) {
+            bool ok = true;
+            for (size_t k = current_moves_.size(); k < moves.size(); ++k) {
+                const bool black = tree_->IsBlackToMove();
+                const auto& board = tree_->GetPositionHistory().Last().GetBoard();
+                lczero::Move m = UciToCanonicalMove(board, moves[k], black);
+                if (m.is_null()) { ok = false; break; }
+                tree_->MakeMove(m);                 // descends into child subtree (keeps visits)
+            }
+            if (ok) { tree_->TrimTreeAtHead(); reused = true; }  // free non-head branches
         }
-        if (tok == "moves") {                        // apply the move list
-            std::string mv;
-            while (is >> mv) {
+
+        if (!reused) {                              // rebuild a fresh tree
+            tree_ = std::make_unique<lczero::classic::NodeTree>();
+            try {
+                tree_->ResetToPosition(fen, {});    // bool = tree-reuse flag, not success
+            } catch (const std::exception& e) {
+                Send(std::string("info string bad FEN, using startpos: ") + e.what());
+                tree_->ResetToPosition(kUciStartFen, {});
+                current_startfen_.clear(); current_moves_.clear();
+                return;
+            }
+            for (const std::string& mv : moves) {
                 const bool black = tree_->IsBlackToMove();
                 const auto& board = tree_->GetPositionHistory().Last().GetBoard();
                 lczero::Move m = UciToCanonicalMove(board, mv, black);
-                if (m.is_null()) break;              // illegal/unknown move: stop applying
+                if (m.is_null()) break;             // illegal/unknown move: stop applying
                 tree_->MakeMove(m);
             }
         }
+        current_startfen_ = fen;
+        current_moves_ = moves;
     }
 
     // go [nodes N | movetime ms | infinite | depth d | wtime/btime/winc/binc/movestogo |
@@ -2543,9 +2619,10 @@ private:
         else if (budget_ms > 0) stopper = std::make_unique<TimeStopper>(budget_ms);
         else                    stopper = std::make_unique<PlayoutCountStopper>(nodes > 0 ? nodes : default_visits_);
 
-        // Apply MultiPV to the search options (no backend rebuild needed).
-        parser_->GetMutableDefaultsOptions()->Set<int>(
-            lczero::classic::SearchParams::kMultiPvId, std::max(1, multipv_));
+        // Apply MultiPV + any lc0 search-param passthrough (no backend rebuild).
+        auto* od = parser_->GetMutableDefaultsOptions();
+        od->Set<int>(lczero::classic::SearchParams::kMultiPvId, std::max(1, multipv_));
+        for (const auto& kv : search_opts_) ApplySearchOpt(od, kv.first, kv.second);
 
         auto responder = std::make_unique<UciInfoResponder>(
             [this](const std::string& s) { Send(s); });      // periodic info
@@ -2627,9 +2704,17 @@ private:
             Send(os.str());
         }
 
-        // bestmove (+ ponder = the predicted reply = 2nd move of the best PV).
-        std::string out = "bestmove " + CanonicalMoveToUci(edges[0].GetMove(), root_black);
-        lczero::classic::Node* child = edges[0].node();
+        // Move selection: greedy (best) by default; with Temperature>0 (and within
+        // TempCutoffPly) sample by visit counts -> weaker/more varied (difficulty).
+        lczero::classic::EdgeAndNode chosen = edges[0];
+        const int ply = static_cast<int>(tree_->GetPositionHistory().GetPositions().size()) - 1;
+        if (temperature_ > 0 && (temp_cutoff_ply_ == 0 || ply < temp_cutoff_ply_)) {
+            chosen = SampleByTemperature(edges, temperature_);
+        }
+
+        // bestmove (+ ponder = the predicted reply = 2nd move of the chosen line).
+        std::string out = "bestmove " + CanonicalMoveToUci(chosen.GetMove(), root_black);
+        lczero::classic::Node* child = chosen.node();
         if (child && child->GetN() > 0) {
             lczero::classic::EdgeAndNode pe; uint64_t pn = 0;
             for (const auto& ce : child->Edges()) if (ce.GetN() >= pn) { pn = ce.GetN(); pe = ce; }
@@ -2686,9 +2771,14 @@ private:
     int fixed_batch_;
     int backend_threads_ = 1, search_threads_ = 1;
     int default_visits_ = 800, move_overhead_ms_ = 30, multipv_ = 1;
+    int temperature_ = 0, temp_cutoff_ply_ = 0;   // difficulty: move-selection temperature (permille)
+    bool reuse_tree_ = true;                       // keep MCTS tree across moves (T8.x)
     float policy_temp_ = 1.0f;
     bool backend_dirty_ = true;
     std::chrono::steady_clock::time_point search_start_;
+    std::string current_startfen_;                 // for tree-reuse prefix matching
+    std::vector<std::string> current_moves_;
+    std::map<std::string, std::string> search_opts_;  // lc0 search-param passthrough (T8.3)
 
     std::unique_ptr<lczero::OptionsParser> parser_;
     std::unique_ptr<lczero::Backend> backend_;
@@ -2703,6 +2793,99 @@ void run_uci_nn(const std::string& weights, const std::string& provider, int fix
     setup_custom_variant();
     UciNnEngine engine(weights, provider, fixed_batch);
     engine.Loop();
+}
+
+// --play: a minimal ASCII terminal game vs the MCTS+NN engine (T8.x). For quick
+// human testing without a GUI; the real interface is --uci-nn.
+static void PrintAsciiBoard(const Stockfish::Position& pos) {
+    auto pc_char = [](Stockfish::Piece pc) -> char {
+        char c = '?';
+        switch (Stockfish::type_of(pc)) {
+            case Stockfish::PAWN: c='p';break;        case Stockfish::KNIGHT: c='n';break;
+            case Stockfish::BISHOP: c='b';break;      case Stockfish::ROOK: c='r';break;
+            case Stockfish::QUEEN: c='q';break;        case Stockfish::KING: c='k';break;
+            case Stockfish::AMAZON: c='a';break;       case Stockfish::CHANCELLOR: c='e';break;
+            case Stockfish::ARCHBISHOP: c='h';break;   case Stockfish::CENTAUR: c='m';break;
+            case Stockfish::CUSTOM_PIECE_1: c='v';break; case Stockfish::CUSTOM_PIECE_2: c='y';break;
+            case Stockfish::CUSTOM_PIECE_3: c='s';break; default: break;
+        }
+        return (Stockfish::color_of(pc) == Stockfish::WHITE) ? static_cast<char>(c - 32) : c;
+    };
+    std::cout << "\n      a  b  c  d  e  f  g  h  i  j\n";
+    for (int r = 9; r >= 0; --r) {
+        std::cout << "  " << (r + 1 < 10 ? " " : "") << (r + 1) << " ";
+        for (int f = 0; f < 10; ++f) {
+            Stockfish::Piece pc = pos.piece_on(static_cast<Stockfish::Square>(r * 12 + f));
+            std::cout << " " << (pc == Stockfish::NO_PIECE ? '.' : pc_char(pc)) << " ";
+        }
+        std::cout << "\n";
+    }
+    std::cout << std::endl;
+}
+
+void run_play(const std::string& weights, const std::string& provider, int fixed_batch,
+              int visits, bool human_white) {
+    setup_custom_variant();
+    lczero::OptionsParser parser;
+    lczero::classic::SearchParams::Populate(&parser);
+    auto* d = parser.GetMutableDefaultsOptions();
+    d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
+    d->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+    d->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);
+    d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights);
+    d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId,
+        provider == "cuda" ? "provider=cuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch))
+                           : "threads=1");
+    std::unique_ptr<lczero::Backend> backend;
+    try { backend = arena_make_backend(parser.GetOptionsDict()); }
+    catch (const std::exception& e) { std::cerr << "[play] backend load failed: " << e.what() << std::endl; return; }
+    const lczero::OptionsDict& opts = parser.GetOptionsDict();
+
+    auto tree = std::make_unique<lczero::classic::NodeTree>();
+    tree->ResetToPosition(kUciStartFen, {});
+    std::cout << "\n=== FairyZero --play (visits=" << visits << ") ===\n"
+              << "You are " << (human_white ? "WHITE (uppercase, bottom)" : "BLACK (lowercase, top)")
+              << ". Enter moves like 'b3b4' (promotion 'a9a10v'); type 'quit' to exit." << std::endl;
+
+    lczero::GameResult result = lczero::GameResult::UNDECIDED;
+    while (result == lczero::GameResult::UNDECIDED) {
+        const Stockfish::Position& pos = tree->GetPositionHistory().Last().GetBoard().GetRawPosition();
+        PrintAsciiBoard(pos);
+        const bool black_to_move = tree->IsBlackToMove();
+        const bool human_turn = ((!black_to_move) == human_white);
+        if (human_turn) {
+            std::cout << "Your move: " << std::flush;
+            std::string mv;
+            if (!std::getline(std::cin, mv)) break;
+            if (mv == "quit" || mv == "q") break;
+            // strip whitespace
+            while (!mv.empty() && (mv.back() == '\r' || mv.back() == ' ')) mv.pop_back();
+            const auto& board = tree->GetPositionHistory().Last().GetBoard();
+            lczero::Move m = UciToCanonicalMove(board, mv, black_to_move);
+            if (m.is_null()) { std::cout << "  illegal move, try again." << std::endl; continue; }
+            tree->MakeMove(m);
+        } else {
+            auto responder = std::make_unique<SilentUciResponder>();
+            auto stopper = std::make_unique<PlayoutCountStopper>(visits);
+            auto search = std::make_unique<lczero::classic::Search>(
+                *tree, backend.get(), std::move(responder), lczero::MoveList{},
+                std::chrono::steady_clock::now(), std::move(stopper), false, false, opts, nullptr);
+            search->RunBlocking(1);
+            lczero::classic::Node* root = tree->GetCurrentHead();
+            lczero::classic::EdgeAndNode best; uint64_t bn = 0;
+            for (const auto& e : root->Edges()) if (e.GetN() >= bn) { bn = e.GetN(); best = e; }
+            if (best.GetMove().is_null()) break;
+            std::cout << "AI plays: " << CanonicalMoveToUci(best.GetMove(), black_to_move)
+                      << "  (" << root->GetN() << " nodes)" << std::endl;
+            tree->MakeMove(best.GetMove());
+        }
+        result = tree->GetPositionHistory().ComputeGameResult();
+    }
+    PrintAsciiBoard(tree->GetPositionHistory().Last().GetBoard().GetRawPosition());
+    if (result == lczero::GameResult::WHITE_WON)      std::cout << "*** WHITE wins ***" << std::endl;
+    else if (result == lczero::GameResult::BLACK_WON) std::cout << "*** BLACK wins ***" << std::endl;
+    else if (result == lczero::GameResult::DRAW)      std::cout << "*** DRAW ***" << std::endl;
+    else std::cout << "(game ended)" << std::endl;
 }
 
 // --test-uci: conformance for the move I/O (risk #1) — no backend needed.
@@ -2946,6 +3129,8 @@ int main(int argc, char* argv[]) {
     bool uci_nn_mode = false;
     bool test_uci_mode = false;
     bool test_encoder_mode = false;
+    bool play_mode = false;
+    bool play_human_white = true;
     std::string rt_prefix = "roundtrip";
     std::string weights_file = "weights_0_elo.onnx";
     // Self-play driver options.
@@ -3046,6 +3231,10 @@ int main(int argc, char* argv[]) {
             test_uci_mode = true;
         } else if (std::string(argv[i]) == "--test-encoder") {
             test_encoder_mode = true;
+        } else if (std::string(argv[i]) == "--play") {
+            play_mode = true;
+        } else if (std::string(argv[i]) == "--play-black") {
+            play_mode = true; play_human_white = false;
         }
     }
 
@@ -3095,6 +3284,8 @@ int main(int argc, char* argv[]) {
         run_encoder_tests();
     } else if (uci_nn_mode) {
         run_uci_nn(weights_file, sp_provider, sp_fixed_batch);
+    } else if (play_mode) {
+        run_play(weights_file, sp_provider, sp_fixed_batch, sp_visits, play_human_white);
     } else if (arena_mode) {
         if (arena_a.empty() || arena_b.empty()) {
             std::cerr << "[arena] need --model-a <onnx> and --model-b <onnx>" << std::endl;

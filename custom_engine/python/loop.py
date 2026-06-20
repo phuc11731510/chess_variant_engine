@@ -83,6 +83,14 @@ def main():
     ap.add_argument("--df-kld-w", type=float, default=None)
     ap.add_argument("--df-min", type=float, default=None)
     ap.add_argument("--swa-start-frac", type=float, default=None)
+    # T8.3 training extras (passed through to train.py).
+    ap.add_argument("--optimizer", default=None, choices=[None, "adamw", "sgd", "nadam"])
+    ap.add_argument("--grad-clip", type=float, default=None)
+    ap.add_argument("--warmup-steps", type=int, default=None)
+    ap.add_argument("--lr-values", default=None)
+    ap.add_argument("--lr-boundaries", default=None)
+    ap.add_argument("--policy-weight", type=float, default=None)
+    ap.add_argument("--seed", type=int, default=None)
     args = ap.parse_args()
 
     models = os.path.join(args.workdir, "models")
@@ -145,7 +153,11 @@ def main():
             tr += ["--amp"]
         for flag, val in [("--weight-decay", args.weight_decay), ("--value-weight", args.value_weight),
                           ("--df-slope", args.df_slope), ("--df-kld-w", args.df_kld_w),
-                          ("--df-min", args.df_min), ("--swa-start-frac", args.swa_start_frac)]:
+                          ("--df-min", args.df_min), ("--swa-start-frac", args.swa_start_frac),
+                          ("--optimizer", args.optimizer), ("--grad-clip", args.grad_clip),
+                          ("--warmup-steps", args.warmup_steps), ("--lr-values", args.lr_values),
+                          ("--lr-boundaries", args.lr_boundaries), ("--policy-weight", args.policy_weight),
+                          ("--seed", args.seed)]:
             if val is not None:
                 tr += [flag, val]
         run(tr)
