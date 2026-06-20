@@ -37,6 +37,8 @@
 #include <chrono>
 #include <memory>
 #include <map>
+#include <functional>
+#include <algorithm>
 #include "search/classic/search.h"
 #include "search/classic/params.h"
 #include "neural/backend.h"
@@ -2282,6 +2284,20 @@ public:
     void OnSearchDone(const lczero::classic::IterationStats&) override {}
 };
 
+// Stopper by NEW playouts this search (nodes_since_movestart) — matches the
+// self-play PlayoutStopper, which is proven to drive a real multi-playout search
+// (NodeLimitStopper's total_nodes = playouts + initial_visits can mis-fire).
+class PlayoutCountStopper : public lczero::classic::SearchStopper {
+public:
+    explicit PlayoutCountStopper(int64_t max_new) : max_new_(max_new) {}
+    bool ShouldStop(const lczero::classic::IterationStats& s, lczero::classic::StoppersHints*) override {
+        return s.nodes_since_movestart >= max_new_;
+    }
+    void OnSearchDone(const lczero::classic::IterationStats&) override {}
+private:
+    int64_t max_new_;
+};
+
 // Stopper that fires after a wall-clock budget (for `go movetime`).
 class TimeStopper : public lczero::classic::SearchStopper {
 public:
@@ -2293,6 +2309,54 @@ public:
     void OnSearchDone(const lczero::classic::IterationStats&) override {}
 private:
     std::chrono::steady_clock::time_point deadline_;
+};
+
+// q in [-1,1] (side-to-move win-loss) -> UCI centipawns (lc0 logistic mapping).
+static int QToCp(float q) {
+    q = std::max(-0.9999f, std::min(0.9999f, q));
+    double cp = 111.714640912 * std::tan(1.5620688421 * static_cast<double>(q));
+    cp = std::max(-12000.0, std::min(12000.0, cp));
+    return static_cast<int>(std::lround(cp));
+}
+// q (win-loss) + d (draw) -> WDL permille (w+d+l == 1000), side-to-move POV.
+static void WdlPermille(float q, float d, int& w, int& dr, int& l) {
+    float ww = (q + 1.0f - d) / 2.0f, ll = (1.0f - d - q) / 2.0f, dd = d;
+    ww = std::max(0.0f, std::min(1.0f, ww));
+    ll = std::max(0.0f, std::min(1.0f, ll));
+    dd = std::max(0.0f, std::min(1.0f, dd));
+    float s = ww + dd + ll;
+    if (s <= 1e-6f) { w = 0; dr = 1000; l = 0; return; }
+    w = static_cast<int>(std::lround(ww / s * 1000.0f));
+    l = static_cast<int>(std::lround(ll / s * 1000.0f));
+    dr = 1000 - w - l;
+}
+
+// Real UciResponder: forwards lc0's periodic search stats as UCI `info` lines
+// (scalars only; the PV is added by our own final info, computed when the tree
+// is stable). Runs on lc0's thread; output is serialized by the engine's Send.
+class UciInfoResponder : public lczero::UciResponder {
+public:
+    explicit UciInfoResponder(std::function<void(const std::string&)> send)
+        : send_(std::move(send)) {}
+    void OutputBestMove(lczero::BestMoveInfo*) override {}   // we emit bestmove ourselves
+    void OutputThinkingInfo(std::vector<lczero::ThinkingInfo>* infos) override {
+        for (const auto& ti : *infos) {
+            std::ostringstream os;
+            os << "info";
+            if (ti.depth >= 0)    os << " depth " << ti.depth;
+            if (ti.seldepth >= 0) os << " seldepth " << ti.seldepth;
+            if (ti.multipv >= 0)  os << " multipv " << ti.multipv;
+            if (ti.score)         os << " score cp " << *ti.score;
+            if (ti.wdl)           os << " wdl " << ti.wdl->w << " " << ti.wdl->d << " " << ti.wdl->l;
+            if (ti.nodes >= 0)    os << " nodes " << ti.nodes;
+            if (ti.nps >= 0)      os << " nps " << ti.nps;
+            if (ti.time >= 0)     os << " time " << ti.time;
+            if (ti.hashfull >= 0) os << " hashfull " << ti.hashfull;
+            send_(os.str());
+        }
+    }
+private:
+    std::function<void(const std::string&)> send_;
 };
 
 // UCI engine state machine. One search runs on a worker thread (U1.8a) so the
@@ -2332,7 +2396,9 @@ public:
             } else if (cmd == "stop") {
                 StopSearch();                      // emits bestmove (U1.8a)
             } else if (cmd == "ponderhit") {
-                // No ponder yet (T8.2); accept silently.
+                // Predicted move was played: finalize the ponder search now
+                // (basic ponder — returns the move found while pondering).
+                StopSearch();
             } else if (cmd == "debug" || cmd == "register") {
                 // Accept & ignore (robustness).
             } else if (cmd == "quit") {
@@ -2360,6 +2426,8 @@ private:
         Send("option name BackendThreads type spin default 1 min 1 max 256");
         Send("option name PolicySoftmaxTemp type string default 1.0");
         Send("option name MoveOverheadMs type spin default 30 min 0 max 10000");
+        Send("option name MultiPV type spin default 1 min 1 max 64");
+        Send("option name Ponder type check default false");
         Send("uciok");
     }
 
@@ -2382,6 +2450,8 @@ private:
         else if (name == "Visits") { default_visits_ = to_int(default_visits_); }
         else if (name == "Threads") { search_threads_ = std::max(1, to_int(search_threads_)); }
         else if (name == "MoveOverheadMs") { move_overhead_ms_ = std::max(0, to_int(move_overhead_ms_)); }
+        else if (name == "MultiPV") { multipv_ = std::max(1, to_int(multipv_)); }
+        else if (name == "Ponder") { /* accepted; ponder activated via `go ponder` */ }
         // Unknown options ignored (robustness).
     }
 
@@ -2421,33 +2491,69 @@ private:
         }
     }
 
-    // go [nodes N | movetime ms | infinite | depth d ...]
+    // go [nodes N | movetime ms | infinite | depth d | wtime/btime/winc/binc/movestogo |
+    //     searchmoves m... | ponder]
     void HandleGo(std::istringstream& is) {
         StopSearch();
         if (!EnsureBackend()) { Send("bestmove 0000"); return; }
-        int64_t nodes = 0, movetime = 0;
-        bool infinite = false;
+        int64_t nodes = 0, movetime = 0, wtime = 0, btime = 0, winc = 0, binc = 0, movestogo = 0;
+        bool infinite = false, ponder = false;
+        lczero::MoveList searchmoves;
         std::string tok;
         while (is >> tok) {
-            if (tok == "nodes") { is >> nodes; }
-            else if (tok == "movetime") { is >> movetime; }
-            else if (tok == "infinite") { infinite = true; }
-            else if (tok == "depth" || tok == "wtime" || tok == "btime" ||
-                     tok == "winc" || tok == "binc" || tok == "movestogo") {
-                std::string ignored; is >> ignored;  // accepted, used in T8.2
+            if (tok == "nodes") is >> nodes;
+            else if (tok == "movetime") is >> movetime;
+            else if (tok == "wtime") is >> wtime;
+            else if (tok == "btime") is >> btime;
+            else if (tok == "winc") is >> winc;
+            else if (tok == "binc") is >> binc;
+            else if (tok == "movestogo") is >> movestogo;
+            else if (tok == "infinite") infinite = true;
+            else if (tok == "ponder") ponder = true;
+            else if (tok == "depth" || tok == "mate") { std::string ign; is >> ign; }
+            else if (tok == "searchmoves") {
+                // the rest of the line is a list of moves (real coords)
+                const bool black = tree_->IsBlackToMove();
+                const auto& board = tree_->GetPositionHistory().Last().GetBoard();
+                std::string mv;
+                while (is >> mv) {
+                    lczero::Move m = UciToCanonicalMove(board, mv, black);
+                    if (!m.is_null()) searchmoves.push_back(m);
+                }
             }
             // unknown go-params ignored
         }
-        std::unique_ptr<lczero::classic::SearchStopper> stopper;
-        if (infinite) stopper = std::make_unique<InfiniteStopper>();
-        else if (movetime > 0) stopper = std::make_unique<TimeStopper>(std::max<int64_t>(1, movetime - move_overhead_ms_));
-        else stopper = std::make_unique<NodeLimitStopper>(nodes > 0 ? nodes : default_visits_);
 
-        auto responder = std::make_unique<SilentUciResponder>();  // we format output ourselves
+        // --- time management: pick a budget for the side to move (U1.5) ---
+        const bool root_black = tree_->IsBlackToMove();
+        int64_t budget_ms = 0;
+        if (movetime > 0) {
+            budget_ms = movetime;
+        } else if (wtime > 0 || btime > 0) {
+            const int64_t mytime = root_black ? btime : wtime;
+            const int64_t myinc  = root_black ? binc : winc;
+            const int mtg = movestogo > 0 ? movestogo : 30;   // assume ~30 moves left
+            budget_ms = mytime / mtg + static_cast<int64_t>(myinc * 0.8);
+        }
+        if (budget_ms > 0) budget_ms = std::max<int64_t>(1, budget_ms - move_overhead_ms_);
+
+        std::unique_ptr<lczero::classic::SearchStopper> stopper;
+        const bool no_stop = infinite || ponder;              // run until stop/ponderhit
+        if (no_stop)            stopper = std::make_unique<InfiniteStopper>();
+        else if (budget_ms > 0) stopper = std::make_unique<TimeStopper>(budget_ms);
+        else                    stopper = std::make_unique<PlayoutCountStopper>(nodes > 0 ? nodes : default_visits_);
+
+        // Apply MultiPV to the search options (no backend rebuild needed).
+        parser_->GetMutableDefaultsOptions()->Set<int>(
+            lczero::classic::SearchParams::kMultiPvId, std::max(1, multipv_));
+
+        auto responder = std::make_unique<UciInfoResponder>(
+            [this](const std::string& s) { Send(s); });      // periodic info
+        search_start_ = std::chrono::steady_clock::now();
         search_ = std::make_unique<lczero::classic::Search>(
-            *tree_, backend_.get(), std::move(responder), lczero::MoveList{},
-            std::chrono::steady_clock::now(), std::move(stopper), infinite,
-            /*ponder=*/false, parser_->GetOptionsDict(), nullptr);
+            *tree_, backend_.get(), std::move(responder), searchmoves,
+            search_start_, std::move(stopper), no_stop,
+            /*ponder=*/ponder, parser_->GetOptionsDict(), nullptr);
         searching_.store(true);
         const int threads = search_threads_;
         search_thread_ = std::thread([this, threads]() {
@@ -2457,18 +2563,80 @@ private:
         });
     }
 
-    void EmitBestMove() {
-        lczero::classic::Node* root = tree_->GetCurrentHead();
-        lczero::classic::EdgeAndNode best;
-        uint64_t best_n = 0;
-        if (root) {
-            for (const auto& e : root->Edges()) {
-                if (e.GetN() >= best_n) { best_n = e.GetN(); best = e; }
-            }
+    // Builds a principal-variation string (real coords) by following the
+    // max-visit child chain from `first`. `black` = side-to-move at `first`.
+    // Safe to call only when the tree is stable (workers joined). Returns the
+    // number of plies via `out_len`.
+    std::string ComputePvUci(lczero::classic::EdgeAndNode first, bool black,
+                             int maxlen, int* out_len) {
+        std::string pv;
+        int len = 0;
+        lczero::classic::EdgeAndNode e = first;
+        while (!e.GetMove().is_null() && len < maxlen) {
+            if (!pv.empty()) pv += " ";
+            pv += CanonicalMoveToUci(e.GetMove(), black);
+            ++len;
+            lczero::classic::Node* child = e.node();
+            if (!child || child->GetN() == 0) break;
+            lczero::classic::EdgeAndNode bestc;
+            uint64_t bn = 0;
+            for (const auto& ce : child->Edges()) if (ce.GetN() >= bn) { bn = ce.GetN(); bestc = ce; }
+            if (bestc.GetMove().is_null()) break;
+            e = bestc;
+            black = !black;
         }
-        lczero::Move m = best.GetMove();
-        if (m.is_null()) { Send("bestmove 0000"); return; }   // no legal move / terminal
-        Send("bestmove " + CanonicalMoveToUci(m, tree_->IsBlackToMove()));
+        if (out_len) *out_len = len;
+        return pv;
+    }
+
+    void EmitBestMove() {
+        lczero::classic::Node* root = tree_ ? tree_->GetCurrentHead() : nullptr;
+        if (!root) { Send("bestmove 0000"); return; }
+        const bool root_black = tree_->IsBlackToMove();
+
+        // Root edges sorted by visits (best first).
+        std::vector<lczero::classic::EdgeAndNode> edges;
+        for (const auto& e : root->Edges()) edges.push_back(e);
+        std::sort(edges.begin(), edges.end(),
+                  [](const lczero::classic::EdgeAndNode& a, const lczero::classic::EdgeAndNode& b) {
+                      return a.GetN() > b.GetN();
+                  });
+        if (edges.empty() || edges[0].GetMove().is_null()) { Send("bestmove 0000"); return; }
+
+        const int64_t nodes = static_cast<int64_t>(root->GetN());
+        const int64_t ms = std::max<int64_t>(1,
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - search_start_).count());
+        const int64_t nps = nodes * 1000 / ms;
+        const int K = std::min<int>(std::max(1, multipv_), static_cast<int>(edges.size()));
+
+        // Final `info` lines (one per MultiPV; multipv 1 = best move). These carry
+        // the PV (computed safely now that workers have joined).
+        for (int i = K - 1; i >= 0; --i) {
+            // Value of PLAYING edges[i], from our perspective: negate child's WL.
+            const float q = -edges[i].GetWL(static_cast<float>(-root->GetWL()));
+            const float d = edges[i].GetD(root->GetD());
+            int w, dr, l; WdlPermille(q, d, w, dr, l);
+            int pvlen = 0;
+            const std::string pv = ComputePvUci(edges[i], root_black, 24, &pvlen);
+            std::ostringstream os;
+            os << "info depth " << pvlen << " multipv " << (i + 1)
+               << " score cp " << QToCp(q) << " wdl " << w << " " << dr << " " << l
+               << " nodes " << nodes << " nps " << nps << " time " << ms
+               << " pv " << pv;
+            Send(os.str());
+        }
+
+        // bestmove (+ ponder = the predicted reply = 2nd move of the best PV).
+        std::string out = "bestmove " + CanonicalMoveToUci(edges[0].GetMove(), root_black);
+        lczero::classic::Node* child = edges[0].node();
+        if (child && child->GetN() > 0) {
+            lczero::classic::EdgeAndNode pe; uint64_t pn = 0;
+            for (const auto& ce : child->Edges()) if (ce.GetN() >= pn) { pn = ce.GetN(); pe = ce; }
+            if (!pe.GetMove().is_null())
+                out += " ponder " + CanonicalMoveToUci(pe.GetMove(), !root_black);
+        }
+        Send(out);
     }
 
     bool EnsureBackend() {
@@ -2517,9 +2685,10 @@ private:
     std::string weights_, provider_;
     int fixed_batch_;
     int backend_threads_ = 1, search_threads_ = 1;
-    int default_visits_ = 800, move_overhead_ms_ = 30;
+    int default_visits_ = 800, move_overhead_ms_ = 30, multipv_ = 1;
     float policy_temp_ = 1.0f;
     bool backend_dirty_ = true;
+    std::chrono::steady_clock::time_point search_start_;
 
     std::unique_ptr<lczero::OptionsParser> parser_;
     std::unique_ptr<lczero::Backend> backend_;

@@ -83,6 +83,7 @@ Copy-Item -Recurse (Join-Path $Root "src") (Join-Path $OutDir "engine_src\src")
 Copy-Item (Join-Path $Root "meson.build") (Join-Path $OutDir "engine_src")
 Copy-Item (Join-Path $Root "meson_options.txt") (Join-Path $OutDir "engine_src")
 Copy-Item (Join-Path $Root "scripts\colab_setup.sh") (Join-Path $OutDir "scripts")
+Copy-Item (Join-Path $Root "scripts\colab_loop.sh") (Join-Path $OutDir "scripts")
 
 # --- 5. Launchers + manual -------------------------------------------------
 Copy-Item (Join-Path $Root "scripts\play.bat") $OutDir
