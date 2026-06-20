@@ -77,6 +77,10 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
 
   std::vector<TrainingDataV1> records;
   std::vector<bool> stm_black;
+  // Reserve up front: each TrainingDataV1 is ~46 KB, so growth-reallocations
+  // would copy megabytes per game. We append at most max_moves records.
+  records.reserve(max_moves);
+  stm_black.reserve(max_moves);
   GameResult result = GameResult::UNDECIDED;
 
   for (int ply = 0; ply < max_moves; ++ply) {

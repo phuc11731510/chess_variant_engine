@@ -2143,7 +2143,7 @@ int main(int argc, char* argv[]) {
     std::string weights_file = "weights_0_elo.onnx";
     // Self-play driver options.
     int sp_games = 100, sp_visits = 200, sp_parallel = 1, sp_threads_per_game = 1;
-    int sp_max_moves = 200, sp_temp_cutoff = 30;
+    int sp_max_moves = 200, sp_temp_cutoff = 30, sp_backend_threads = 1;
     std::string sp_out = "selfplay_data";
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
@@ -2162,6 +2162,8 @@ int main(int argc, char* argv[]) {
             sp_max_moves = std::atoi(argv[++i]);
         } else if (std::string(argv[i]) == "--temp-cutoff" && i + 1 < argc) {
             sp_temp_cutoff = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--backend-threads" && i + 1 < argc) {
+            sp_backend_threads = std::atoi(argv[++i]);
         } else if (std::string(argv[i]) == "--weights" && i + 1 < argc) {
             weights_file = argv[++i];
         } else if (std::string(argv[i]) == "--test-ep") {
@@ -2252,7 +2254,10 @@ int main(int argc, char* argv[]) {
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.25f);
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, 0.3f);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_file);
-        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "threads=2");
+        // ONNX intra-op threads. With many parallel games, threads=1 + high
+        // --parallel usually scales better on CPU than wide intra-op threading.
+        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId,
+            "threads=" + std::to_string(std::max(1, sp_backend_threads)));
         const lczero::OptionsDict& sp_options = parser.GetOptionsDict();
 
         std::unique_ptr<lczero::Backend> backend;

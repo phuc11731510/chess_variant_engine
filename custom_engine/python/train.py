@@ -102,13 +102,19 @@ def main():
     ap.add_argument("--out", default="model_gen1.onnx")
     ap.add_argument("--init-from", default="", help="warm-start: load .pt weights of previous gen")
     ap.add_argument("--threads", type=int, default=0)
+    ap.add_argument("--workers", type=int, default=0, help="DataLoader worker processes")
+    ap.add_argument("--pin-memory", action="store_true", help="pin host memory (faster CPU->GPU copy)")
+    ap.add_argument("--no-cache", action="store_true", help="stream records (lower RAM for big data)")
     args = ap.parse_args()
     if args.threads > 0:
         torch.set_num_threads(args.threads)
 
     torch.manual_seed(0)
-    ds = FairyDataset(args.data, q_ratio=args.q_ratio, downsample_keep=args.downsample)
-    dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False)
+    ds = FairyDataset(args.data, q_ratio=args.q_ratio, downsample_keep=args.downsample,
+                      cache=not args.no_cache)
+    dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
+                    num_workers=args.workers, pin_memory=args.pin_memory,
+                    persistent_workers=(args.workers > 0))
 
     net = FairyNet(channels=args.channels, blocks=args.blocks)
     if args.init_from:

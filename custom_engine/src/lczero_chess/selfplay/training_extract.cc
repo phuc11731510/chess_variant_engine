@@ -19,7 +19,7 @@ Move FillSearchTargets(const classic::Node* root,
   // legal moves; each gets overwritten with its visit fraction (0 if unvisited).
   // Result: illegal = -1, legal-unvisited = 0, legal-visited = fraction. This
   // lets the trainer mask illegal moves (lc0 convention: pi < 0 => illegal).
-  for (int i = 0; i < kPolicySize; ++i) rec.probabilities[i] = -1.0f;
+  std::fill_n(rec.probabilities, kPolicySize, -1.0f);
   // Total child visits (denominator for pi). root->GetN() includes the root's
   // own visit, so sum the edges directly.
   uint32_t total = 0;
