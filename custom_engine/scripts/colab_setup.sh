@@ -15,7 +15,9 @@
 # =============================================================================
 set -e
 
-ORT_VER="${ORT_VER:-1.18.0}"
+# Default to a CUDA-12 ORT build (current Colab GPU runtimes are CUDA 12.x).
+# Override for a different CUDA: ORT_VER=1.18.0 (=CUDA 11.8) bash colab_setup.sh
+ORT_VER="${ORT_VER:-1.20.1}"
 ORT_PKG="${ORT_PKG:-onnxruntime-linux-x64-gpu-${ORT_VER}}"
 ORT_URL="${ORT_URL:-https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/${ORT_PKG}.tgz}"
 
@@ -56,6 +58,16 @@ echo "[colab] built: build-linux/custom_engine"
 
 # The binary has the ORT lib dir baked in as rpath; LD_LIBRARY_PATH is a backup.
 export LD_LIBRARY_PATH="$ENGINE_DIR/third_party/$ORT_PKG/lib:${LD_LIBRARY_PATH:-}"
+# Make the CUDA 12 runtime libs (libcublasLt.so.12, libcudnn.so.9, ...) visible
+# to the ORT CUDA EP. On Colab these ship inside torch's nvidia-* pip packages
+# and under /usr/local/cuda; add them all so providers_cuda.so resolves.
+PYSITE="$(python -c 'import site;print(site.getsitepackages()[0])' 2>/dev/null || echo '')"
+if [ -n "$PYSITE" ]; then
+  for d in "$PYSITE"/nvidia/*/lib; do
+    [ -d "$d" ] && export LD_LIBRARY_PATH="$d:$LD_LIBRARY_PATH"
+  done
+fi
+[ -d /usr/local/cuda/lib64 ] && export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
 BIN=./build-linux/custom_engine
 
 # --- (4) correctness test suite (CPU-side logic; must be 100% green) ---------
