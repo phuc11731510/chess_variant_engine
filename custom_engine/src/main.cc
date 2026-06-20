@@ -2263,6 +2263,9 @@ int main(int argc, char* argv[]) {
     // Self-play search hyperparameters (tunable).
     float sp_noise_eps = 0.25f, sp_noise_alpha = 0.3f, sp_policy_temp = 1.0f, sp_cpuct = -1.0f;
     std::string sp_start_fen;  // empty=default startpos; a FEN; or a path to a file of FENs
+    // Early resignation (plan A5). Threshold <= -1.0 (the default) disables it.
+    float sp_resign_threshold = -2.0f, sp_no_resign_frac = 0.10f;
+    int sp_resign_consecutive = 3;
     // Arena (model-vs-model evaluation) options.
     bool arena_mode = false;
     std::string arena_a, arena_b;
@@ -2299,6 +2302,12 @@ int main(int argc, char* argv[]) {
             sp_cpuct = static_cast<float>(std::atof(argv[++i]));
         } else if (std::string(argv[i]) == "--start-fen" && i + 1 < argc) {
             sp_start_fen = argv[++i];
+        } else if (std::string(argv[i]) == "--resign-threshold" && i + 1 < argc) {
+            sp_resign_threshold = static_cast<float>(std::atof(argv[++i]));
+        } else if (std::string(argv[i]) == "--resign-consecutive" && i + 1 < argc) {
+            sp_resign_consecutive = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--no-resign-frac" && i + 1 < argc) {
+            sp_no_resign_frac = static_cast<float>(std::atof(argv[++i]));
         } else if (std::string(argv[i]) == "--arena") {
             arena_mode = true;
         } else if (std::string(argv[i]) == "--model-a" && i + 1 < argc) {
@@ -2449,6 +2458,14 @@ int main(int argc, char* argv[]) {
         cfg.temp_cutoff_ply = sp_temp_cutoff;
         cfg.parallel = sp_parallel;
         cfg.threads_per_game = sp_threads_per_game;
+        cfg.resign_threshold = sp_resign_threshold;
+        cfg.resign_consecutive = sp_resign_consecutive;
+        cfg.no_resign_frac = sp_no_resign_frac;
+        if (sp_resign_threshold > -1.0f) {
+            std::cout << "[selfplay] resign: best_q<=" << sp_resign_threshold
+                      << " for " << sp_resign_consecutive << " moves, no-resign frac="
+                      << sp_no_resign_frac << std::endl;
+        }
         lczero::RunSelfPlay(cfg, backend.get(), sp_options);
     } else {
         UCI::loop(argc, argv);

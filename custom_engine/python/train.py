@@ -113,14 +113,30 @@ def main():
     ap.add_argument("--value-weight", type=float, default=1.0, help="value-loss weight vs policy")
     ap.add_argument("--swa-start-frac", type=float, default=0.75, help="start SWA at this fraction of epochs")
     ap.add_argument("--swa-lr", type=float, default=0.0, help="SWA LR (0 => lr*0.5)")
+    ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"],
+                    help="training device (auto = cuda if available, else cpu)")
+    ap.add_argument("--amp", action="store_true",
+                    help="mixed-precision FP16 training (Colab GPU, 5.3); ignored on CPU")
+    ap.add_argument("--sparse-cache", dest="sparse_cache", action="store_true", default=True,
+                    help="cache policy targets sparsely to avoid Colab OOM (8.2.2); default ON")
+    ap.add_argument("--dense-cache", dest="sparse_cache", action="store_false",
+                    help="cache dense tensors instead (more RAM; the old behavior)")
     args = ap.parse_args()
     if args.threads > 0:
         torch.set_num_threads(args.threads)
 
+    device = ("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else args.device
+    if device == "cuda" and not torch.cuda.is_available():
+        print("[train] WARNING: --device cuda but no CUDA available; falling back to cpu")
+        device = "cpu"
+    use_amp = args.amp and device == "cuda"
+    print(f"[train] device={device}  amp={use_amp}  sparse_cache={args.sparse_cache}")
+
     torch.manual_seed(0)
     ds = FairyDataset(args.data, q_ratio=args.q_ratio, downsample_keep=args.downsample,
                       cache=not args.no_cache, diff_focus=args.diff_focus,
-                      df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min)
+                      df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min,
+                      sparse=args.sparse_cache)
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
                     num_workers=args.workers, pin_memory=args.pin_memory,
                     persistent_workers=(args.workers > 0))
@@ -129,7 +145,10 @@ def main():
     if args.init_from:
         net.load_state_dict(torch.load(args.init_from, map_location="cpu"))
         print(f"[warm-start] loaded weights from {args.init_from}")
+    net.to(device)
     opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    # GradScaler keeps FP16 gradients from underflowing; a no-op when use_amp=False.
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     swa_net = AveragedModel(net)
     swa_start = max(1, int(args.epochs * args.swa_start_frac))
     swa_sched = SWALR(opt, swa_lr=(args.swa_lr if args.swa_lr > 0 else args.lr * 0.5))
@@ -140,12 +159,20 @@ def main():
         net.train()
         tp = tv = n = 0.0
         for x, pi, val in dl:
-            opt.zero_grad()
-            p_logits, v_logits = net(x)
-            lp = policy_loss(p_logits, pi)
-            lv = value_loss(v_logits, val)
-            (lp + args.value_weight * lv).backward()
-            opt.step()
+            x = x.to(device, non_blocking=True)
+            pi = pi.to(device, non_blocking=True)
+            val = val.to(device, non_blocking=True)
+            opt.zero_grad(set_to_none=True)
+            # autocast runs matmuls/convs in FP16 but keeps softmax/log_softmax in
+            # FP32, so the masked policy CE (with -inf fills) stays numerically safe.
+            with torch.autocast(device_type=device, enabled=use_amp):
+                p_logits, v_logits = net(x)
+                lp = policy_loss(p_logits, pi)
+                lv = value_loss(v_logits, val)
+                loss = lp + args.value_weight * lv
+            scaler.scale(loss).backward()
+            scaler.step(opt)
+            scaler.update()
             bs = x.size(0)
             tp += lp.item() * bs; tv += lv.item() * bs; n += bs
         if epoch >= swa_start:
@@ -155,13 +182,16 @@ def main():
 
     # Recompute BN running stats for the SWA-averaged weights, then export.
     print("[swa] updating BatchNorm statistics on the averaged model...")
-    update_bn(dl, swa_net)
+    update_bn(dl, swa_net, device=device)
 
+    # Move back to CPU for a portable checkpoint + a CPU-graph ONNX export
+    # (the dummy input in export_onnx lives on CPU).
+    final = swa_net.module.to("cpu")
     ckpt = os.path.splitext(args.out)[0] + ".pt"
-    torch.save(swa_net.module.state_dict(), ckpt)
+    torch.save(final.state_dict(), ckpt)
     print(f"[ckpt] saved {ckpt}")
 
-    export_onnx(swa_net.module, args.out)
+    export_onnx(final, args.out)
     verify_onnx(args.out)
 
 

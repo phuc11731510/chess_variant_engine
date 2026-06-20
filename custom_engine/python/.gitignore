@@ -2,6 +2,7 @@
 *.pt
 *.bin
 *.gz
+*.zip
 __pycache__/
 selfplay_data/
 loop_run/

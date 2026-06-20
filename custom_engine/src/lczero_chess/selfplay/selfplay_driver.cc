@@ -10,6 +10,7 @@
 
 #include "selfplay/selfplay_game.h"
 #include "trainingdata/writer.h"
+#include "utils/random.h"
 
 namespace lczero {
 
@@ -40,10 +41,16 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
       const std::string& fen = cfg.start_fens.empty()
           ? cfg.start_fen
           : cfg.start_fens[g % static_cast<int>(cfg.start_fens.size())];
+      // Per-game no-resign decision: a fraction of games keep resign OFF so the
+      // net still sees lost/won positions played to the very end (plan A5).
+      const bool allow_resign =
+          cfg.no_resign_frac <= 0.0f ||
+          Random::Get().GetDouble(1.0) >= cfg.no_resign_frac;
       const GameResult r =
           PlayOneGame(fen, backend, options, cfg.visits,
                       cfg.max_moves, cfg.temp_cutoff_ply, fname,
-                      cfg.threads_per_game, /*verbose=*/false);
+                      cfg.threads_per_game, /*verbose=*/false,
+                      cfg.resign_threshold, cfg.resign_consecutive, allow_resign);
 
       if (r == GameResult::WHITE_WON)
         w_wins.fetch_add(1);

@@ -66,7 +66,17 @@ def main():
     ap.add_argument("--cpuct", type=float, default=None)
     ap.add_argument("--policy-temp", type=float, default=None)
     ap.add_argument("--start-fen", default=None, help="FEN or opening-book file (diverse openings)")
+    # Early resignation (plan A5; passed through to the engine self-play).
+    ap.add_argument("--resign-threshold", type=float, default=None,
+                    help="best_q<=this for N moves -> resign; <=-1 disables (default off)")
+    ap.add_argument("--resign-consecutive", type=int, default=None)
+    ap.add_argument("--no-resign-frac", type=float, default=None,
+                    help="fraction of games with resign disabled (learn to defend)")
     # Training hyperparameters (passed through to train.py).
+    ap.add_argument("--amp", action="store_true",
+                    help="FP16 mixed-precision training (auto-on when --provider cuda)")
+    ap.add_argument("--dense-cache", action="store_true",
+                    help="use dense (high-RAM) dataset cache instead of the default sparse")
     ap.add_argument("--weight-decay", type=float, default=None)
     ap.add_argument("--value-weight", type=float, default=None)
     ap.add_argument("--df-slope", type=float, default=None)
@@ -104,7 +114,10 @@ def main():
             sp += ["--backend-threads", args.backend_threads]
         for flag, val in [("--noise-epsilon", args.noise_epsilon), ("--noise-alpha", args.noise_alpha),
                           ("--cpuct", args.cpuct), ("--policy-temp", args.policy_temp),
-                          ("--start-fen", args.start_fen)]:
+                          ("--start-fen", args.start_fen),
+                          ("--resign-threshold", args.resign_threshold),
+                          ("--resign-consecutive", args.resign_consecutive),
+                          ("--no-resign-frac", args.no_resign_frac)]:
             if val is not None:
                 sp += [flag, val]
         run(sp)
@@ -121,8 +134,15 @@ def main():
               "--init-from", pt(gen), "--out", onnx(gen + 1)]
         if args.diff_focus:
             tr += ["--diff-focus"]
+        if args.dense_cache:
+            tr += ["--dense-cache"]
         if args.provider == "cuda":
             tr += ["--pin-memory"]
+            # FP16 mixed precision is a GPU-only win (5.3); enable on cuda unless
+            # the user already passed --amp explicitly.
+            tr += ["--amp"]
+        elif args.amp:
+            tr += ["--amp"]
         for flag, val in [("--weight-decay", args.weight_decay), ("--value-weight", args.value_weight),
                           ("--df-slope", args.df_slope), ("--df-kld-w", args.df_kld_w),
                           ("--df-min", args.df_min), ("--swa-start-frac", args.swa_start_frac)]:

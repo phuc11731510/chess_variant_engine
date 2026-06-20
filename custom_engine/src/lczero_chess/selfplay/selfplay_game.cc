@@ -71,7 +71,9 @@ classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, int ply,
 GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        const OptionsDict& options, int visits, int max_moves,
                        int temp_cutoff_ply, const std::string& out_filename,
-                       int search_threads, bool verbose) {
+                       int search_threads, bool verbose,
+                       float resign_threshold, int resign_consecutive,
+                       bool allow_resign) {
   auto tree = std::make_unique<classic::NodeTree>();
   tree->ResetToPosition(start_fen, {});
 
@@ -82,6 +84,12 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
   records.reserve(max_moves);
   stm_black.reserve(max_moves);
   GameResult result = GameResult::UNDECIDED;
+
+  // Early-resign tracking: count consecutive own-moves where each side judged
+  // itself badly losing. Index 0 = White, 1 = Black. Only active when the caller
+  // allows resign AND the threshold is reachable (best_q in [-1,1]).
+  const bool resign_active = allow_resign && resign_threshold > -1.0f;
+  int resign_streak[2] = {0, 0};
 
   for (int ply = 0; ply < max_moves; ++ply) {
     // --- Search (heap-allocated: PositionHistory holds 512-ply arrays) ---
@@ -126,6 +134,26 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
 
     records.push_back(rec);
     stm_black.push_back(black);
+
+    // --- Early resignation (plan A5) ---
+    // best_q is from the side-to-move's perspective. If a side judges itself
+    // badly losing for `resign_consecutive` of its own moves in a row, adjudicate
+    // an immediate loss for that side (the just-recorded position is still kept).
+    if (resign_active) {
+      const int s = black ? 1 : 0;
+      if (rec.best_q <= resign_threshold) {
+        if (++resign_streak[s] >= resign_consecutive) {
+          result = black ? GameResult::WHITE_WON : GameResult::BLACK_WON;
+          if (verbose) {
+            std::cout << "  [resign] " << (black ? "black" : "white")
+                      << " resigns (best_q=" << rec.best_q << ")" << std::endl;
+          }
+          break;
+        }
+      } else {
+        resign_streak[s] = 0;
+      }
+    }
 
     // In nuoc co ra console de con nguoi doc duoc (lat lai ve he toa do ban co that neu la quan Den)
     if (verbose) {

@@ -13,6 +13,7 @@ THE 3 CONVENTIONS THIS MUST MATCH (locked by the T5 round-trip test):
 import gzip
 import random
 import struct
+import zipfile
 
 import numpy as np
 
@@ -124,18 +125,42 @@ def reconstruct_planes(rec):
     return planes
 
 
+def _read_stream(f, where=""):
+    """Read fixed-size records from an open binary stream until EOF."""
+    out = []
+    while True:
+        buf = f.read(RECORD_SIZE)
+        if not buf:
+            break
+        if len(buf) != RECORD_SIZE:
+            raise ValueError(f"truncated record ({len(buf)} bytes) in {where}")
+        out.append(unpack_record(buf))
+    return out
+
+
 def read_records(filename):
     """Read all records from a .gz (or raw .bin) file."""
     opener = gzip.open if filename.endswith(".gz") else open
-    out = []
     with opener(filename, "rb") as f:
-        while True:
-            buf = f.read(RECORD_SIZE)
-            if not buf:
-                break
-            if len(buf) != RECORD_SIZE:
-                raise ValueError(f"truncated record ({len(buf)} bytes) in {filename}")
-            out.append(unpack_record(buf))
+        return _read_stream(f, filename)
+
+
+def read_records_from_zip(zip_path):
+    """Read all records from a .zip bundle of .gz/.bin games (archive.py output).
+
+    Lets training run directly on the transfer bundle (e.g. one file downloaded
+    from Google Drive on Colab) without unpacking it to disk first."""
+    out = []
+    with zipfile.ZipFile(zip_path) as zf:
+        for name in zf.namelist():
+            if name.endswith("/"):
+                continue
+            with zf.open(name) as raw:
+                if name.endswith(".gz"):
+                    with gzip.GzipFile(fileobj=raw) as f:
+                        out.extend(_read_stream(f, f"{zip_path}:{name}"))
+                elif name.endswith(".bin"):
+                    out.extend(_read_stream(raw, f"{zip_path}:{name}"))
     return out
 
 

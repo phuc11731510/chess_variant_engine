@@ -18,6 +18,10 @@ struct SelfPlayConfig {
   int temp_cutoff_ply = 30;       // plies below this use temperature sampling.
   int parallel = 1;               // games played concurrently (worker threads).
   int threads_per_game = 1;       // MCTS threads within each game.
+  // Early resignation (plan A5). resign_threshold <= -1.0 disables it.
+  float resign_threshold = -2.0f; // best_q <= this for resign_consecutive own-moves -> resign.
+  int resign_consecutive = 3;     // consecutive own-moves below threshold to trigger.
+  float no_resign_frac = 0.10f;   // fraction of games with resign disabled (learn to defend).
 };
 
 // Generates `cfg.num_games` self-play games into `cfg.out_dir`. Games run on

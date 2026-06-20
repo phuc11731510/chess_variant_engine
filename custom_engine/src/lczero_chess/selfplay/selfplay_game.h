@@ -23,9 +23,21 @@ namespace lczero {
 // Returns the (possibly adjudicated) game result.
 // `verbose`: print each played move to stdout (kept ON for single-game tests;
 //            the parallel driver passes false to avoid interleaved log spam).
+//
+// Early resignation (throughput optimization, plan A5):
+//   resign_threshold    : if the side-to-move's best_q stays <= this for
+//                         `resign_consecutive` of ITS OWN consecutive moves, that
+//                         side resigns (the opponent is awarded the win). A value
+//                         <= -1.0 disables resign entirely (best_q in [-1,1]).
+//   resign_consecutive  : how many consecutive own-moves below threshold trigger.
+//   allow_resign        : per-game switch; the driver sets it false for a fraction
+//                         of games ("no-resign") so the net still learns to defend
+//                         lost positions and to convert won ones to the very end.
 GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        const OptionsDict& options, int visits, int max_moves,
                        int temp_cutoff_ply, const std::string& out_filename,
-                       int search_threads = 1, bool verbose = true);
+                       int search_threads = 1, bool verbose = true,
+                       float resign_threshold = -2.0f,
+                       int resign_consecutive = 3, bool allow_resign = true);
 
 }  // namespace lczero
