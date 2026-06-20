@@ -306,13 +306,23 @@ void OnnxBackend::InitializeSession() {
             }
         }
         
-        // Append execution providers (CUDA / TensorRT) - placeholders for Colab compiling
-        // To enable CUDA on Colab, include <cuda_provider_factory.h> and uncomment below:
-        // OrtCUDAProviderOptions options;
-        // options.device_id = 0;
-        // session_options_.AppendExecutionProvider_CUDA(options);
-        
-        std::cout << "[ONNX Backend] GPU profile activated (" << provider_ << "): Fixed batch=" 
+        // Append the CUDA Execution Provider. Compiled only when the binary is
+        // built with -Duse_cuda=true (Linux/Colab GPU); the Windows CPU build
+        // never enters this code, so it remains unaffected.
+#ifdef USE_CUDA
+        if (provider_ == "cuda") {
+            OrtCUDAProviderOptions cuda_options{};
+            cuda_options.device_id = 0;
+            session_options_.AppendExecutionProvider_CUDA(cuda_options);
+            std::cout << "[ONNX Backend] CUDA Execution Provider appended (device 0)." << std::endl;
+        }
+#else
+        std::cout << "[ONNX Backend] WARNING: provider='" << provider_
+                  << "' requested but this binary was built WITHOUT USE_CUDA -> "
+                  << "falling back to the CPU Execution Provider." << std::endl;
+#endif
+
+        std::cout << "[ONNX Backend] GPU profile activated (" << provider_ << "): Fixed batch="
                   << fixed_batch_size_ << std::endl;
     } else {
         // CPU Profile: Dynamic batching, Disable memory pattern, physical core optimization

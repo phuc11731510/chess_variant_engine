@@ -7,3 +7,13 @@ option('mimalloc_libdir',
        type : 'string',
        value: '',
        description: 'Library directory for malloc=mimalloc')
+
+option('onnxruntime_dir',
+       type : 'string',
+       value: 'third_party/onnxruntime-linux-x64-gpu-1.18.0',
+       description: 'ONNX Runtime root dir (non-Windows builds, e.g. Colab GPU package)')
+
+option('use_cuda',
+       type : 'boolean',
+       value: false,
+       description: 'Enable the CUDA Execution Provider in OnnxBackend (-DUSE_CUDA)')

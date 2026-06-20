@@ -32,9 +32,23 @@ else
   add_project_arguments('-DUSE_PTHREADS', language: 'cpp')
 endif
 
+# CUDA Execution Provider (Linux/Colab GPU). Requires a GPU ONNX Runtime package.
+if get_option('use_cuda')
+  add_project_arguments('-DUSE_CUDA', language: 'cpp')
+  message('CUDA Execution Provider ENABLED (-DUSE_CUDA)')
+endif
+
+# ONNX Runtime root: platform-specific. Windows uses the bundled CPU package;
+# non-Windows (Linux/Colab) uses the GPU package pointed to by -Donnxruntime_dir=.
+if host_machine.system() == 'windows'
+  onnx_root = 'third_party/onnxruntime-win-x64-1.18.0'
+else
+  onnx_root = get_option('onnxruntime_dir')
+endif
+
 # Include directories
 inc_dirs = include_directories(
-  'third_party/onnxruntime-win-x64-1.18.0/include',
+  onnx_root / 'include',
   'src/lczero_chess',
   'src',
   'src/chess',
@@ -108,17 +122,20 @@ engine_sources = files(
   'src/main.cc'
 )
 
-# ONNX Runtime link dependency
-onnx_lib_dir = meson.current_source_dir() / 'third_party/onnxruntime-win-x64-1.18.0/lib'
+# ONNX Runtime link dependency (platform-specific root resolved above).
+onnx_lib_dir = meson.current_source_dir() / onnx_root / 'lib'
 onnx_dep = cc.find_library('onnxruntime', dirs: onnx_lib_dir, required: true)
 
 if host_machine.system() == 'windows'
+  # Bundle the DLL next to the .exe (Windows loader needs it alongside).
   configure_file(
-    input: 'third_party/onnxruntime-win-x64-1.18.0/lib/onnxruntime.dll',
+    input: onnx_root / 'lib/onnxruntime.dll',
     output: 'onnxruntime.dll',
     copy: true
   )
 endif
+# On Linux the loader finds libonnxruntime.so via the executable rpath below
+# (build_rpath) or LD_LIBRARY_PATH; no copy needed.
 
 # zlib for gzip training data (optional: falls back to raw .bin if absent)
 zlib_dep = dependency('zlib', required: false)
@@ -148,10 +165,16 @@ elif malloc_opt != ''
   deps += cc.find_library(malloc_opt, required: true)
 endif
 
-# Build the executable
+# Build the executable. On Linux, embed the ONNX Runtime lib dir as an rpath so
+# the binary loads libonnxruntime.so without needing LD_LIBRARY_PATH.
+exe_kwargs = {}
+if host_machine.system() != 'windows'
+  exe_kwargs += {'build_rpath': onnx_lib_dir}
+endif
 executable('custom_engine',
   sources: [chess_sources, search_sources, neural_sources, trainingdata_sources, engine_sources],
   include_directories: inc_dirs,
   dependencies: deps,
-  install: true
+  install: true,
+  kwargs: exe_kwargs
 )

@@ -2144,7 +2144,9 @@ int main(int argc, char* argv[]) {
     // Self-play driver options.
     int sp_games = 100, sp_visits = 200, sp_parallel = 1, sp_threads_per_game = 1;
     int sp_max_moves = 200, sp_temp_cutoff = 30, sp_backend_threads = 1;
+    int sp_fixed_batch = 16;
     std::string sp_out = "selfplay_data";
+    std::string sp_provider = "cpu";  // "cpu" or "cuda" (CUDA EP needs a -Duse_cuda build)
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--selfplay") {
             selfplay_mode = true;
@@ -2164,6 +2166,10 @@ int main(int argc, char* argv[]) {
             sp_temp_cutoff = std::atoi(argv[++i]);
         } else if (std::string(argv[i]) == "--backend-threads" && i + 1 < argc) {
             sp_backend_threads = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--provider" && i + 1 < argc) {
+            sp_provider = argv[++i];
+        } else if (std::string(argv[i]) == "--fixed-batch" && i + 1 < argc) {
+            sp_fixed_batch = std::atoi(argv[++i]);
         } else if (std::string(argv[i]) == "--weights" && i + 1 < argc) {
             weights_file = argv[++i];
         } else if (std::string(argv[i]) == "--test-ep") {
@@ -2254,10 +2260,16 @@ int main(int argc, char* argv[]) {
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.25f);
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, 0.3f);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_file);
-        // ONNX intra-op threads. With many parallel games, threads=1 + high
-        // --parallel usually scales better on CPU than wide intra-op threading.
-        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId,
-            "threads=" + std::to_string(std::max(1, sp_backend_threads)));
+        // Backend options. CPU: game-level parallelism + low intra-op threads.
+        // CUDA (Colab GPU, needs a -Duse_cuda build): provider=cuda + fixed_batch.
+        std::string sp_backend_opts;
+        if (sp_provider == "cuda") {
+            sp_backend_opts = "provider=cuda,fixed_batch=" + std::to_string(std::max(1, sp_fixed_batch));
+        } else {
+            sp_backend_opts = "threads=" + std::to_string(std::max(1, sp_backend_threads));
+        }
+        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, sp_backend_opts);
+        std::cout << "[selfplay] backend: " << sp_backend_opts << std::endl;
         const lczero::OptionsDict& sp_options = parser.GetOptionsDict();
 
         std::unique_ptr<lczero::Backend> backend;
