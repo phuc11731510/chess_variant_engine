@@ -31,6 +31,12 @@
 #include <fstream>
 #include <cstdio>
 #include <cmath>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <chrono>
+#include <memory>
+#include <map>
 #include "search/classic/search.h"
 #include "search/classic/params.h"
 #include "neural/backend.h"
@@ -2237,6 +2243,364 @@ void run_arena(const std::string& model_a, const std::string& model_b, int games
     std::cout << "  A score = " << score_a << "  (>0.5 => A stronger than B)" << std::endl;
 }
 
+// ============================================================================
+// T8.1 — UCI engine driving MCTS + ONNX (the "real" AlphaZero engine, terminal).
+// ============================================================================
+
+// Variant startpos (same as arena/self-play).
+static const char* const kUciStartFen =
+    "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+
+// --- Move I/O: 2-way canonical<->real mapping (locks risk #1). ---
+// The lczero layer works in the canonical (side-to-move-flipped) frame; the GUI
+// uses real board coords. Self-play already maps canonical->real for DISPLAY via
+// Move::Flip(RANK_10) when Black is to move; we reuse the exact same convention
+// for BOTH directions so format and parse are mutual inverses by construction.
+static std::string CanonicalMoveToUci(lczero::Move m, bool black_to_move) {
+    lczero::Move d = m;
+    if (black_to_move) d.Flip(Stockfish::RANK_10);  // canonical -> real coords
+    return d.ToString();                            // a1..j10 (+ promo suffix)
+}
+
+// Finds the canonical legal move whose real-coord UCI string equals `uci`.
+// Returns MOVE_NONE if no legal move matches (illegal / malformed input).
+static lczero::Move UciToCanonicalMove(const lczero::ChessBoard& board,
+                                       const std::string& uci, bool black_to_move) {
+    lczero::MoveList legal = board.GenerateLegalMoves();   // canonical frame
+    for (size_t i = 0; i < legal.size(); ++i) {
+        if (CanonicalMoveToUci(legal[i], black_to_move) == uci) return legal[i];
+    }
+    return lczero::MOVE_NONE;
+}
+
+// Stopper that never fires (for `go infinite`; ends only on Stop()).
+class InfiniteStopper : public lczero::classic::SearchStopper {
+public:
+    bool ShouldStop(const lczero::classic::IterationStats&, lczero::classic::StoppersHints*) override {
+        return false;
+    }
+    void OnSearchDone(const lczero::classic::IterationStats&) override {}
+};
+
+// Stopper that fires after a wall-clock budget (for `go movetime`).
+class TimeStopper : public lczero::classic::SearchStopper {
+public:
+    explicit TimeStopper(int64_t ms)
+        : deadline_(std::chrono::steady_clock::now() + std::chrono::milliseconds(ms)) {}
+    bool ShouldStop(const lczero::classic::IterationStats&, lczero::classic::StoppersHints*) override {
+        return std::chrono::steady_clock::now() >= deadline_;
+    }
+    void OnSearchDone(const lczero::classic::IterationStats&) override {}
+private:
+    std::chrono::steady_clock::time_point deadline_;
+};
+
+// UCI engine state machine. One search runs on a worker thread (U1.8a) so the
+// main thread keeps reading stdin and can deliver `stop`/`quit` immediately.
+class UciNnEngine {
+public:
+    UciNnEngine(std::string weights, std::string provider, int fixed_batch)
+        : weights_(std::move(weights)), provider_(std::move(provider)), fixed_batch_(fixed_batch) {
+        tree_ = std::make_unique<lczero::classic::NodeTree>();
+        tree_->ResetToPosition(kUciStartFen, {});
+    }
+    ~UciNnEngine() { StopSearch(); }
+
+    void Loop() {
+        std::string line;
+        while (std::getline(std::cin, line)) {
+            ReapIfDone();
+            std::istringstream is(line);
+            std::string cmd;
+            if (!(is >> cmd)) continue;            // blank line -> ignore (robustness)
+            if (cmd == "uci") {
+                HandleUci();
+            } else if (cmd == "isready") {
+                EnsureBackend();                   // sync: only ready AFTER (re)build
+                Send("readyok");
+            } else if (cmd == "setoption") {
+                HandleSetOption(is);
+            } else if (cmd == "ucinewgame") {
+                StopSearch();
+                tree_ = std::make_unique<lczero::classic::NodeTree>();  // free old tree (U1.8c)
+                tree_->ResetToPosition(kUciStartFen, {});
+            } else if (cmd == "position") {
+                StopSearch();
+                HandlePosition(is);
+            } else if (cmd == "go") {
+                HandleGo(is);
+            } else if (cmd == "stop") {
+                StopSearch();                      // emits bestmove (U1.8a)
+            } else if (cmd == "ponderhit") {
+                // No ponder yet (T8.2); accept silently.
+            } else if (cmd == "debug" || cmd == "register") {
+                // Accept & ignore (robustness).
+            } else if (cmd == "quit") {
+                AbortSearch();
+                break;
+            }
+            // Unknown commands are ignored per the UCI spec.
+        }
+    }
+
+private:
+    void Send(const std::string& s) {
+        std::lock_guard<std::mutex> lk(io_mu_);
+        std::cout << s << "\n" << std::flush;
+    }
+
+    void HandleUci() {
+        Send("id name FairyZero (10x10 MCTS+NN)");
+        Send("id author FairyZero");
+        Send("option name WeightsFile type string default " + weights_);
+        Send("option name Visits type spin default 800 min 1 max 100000000");
+        Send("option name Provider type combo default cpu var cpu var cuda");
+        Send("option name FixedBatch type spin default 16 min 1 max 1024");
+        Send("option name Threads type spin default 1 min 1 max 256");
+        Send("option name BackendThreads type spin default 1 min 1 max 256");
+        Send("option name PolicySoftmaxTemp type string default 1.0");
+        Send("option name MoveOverheadMs type spin default 30 min 0 max 10000");
+        Send("uciok");
+    }
+
+    // setoption name <Name> [value <Val>]
+    void HandleSetOption(std::istringstream& is) {
+        std::string tok, name, value;
+        bool in_value = false;
+        while (is >> tok) {
+            if (tok == "name") continue;
+            if (tok == "value") { in_value = true; continue; }
+            if (in_value) value += (value.empty() ? "" : " ") + tok;
+            else name += (name.empty() ? "" : " ") + tok;
+        }
+        auto to_int = [&](int def) { try { return std::stoi(value); } catch (...) { return def; } };
+        if (name == "WeightsFile") { if (!value.empty()) { weights_ = value; backend_dirty_ = true; } }
+        else if (name == "Provider") { if (!value.empty()) { provider_ = value; backend_dirty_ = true; } }
+        else if (name == "FixedBatch") { fixed_batch_ = to_int(fixed_batch_); backend_dirty_ = true; }
+        else if (name == "BackendThreads") { backend_threads_ = to_int(backend_threads_); backend_dirty_ = true; }
+        else if (name == "PolicySoftmaxTemp") { try { policy_temp_ = std::stof(value); backend_dirty_ = true; } catch (...) {} }
+        else if (name == "Visits") { default_visits_ = to_int(default_visits_); }
+        else if (name == "Threads") { search_threads_ = std::max(1, to_int(search_threads_)); }
+        else if (name == "MoveOverheadMs") { move_overhead_ms_ = std::max(0, to_int(move_overhead_ms_)); }
+        // Unknown options ignored (robustness).
+    }
+
+    // position [startpos | fen <FEN...>] [moves <m1> <m2> ...]
+    void HandlePosition(std::istringstream& is) {
+        std::string tok;
+        if (!(is >> tok)) return;
+        std::string fen;
+        if (tok == "startpos") {
+            fen = kUciStartFen;
+            is >> tok;                              // consume optional "moves"
+        } else if (tok == "fen") {
+            std::vector<std::string> parts;
+            while (is >> tok && tok != "moves") parts.push_back(tok);
+            for (size_t i = 0; i < parts.size(); ++i) fen += (i ? " " : "") + parts[i];
+        } else {
+            return;                                 // malformed
+        }
+        tree_ = std::make_unique<lczero::classic::NodeTree>();
+        try {
+            tree_->ResetToPosition(fen, {});   // bool = tree-reuse flag, not success
+        } catch (const std::exception& e) {
+            // malformed FEN -> keep engine usable by falling back to startpos
+            Send(std::string("info string bad FEN, using startpos: ") + e.what());
+            tree_->ResetToPosition(kUciStartFen, {});
+            return;
+        }
+        if (tok == "moves") {                        // apply the move list
+            std::string mv;
+            while (is >> mv) {
+                const bool black = tree_->IsBlackToMove();
+                const auto& board = tree_->GetPositionHistory().Last().GetBoard();
+                lczero::Move m = UciToCanonicalMove(board, mv, black);
+                if (m.is_null()) break;              // illegal/unknown move: stop applying
+                tree_->MakeMove(m);
+            }
+        }
+    }
+
+    // go [nodes N | movetime ms | infinite | depth d ...]
+    void HandleGo(std::istringstream& is) {
+        StopSearch();
+        if (!EnsureBackend()) { Send("bestmove 0000"); return; }
+        int64_t nodes = 0, movetime = 0;
+        bool infinite = false;
+        std::string tok;
+        while (is >> tok) {
+            if (tok == "nodes") { is >> nodes; }
+            else if (tok == "movetime") { is >> movetime; }
+            else if (tok == "infinite") { infinite = true; }
+            else if (tok == "depth" || tok == "wtime" || tok == "btime" ||
+                     tok == "winc" || tok == "binc" || tok == "movestogo") {
+                std::string ignored; is >> ignored;  // accepted, used in T8.2
+            }
+            // unknown go-params ignored
+        }
+        std::unique_ptr<lczero::classic::SearchStopper> stopper;
+        if (infinite) stopper = std::make_unique<InfiniteStopper>();
+        else if (movetime > 0) stopper = std::make_unique<TimeStopper>(std::max<int64_t>(1, movetime - move_overhead_ms_));
+        else stopper = std::make_unique<NodeLimitStopper>(nodes > 0 ? nodes : default_visits_);
+
+        auto responder = std::make_unique<SilentUciResponder>();  // we format output ourselves
+        search_ = std::make_unique<lczero::classic::Search>(
+            *tree_, backend_.get(), std::move(responder), lczero::MoveList{},
+            std::chrono::steady_clock::now(), std::move(stopper), infinite,
+            /*ponder=*/false, parser_->GetOptionsDict(), nullptr);
+        searching_.store(true);
+        const int threads = search_threads_;
+        search_thread_ = std::thread([this, threads]() {
+            search_->RunBlocking(threads);     // blocks until stopper fires OR Stop()
+            EmitBestMove();
+            searching_.store(false);
+        });
+    }
+
+    void EmitBestMove() {
+        lczero::classic::Node* root = tree_->GetCurrentHead();
+        lczero::classic::EdgeAndNode best;
+        uint64_t best_n = 0;
+        if (root) {
+            for (const auto& e : root->Edges()) {
+                if (e.GetN() >= best_n) { best_n = e.GetN(); best = e; }
+            }
+        }
+        lczero::Move m = best.GetMove();
+        if (m.is_null()) { Send("bestmove 0000"); return; }   // no legal move / terminal
+        Send("bestmove " + CanonicalMoveToUci(m, tree_->IsBlackToMove()));
+    }
+
+    bool EnsureBackend() {
+        if (!backend_dirty_ && backend_) return true;
+        parser_ = std::make_unique<lczero::OptionsParser>();
+        lczero::classic::SearchParams::Populate(parser_.get());
+        auto* d = parser_->GetMutableDefaultsOptions();
+        d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, policy_temp_);
+        d->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+        d->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);  // play hard: no noise
+        d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_);
+        const std::string bopts = (provider_ == "cuda")
+            ? "provider=cuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch_))
+            : "threads=" + std::to_string(std::max(1, backend_threads_));
+        d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bopts);
+        try {
+            backend_ = arena_make_backend(parser_->GetOptionsDict());
+            backend_dirty_ = false;
+            return true;
+        } catch (const std::exception& e) {
+            backend_.reset();
+            Send(std::string("info string failed to load backend: ") + e.what());
+            return false;
+        }
+    }
+
+    void StopSearch() {        // graceful: stop + reap (also emits bestmove)
+        if (search_ && searching_.load()) search_->Stop();
+        if (search_thread_.joinable()) search_thread_.join();
+        search_.reset();
+        searching_.store(false);
+    }
+    void AbortSearch() {       // quit: no bestmove
+        if (search_ && searching_.load()) search_->Abort();
+        if (search_thread_.joinable()) search_thread_.join();
+        search_.reset();
+        searching_.store(false);
+    }
+    void ReapIfDone() {        // join a search that self-terminated (nodes/movetime)
+        if (search_thread_.joinable() && !searching_.load()) {
+            search_thread_.join();
+            search_.reset();
+        }
+    }
+
+    std::string weights_, provider_;
+    int fixed_batch_;
+    int backend_threads_ = 1, search_threads_ = 1;
+    int default_visits_ = 800, move_overhead_ms_ = 30;
+    float policy_temp_ = 1.0f;
+    bool backend_dirty_ = true;
+
+    std::unique_ptr<lczero::OptionsParser> parser_;
+    std::unique_ptr<lczero::Backend> backend_;
+    std::unique_ptr<lczero::classic::NodeTree> tree_;
+    std::unique_ptr<lczero::classic::Search> search_;
+    std::thread search_thread_;
+    std::atomic<bool> searching_{false};
+    std::mutex io_mu_;
+};
+
+void run_uci_nn(const std::string& weights, const std::string& provider, int fixed_batch) {
+    setup_custom_variant();
+    UciNnEngine engine(weights, provider, fixed_batch);
+    engine.Loop();
+}
+
+// --test-uci: conformance for the move I/O (risk #1) — no backend needed.
+void run_uci_tests() {
+    std::cout << "\n=== UCI move-I/O conformance (--test-uci) ===" << std::endl;
+    setup_custom_variant();
+    // FENs incl Black-to-move, rank-10 destinations, promotion-ready, castling.
+    const std::vector<std::string> fens = {
+        kUciStartFen,
+        "4k5/10/10/10/10/10/10/10/10/R8K b - - 7+7 0 1",          // Black to move
+        "5k4/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1",
+        "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 7+7 0 1",
+    };
+    long total = 0;
+    int fail = 0;
+    for (const auto& fen : fens) {
+        auto tree = std::make_unique<lczero::classic::NodeTree>();  // heap: 512-ply history
+        tree->ResetToPosition(fen, {});   // bool = tree-reuse flag, NOT success
+        const bool black = tree->IsBlackToMove();
+        const auto& board = tree->GetPositionHistory().Last().GetBoard();
+        lczero::MoveList legal = board.GenerateLegalMoves();
+        for (size_t i = 0; i < legal.size(); ++i) {
+            const std::string uci = CanonicalMoveToUci(legal[i], black);
+            // well-formed: 4-5 chars, file a-j, has a rank
+            bool ok_fmt = uci.size() >= 4 && uci.size() <= 6 && uci[0] >= 'a' && uci[0] <= 'j';
+            lczero::Move back = UciToCanonicalMove(board, uci, black);
+            if (!ok_fmt || !(back == legal[i])) {
+                if (fail < 10) std::cerr << "[FAIL] round-trip '" << uci << "' (black=" << black << ")" << std::endl;
+                ++fail;
+            }
+            ++total;
+        }
+    }
+    std::cout << "  move round-trip: " << (total - fail) << "/" << total
+              << " over " << fens.size() << " positions (incl Black-to-move)" << std::endl;
+
+    // Absolute sanity: from startpos (White, no flip) a known pawn push exists.
+    {
+        auto tree = std::make_unique<lczero::classic::NodeTree>();
+        tree->ResetToPosition(kUciStartFen, {});
+        const auto& board = tree->GetPositionHistory().Last().GetBoard();
+        lczero::Move m = UciToCanonicalMove(board, "b3b4", /*black=*/false);
+        if (m.is_null()) { std::cerr << "[FAIL] startpos: b3b4 not a legal move (coord/flip bug?)" << std::endl; ++fail; }
+        else std::cout << "  absolute check: startpos b3b4 is legal (White coords un-flipped) [OK]" << std::endl;
+    }
+
+    // position-sync: startpos+moves vs the resulting FEN -> same head position.
+    {
+        auto t1 = std::make_unique<lczero::classic::NodeTree>();
+        t1->ResetToPosition(kUciStartFen, {});
+        const auto& b0 = t1->GetPositionHistory().Last().GetBoard();
+        lczero::Move m = UciToCanonicalMove(b0, "b3b4", false);
+        if (!m.is_null()) {
+            t1->MakeMove(m);
+            const std::string fen_after = t1->GetPositionHistory().Last().GetBoard().GetRawPosition().fen();
+            auto t2 = std::make_unique<lczero::classic::NodeTree>();
+            t2->ResetToPosition(fen_after, {});
+            const std::string fen_rebuilt = t2->GetPositionHistory().Last().GetBoard().GetRawPosition().fen();
+            if (fen_after != fen_rebuilt) { std::cerr << "[FAIL] position-sync FEN mismatch" << std::endl; ++fail; }
+            else std::cout << "  position-sync: startpos+b3b4 FEN round-trips [OK]" << std::endl;
+        }
+    }
+
+    if (fail == 0) std::cout << "[PASS] UCI move-I/O conformance." << std::endl;
+    else { std::cerr << "[FAIL] " << fail << " UCI conformance failures." << std::endl; std::exit(1); }
+}
+
 int main(int argc, char* argv[]) {
     bool test_mcts_mode = false;
     bool selfplay_mode = false;
@@ -2252,6 +2616,8 @@ int main(int argc, char* argv[]) {
     bool test_rules_mode = false;
     bool test_adapter_mode = false;
     bool test_nn_mode = false;
+    bool uci_nn_mode = false;
+    bool test_uci_mode = false;
     std::string rt_prefix = "roundtrip";
     std::string weights_file = "weights_0_elo.onnx";
     // Self-play driver options.
@@ -2346,6 +2712,10 @@ int main(int argc, char* argv[]) {
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 weights_file = argv[i + 1];
             }
+        } else if (std::string(argv[i]) == "--uci-nn") {
+            uci_nn_mode = true;
+        } else if (std::string(argv[i]) == "--test-uci") {
+            test_uci_mode = true;
         }
     }
 
@@ -2389,6 +2759,10 @@ int main(int argc, char* argv[]) {
         run_adapter_tests();
     } else if (test_nn_mode) {
         run_nn_tests();
+    } else if (test_uci_mode) {
+        run_uci_tests();
+    } else if (uci_nn_mode) {
+        run_uci_nn(weights_file, sp_provider, sp_fixed_batch);
     } else if (arena_mode) {
         if (arena_a.empty() || arena_b.empty()) {
             std::cerr << "[arena] need --model-a <onnx> and --model-b <onnx>" << std::endl;
