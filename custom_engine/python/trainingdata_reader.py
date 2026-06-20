@@ -69,7 +69,9 @@ def unpack_record(buf):
 
 
 def _set_mask_bits(plane, lo, hi):
-    """Set 1.0 at every board square present in a 128-bit mask (s = rank*12+file)."""
+    """Reference (scalar) decoder: set 1.0 at every board square present in a
+    128-bit mask (s = rank*12+file). Kept as a slow-but-obvious reference that
+    `test_bits.py` validates; `reconstruct_planes` uses the vectorized path."""
     for word, bits in ((0, lo), (1, hi)):
         while bits:
             b = bits & (-bits)        # lowest set bit
@@ -80,17 +82,32 @@ def _set_mask_bits(plane, lo, hi):
                 plane[rank, file] = 1.0
 
 
+# Precomputed (word, bit) maps for the 100 board cells (file 0-9, rank 0-9).
+# Cell (rank,file) holds bit s = rank*12+file -> word s//64, bit s%64. Padding
+# columns (file 10,11) are never indexed, so they cannot leak onto the board.
+_S_GRID = (np.arange(BOARD)[:, None] * 12 + np.arange(BOARD)[None, :])  # [10,10] int
+_WORD_GRID = (_S_GRID // 64).astype(np.intp)                            # [10,10] 0/1
+_BIT_GRID = (_S_GRID % 64).astype(np.uint64)                            # [10,10]
+
+
+def _unpack_block(words):
+    """Vectorized bitboard unpack. `words`: uint64 array [..., 2] (lo, hi).
+    Returns float32 [..., 10, 10] = 1.0 where the corresponding board bit is set.
+    Produces output bit-identical to _set_mask_bits, ~10-50x faster (no Python loop)."""
+    sel = words[..., _WORD_GRID]                 # [..., 10, 10] pick lo/hi per cell
+    return ((sel >> _BIT_GRID) & np.uint64(1)).astype(np.float32)
+
+
 def reconstruct_planes(rec):
     """Rebuild the dense [226, 10, 10] float32 NN input from a record.
 
     Must reproduce the C++ UnpackInputPlanes output bit/value-exactly.
     """
     planes = np.zeros((NUM_PLANES, BOARD, BOARD), dtype=np.float32)
-    pp = rec["piece_planes"]
-    for p in range(HISTORY_PLANES):
-        _set_mask_bits(planes[p], pp[2 * p], pp[2 * p + 1])
+    pp = np.asarray(rec["piece_planes"], dtype=np.uint64).reshape(HISTORY_PLANES, 2)
+    planes[:HISTORY_PLANES] = _unpack_block(pp)                      # 216 history planes
     # aux 4: en passant plane (bitboard mask).
-    _set_mask_bits(planes[AUX_BASE + 4], rec["ep_mask"][0], rec["ep_mask"][1])
+    planes[AUX_BASE + 4] = _unpack_block(np.asarray(rec["ep_mask"], dtype=np.uint64))
     # aux 0..3: castling rook squares. us -> bottom rank 0, them -> top rank 9.
     files = [rec["castling_us_ooo_file"], rec["castling_us_oo_file"],
              rec["castling_them_ooo_file"], rec["castling_them_oo_file"]]

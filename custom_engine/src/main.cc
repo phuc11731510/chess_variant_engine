@@ -1309,8 +1309,9 @@ checkCounting = true
         lczero::Move best = lczero::FillSearchTargets(
             root, tree->GetPositionHistory(), backend.get(), rec);
 
-        double sum = 0.0;
-        for (int i = 0; i < lczero::kPolicySize; ++i) sum += rec.probabilities[i];
+        double sum = 0.0;  // sum over LEGAL-visited moves (pi<0 = illegal sentinel)
+        for (int i = 0; i < lczero::kPolicySize; ++i)
+            if (rec.probabilities[i] > 0.0f) sum += rec.probabilities[i];
         if (std::abs(sum - 1.0) > 1e-3) {
             std::cerr << "[FAIL] move " << m << ": sum(pi) = " << sum
                       << " (expected 1.0)" << std::endl;
@@ -1478,8 +1479,9 @@ checkCounting = true
             r.input_format != lczero::kInputFormat10x10) {
             std::cerr << "[FAIL] rec " << i << ": bad version/input_format" << std::endl; std::exit(1);
         }
-        double sum = 0.0;
-        for (int k = 0; k < lczero::kPolicySize; ++k) sum += r.probabilities[k];
+        double sum = 0.0;  // sum over LEGAL-visited moves (pi<0 = illegal sentinel)
+        for (int k = 0; k < lczero::kPolicySize; ++k)
+            if (r.probabilities[k] > 0.0f) sum += r.probabilities[k];
         if (std::abs(sum - 1.0) > 1e-3) {
             std::cerr << "[FAIL] rec " << i << ": sum(pi)=" << sum << std::endl; std::exit(1);
         }

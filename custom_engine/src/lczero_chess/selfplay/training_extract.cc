@@ -15,6 +15,11 @@ Move FillSearchTargets(const classic::Node* root,
                        Backend* backend,
                        TrainingDataV1& rec) {
   // --- 1. Policy target pi from visit counts ---
+  // Mark every slot illegal (-1) first. The root edges below are EXACTLY the
+  // legal moves; each gets overwritten with its visit fraction (0 if unvisited).
+  // Result: illegal = -1, legal-unvisited = 0, legal-visited = fraction. This
+  // lets the trainer mask illegal moves (lc0 convention: pi < 0 => illegal).
+  for (int i = 0; i < kPolicySize; ++i) rec.probabilities[i] = -1.0f;
   // Total child visits (denominator for pi). root->GetN() includes the root's
   // own visit, so sum the edges directly.
   uint32_t total = 0;
