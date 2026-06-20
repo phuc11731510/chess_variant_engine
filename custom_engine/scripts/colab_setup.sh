@@ -25,9 +25,11 @@ ENGINE_DIR="$(pwd)"
 echo "[colab] engine dir: $ENGINE_DIR"
 nvidia-smi -L || echo "[colab] WARNING: no GPU visible (Runtime > Change runtime type > GPU)"
 
-# --- (1) build tools ---------------------------------------------------------
-echo "[colab] installing meson + ninja ..."
-pip install -q meson ninja
+# --- (1) build tools + python deps -------------------------------------------
+# meson/ninja for the C++ build; onnx (export) + onnxruntime (verify) for the
+# Python side. torch + numpy are pre-installed on Colab.
+echo "[colab] installing meson + ninja + onnx + onnxruntime ..."
+pip install -q meson ninja onnx onnxruntime
 apt-get -qq install -y ninja-build >/dev/null 2>&1 || true
 
 # --- (2) ONNX Runtime GPU ----------------------------------------------------
@@ -70,10 +72,24 @@ $BIN --test-trainingdata
 # --- (5) gen-0 seed + GPU self-play smoke ------------------------------------
 echo "[colab] === gen-0 seed (Python) ==="
 python python/make_seed.py --out python/model_gen0.onnx
+
 echo "[colab] === GPU self-play smoke (provider=cuda) ==="
+echo "[colab] Colab CUDA: $(nvcc --version 2>/dev/null | grep -o 'release [0-9.]*' || echo 'nvcc not found')"
+# Non-fatal: the build + test suite above are the DoD-critical parts. If the
+# CUDA EP fails to load (ORT CUDA/cuDNN version != Colab's), this prints a hint
+# instead of aborting; fix by setting ORT_VER to a matching CUDA build.
+set +e
 $BIN --selfplay --games 2 --parallel 1 --visits 32 --max-moves 20 \
      --provider cuda --fixed-batch 16 \
      --weights python/model_gen0.onnx --out python/selfplay_data
+if [ $? -ne 0 ]; then
+  echo "[colab] !! GPU self-play failed. Likely an ORT CUDA/cuDNN <-> Colab CUDA mismatch."
+  echo "[colab] !! Colab's CUDA is shown above; current ORT pkg = $ORT_PKG (1.18.0 = CUDA 11.8)."
+  echo "[colab] !! If Colab is CUDA 12.x, re-run with a CUDA-12 ORT, e.g.:"
+  echo "[colab] !!     ORT_VER=1.20.1 bash custom_engine/scripts/colab_setup.sh"
+  echo "[colab] !! (You can also test on CPU first: $BIN --selfplay --games 2 --provider cpu --weights python/model_gen0.onnx --out /tmp/sp)"
+fi
+set -e
 
 echo ""
 echo "[colab] DONE. To generate data on GPU and train:"
