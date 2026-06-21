@@ -164,6 +164,16 @@ public:
                 // Predicted move was played: finalize the ponder search now
                 // (basic ponder — returns the move found while pondering).
                 StopSearch();
+            } else if (cmd == "d") {
+                // Fairy-Stockfish debug command: dump the current position (board
+                // art + "Fen: ..." + Key/Checkers) in REAL coordinates.
+                if (tree_) {
+                    std::cout << tree_->GetPositionHistory().Last().GetBoard().GetRawPosition()
+                              << std::endl;
+                } else {
+                    std::cout << "info string no position set (send 'position ...' first)"
+                              << std::endl;
+                }
             } else if (cmd == "debug" || cmd == "register") {
                 // Accept & ignore (robustness).
             } else if (cmd == "quit") {

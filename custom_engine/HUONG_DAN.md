@@ -96,6 +96,9 @@ Gõ trước khi `go`. Cú pháp: `setoption name <Tên> value <Giá trị>`.
 Điều khiển thời gian: `go nodes N` · `go movetime 3000` (3 giây) · `go wtime W btime B` (cờ có đồng hồ) ·
 `go infinite` rồi `stop`. Engine phát `info ... score cp ... wdl ... pv ...` để GUI hiển thị đánh giá/biến chính.
 
+> **Lệnh `d` (debug, kiểu Fairy-Stockfish):** gõ `d` để in bàn cờ ASCII + `Fen:` (tọa độ thật) của thế cờ
+> hiện tại — tiện để kiểm tra/sao chép FEN. (Phải gửi `position ...` trước.)
+
 > **Độ khó gợi ý:** Dễ = `Visits 80` + `Temperature 500` · Vừa = `go nodes 400` · Khó = `go nodes 5000` + `Temperature 0`.
 
 **Chỉnh sâu kiểu lc0 (tùy chọn):** đặt thẳng tham số tìm kiếm của lc0 bằng tên gốc, vd:
