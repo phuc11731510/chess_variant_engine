@@ -2369,8 +2369,8 @@ static bool ApplySearchOpt(lczero::OptionsDict* d, const std::string& name,
     auto I = [&](int def)   { try { return std::stoi(value); } catch (...) { return def; } };
     auto B = [&]() { return value == "true" || value == "1" || value == "on"; };
     if      (name == "cpuct")              d->Set<float>(BP::kCpuctId, F(1.745f));
-    else if (name == "cpuct-base")         d->Set<float>(BP::kCpuctBaseId, F(19652.0f));
-    else if (name == "cpuct-factor")       d->Set<float>(BP::kCpuctFactorId, F(2.815f));
+    else if (name == "cpuct-base")         d->Set<float>(BP::kCpuctBaseId, F(38739.0f));
+    else if (name == "cpuct-factor")       d->Set<float>(BP::kCpuctFactorId, F(3.894f));
     else if (name == "fpu-value")          d->Set<float>(BP::kFpuValueId, F(0.330f));
     else if (name == "fpu-strategy")       d->Set<std::string>(BP::kFpuStrategyId, value);
     else if (name == "draw-score")         d->Set<float>(BP::kDrawScoreId, F(0.0f));
@@ -2378,7 +2378,7 @@ static bool ApplySearchOpt(lczero::OptionsDict* d, const std::string& name,
     else if (name == "temp-cutoff-move")   d->Set<int>(BP::kTemperatureCutoffMoveId, I(0));
     else if (name == "temp-endgame")       d->Set<float>(BP::kTemperatureEndgameId, F(0.0f));
     else if (name == "two-fold-draws")     d->Set<bool>(BP::kTwoFoldDrawsId, B());
-    else if (name == "policy-softmax-temp")d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, F(1.0f));
+    else if (name == "policy-softmax-temp")d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, F(1.359f));
     else return false;
     return true;
 }
@@ -2469,7 +2469,7 @@ private:
         Send("option name FixedBatch type spin default 16 min 1 max 1024");
         Send("option name Threads type spin default 1 min 1 max 256");
         Send("option name BackendThreads type spin default 1 min 1 max 256");
-        Send("option name PolicySoftmaxTemp type string default 1.0");
+        Send("option name PolicySoftmaxTemp type string default 1.359");
         Send("option name MoveOverheadMs type spin default 30 min 0 max 10000");
         Send("option name MultiPV type spin default 1 min 1 max 64");
         Send("option name Ponder type check default false");
@@ -2773,7 +2773,7 @@ private:
     int default_visits_ = 800, move_overhead_ms_ = 30, multipv_ = 1;
     int temperature_ = 0, temp_cutoff_ply_ = 0;   // difficulty: move-selection temperature (permille)
     bool reuse_tree_ = true;                       // keep MCTS tree across moves (T8.x)
-    float policy_temp_ = 1.0f;
+    float policy_temp_ = 1.359f;                    // lc0 default (PolicySoftmaxTemp)
     bool backend_dirty_ = true;
     std::chrono::steady_clock::time_point search_start_;
     std::string current_startfen_;                 // for tree-reuse prefix matching
@@ -2829,7 +2829,7 @@ void run_play(const std::string& weights, const std::string& provider, int fixed
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
     auto* d = parser.GetMutableDefaultsOptions();
-    d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
+    d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.359f);  // lc0 default
     d->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
     d->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);
     d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights);
