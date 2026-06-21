@@ -127,6 +127,8 @@ engine_sources = files(
   'src/app/arena_mode.cc',
   'src/app/uci_nn_engine.cc',
   'src/app/play_mode.cc',
+  'src/app/cli.cc',
+  'src/app/selfplay_mode.cc',
   'src/tests/engine_tests.cc'
 )
 
