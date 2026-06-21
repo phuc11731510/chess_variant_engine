@@ -5,19 +5,19 @@ Google Drive throttle the transfer. This packs them into a SINGLE .zip using
 ZIP_STORED (no extra compression — the .gz payloads are already compressed, so
 re-deflating only wastes CPU and barely shrinks anything) and can unpack it back.
 
-The training side can read a bundle directly (no unpack needed): train.py / loop.py
-accept a .zip path or a dir containing .zip via dataset.FairyDataset.
+The training side can read a bundle directly (no unpack needed): train.py
+accepts a .zip path or a dir containing .zip via dataset.FairyDataset.
 
 Examples:
-  # pack every game under loop_run/games into one bundle (arcnames keep gen dirs)
-  python archive.py pack loop_run/games --out games_bundle.zip
-  # pack only a few generations
-  python archive.py pack loop_run/games/gen0 loop_run/games/gen1 --out g0_1.zip
+  # pack every game under a generation dir into one bundle
+  python archive.py pack games_gen0 --out games_gen0.zip
+  # pack a rolling window of several generations
+  python archive.py pack games_gen0 games_gen1 --out g0_1.zip
   # inspect / restore
-  python archive.py list games_bundle.zip
-  python archive.py unpack games_bundle.zip --dest restored/
+  python archive.py list games_gen0.zip
+  python archive.py unpack games_gen0.zip --dest restored/
   # then either train directly on the bundle, or on the restored dir:
-  python train.py --data games_bundle.zip --epochs 10 --out model.onnx
+  python train.py --data games_gen0.zip --epochs 10 --out model.onnx
 """
 
 import argparse

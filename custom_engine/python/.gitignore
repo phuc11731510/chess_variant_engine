@@ -5,6 +5,6 @@
 *.zip
 __pycache__/
 selfplay_data/
-loop_run/
+games_gen*/
 bench/
 rt_*
