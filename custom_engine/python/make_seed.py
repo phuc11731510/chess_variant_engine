@@ -27,11 +27,18 @@ def main():
     ap.add_argument("--out", default="model_gen0.onnx")
     ap.add_argument("--channels", type=int, default=128)
     ap.add_argument("--blocks", type=int, default=10)
+    ap.add_argument("--se-ratio", type=int, default=8,
+                    help="SE block squeeze ratio (must match train.py --se-ratio for warm-start)")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
+    # Create the output directory if it doesn't exist yet (e.g. a fresh checkout
+    # has no models/ dir), so torch.save / ONNX export don't fail.
+    out_dir = os.path.dirname(os.path.abspath(args.out))
+    os.makedirs(out_dir, exist_ok=True)
+
     torch.manual_seed(args.seed)
-    net = FairyNet(channels=args.channels, blocks=args.blocks)
+    net = FairyNet(channels=args.channels, blocks=args.blocks, se_ratio=args.se_ratio)
     net.eval()
 
     params = sum(p.numel() for p in net.parameters()) / 1e6

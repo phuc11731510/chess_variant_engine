@@ -29,6 +29,74 @@ FairyZero/
 
 ---
 
+## 0b. Tự dựng bản portable từ mã nguồn + tạo mạng 0-ELO (cho người build)
+
+> Nếu bạn đã có sẵn thư mục `FairyZero` thì **bỏ qua mục này** — nó chỉ dành cho người dựng lại từ mã nguồn.
+
+**Chuẩn bị (Windows):** cài **MSYS2**, mở *MSYS2 UCRT64*, cài công cụ build:
+```
+pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-zlib
+```
+Engine cần `third_party/onnxruntime-win-x64-1.18.0/` (SDK ONNX Runtime) — đừng xóa thư mục này.
+
+**Bước 1 — Build engine** (trong shell có `C:\msys64\ucrt64\bin` trên PATH):
+```
+meson setup build          # chỉ lần đầu (cấu hình)
+ninja -C build             # build lại mỗi khi sửa mã nguồn
+```
+→ ra `build\custom_engine.exe` + `build\onnxruntime.dll`. Kiểm tra: `build\custom_engine.exe --test-uci` phải `[PASS]`.
+
+**Bước 2 — Tạo mạng khởi đầu "0-ELO"** (mạng khởi tạo ngẫu nhiên, chưa học gì):
+```
+python python\make_seed.py --out models\seed.onnx
+```
+→ ra `models\seed.onnx` (cho engine chơi) **và** `models\seed.pt` (để warm-start huấn luyện đời 1).
+(Tự tạo thư mục `models\` nếu chưa có.)
+
+**Các núm khởi tạo mạng (chỉ `make_seed.py`):** mạng `FairyNet` có đúng **3 núm KIẾN TRÚC** —
+`--channels` (độ rộng, mặc định 128) · `--blocks` (độ sâu, 10) · `--se-ratio` (nén SE block, 8). Cả ba
+**phải khớp y hệt giữa seed ↔ MỌI đời `train.py`**, nếu khác thì không nạp được trọng số cũ (vỡ warm-start).
+Ngoài ra `--seed` (mặc định 0) chỉ để **tái lập** kết quả ngẫu nhiên, **không** phải kiến trúc.
+`--dropout` **không** thuộc nhóm này — nó là loại "hàm" (không sinh tham số, tắt khi chơi), nên an toàn
+warm-start và không cần đặt ở seed. Đó là **toàn bộ** núm khởi tạo; phần còn lại của mạng (value head,
+policy head, số plane đầu vào…) **cố định cứng** trong `model.py`.
+
+**Chọn kích thước thân mạng (b×f) — đừng để bị "tê liệt".** Ký hiệu `block × filter` là **chuẩn** của
+AlphaZero/lc0. Thang cỡ quen thuộc:
+
+| Hạng | b×f điển hình |
+|---|---|
+| Nhỏ / CPU | `6×64` · `8×96` · **`10×128`** · `16×128` |
+| Vừa | `20×256` · `24×320` |
+| Lớn (siêu nhân) | `30×384` · `40×512`  (AlphaZero gốc: `20×256`) |
+
+- **Nguyên tắc nhỏ-nhanh** (cho dự án một mình + Colab + mục tiêu ~2000 + search 30s/nước): **chọn thân
+  đủ NHỎ để vòng lặp chạy nhanh.** Sức mạnh đến từ *số ván × số đời*, **không** từ kích thước net; thân
+  nhỏ → NPS cao hơn + self-play nhanh hơn + cần ít data hơn. → **Khuyến nghị mặc định: `10×128` SE-8.**
+  Sâu/rộng hơn (vd `15×128`) đều hợp lệ nhưng **làm chậm** sinh-dữ-liệu/huấn-luyện; đừng nhắm cỡ "siêu nhân".
+- **Không cần chọn đúng ngay — chốt bằng SỐ LIỆU về sau.** Dữ liệu `.gz` **độc lập với kích thước thân**
+  (chỉ phụ thuộc định dạng I/O cố định). Khi đã có pool ván kha khá: train vài ứng viên (`8×96` / `10×128`
+  / `15×128`) trên **CÙNG pool** rồi cho `--arena` đấu nhau → giữ con thắng. Đổi thân = **một lần train
+  (vài giờ)**, không phải sinh lại data (hàng ngày).
+- **Lưu ý SE:** mức nén = `filter ÷ ratio` phải **chia hết**. `128/8 = 16` (đẹp). Muốn "SE rộng kiểu lc0"
+  (lc0 nén 192→32) thì ở 128 filter dùng `--se-ratio 4` (→32), **đừng** dùng 6 (`128/6` lẻ → bị làm tròn).
+
+**Bước 3 — Đóng gói bản portable** (gom exe + DLL + Python + mã nguồn + seed + sách thành 1 thư mục chạy được trên máy Windows sạch):
+```
+powershell -ExecutionPolicy Bypass -File scripts\package.ps1
+```
+→ ra `dist\FairyZero\`. Tham số hữu ích:
+- `-Model models\model_gen5.onnx` — đóng gói một mạng đã train làm `seed.onnx` (mặc định: tự sinh seed 0-ELO qua `make_seed.py`).
+- `-Zip` — tạo thêm `dist\FairyZero.zip` để chép đi.
+- `-OutDir <đường dẫn>` — đổi nơi xuất. `-Ucrt64Bin <...>` — chỉ chỗ DLL nếu MSYS2 không ở `C:\msys64`.
+
+> **Lưu ý về biến thể:** luật cờ (10×10, bắt tốt qua đường, **7 lần chiếu = thắng**, các quân tùy biến…)
+> được **nhúng thẳng trong engine** ở `src/app/variant_setup.cc` (một chuỗi `ini` đăng ký biến thể
+> `custom_10x10_variant`), **không** đọc từ tệp `variants.ini` ngoài. Muốn đổi luật thì sửa chuỗi đó rồi
+> build lại — sửa `variants.ini` bên ngoài sẽ KHÔNG có tác dụng. (Xem mục A để hiểu vì sao FEN có trường `7+7`.)
+
+---
+
 ## A. CHƠI VỚI AI
 
 ### A.1. Cách nhanh nhất (Windows)
@@ -98,6 +166,25 @@ Gõ trước khi `go`. Cú pháp: `setoption name <Tên> value <Giá trị>`.
 
 > **Lệnh `d` (debug, kiểu Fairy-Stockfish):** gõ `d` để in bàn cờ ASCII + `Fen:` (tọa độ thật) của thế cờ
 > hiện tại — tiện để kiểm tra/sao chép FEN. (Phải gửi `position ...` trước.)
+
+#### Trường nhập thành trong FEN (khi tự nạp `position fen ...`)
+Biến thể này chấp nhận **hai cách viết tương đương** cho trường nhập thành — chúng cho **cùng một thế cờ**
+(đã kiểm chứng: cùng Zobrist key):
+
+| Cách viết | Ý nghĩa | Ví dụ (đủ 4 quyền) |
+|---|---|---|
+| **Chuẩn `KQkq`** | gọi theo **cánh**: K/Q = cánh vua/cánh hậu (Trắng), k/q = (Đen) | `KQkq` |
+| **Chữ-cái-cột `BIbi`** (X-FEN, giống variants.ini) | gọi thẳng theo **cột xe**: `I`=cột i (cánh vua), `B`=cột b (cánh hậu); HOA=Trắng, thường=Đen | `BIbi` |
+
+Lý do tương đương: Fairy-Stockfish phiên dịch `K`/`Q` sang **cột xe** dựa trên định nghĩa biến thể
+(`castlingRookKingsideFile = i` → `K`, `castlingRookQueensideFile = b` → `Q`). Bên trong nó luôn lưu theo
+ô xe; lúc in (`d`/FEN) thì **chuẩn hóa về `KQkq`**.
+
+- **Nên dùng `KQkq`** (hoặc quyền lẻ `K`/`Q`/`k`/`q`) cho thế bình thường — gọn, dễ tương thích GUI khác.
+- Kiểu `BIbi` chỉ cần khi dựng thế **bất thường kiểu Chess960** (xe nằm cột lạ), vì nó nêu đích danh cột xe.
+- **Không nhập thành: `-`**.
+- ⚠️ Quyền chỉ "dính" nếu **vua + xe đang ở ô gốc**; ghi quyền mà quân không đúng chỗ thì engine tự bỏ.
+  Cách chắc ăn: nạp xong gõ `d` để engine in lại FEN hợp lệ rồi copy dùng.
 
 > **Độ khó gợi ý:** Dễ = `Visits 80` + `Temperature 500` · Vừa = `go nodes 400` · Khó = `go nodes 5000` + `Temperature 0`.
 
