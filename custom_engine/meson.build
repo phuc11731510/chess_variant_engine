@@ -119,7 +119,12 @@ trainingdata_sources = files(
 
 # Engine sources
 engine_sources = files(
-  'src/main.cc'
+  'src/main.cc',
+  'src/app/variant_setup.cc',
+  'src/app/backend_factory.cc',
+  'src/app/uci_coords.cc',
+  'src/app/search_opts.cc',
+  'src/tests/engine_tests.cc'
 )
 
 # ONNX Runtime link dependency (platform-specific root resolved above).
