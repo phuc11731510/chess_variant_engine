@@ -419,7 +419,7 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--se-ratio R` | 8 | Mức nén của SE block trong mạng (xem giải thích ở mục B câu hỏi se-ratio). **CHỈ đổi khi train từ đầu** — đổi giữa chừng sẽ không nạp được trọng số cũ. |
 | `--dropout R` | 0 | Tỉ lệ dropout ở value head để chống quá khớp khi dữ liệu ít. 0 = tắt (giống lc0); bật vd 0.1 nếu thấy `train_loss ≪ val_loss`. An toàn warm-start. |
 | `--diff-focus` (+ `--df-slope/--df-kld-w/--df-min`) | tắt | Ưu tiên học các thế cờ "khó" (mạng đoán sai nhiều) thay vì học đều; các cờ `--df-*` tinh chỉnh cường độ. |
-| `--workers N` / `--pin-memory` | 0 | Tăng tốc khâu **nạp dữ liệu**: nhiều tiến trình đọc song song + ghim bộ nhớ để chuyển lên GPU nhanh hơn. |
+| `--workers N` / `--pin-memory` | auto | Tăng tốc khâu **nạp dữ liệu** (nhiều tiến trình đọc + dựng plane song song; ghim bộ nhớ để chuyển lên GPU nhanh hơn). **Mặc định tự bật trên GPU** (`workers = số nhân CPU`, `pin_memory` bật) vì khi đó GPU hay phải chờ CPU dựng plane; trên CPU mặc định `workers=0` (tránh Windows pickle cache vào từng tiến trình). Truyền tay để ghi đè. |
 | `--sparse-cache` / `--dense-cache` | sparse | Cách lưu cache dữ liệu: `sparse` tốn ít RAM (chống tràn bộ nhớ trên Colab); `dense` nhanh hơn nhưng ngốn RAM. |
 
 > **Để giống lc0-training:** mặc định của ta là **AdamW + LR hằng** (dễ/ổn cho quy mô nhỏ). Muốn khớp

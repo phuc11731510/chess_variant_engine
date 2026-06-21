@@ -102,7 +102,8 @@ def main():
     ap.add_argument("--out", default="model_gen1.onnx")
     ap.add_argument("--init-from", default="", help="warm-start: load .pt weights of previous gen")
     ap.add_argument("--threads", type=int, default=0)
-    ap.add_argument("--workers", type=int, default=0, help="DataLoader worker processes")
+    ap.add_argument("--workers", type=int, default=None,
+                    help="DataLoader worker processes (default: auto = CPU count on GPU, else 0)")
     ap.add_argument("--pin-memory", action="store_true", help="pin host memory (faster CPU->GPU copy)")
     ap.add_argument("--no-cache", action="store_true", help="stream records (lower RAM for big data)")
     ap.add_argument("--diff-focus", action="store_true", help="prefer 'surprising' positions (8.2.6)")
@@ -148,7 +149,18 @@ def main():
         print("[train] WARNING: --device cuda but no CUDA available; falling back to cpu")
         device = "cpu"
     use_amp = args.amp and device == "cuda"
-    print(f"[train] device={device}  amp={use_amp}  sparse_cache={args.sparse_cache}")
+    # DataLoader throughput (#1): with the sparse cache, every __getitem__ rebuilds the
+    # [226,10,10] planes on the CPU, so without worker processes the GPU starves waiting
+    # for them. Default workers to the CPU count ONLY on GPU (Linux/Colab 'fork' shares
+    # the cache cheaply via copy-on-write); keep 0 on CPU-only, where Windows 'spawn'
+    # would pickle the whole in-RAM cache into each worker. pin_memory only speeds
+    # host->GPU copies, so auto-enable it with cuda.
+    workers = args.workers
+    if workers is None:
+        workers = min(os.cpu_count() or 2, 8) if device == "cuda" else 0
+    pin = args.pin_memory or (device == "cuda")
+    print(f"[train] device={device}  amp={use_amp}  sparse_cache={args.sparse_cache}  "
+          f"workers={workers}  pin_memory={pin}")
 
     torch.manual_seed(args.seed)
     ds = FairyDataset(args.data, q_ratio=args.q_ratio, downsample_keep=args.downsample,
@@ -156,8 +168,8 @@ def main():
                       df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min,
                       sparse=args.sparse_cache, max_records=args.max_records)
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
-                    num_workers=args.workers, pin_memory=args.pin_memory,
-                    persistent_workers=(args.workers > 0))
+                    num_workers=workers, pin_memory=pin,
+                    persistent_workers=(workers > 0))
 
     net = FairyNet(channels=args.channels, blocks=args.blocks,
                    se_ratio=args.se_ratio, dropout=args.dropout)

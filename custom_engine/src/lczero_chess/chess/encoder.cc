@@ -117,14 +117,14 @@ void EncodePositionForNN(
                     dest_sq = Stockfish::relative_square(Stockfish::BLACK, dest_sq, Stockfish::RANK_10);
                 }
                 
-                output_planes->at(dest_plane).mask |= Stockfish::square_bb(dest_sq);
+                (*output_planes)[dest_plane].mask |= Stockfish::square_bb(dest_sq);
             }
             }
         }
         
         // Mặt phẳng thứ 27 của mỗi bước lịch sử: Chỉ thị trạng thái lặp lại thế cờ
         if (rep >= 1) {
-            output_planes->at(d * kPlanesPerBoard + 26).Fill(1.0f);
+            (*output_planes)[d * kPlanesPerBoard + 26].Fill(1.0f);
         }
     }
     
@@ -140,22 +140,22 @@ void EncodePositionForNN(
     if (raw_pos.can_castle(us_ooo)) {
         Stockfish::Square rook_sq = raw_pos.castling_rook_square(us_ooo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        output_planes->at(kAuxPlaneBase + 0).mask |= Stockfish::square_bb(rook_sq);
+        (*output_planes)[kAuxPlaneBase + 0].mask |= Stockfish::square_bb(rook_sq);
     }
     if (raw_pos.can_castle(us_oo)) {
         Stockfish::Square rook_sq = raw_pos.castling_rook_square(us_oo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        output_planes->at(kAuxPlaneBase + 1).mask |= Stockfish::square_bb(rook_sq);
+        (*output_planes)[kAuxPlaneBase + 1].mask |= Stockfish::square_bb(rook_sq);
     }
     if (raw_pos.can_castle(them_ooo)) {
         Stockfish::Square rook_sq = raw_pos.castling_rook_square(them_ooo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        output_planes->at(kAuxPlaneBase + 2).mask |= Stockfish::square_bb(rook_sq);
+        (*output_planes)[kAuxPlaneBase + 2].mask |= Stockfish::square_bb(rook_sq);
     }
     if (raw_pos.can_castle(them_oo)) {
         Stockfish::Square rook_sq = raw_pos.castling_rook_square(them_oo);
         if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        output_planes->at(kAuxPlaneBase + 3).mask |= Stockfish::square_bb(rook_sq);
+        (*output_planes)[kAuxPlaneBase + 3].mask |= Stockfish::square_bb(rook_sq);
     }
     
     // Plane 4: Ô cờ có khả năng ăn tốt qua đường (En Passant)
@@ -169,18 +169,18 @@ void EncodePositionForNN(
             }
             ep = flipped_ep;
         }
-        output_planes->at(kAuxPlaneBase + 4).mask = ep;
+        (*output_planes)[kAuxPlaneBase + 4].mask = ep;
     }
     
     // Plane 5: Đếm luật 50 nước đi (chuẩn hóa rule50 / 100.0f)
-    output_planes->at(kAuxPlaneBase + 5).Fill(static_cast<float>(last_position.GetRule50Ply()) / 100.0f);
+    (*output_planes)[kAuxPlaneBase + 5].Fill(static_cast<float>(last_position.GetRule50Ply()) / 100.0f);
     
     // Plane 7: Đầy 1.0f giúp mạng nơ-ron nhận biết biên bàn cờ 10x10
-    output_planes->at(kAuxPlaneBase + 7).Fill(1.0f);
+    (*output_planes)[kAuxPlaneBase + 7].Fill(1.0f);
     
     // Plane 8 & 9: Số lượt chiếu còn lại trước khi đạt mốc thắng cuộc 7-checks (chuẩn hóa checks / 7.0f)
-    output_planes->at(kAuxPlaneBase + 8).Fill(static_cast<float>(raw_pos.checks_remaining(us)) / 7.0f);
-    output_planes->at(kAuxPlaneBase + 9).Fill(static_cast<float>(raw_pos.checks_remaining(them)) / 7.0f);
+    (*output_planes)[kAuxPlaneBase + 8].Fill(static_cast<float>(raw_pos.checks_remaining(us)) / 7.0f);
+    (*output_planes)[kAuxPlaneBase + 9].Fill(static_cast<float>(raw_pos.checks_remaining(them)) / 7.0f);
 }
 
 
