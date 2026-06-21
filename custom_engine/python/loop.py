@@ -91,6 +91,13 @@ def main():
     ap.add_argument("--lr-boundaries", default=None)
     ap.add_argument("--policy-weight", type=float, default=None)
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--se-ratio", type=int, default=None)
+    ap.add_argument("--dropout", type=float, default=None)
+    ap.add_argument("--accum-steps", type=int, default=None)
+    ap.add_argument("--max-steps", type=int, default=None)
+    ap.add_argument("--max-records", type=int, default=None)
+    ap.add_argument("--report-every", type=int, default=None)
+    ap.add_argument("--save-every", type=int, default=None)
     args = ap.parse_args()
 
     models = os.path.join(args.workdir, "models")
@@ -157,7 +164,10 @@ def main():
                           ("--optimizer", args.optimizer), ("--grad-clip", args.grad_clip),
                           ("--warmup-steps", args.warmup_steps), ("--lr-values", args.lr_values),
                           ("--lr-boundaries", args.lr_boundaries), ("--policy-weight", args.policy_weight),
-                          ("--seed", args.seed)]:
+                          ("--seed", args.seed), ("--se-ratio", args.se_ratio), ("--dropout", args.dropout),
+                          ("--accum-steps", args.accum_steps), ("--max-steps", args.max_steps),
+                          ("--max-records", args.max_records), ("--report-every", args.report_every),
+                          ("--save-every", args.save_every)]:
             if val is not None:
                 tr += [flag, val]
         run(tr)

@@ -38,6 +38,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        int temp_cutoff_ply, const std::string& out_filename,
                        int search_threads = 1, bool verbose = true,
                        float resign_threshold = -2.0f,
-                       int resign_consecutive = 3, bool allow_resign = true);
+                       int resign_consecutive = 3, bool allow_resign = true,
+                       int resign_earliest_move = 0);
 
 }  // namespace lczero

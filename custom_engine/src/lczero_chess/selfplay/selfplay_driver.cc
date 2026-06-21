@@ -50,7 +50,8 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
           PlayOneGame(fen, backend, options, cfg.visits,
                       cfg.max_moves, cfg.temp_cutoff_ply, fname,
                       cfg.threads_per_game, /*verbose=*/false,
-                      cfg.resign_threshold, cfg.resign_consecutive, allow_resign);
+                      cfg.resign_threshold, cfg.resign_consecutive, allow_resign,
+                      cfg.resign_earliest_move);
 
       if (r == GameResult::WHITE_WON)
         w_wins.fetch_add(1);

@@ -21,6 +21,7 @@ struct SelfPlayConfig {
   // Early resignation (plan A5). resign_threshold <= -1.0 disables it.
   float resign_threshold = -2.0f; // best_q <= this for resign_consecutive own-moves -> resign.
   int resign_consecutive = 3;     // consecutive own-moves below threshold to trigger.
+  int resign_earliest_move = 0;   // do not resign before this ply (lc0 resign-earliest-move).
   float no_resign_frac = 0.10f;   // fraction of games with resign disabled (learn to defend).
 };
 

@@ -131,6 +131,14 @@ def main():
     ap.add_argument("--warmup-steps", type=int, default=0, help="linear LR warmup over N optimizer steps")
     ap.add_argument("--lr-values", default="", help="step LR schedule values, comma-separated (overrides --lr)")
     ap.add_argument("--lr-boundaries", default="", help="step LR schedule boundaries, comma-separated")
+    # #5 — more lczero-training-style knobs.
+    ap.add_argument("--se-ratio", type=int, default=8, help="SE block squeeze ratio (fresh train only)")
+    ap.add_argument("--dropout", type=float, default=0.0, help="dropout in value head (warm-start safe)")
+    ap.add_argument("--accum-steps", type=int, default=1, help="gradient accumulation steps (big effective batch)")
+    ap.add_argument("--max-steps", type=int, default=0, help="stop after N optimizer steps (0 = use --epochs)")
+    ap.add_argument("--max-records", type=int, default=0, help="cap #records loaded (0 = all)")
+    ap.add_argument("--report-every", type=int, default=0, help="print running loss every N steps (0 = per-epoch)")
+    ap.add_argument("--save-every", type=int, default=0, help="export an ONNX checkpoint every N steps (0 = only final)")
     args = ap.parse_args()
     if args.threads > 0:
         torch.set_num_threads(args.threads)
@@ -146,12 +154,13 @@ def main():
     ds = FairyDataset(args.data, q_ratio=args.q_ratio, downsample_keep=args.downsample,
                       cache=not args.no_cache, diff_focus=args.diff_focus,
                       df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min,
-                      sparse=args.sparse_cache)
+                      sparse=args.sparse_cache, max_records=args.max_records)
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
                     num_workers=args.workers, pin_memory=args.pin_memory,
                     persistent_workers=(args.workers > 0))
 
-    net = FairyNet(channels=args.channels, blocks=args.blocks)
+    net = FairyNet(channels=args.channels, blocks=args.blocks,
+                   se_ratio=args.se_ratio, dropout=args.dropout)
     if args.init_from:
         net.load_state_dict(torch.load(args.init_from, map_location="cpu"))
         print(f"[warm-start] loaded weights from {args.init_from}")
@@ -186,8 +195,14 @@ def main():
 
     print(f"[train] params={sum(p.numel() for p in net.parameters())/1e6:.2f}M "
           f"swa_start_epoch={swa_start}")
-    global_step = 0
+    accum = max(1, args.accum_steps)
+    global_step = 0          # counts OPTIMIZER steps (after accumulation)
+    micro = 0                # counts micro-batches
+    stop = False
+    opt.zero_grad(set_to_none=True)
     for epoch in range(1, args.epochs + 1):
+        if stop:
+            break
         net.train()
         tp = tv = n = 0.0
         in_swa = epoch >= swa_start
@@ -198,23 +213,33 @@ def main():
             x = x.to(device, non_blocking=True)
             pi = pi.to(device, non_blocking=True)
             val = val.to(device, non_blocking=True)
-            opt.zero_grad(set_to_none=True)
             # autocast runs matmuls/convs in FP16 but keeps softmax/log_softmax in
             # FP32, so the masked policy CE (with -inf fills) stays numerically safe.
             with torch.autocast(device_type=device, enabled=use_amp):
                 p_logits, v_logits = net(x)
                 lp = policy_loss(p_logits, pi)
                 lv = value_loss(v_logits, val)
-                loss = args.policy_weight * lp + args.value_weight * lv
+                loss = (args.policy_weight * lp + args.value_weight * lv) / accum
             scaler.scale(loss).backward()
-            if args.grad_clip > 0:
-                scaler.unscale_(opt)
-                torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
-            scaler.step(opt)
-            scaler.update()
             bs = x.size(0)
             tp += lp.item() * bs; tv += lv.item() * bs; n += bs
-            global_step += 1
+            micro += 1
+            if micro % accum == 0:                  # one optimizer step per `accum` micro-batches
+                if args.grad_clip > 0:
+                    scaler.unscale_(opt)
+                    torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
+                scaler.step(opt)
+                scaler.update()
+                opt.zero_grad(set_to_none=True)
+                global_step += 1
+                if args.report_every and global_step % args.report_every == 0:
+                    print(f"  step {global_step:7d}: policy_loss={tp/n:.4f}  value_loss={tv/n:.4f}", flush=True)
+                if args.save_every and global_step % args.save_every == 0:
+                    ckpt = f"{os.path.splitext(args.out)[0]}_step{global_step}.pt"
+                    torch.save(net.state_dict(), ckpt)
+                    print(f"  [ckpt] {ckpt}")
+                if args.max_steps and global_step >= args.max_steps:
+                    stop = True; break
         if in_swa:
             swa_net.update_parameters(net)
             swa_sched.step()

@@ -2368,17 +2368,54 @@ static bool ApplySearchOpt(lczero::OptionsDict* d, const std::string& name,
     auto F = [&](float def) { try { return std::stof(value); } catch (...) { return def; } };
     auto I = [&](int def)   { try { return std::stoi(value); } catch (...) { return def; } };
     auto B = [&]() { return value == "true" || value == "1" || value == "on"; };
-    if      (name == "cpuct")              d->Set<float>(BP::kCpuctId, F(1.745f));
-    else if (name == "cpuct-base")         d->Set<float>(BP::kCpuctBaseId, F(38739.0f));
-    else if (name == "cpuct-factor")       d->Set<float>(BP::kCpuctFactorId, F(3.894f));
-    else if (name == "fpu-value")          d->Set<float>(BP::kFpuValueId, F(0.330f));
-    else if (name == "fpu-strategy")       d->Set<std::string>(BP::kFpuStrategyId, value);
-    else if (name == "draw-score")         d->Set<float>(BP::kDrawScoreId, F(0.0f));
-    else if (name == "temp-decay-moves")   d->Set<int>(BP::kTempDecayMovesId, I(0));
-    else if (name == "temp-cutoff-move")   d->Set<int>(BP::kTemperatureCutoffMoveId, I(0));
-    else if (name == "temp-endgame")       d->Set<float>(BP::kTemperatureEndgameId, F(0.0f));
-    else if (name == "two-fold-draws")     d->Set<bool>(BP::kTwoFoldDrawsId, B());
-    else if (name == "policy-softmax-temp")d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, F(1.359f));
+    // --- floats ---
+    if      (name == "cpuct")                       d->Set<float>(BP::kCpuctId, F(1.745f));
+    else if (name == "cpuct-at-root")               d->Set<float>(BP::kCpuctAtRootId, F(1.745f));
+    else if (name == "cpuct-base")                  d->Set<float>(BP::kCpuctBaseId, F(38739.0f));
+    else if (name == "cpuct-base-at-root")          d->Set<float>(BP::kCpuctBaseAtRootId, F(38739.0f));
+    else if (name == "cpuct-factor")                d->Set<float>(BP::kCpuctFactorId, F(3.894f));
+    else if (name == "cpuct-factor-at-root")        d->Set<float>(BP::kCpuctFactorAtRootId, F(3.894f));
+    else if (name == "fpu-value")                   d->Set<float>(BP::kFpuValueId, F(0.330f));
+    else if (name == "fpu-value-at-root")           d->Set<float>(BP::kFpuValueAtRootId, F(1.0f));
+    else if (name == "draw-score")                  d->Set<float>(BP::kDrawScoreId, F(0.0f));
+    else if (name == "temp-endgame")                d->Set<float>(BP::kTemperatureEndgameId, F(0.0f));
+    else if (name == "temp-value-cutoff")           d->Set<float>(BP::kTemperatureWinpctCutoffId, F(100.0f));
+    else if (name == "temp-visit-offset")           d->Set<float>(BP::kTemperatureVisitOffsetId, F(0.0f));
+    else if (name == "max-out-of-order-evals-factor") d->Set<float>(BP::kMaxOutOfOrderEvalsFactorId, F(2.4f));
+    else if (name == "contempt-max-value")          d->Set<float>(BP::kContemptMaxValueId, F(420.0f));
+    else if (name == "wdl-calibration-elo")         d->Set<float>(BP::kWDLCalibrationEloId, F(0.0f));
+    else if (name == "wdl-contempt-attenuation")    d->Set<float>(BP::kWDLContemptAttenuationId, F(1.0f));
+    else if (name == "wdl-max-s")                   d->Set<float>(BP::kWDLMaxSId, F(1.4f));
+    else if (name == "wdl-eval-objectivity")        d->Set<float>(BP::kWDLEvalObjectivityId, F(1.0f));
+    else if (name == "wdl-draw-rate-target")        d->Set<float>(BP::kWDLDrawRateTargetId, F(0.0f));
+    else if (name == "wdl-draw-rate-reference")     d->Set<float>(BP::kWDLDrawRateReferenceId, F(0.5f));
+    else if (name == "wdl-book-exit-bias")          d->Set<float>(BP::kWDLBookExitBiasId, F(0.65f));
+    else if (name == "nps-limit")                   d->Set<float>(BP::kNpsLimitId, F(0.0f));
+    else if (name == "garbage-collection-delay")    d->Set<float>(BP::kGarbageCollectionDelayId, F(10.0f));
+    else if (name == "policy-softmax-temp")         d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, F(1.359f));
+    // --- ints ---
+    else if (name == "minibatch-size")              d->Set<int>(BP::kMiniBatchSizeId, I(256));
+    else if (name == "tempdecay-moves")             d->Set<int>(BP::kTempDecayMovesId, I(0));
+    else if (name == "tempdecay-delay-moves")       d->Set<int>(BP::kTempDecayDelayMovesId, I(0));
+    else if (name == "temp-cutoff-move")            d->Set<int>(BP::kTemperatureCutoffMoveId, I(0));
+    else if (name == "cache-history-length")        d->Set<int>(BP::kCacheHistoryLengthId, I(0));
+    else if (name == "max-collision-events")        d->Set<int>(BP::kMaxCollisionEventsId, I(917));
+    else if (name == "max-collision-visits")        d->Set<int>(BP::kMaxCollisionVisitsId, I(80000));
+    else if (name == "max-concurrent-searchers")    d->Set<int>(BP::kMaxConcurrentSearchersId, I(1));
+    else if (name == "task-workers")                d->Set<int>(BP::kTaskWorkersPerSearchWorkerId, I(-1));
+    // --- bools ---
+    else if (name == "two-fold-draws")              d->Set<bool>(BP::kTwoFoldDrawsId, B());
+    else if (name == "root-has-own-cpuct-params")   d->Set<bool>(BP::kRootHasOwnCpuctParamsId, B());
+    else if (name == "out-of-order-eval")           d->Set<bool>(BP::kOutOfOrderEvalId, B());
+    else if (name == "sticky-endgames")             d->Set<bool>(BP::kStickyEndgamesId, B());
+    else if (name == "per-pv-counters")             d->Set<bool>(BP::kPerPvCountersId, B());
+    else if (name == "verbose-move-stats")          d->Set<bool>(BP::kVerboseStatsId, B());
+    else if (name == "search-spin-backoff")         d->Set<bool>(BP::kSearchSpinBackoffId, B());
+    // --- strings / choices ---
+    else if (name == "fpu-strategy")                d->Set<std::string>(BP::kFpuStrategyId, value);
+    else if (name == "fpu-strategy-at-root")        d->Set<std::string>(BP::kFpuStrategyAtRootId, value);
+    else if (name == "score-type")                  d->Set<std::string>(BP::kScoreTypeId, value);
+    else if (name == "contempt-mode")               d->Set<std::string>(BP::kContemptModeId, value);
     else return false;
     return true;
 }
@@ -3144,7 +3181,8 @@ int main(int argc, char* argv[]) {
     std::string sp_start_fen;  // empty=default startpos; a FEN; or a path to a file of FENs
     // Early resignation (plan A5). Threshold <= -1.0 (the default) disables it.
     float sp_resign_threshold = -2.0f, sp_no_resign_frac = 0.10f;
-    int sp_resign_consecutive = 3;
+    int sp_resign_consecutive = 3, sp_resign_earliest = 0;
+    std::vector<std::pair<std::string, std::string>> sp_search_opts;  // --search-opt k=v (T8.3/#4b)
     // Arena (model-vs-model evaluation) options.
     bool arena_mode = false;
     std::string arena_a, arena_b;
@@ -3185,6 +3223,12 @@ int main(int argc, char* argv[]) {
             sp_resign_threshold = static_cast<float>(std::atof(argv[++i]));
         } else if (std::string(argv[i]) == "--resign-consecutive" && i + 1 < argc) {
             sp_resign_consecutive = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--resign-earliest-move" && i + 1 < argc) {
+            sp_resign_earliest = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--search-opt" && i + 1 < argc) {
+            std::string kv = argv[++i];                    // "name=value"
+            auto eq = kv.find('=');
+            if (eq != std::string::npos) sp_search_opts.emplace_back(kv.substr(0, eq), kv.substr(eq + 1));
         } else if (std::string(argv[i]) == "--no-resign-frac" && i + 1 < argc) {
             sp_no_resign_frac = static_cast<float>(std::atof(argv[++i]));
         } else if (std::string(argv[i]) == "--arena") {
@@ -3309,6 +3353,13 @@ int main(int argc, char* argv[]) {
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, sp_noise_alpha);
         if (sp_cpuct >= 0.0f)
             parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, sp_cpuct);
+        // T8.3 #4b: arbitrary lc0 search params for self-play via --search-opt name=value.
+        for (const auto& kv : sp_search_opts) {
+            if (ApplySearchOpt(parser.GetMutableDefaultsOptions(), kv.first, kv.second))
+                std::cout << "[selfplay] search-opt " << kv.first << "=" << kv.second << std::endl;
+            else
+                std::cout << "[selfplay] WARNING: unknown --search-opt '" << kv.first << "' (ignored)" << std::endl;
+        }
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_file);
         // Backend options. CPU: game-level parallelism + low intra-op threads.
         // CUDA (Colab GPU, needs a -Duse_cuda build): provider=cuda + fixed_batch.
@@ -3357,6 +3408,7 @@ int main(int argc, char* argv[]) {
         cfg.threads_per_game = sp_threads_per_game;
         cfg.resign_threshold = sp_resign_threshold;
         cfg.resign_consecutive = sp_resign_consecutive;
+        cfg.resign_earliest_move = sp_resign_earliest;
         cfg.no_resign_frac = sp_no_resign_frac;
         if (sp_resign_threshold > -1.0f) {
             std::cout << "[selfplay] resign: best_q<=" << sp_resign_threshold

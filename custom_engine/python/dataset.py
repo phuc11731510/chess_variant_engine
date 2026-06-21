@@ -68,7 +68,8 @@ class FairyDataset(Dataset):
     """
 
     def __init__(self, data, q_ratio=0.2, downsample_keep=1.0, cache=True, seed=0,
-                 diff_focus=False, df_slope=1.0, df_kld_w=0.5, df_min=0.2, sparse=True):
+                 diff_focus=False, df_slope=1.0, df_kld_w=0.5, df_min=0.2, sparse=True,
+                 max_records=0):
         rng = random.Random(seed)
         files = _resolve_files(data)
         if not files:
@@ -77,6 +78,9 @@ class FairyDataset(Dataset):
         for f in files:
             records.extend(read_records_from_zip(f) if f.endswith(".zip")
                            else read_records(f))
+            if max_records and len(records) >= max_records:
+                records = records[:max_records]
+                break
         if downsample_keep < 1.0:
             records = [r for r in records if rng.random() < downsample_keep]
         if diff_focus:

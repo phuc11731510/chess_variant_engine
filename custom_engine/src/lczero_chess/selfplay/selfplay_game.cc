@@ -73,7 +73,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        int temp_cutoff_ply, const std::string& out_filename,
                        int search_threads, bool verbose,
                        float resign_threshold, int resign_consecutive,
-                       bool allow_resign) {
+                       bool allow_resign, int resign_earliest_move) {
   auto tree = std::make_unique<classic::NodeTree>();
   tree->ResetToPosition(start_fen, {});
 
@@ -139,7 +139,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     // best_q is from the side-to-move's perspective. If a side judges itself
     // badly losing for `resign_consecutive` of its own moves in a row, adjudicate
     // an immediate loss for that side (the just-recorded position is still kept).
-    if (resign_active) {
+    if (resign_active && ply >= resign_earliest_move) {
       const int s = black ? 1 : 0;
       if (rec.best_q <= resign_threshold) {
         if (++resign_streak[s] >= resign_consecutive) {

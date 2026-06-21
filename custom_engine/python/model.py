@@ -64,8 +64,9 @@ class ResidualBlock(nn.Module):
 class FairyNet(nn.Module):
     """forward returns (policy_logits[B,10600], value_logits[B,3])."""
 
-    def __init__(self, channels=128, blocks=10, se_ratio=8):
+    def __init__(self, channels=128, blocks=10, se_ratio=8, dropout=0.0):
         super().__init__()
+        self.dropout_p = dropout   # functional dropout (no params) -> warm-start safe
         self.stem_conv = nn.Conv2d(NUM_PLANES, channels, 3, padding=1, bias=False)
         self.stem_bn = nn.BatchNorm2d(channels)
         self.tower = nn.Sequential(*[ResidualBlock(channels, se_ratio) for _ in range(blocks)])
@@ -92,6 +93,8 @@ class FairyNet(nn.Module):
         v = F.relu(self.val_bn(self.val_conv(h)))
         v = v.flatten(1)
         v = F.relu(self.val_fc1(v))
+        if self.dropout_p > 0:
+            v = F.dropout(v, self.dropout_p, self.training)
         value = self.val_fc2(v)               # [B,3] logits (W,D,L)
         return policy, value
 
