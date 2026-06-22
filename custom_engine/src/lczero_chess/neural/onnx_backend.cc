@@ -409,14 +409,18 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     }
 
     // Validate provider
-    if (provider_ != "cpu" && provider_ != "cuda" && provider_ != "tensorrt") {
+    if (provider_ != "cpu" && provider_ != "cuda" && provider_ != "tensorrt" && provider_ != "dml") {
         std::cerr << "[ONNX Backend] Warning: Unknown provider '" << provider_ 
                   << "', fallback to 'cpu'" << std::endl;
         provider_ = "cpu";
     }
 
-    // Single source of truth for fixed batch
-    fixed_batch_ = (provider_ != "cpu" && fixed_batch_size_ > 0);
+    // CUDA/TensorRT always use a fixed-batch profile. DirectML and CPU keep the
+    // parsed value (dynamic batch unless the caller explicitly passed fixed_batch=),
+    // which suits iGPU play at batch 1 — forcing batch 16 there wastes GPU work.
+    if (provider_ != "cpu" && provider_ != "dml") {
+        fixed_batch_ = (fixed_batch_size_ > 0);
+    }
 
     // Reload model with new settings
     InitializeSession();

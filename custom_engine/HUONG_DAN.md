@@ -53,11 +53,16 @@ ninja -C build             # build lại mỗi khi sửa mã nguồn
 > meson setup build-dml -Duse_dml=true     # (hoặc: meson configure build -Duse_dml=true)
 > ninja -C build-dml
 > ```
+> ⚠️ **Tùy chọn meson bám theo TỪNG thư mục build.** Phải cấu hình `build-dml` với `-Duse_dml=true` **và
+> chạy đúng `build-dml\custom_engine.exe`** — nếu `ninja -C build` (thư mục CPU cũ) hoặc chạy nhầm exe cũ thì
+> `-DUSE_DML` không có → engine in cảnh báo "EP not compiled" rồi fallback CPU. Khi đúng, log phải là
+> `DirectML Execution Provider appended` + `GPU profile activated (dml)`.
 > Khi chơi, bật bằng `setoption name Provider value dml` (hoặc `--play --provider dml`). Bản CPU thường
 > **không bị ảnh hưởng** (mã DirectML nằm trong `#ifdef USE_DML`).
-> ⚠️ **Kỳ vọng thực tế:** iGPU yếu (vd Iris Xe) ở chế độ chơi (batch=1) có thể **chỉ nhanh hơn chút, đôi khi
-> chậm hơn** CPU đã tăng `BackendThreads`. Hãy thử `BackendThreads`/`Threads` trước (xem A.4) — thường là
-> cách tăng NPS rẻ và chắc ăn hơn.
+>
+> ⚠️ **Số liệu thực đo (Iris Xe, chế độ chơi batch=1):** DirectML **~32 NPS** so với **CPU `BackendThreads=4` ~106 NPS**
+> → trên iGPU yếu, **DML CHẬM HƠN ~3×** vì chi phí điều phối từng eval đơn lẻ lấn át. **Khuyến nghị: chơi
+> bằng CPU + `BackendThreads`/`Threads`** (xem A.4); chỉ dùng DML nếu có GPU DX12 mạnh hơn hoặc khối lượng batch lớn.
 
 **Bước 2 — Tạo mạng khởi đầu "0-ELO"** (mạng khởi tạo ngẫu nhiên, chưa học gì):
 ```
