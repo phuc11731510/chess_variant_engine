@@ -60,9 +60,11 @@ ninja -C build             # build lại mỗi khi sửa mã nguồn
 > Khi chơi, bật bằng `setoption name Provider value dml` (hoặc `--play --provider dml`). Bản CPU thường
 > **không bị ảnh hưởng** (mã DirectML nằm trong `#ifdef USE_DML`).
 >
-> ⚠️ **Số liệu thực đo (Iris Xe, chế độ chơi batch=1):** DirectML **~32 NPS** so với **CPU `BackendThreads=4` ~106 NPS**
-> → trên iGPU yếu, **DML CHẬM HƠN ~3×** vì chi phí điều phối từng eval đơn lẻ lấn át. **Khuyến nghị: chơi
-> bằng CPU + `BackendThreads`/`Threads`** (xem A.4); chỉ dùng DML nếu có GPU DX12 mạnh hơn hoặc khối lượng batch lớn.
+> 📊 **Số liệu thực đo (Iris Xe, mạng 10×128, sau warm-up):** DirectML **~140–200 NPS** so với **CPU
+> `BackendThreads=4` ~60–106 NPS** → **DML NHANH HƠN ~2× cho việc chơi.** **Khuyến nghị: dùng `Provider=dml`
+> để chơi** nếu đã có bản `build-dml`; CPU + `BackendThreads`/`Threads` (A.4) là phương án dự phòng chắc ăn.
+> ⚠️ **Warm-up:** lần chạy DirectML ĐẦU TIÊN sau khi khởi động chậm bất thường (~32 NPS) do driver phải
+> biên dịch shader **một lần**; sau vài chục giây / sau nước đầu mới đạt tốc độ thật. Đừng đánh giá DML qua nước đầu.
 
 **Bước 2 — Tạo mạng khởi đầu "0-ELO"** (mạng khởi tạo ngẫu nhiên, chưa học gì):
 ```
@@ -103,10 +105,17 @@ AlphaZero/lc0. Thang cỡ quen thuộc:
 ```
 powershell -ExecutionPolicy Bypass -File scripts\package.ps1
 ```
-→ ra `dist\FairyZero\`. Tham số hữu ích:
+→ ra `dist\FairyZero\`. Mặc định bundle bản **CPU** (lấy từ `build\`). Tham số hữu ích:
+- `-Dml` — đóng gói bản **DirectML** (lấy từ `build-dml\`) thay cho CPU. **Một bundle phục vụ CẢ `Provider=cpu`
+  lẫn `Provider=dml`** (vì `onnxruntime.dll` bản DirectML chứa cả hai EP), có kèm `DirectML.dll`. Cần build
+  `build-dml` trước (`meson setup build-dml -Duse_dml=true; ninja -C build-dml`).
 - `-Model models\model_gen5.onnx` — đóng gói một mạng đã train làm `seed.onnx` (mặc định: tự sinh seed 0-ELO qua `make_seed.py`).
 - `-Zip` — tạo thêm `dist\FairyZero.zip` để chép đi.
 - `-OutDir <đường dẫn>` — đổi nơi xuất. `-Ucrt64Bin <...>` — chỉ chỗ DLL nếu MSYS2 không ở `C:\msys64`.
+
+> **Về "1 bản portable cuda+dml+cpu":** CPU+DML gộp được vào một bundle (`-Dml`). **CUDA thì KHÔNG** đặt
+> vào bản Windows portable (cần `onnxruntime.dll` bản CUDA + CUDA toolkit cài sẵn) — CUDA là đường **Colab/Linux**,
+> dùng `engine_src/` kèm trong bundle để build lại bằng `colab_setup.sh`.
 
 > **Lưu ý về biến thể:** luật cờ (10×10, bắt tốt qua đường, **7 lần chiếu = thắng**, các quân tùy biến…)
 > được **nhúng thẳng trong engine** ở `src/app/variant_setup.cc` (một chuỗi `ini` đăng ký biến thể

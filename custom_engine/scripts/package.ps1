@@ -15,6 +15,9 @@
    -Model       .onnx to bundle as models\seed.onnx (default: generate via make_seed.py)
    -Python      python.exe used to generate the seed (default: auto-detect)
    -Ucrt64Bin   MSYS2 ucrt64 bin holding the runtime DLLs (default: C:\msys64\ucrt64\bin)
+   -Dml         bundle the DirectML build (build-dml) instead of build: ONE bundle that
+                serves BOTH Provider=cpu and Provider=dml (needs `meson setup build-dml
+                -Duse_dml=true; ninja -C build-dml` done first). Adds DirectML.dll.
    -Zip         also produce <OutDir>.zip (Store)
 ================================================================================
 #>
@@ -23,6 +26,7 @@ param(
   [string]$Model    = "",
   [string]$Python   = "",
   [string]$Ucrt64Bin = "C:\msys64\ucrt64\bin",
+  [switch]$Dml,
   [switch]$Zip
 )
 $ErrorActionPreference = "Stop"
@@ -30,9 +34,12 @@ $ErrorActionPreference = "Stop"
 # --- Resolve repo root (this script lives in <root>\scripts) ---------------
 $Root = Split-Path -Parent $PSScriptRoot
 Write-Host "[package] repo root: $Root"
-$Exe = Join-Path $Root "build\custom_engine.exe"
-$OrtDll = Join-Path $Root "build\onnxruntime.dll"
-if (-not (Test-Path $Exe))   { throw "Engine not built: $Exe  (run: ninja -C build)" }
+# -Dml bundles the DirectML build (build-dml). Its onnxruntime.dll carries BOTH the
+# CPU and DirectML EPs, so one bundle serves Provider=cpu AND Provider=dml.
+$BuildDir = if ($Dml) { "build-dml" } else { "build" }
+$Exe = Join-Path $Root "$BuildDir\custom_engine.exe"
+$OrtDll = Join-Path $Root "$BuildDir\onnxruntime.dll"
+if (-not (Test-Path $Exe))   { throw "Engine not built: $Exe  (run: ninja -C $BuildDir$(if ($Dml) { '  — configure it with: meson setup build-dml -Duse_dml=true' }))" }
 if (-not (Test-Path $OrtDll)){ throw "onnxruntime.dll not found: $OrtDll" }
 
 # --- Clean output dir ------------------------------------------------------
@@ -43,8 +50,15 @@ foreach ($d in $dirs) { New-Item -ItemType Directory -Force -Path (Join-Path $Ou
 # --- 1. Engine exe + runtime DLLs (clean-Windows standalone) ---------------
 Copy-Item $Exe (Join-Path $OutDir "custom_engine.exe")
 Copy-Item $OrtDll (Join-Path $OutDir "onnxruntime.dll")
-$ortShared = Join-Path $Root "third_party\onnxruntime-win-x64-1.18.0\lib\onnxruntime_providers_shared.dll"
-if (Test-Path $ortShared) { Copy-Item $ortShared $OutDir }
+if ($Dml) {
+  # DirectML build needs DirectML.dll alongside (CPU+DML in one bundle).
+  $dmlDll = Join-Path $Root "$BuildDir\DirectML.dll"
+  if (Test-Path $dmlDll) { Copy-Item $dmlDll $OutDir; Write-Host "[package] DirectML.dll bundled (Provider=dml available)" }
+  else { Write-Warning "DirectML.dll not found in $BuildDir; Provider=dml will fall back to CPU." }
+} else {
+  $ortShared = Join-Path $Root "third_party\onnxruntime-win-x64-1.18.0\lib\onnxruntime_providers_shared.dll"
+  if (Test-Path $ortShared) { Copy-Item $ortShared $OutDir }
+}
 
 $runtimeDlls = @("libstdc++-6.dll","libgcc_s_seh-1.dll","libwinpthread-1.dll","zlib1.dll")
 $missing = @()
