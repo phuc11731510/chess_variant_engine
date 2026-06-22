@@ -549,8 +549,8 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 
 ### D.4. Đấu thử giữa hai đời (`custom_engine.exe --arena`)
 So tài hai mạng để biết đời mới có thật sự mạnh hơn không (engine tự đánh A vs B nhiều ván,
-luân phiên cầm Trắng/Đen). Arena dùng **chung bộ cờ** với phần sinh dữ liệu (Mục B/D.0), nên
-có thể chỉnh thiết bị, độ sâu và cả tham số tìm kiếm.
+luân phiên cầm Trắng/Đen). Arena **chia sẻ một phần** bộ cờ với phần sinh dữ liệu (Mục B/D.0) —
+nó dùng các cờ thiết bị/độ sâu/tìm kiếm dưới đây, nhưng **bỏ qua** các cờ chỉ thuộc self-play.
 
 | Cờ | Mặc định | Ý nghĩa |
 |----|----------|---------|
@@ -560,11 +560,17 @@ có thể chỉnh thiết bị, độ sâu và cả tham số tìm kiếm.
 | `--visits N` | 200 | Độ sâu MCTS mỗi nước khi đấu. |
 | `--max-moves N` | 200 | Trần số nước mỗi ván (chạm trần ⇒ tính hòa). |
 | `--temp-cutoff N` | 30 | Số nước đầu lấy mẫu theo visit (để hai ván không giống hệt nhau); đấu nghiêm ngặt có thể đặt nhỏ (vd 6) hoặc 0 để hai mạng đánh "tốt nhất" hoàn toàn. |
-| `--provider cpu\|cuda\|dml` | cpu | Thiết bị suy luận. `cuda` cho Colab (bản `-Duse_cuda`); `dml` cho iGPU Windows (bản `-Duse_dml`). |
+| `--provider cpu\|cuda\|dml` | cpu | Thiết bị suy luận. `cuda` cho Colab (bản `-Duse_cuda`); `dml` cho GPU Windows — kể cả NVIDIA (bản `-Duse_dml`). |
 | `--backend-threads N` | 1 | Số luồng intra-op cho ONNX khi `cpu`/`dml` (nên đặt = số nhân, vd 4). |
 | `--fixed-batch N` | 16 | Kích thước batch cố định khi `--provider cuda`. |
 | `--cpuct F` | (mặc định search) | Hằng số thám hiểm MCTS; đặt giống nhau cho cả hai mạng để công bằng. |
 | `--policy-temp F` | 1.0 | Nhiệt độ làm mềm policy của mạng (giữ 1.0 cho đánh giá trung tính). |
+| `--show-nps` | tắt | In NPS (playout/giây) gộp sau mỗi ván + tổng kết, để đo tốc độ. |
+
+> **Cờ self-play KHÔNG có tác dụng trong arena:** `--threads-per-game`, `--parallel`, `--noise-*`,
+> `--resign-*`, `--start-fen`, `--out`, `--policy-temp` của self-play... Arena đánh **tuần tự từng ván**
+> (mỗi lúc một tìm kiếm) nên không có pool worker — muốn nhanh hơn thì tăng `--backend-threads`
+> hoặc dùng `--provider dml/cuda`, chứ `--threads-per-game` sẽ bị **bỏ qua**.
 
 > ⚠️ **GPU trong arena:** trước đây arena bỏ qua mọi provider ≠ `cuda` nên `--provider dml` âm thầm
 > chạy CPU. Nay đã sửa — bản dựng `-Duse_dml` sẽ kích hoạt đúng iGPU. Kiểm tra dòng in

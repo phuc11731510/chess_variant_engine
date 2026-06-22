@@ -115,6 +115,9 @@ int run_arena(const EngineOptions& o) {
     }
 
     int a_wins = 0, b_wins = 0, draws = 0;
+    const bool show_nps = o.sp_show_nps;          // --show-nps: aggregate MCTS NPS
+    int64_t total_nodes = 0;
+    const auto arena_start = std::chrono::steady_clock::now();
     auto tree = std::make_unique<lczero::classic::NodeTree>();
 
     for (int g = 0; g < games; ++g) {
@@ -138,6 +141,7 @@ int run_arena(const EngineOptions& o) {
             search->RunBlocking(1);
 
             lczero::classic::Node* root = tree->GetCurrentHead();
+            total_nodes += static_cast<int64_t>(root->GetN());
             lczero::classic::EdgeAndNode best;
             uint64_t total = 0, best_n = 0;
             for (const auto& e : root->Edges()) {
@@ -168,12 +172,26 @@ int run_arena(const EngineOptions& o) {
         }
         std::cout << "  game " << (g + 1) << "/" << games << " (A plays "
                   << (a_is_white ? "White" : "Black") << "): result=" << (int)result
-                  << "   [A " << a_wins << " W / " << draws << " D / " << b_wins << " L]" << std::endl;
+                  << "   [A " << a_wins << " W / " << draws << " D / " << b_wins << " L]";
+        if (show_nps) {
+            const double secs = std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - arena_start).count();
+            const long nps = (secs > 0.0) ? std::lround(total_nodes / secs) : 0;
+            std::cout << "  | " << nps << " nps (tong)";
+        }
+        std::cout << std::endl;
     }
 
     const double score_a = (a_wins + 0.5 * draws) / std::max(1, games);
     std::cout << "\n=== ARENA RESULT ===" << std::endl;
     std::cout << "  A wins=" << a_wins << "  draws=" << draws << "  B wins=" << b_wins << std::endl;
     std::cout << "  A score = " << score_a << "  (>0.5 => A stronger than B)" << std::endl;
+    if (show_nps) {
+        const double secs = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - arena_start).count();
+        const long nps = (secs > 0.0) ? std::lround(total_nodes / secs) : 0;
+        std::cout << "  speed: " << nps << " nps (" << total_nodes << " playouts in "
+                  << secs << "s)" << std::endl;
+    }
     return 0;
 }
