@@ -8,7 +8,7 @@
 
 namespace lczero {
 
-const char* ChessBoard::kStartposFen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+const char* ChessBoard::kStartposFen = "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
 
 ChessBoard::ChessBoard() {
     auto it = Stockfish::variants.find("custom_10x10_variant");

@@ -54,7 +54,7 @@ using namespace Stockfish;
 
 
 extern const char* const kUciStartFen =
-    "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+    "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
 
 // --- Move I/O: 2-way canonical<->real mapping (locks risk #1). ---
 // The lczero layer works in the canonical (side-to-move-flipped) frame; the GUI

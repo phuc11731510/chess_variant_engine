@@ -1126,7 +1126,7 @@ checkCounting = true
     PSQT::init(v);
 
     // 1. Dựng thế cờ 10x10 variant
-    std::string fen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+    std::string fen = "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
     lczero::ChessBoard board(fen);
     
     // 2. Setup options
@@ -1252,7 +1252,7 @@ checkCounting = true
     UCI::init_variant(v);
     PSQT::init(v);
 
-    std::string fen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+    std::string fen = "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
 
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
@@ -1431,7 +1431,7 @@ checkCounting = true
     UCI::init_variant(v);
     PSQT::init(v);
 
-    std::string fen = "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+    std::string fen = "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
 
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
@@ -1889,6 +1889,40 @@ void run_rules_tests() {
         if (res != lczero::GameResult::WHITE_WON) { std::cerr << "[FAIL] dynamic 7th check not WHITE_WON (got " << (int)res << ")" << std::endl; std::exit(1); }
         std::cout << "  [OK] White delivers final (7th) check -> WHITE_WON" << std::endl;
     }
+
+    // Sergeant double-step on its SECOND move. doubleStepRegionWhite = *1 *2 *3, so a
+    // white sergeant that single-stepped onto a region rank (1-3) must STILL be able to
+    // double-step. Scenario: sergeant single-steps j2->i3 (diagonal), black replies, and
+    // we expect the straight double-step i3->i5 to be among the legal moves.
+    {
+        std::string fen = "k9/10/10/10/10/10/10/10/9S/K9 w - - 7+7 0 1";
+        auto board = std::make_unique<lczero::ChessBoard>(fen);
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(*board, 0, 1);
+
+        const lczero::Move m1 = h->Last().GetBoard().ParseMove("j2i3");  // sergeant single-step
+        if (m1.is_null()) { std::cerr << "[FAIL] sergeant single-step j2i3 is illegal" << std::endl; std::exit(1); }
+        h->Append(m1);
+        const lczero::Move m2 = h->Last().GetBoard().ParseMove("a10b10");  // black king reply
+        if (m2.is_null()) { std::cerr << "[FAIL] black reply a10b10 is illegal" << std::endl; std::exit(1); }
+        h->Append(m2);
+
+        // White to move again, sergeant now on i3 (rank 3, a double-step region rank).
+        bool can_double_step = false;
+        const lczero::ChessBoard& b2 = h->Last().GetBoard();
+        const lczero::MoveList moves = b2.GenerateLegalMoves();
+        for (size_t i = 0; i < moves.size(); ++i) {
+            if (b2.MoveToString(moves[i]) == "i3i5") { can_double_step = true; break; }
+        }
+        if (!can_double_step) {
+            std::cerr << "[FAIL] sergeant cannot double-step i3i5 on its 2nd move "
+                         "(it single-stepped onto a double-step-region rank, so it should)."
+                      << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  [OK] sergeant double-steps i3i5 on its 2nd move (region-based double-step)" << std::endl;
+    }
+
     std::cout << "[PASS] RULES tests." << std::endl;
 }
 

@@ -61,7 +61,7 @@ void run_arena(const std::string& model_a, const std::string& model_b, int games
               << "  (" << games << " games, visits=" << visits << ") ===" << std::endl;
     setup_custom_variant();
     const std::string fen =
-        "vrhabkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHABKBERV w BIbi - 7+7 0 1";
+        "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
 
     auto build_opts = [&](lczero::OptionsParser& parser, const std::string& weights) {
         lczero::classic::SearchParams::Populate(&parser);
