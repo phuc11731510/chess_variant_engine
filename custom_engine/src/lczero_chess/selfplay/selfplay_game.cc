@@ -73,7 +73,8 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        int temp_cutoff_ply, const std::string& out_filename,
                        int search_threads, bool verbose,
                        float resign_threshold, int resign_consecutive,
-                       bool allow_resign, int resign_earliest_move) {
+                       bool allow_resign, int resign_earliest_move,
+                       int64_t* out_nodes) {
   auto tree = std::make_unique<classic::NodeTree>();
   tree->ResetToPosition(start_fen, {});
 
@@ -84,6 +85,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
   records.reserve(max_moves);
   stm_black.reserve(max_moves);
   GameResult result = GameResult::UNDECIDED;
+  int64_t local_nodes = 0;   // total MCTS playouts across this game's moves (NPS)
 
   // Early-resign tracking: count consecutive own-moves where each side judged
   // itself badly losing. Index 0 = White, 1 = Black. Only active when the caller
@@ -103,6 +105,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     search->RunBlocking(search_threads);
 
     const classic::Node* root = tree->GetCurrentHead();
+    local_nodes += root->GetN();   // playouts this move -> aggregate NPS
 
     TrainingDataV1 rec;
     std::memset(&rec, 0, sizeof(rec));
@@ -183,6 +186,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
   for (const auto& r : records) writer.WriteChunk(r);
   writer.Finalize();
 
+  if (out_nodes) *out_nodes = local_nodes;
   return final_result;
 }
 

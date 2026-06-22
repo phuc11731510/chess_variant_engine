@@ -23,6 +23,7 @@ struct EngineOptions {
     float sp_resign_threshold=-2.0f, sp_no_resign_frac=0.10f;
     int sp_resign_consecutive=3, sp_resign_earliest=0;
     std::vector<std::pair<std::string,std::string>> sp_search_opts;
+    bool sp_show_nps=false;   // --show-nps: print aggregate MCTS NPS during self-play
     std::string arena_a, arena_b;
 };
 

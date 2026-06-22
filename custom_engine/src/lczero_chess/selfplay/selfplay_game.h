@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <cstdint>
 
 #include "chess/position.h"  // GameResult
 #include "neural/backend.h"
@@ -39,6 +40,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        int search_threads = 1, bool verbose = true,
                        float resign_threshold = -2.0f,
                        int resign_consecutive = 3, bool allow_resign = true,
-                       int resign_earliest_move = 0);
+                       int resign_earliest_move = 0,
+                       int64_t* out_nodes = nullptr);  // += total MCTS playouts (NPS)
 
 }  // namespace lczero

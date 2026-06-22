@@ -125,6 +125,7 @@ int run_selfplay(const EngineOptions& o) {
         cfg.resign_consecutive = o.sp_resign_consecutive;
         cfg.resign_earliest_move = o.sp_resign_earliest;
         cfg.no_resign_frac = o.sp_no_resign_frac;
+        cfg.show_nps = o.sp_show_nps;
         if (o.sp_resign_threshold > -1.0f) {
             std::cout << "[selfplay] resign: best_q<=" << o.sp_resign_threshold
                       << " for " << o.sp_resign_consecutive << " moves, no-resign frac="

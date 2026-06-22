@@ -49,6 +49,8 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             if (eq != std::string::npos) o.sp_search_opts.emplace_back(kv.substr(0, eq), kv.substr(eq + 1));
         } else if (std::string(argv[i]) == "--no-resign-frac" && i + 1 < argc) {
             o.sp_no_resign_frac = static_cast<float>(std::atof(argv[++i]));
+        } else if (std::string(argv[i]) == "--show-nps") {
+            o.sp_show_nps = true;                          // print aggregate MCTS NPS
         } else if (std::string(argv[i]) == "--arena") {
             o.arena_mode = true;
         } else if (std::string(argv[i]) == "--model-a" && i + 1 < argc) {

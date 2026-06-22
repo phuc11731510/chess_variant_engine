@@ -23,6 +23,7 @@ struct SelfPlayConfig {
   int resign_consecutive = 3;     // consecutive own-moves below threshold to trigger.
   int resign_earliest_move = 0;   // do not resign before this ply (lc0 resign-earliest-move).
   float no_resign_frac = 0.10f;   // fraction of games with resign disabled (learn to defend).
+  bool show_nps = false;          // append aggregate MCTS NPS to the progress log (--show-nps).
 };
 
 // Generates `cfg.num_games` self-play games into `cfg.out_dir`. Games run on

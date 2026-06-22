@@ -499,6 +499,7 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--resign-earliest-move N` | 0 | Không cho xin thua trước nước thứ N (để không bỏ ván quá sớm). |
 | `--no-resign-frac F` | 0.10 | Tỉ lệ ván **tắt** resign, đánh tới cùng — để mạng vẫn học cách kết liễu/phòng thủ thế thua. |
 | `--search-opt name=value` (lặp) | — | Đặt **bất kỳ** search-param lc0 nào cho self-play (xem danh sách ~35 ở D.1). Lặp nhiều lần, vd `--search-opt cpuct-base=20000 --search-opt two-fold-draws=true`. |
+| `--show-nps` | tắt | Hiện **NPS tổng** (cộng dồn mọi worker = throughput tìm kiếm của engine) trong log mỗi ván + dòng tổng kết. Mặc định TẮT; thêm cờ để bật. Với `--parallel 1` thì NPS này = NPS một ván; parallel>1 thì chia cho số parallel để ra NPS/ván. |
 
 **CHƯA DÙNG ĐƯỢC từ CLI self-play:** `--resign-wdlstyle` (resign theo ngưỡng WDL) chưa viết.
 *Lưu ý: self-play VỐN đã tái dùng cây trong một ván (không cần cờ riêng).*
