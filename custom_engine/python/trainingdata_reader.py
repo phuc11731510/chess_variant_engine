@@ -125,32 +125,44 @@ def reconstruct_planes(rec):
     return planes
 
 
-def _read_stream(f, where=""):
-    """Read fixed-size records from an open binary stream until EOF."""
-    out = []
+def _iter_stream(f, where=""):
+    """Yield fixed-size records from an open binary stream until EOF.
+
+    A generator (not a list) so callers can compact+discard each record's dense
+    probabilities[10600] (~42KB) immediately instead of holding them all at once."""
     while True:
         buf = f.read(RECORD_SIZE)
         if not buf:
             break
         if len(buf) != RECORD_SIZE:
             raise ValueError(f"truncated record ({len(buf)} bytes) in {where}")
-        out.append(unpack_record(buf))
-    return out
+        yield unpack_record(buf)
+
+
+def _read_stream(f, where=""):
+    """Read fixed-size records from an open binary stream until EOF (eager list)."""
+    return list(_iter_stream(f, where))
+
+
+def iter_records(filename):
+    """Stream records from a .gz (or raw .bin) file one at a time (low peak RAM)."""
+    opener = gzip.open if filename.endswith(".gz") else open
+    with opener(filename, "rb") as f:
+        yield from _iter_stream(f, filename)
 
 
 def read_records(filename):
-    """Read all records from a .gz (or raw .bin) file."""
-    opener = gzip.open if filename.endswith(".gz") else open
-    with opener(filename, "rb") as f:
-        return _read_stream(f, filename)
+    """Read all records from a .gz (or raw .bin) file (eager; see iter_records)."""
+    return list(iter_records(filename))
 
 
-def read_records_from_zip(zip_path):
-    """Read all records from a .zip bundle of .gz/.bin games (archive.py output).
+def iter_records_from_zip(zip_path):
+    """Stream records from a .zip bundle of .gz/.bin games one at a time.
 
-    Lets training run directly on the transfer bundle (e.g. one file downloaded
-    from Google Drive on Colab) without unpacking it to disk first."""
-    out = []
+    Unlike read_records_from_zip (which materializes EVERY record's dense
+    probabilities[10600] before returning), this yields one record at a time so
+    the caller can compact+discard it. Peak RAM stays ~10x lower — this is what
+    used to exhaust Colab's RAM at load time before a single training step ran."""
     with zipfile.ZipFile(zip_path) as zf:
         for name in zf.namelist():
             if name.endswith("/"):
@@ -158,10 +170,18 @@ def read_records_from_zip(zip_path):
             with zf.open(name) as raw:
                 if name.endswith(".gz"):
                     with gzip.GzipFile(fileobj=raw) as f:
-                        out.extend(_read_stream(f, f"{zip_path}:{name}"))
+                        yield from _iter_stream(f, f"{zip_path}:{name}")
                 elif name.endswith(".bin"):
-                    out.extend(_read_stream(raw, f"{zip_path}:{name}"))
-    return out
+                    yield from _iter_stream(raw, f"{zip_path}:{name}")
+
+
+def read_records_from_zip(zip_path):
+    """Read all records from a .zip bundle of .gz/.bin games (eager list).
+
+    Lets training run directly on the transfer bundle (e.g. one file downloaded
+    from Google Drive on Colab) without unpacking it to disk first. For training
+    prefer iter_records_from_zip to keep peak RAM low."""
+    return list(iter_records_from_zip(zip_path))
 
 
 class ShuffleBuffer:

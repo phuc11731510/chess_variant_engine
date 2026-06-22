@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from trainingdata_reader import (read_records, read_records_from_zip,
+from trainingdata_reader import (iter_records, iter_records_from_zip,
                                  reconstruct_planes, POLICY_SIZE)
 
 
@@ -74,35 +74,55 @@ class FairyDataset(Dataset):
         files = _resolve_files(data)
         if not files:
             raise FileNotFoundError(f"no training files matched: {data}")
-        records = []
-        for f in files:
-            records.extend(read_records_from_zip(f) if f.endswith(".zip")
-                           else read_records(f))
-            if max_records and len(records) >= max_records:
-                records = records[:max_records]
-                break
-        if downsample_keep < 1.0:
-            records = [r for r in records if rng.random() < downsample_keep]
-        if diff_focus:
-            records = [r for r in records
-                       if rng.random() < _diff_focus_keep(r, df_slope, df_kld_w, df_min)]
-        if not records:
-            raise ValueError("no records after down-sampling / diff_focus")
 
-        self.q_ratio = q_ratio
+        self.q_ratio = q_ratio   # set before _compact/_build (they call self._value)
         self.cache = cache
         self.sparse = sparse
         self._cached = None
         self._records = None
-        if cache and sparse:
-            # Compact each record, then DROP the raw dicts (and their dense 42KB
-            # probabilities[10600]) so only the ~4KB compact form stays resident.
-            self._cached = [self._compact(r) for r in records]
-        elif cache:
-            self._cached = [self._build(r) for r in records]
-        else:
-            self._records = records  # stream: rebuild on demand (keeps raw dicts).
-        print(f"[dataset] {len(files)} files -> {len(records)} records "
+
+        # Stream records one at a time and, for the default sparse cache, compact
+        # each immediately — the raw dict (with its dense 42KB probabilities[10600])
+        # is freed right away instead of accumulating. Peak RAM ~= compact form
+        # (~4KB/rec) rather than raw (~45KB/rec). The old eager path materialized
+        # EVERY raw record before compacting, which exhausted Colab's RAM at load
+        # time (before the first training step) on a few-thousand-game dataset.
+        compact_cache = [] if (cache and sparse) else None
+        dense_cache = [] if (cache and not sparse) else None
+        raw_records = [] if not cache else None
+
+        def _keep(r):
+            if downsample_keep < 1.0 and rng.random() >= downsample_keep:
+                return False
+            if diff_focus and rng.random() >= _diff_focus_keep(r, df_slope, df_kld_w, df_min):
+                return False
+            return True
+
+        kept = 0
+        stop = False
+        for f in files:
+            it = iter_records_from_zip(f) if f.endswith(".zip") else iter_records(f)
+            for r in it:
+                if not _keep(r):
+                    continue
+                if compact_cache is not None:
+                    compact_cache.append(self._compact(r))
+                elif dense_cache is not None:
+                    dense_cache.append(self._build(r))
+                else:
+                    raw_records.append(r)   # no-cache: rebuild on demand (keeps raw)
+                kept += 1
+                if max_records and kept >= max_records:
+                    stop = True
+                    break
+            if stop:
+                break
+        if kept == 0:
+            raise ValueError("no records after down-sampling / diff_focus")
+
+        self._cached = compact_cache if compact_cache is not None else dense_cache
+        self._records = raw_records
+        print(f"[dataset] {len(files)} files -> {kept} records "
               f"(q_ratio={q_ratio}, downsample={downsample_keep}, cached={cache}, "
               f"sparse={sparse and cache})")
 
