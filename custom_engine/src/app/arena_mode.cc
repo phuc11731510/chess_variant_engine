@@ -48,30 +48,54 @@
 #include "utils/random.h"
 #include "chess/callbacks.h"
 #include "app/arena_mode.h"
+#include "app/cli.h"
 #include "app/variant_setup.h"
 #include "app/backend_factory.h"
 #include "app/search_support.h"
 
 using namespace Stockfish;
 
-void run_arena(const std::string& model_a, const std::string& model_b, int games,
-               int visits, int max_moves, int temp_cutoff,
-               const std::string& provider, int fixed_batch) {
+int run_arena(const EngineOptions& o) {
+    if (o.arena_a.empty() || o.arena_b.empty()) {
+        std::cerr << "[arena] need --model-a <onnx> and --model-b <onnx>" << std::endl;
+        return 1;
+    }
+    const std::string& model_a = o.arena_a;
+    const std::string& model_b = o.arena_b;
+    const int games = o.sp_games;
+    const int visits = o.sp_visits;
+    const int max_moves = o.sp_max_moves;
+    const int temp_cutoff = o.sp_temp_cutoff;
+
     std::cout << "\n=== ARENA: A=" << model_a << "  vs  B=" << model_b
-              << "  (" << games << " games, visits=" << visits << ") ===" << std::endl;
+              << "  (" << games << " games, visits=" << visits
+              << ", provider=" << o.sp_provider << ") ===" << std::endl;
     setup_custom_variant();
     const std::string fen =
         "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
 
+    // Backend options per provider (same selection as self-play / --uci-nn).
+    // CUDA (Colab, needs -Duse_cuda): fixed batch. DML (Windows iGPU, needs
+    // -Duse_dml): the explicit provider= key is REQUIRED or onnxruntime silently
+    // runs on CPU. CPU: just intra-op threads.
+    std::string bopts;
+    if (o.sp_provider == "cuda") {
+        bopts = "provider=cuda,fixed_batch=" + std::to_string(std::max(1, o.sp_fixed_batch));
+    } else if (o.sp_provider == "dml") {
+        bopts = "provider=dml,threads=" + std::to_string(std::max(1, o.sp_backend_threads));
+    } else {
+        bopts = "threads=" + std::to_string(std::max(1, o.sp_backend_threads));
+    }
+    std::cout << "[arena] backend: " << bopts << std::endl;
+
     auto build_opts = [&](lczero::OptionsParser& parser, const std::string& weights) {
         lczero::classic::SearchParams::Populate(&parser);
-        parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
+        parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, o.sp_policy_temp);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);
+        if (o.sp_cpuct >= 0.0f)
+            parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_cpuct);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights);
-        const std::string bopts = (provider == "cuda")
-            ? "provider=cuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch))
-            : "threads=1";
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bopts);
     };
 
@@ -151,10 +175,5 @@ void run_arena(const std::string& model_a, const std::string& model_b, int games
     std::cout << "\n=== ARENA RESULT ===" << std::endl;
     std::cout << "  A wins=" << a_wins << "  draws=" << draws << "  B wins=" << b_wins << std::endl;
     std::cout << "  A score = " << score_a << "  (>0.5 => A stronger than B)" << std::endl;
+    return 0;
 }
-
-// ============================================================================
-// T8.1 — UCI engine driving MCTS + ONNX (the "real" AlphaZero engine, terminal).
-// ============================================================================
-
-// Variant startpos (same as arena/self-play).

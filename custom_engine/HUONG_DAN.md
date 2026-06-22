@@ -548,7 +548,9 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 `--val-split/--test-every`, `--shuffle-size`.
 
 ### D.4. Đấu thử giữa hai đời (`custom_engine.exe --arena`)
-So tài hai mạng để biết đời mới có thật sự mạnh hơn không (engine tự đánh A vs B nhiều ván).
+So tài hai mạng để biết đời mới có thật sự mạnh hơn không (engine tự đánh A vs B nhiều ván,
+luân phiên cầm Trắng/Đen). Arena dùng **chung bộ cờ** với phần sinh dữ liệu (Mục B/D.0), nên
+có thể chỉnh thiết bị, độ sâu và cả tham số tìm kiếm.
 
 | Cờ | Mặc định | Ý nghĩa |
 |----|----------|---------|
@@ -556,11 +558,42 @@ So tài hai mạng để biết đời mới có thật sự mạnh hơn không 
 | `--model-b FILE` | — | Mạng `.onnx` thứ hai (thường là đời cũ để so). |
 | `--games N` | 100 | Số ván đấu (chia đôi mỗi bên cầm Trắng/Đen cho công bằng). |
 | `--visits N` | 200 | Độ sâu MCTS mỗi nước khi đấu. |
-| `--max-moves N` | 200 | Trần số nước mỗi ván. |
-| `--temp-cutoff N` | 30 | Số nước đầu lấy mẫu theo visit (để hai ván không giống hệt nhau); đấu nghiêm ngặt có thể đặt nhỏ (vd 6). |
-| `--provider cpu\|cuda` · `--fixed-batch N` | cpu · 16 | Thiết bị / batch GPU (như Mục B). |
+| `--max-moves N` | 200 | Trần số nước mỗi ván (chạm trần ⇒ tính hòa). |
+| `--temp-cutoff N` | 30 | Số nước đầu lấy mẫu theo visit (để hai ván không giống hệt nhau); đấu nghiêm ngặt có thể đặt nhỏ (vd 6) hoặc 0 để hai mạng đánh "tốt nhất" hoàn toàn. |
+| `--provider cpu\|cuda\|dml` | cpu | Thiết bị suy luận. `cuda` cho Colab (bản `-Duse_cuda`); `dml` cho iGPU Windows (bản `-Duse_dml`). |
+| `--backend-threads N` | 1 | Số luồng intra-op cho ONNX khi `cpu`/`dml` (nên đặt = số nhân, vd 4). |
+| `--fixed-batch N` | 16 | Kích thước batch cố định khi `--provider cuda`. |
+| `--cpuct F` | (mặc định search) | Hằng số thám hiểm MCTS; đặt giống nhau cho cả hai mạng để công bằng. |
+| `--policy-temp F` | 1.0 | Nhiệt độ làm mềm policy của mạng (giữ 1.0 cho đánh giá trung tính). |
 
-Kết thúc, engine in số thắng/hòa/thua của A — nếu A thắng vượt trội thì giữ đời mới làm mốc cho vòng sau.
+> ⚠️ **GPU trong arena:** trước đây arena bỏ qua mọi provider ≠ `cuda` nên `--provider dml` âm thầm
+> chạy CPU. Nay đã sửa — bản dựng `-Duse_dml` sẽ kích hoạt đúng iGPU. Kiểm tra dòng in
+> `[arena] backend: provider=dml,threads=N` (chứ không phải `threads=N` đơn thuần) là biết GPU đã bật.
+
+**Windows — tận dụng iGPU (Iris Xe) qua DirectML** (cần bản đóng gói `-Dml`, xem Mục 0b):
+```powershell
+.\custom_engine.exe --arena `
+  --model-a models\model_gen2.onnx --model-b models\model_gen1.onnx `
+  --games 20 --visits 400 --temp-cutoff 6 `
+  --provider dml --backend-threads 4
+```
+
+**Windows — CPU thuần** (bản thường):
+```powershell
+.\custom_engine.exe --arena --model-a models\model_gen2.onnx --model-b models\model_gen1.onnx `
+  --games 20 --visits 200 --backend-threads 4
+```
+
+**Colab — GPU T4 qua CUDA** (bản Linux `-Duse_cuda` do `colab_setup.sh` dựng):
+```bash
+!/content/FairyZero/.../custom_engine --arena \
+  --model-a models/model_gen2.onnx --model-b models/model_gen1.onnx \
+  --games 40 --visits 400 --temp-cutoff 6 \
+  --provider cuda --fixed-batch 32
+```
+
+Kết thúc, engine in số thắng/hòa/thua của A và `A score` (>0.5 ⇒ A mạnh hơn B). Theo chuẩn AlphaZero,
+chỉ **giữ đời mới làm mốc** nếu nó đạt ngưỡng thắng rõ rệt (vd score ≥ 0.55 qua ≥ 40 ván).
 
 > **Lưu ý:** bản portable này **không còn** lệnh vòng lặp tự động (`loop.py`/`colab_loop.sh` đã gỡ bỏ).
 > Sinh dữ liệu (Mục B) và huấn luyện (Mục C) là hai bước **tách bạch**, bạn tự nối chuỗi theo C.3/C.4.

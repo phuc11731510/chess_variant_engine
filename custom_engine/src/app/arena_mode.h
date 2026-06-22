@@ -1,7 +1,9 @@
 #pragma once
-#include <string>
 
-// Plays model A vs model B for `games` games and prints the W/D/L tally.
-void run_arena(const std::string& model_a, const std::string& model_b, int games,
-               int visits, int max_moves, int temp_cutoff,
-               const std::string& provider, int fixed_batch);
+struct EngineOptions;
+
+// Plays model A vs model B (--model-a / --model-b) for --games games and prints
+// the W/D/L tally. Honors the shared backend/search flags: --provider (cpu/cuda/
+// dml), --backend-threads, --fixed-batch, --visits, --max-moves, --temp-cutoff,
+// --cpuct, --policy-temp. Returns 0 on success, 1 on a usage/backend error.
+int run_arena(const EngineOptions& o);

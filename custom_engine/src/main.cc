@@ -108,12 +108,8 @@ int main(int argc, char* argv[]) {
     } else if (o.play_mode) {
         run_play(o.weights_file, o.sp_provider, o.sp_fixed_batch, o.sp_visits, o.play_human_white);
     } else if (o.arena_mode) {
-        if (o.arena_a.empty() || o.arena_b.empty()) {
-            std::cerr << "[arena] need --model-a <onnx> and --model-b <onnx>" << std::endl;
-            return 1;
-        }
-        run_arena(o.arena_a, o.arena_b, o.sp_games, o.sp_visits, o.sp_max_moves, o.sp_temp_cutoff,
-                  o.sp_provider, o.sp_fixed_batch);
+        int rc = run_arena(o);
+        if (rc != 0) return rc;
     } else if (o.test_mcts_mode) {
         run_mcts_tests(o.weights_file);
     } else if (o.selfplay_mode) {

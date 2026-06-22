@@ -81,6 +81,10 @@ int run_selfplay(const EngineOptions& o) {
         std::string sp_backend_opts;
         if (o.sp_provider == "cuda") {
             sp_backend_opts = "provider=cuda,fixed_batch=" + std::to_string(std::max(1, o.sp_fixed_batch));
+        } else if (o.sp_provider == "dml") {
+            // Windows iGPU (needs a -Duse_dml build). The explicit provider= key is
+            // REQUIRED or onnxruntime silently runs on CPU.
+            sp_backend_opts = "provider=dml,threads=" + std::to_string(std::max(1, o.sp_backend_threads));
         } else {
             sp_backend_opts = "threads=" + std::to_string(std::max(1, o.sp_backend_threads));
         }
