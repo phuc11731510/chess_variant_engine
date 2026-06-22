@@ -195,7 +195,7 @@ private:
         Send("id author FairyZero");
         Send("option name WeightsFile type string default " + weights_);
         Send("option name Visits type spin default 800 min 1 max 100000000");
-        Send("option name Provider type combo default cpu var cpu var cuda");
+        Send("option name Provider type combo default cpu var cpu var cuda var dml");
         Send("option name FixedBatch type spin default 16 min 1 max 1024");
         Send("option name Threads type spin default 1 min 1 max 256");
         Send("option name BackendThreads type spin default 1 min 1 max 256");
@@ -463,9 +463,13 @@ private:
         d->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
         d->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);  // play hard: no noise
         d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_);
-        const std::string bopts = (provider_ == "cuda")
-            ? "provider=cuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch_))
-            : "threads=" + std::to_string(std::max(1, backend_threads_));
+        std::string bopts;
+        if (provider_ == "cuda")
+            bopts = "provider=cuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch_));
+        else if (provider_ == "dml")   // DirectML: dynamic batch; threads= covers any CPU-fallback ops
+            bopts = "provider=dml,threads=" + std::to_string(std::max(1, backend_threads_));
+        else
+            bopts = "threads=" + std::to_string(std::max(1, backend_threads_));
         d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bopts);
         try {
             backend_ = arena_make_backend(parser_->GetOptionsDict());

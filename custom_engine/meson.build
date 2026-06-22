@@ -41,7 +41,13 @@ endif
 # ONNX Runtime root: platform-specific. Windows uses the bundled CPU package;
 # non-Windows (Linux/Colab) uses the GPU package pointed to by -Donnxruntime_dir=.
 if host_machine.system() == 'windows'
-  onnx_root = 'third_party/onnxruntime-win-x64-1.18.0'
+  if get_option('use_dml')
+    onnx_root = get_option('onnxruntime_dir_win_dml')
+    add_project_arguments('-DUSE_DML', language: 'cpp')
+    message('DirectML Execution Provider ENABLED (-DUSE_DML), package: ' + onnx_root)
+  else
+    onnx_root = 'third_party/onnxruntime-win-x64-1.18.0'
+  endif
 else
   onnx_root = get_option('onnxruntime_dir')
 endif
@@ -143,6 +149,14 @@ if host_machine.system() == 'windows'
     output: 'onnxruntime.dll',
     copy: true
   )
+  # DirectML build ships an extra DirectML.dll the loader also needs.
+  if get_option('use_dml')
+    configure_file(
+      input: onnx_root / 'lib/DirectML.dll',
+      output: 'DirectML.dll',
+      copy: true
+    )
+  endif
 endif
 # On Linux the loader finds libonnxruntime.so via the executable rpath below
 # (build_rpath) or LD_LIBRARY_PATH; no copy needed.

@@ -46,6 +46,19 @@ ninja -C build             # build lại mỗi khi sửa mã nguồn
 ```
 → ra `build\custom_engine.exe` + `build\onnxruntime.dll`. Kiểm tra: `build\custom_engine.exe --test-uci` phải `[PASS]`.
 
+> **(Tùy chọn) Build hỗ trợ iGPU/GPU bằng DirectML** — để chơi nhanh hơn CPU-only trên card Intel/AMD/NVIDIA
+> bất kỳ của Windows. Tải gói **ONNX Runtime DirectML** (`onnxruntime-win-x64-directml-1.18.0`, có
+> `DirectML.dll` + `dml_provider_factory.h`) vào `third_party\`, rồi cấu hình lại:
+> ```
+> meson setup build-dml -Duse_dml=true     # (hoặc: meson configure build -Duse_dml=true)
+> ninja -C build-dml
+> ```
+> Khi chơi, bật bằng `setoption name Provider value dml` (hoặc `--play --provider dml`). Bản CPU thường
+> **không bị ảnh hưởng** (mã DirectML nằm trong `#ifdef USE_DML`).
+> ⚠️ **Kỳ vọng thực tế:** iGPU yếu (vd Iris Xe) ở chế độ chơi (batch=1) có thể **chỉ nhanh hơn chút, đôi khi
+> chậm hơn** CPU đã tăng `BackendThreads`. Hãy thử `BackendThreads`/`Threads` trước (xem A.4) — thường là
+> cách tăng NPS rẻ và chắc ăn hơn.
+
 **Bước 2 — Tạo mạng khởi đầu "0-ELO"** (mạng khởi tạo ngẫu nhiên, chưa học gì):
 ```
 python python\make_seed.py --out models\seed.onnx
@@ -151,7 +164,7 @@ Gõ trước khi `go`. Cú pháp: `setoption name <Tên> value <Giá trị>`.
 | `WeightsFile` | seed.onnx | Đổi mạng nơ-ron engine đang dùng → chọn đời mạnh/yếu khác nhau (đời cao thường mạnh hơn). Vd: `setoption name WeightsFile value models\model_gen5.onnx`. |
 | `Visits` | 800 | **Núm chỉnh sức cờ chính.** Số lần MCTS "nghĩ" (playout) mỗi lượt khi `go` không kèm `nodes`. Càng cao càng mạnh nhưng càng chậm. |
 | `Threads` | 1 | Số luồng tìm kiếm chạy song song. Máy nhiều nhân → đặt cao hơn để nghĩ nhanh hơn (không làm yếu đi). |
-| `Provider` | cpu | Thiết bị tính mạng: `cpu` cho bản thường, `cuda` nếu là bản build GPU. Đặt sai → engine không nạp được mạng. |
+| `Provider` | cpu | Thiết bị tính mạng: `cpu` (bản thường) · `cuda` (bản build GPU NVIDIA, Colab) · `dml` (DirectML — iGPU/GPU bất kỳ trên Windows, **chỉ khi build `-Duse_dml`**). Provider không được biên dịch vào bản này sẽ **tự cảnh báo + lùi về CPU**. |
 | `FixedBatch` | 16 | Số thế gom lại đẩy GPU tính một lần (chỉ khi `cuda`). Lớn → GPU hiệu quả hơn. Bản CPU bỏ qua. |
 | `BackendThreads` | 1 | Số luồng tính toán mạng nơ-ron trên CPU. Tăng nếu CPU còn nhân rảnh và muốn eval mạng nhanh hơn. |
 | `PolicySoftmaxTemp` | 1.359 (khớp lc0) | Làm "mềm" gợi ý nước đi của mạng (chia logit policy). >1 (mặc định) cho các nước phụ thêm cơ hội được xét; <1 dồn niềm tin vào vài nước top. |
@@ -367,7 +380,7 @@ regularization…) chạy **giống nhau** dù CPU hay GPU.
 | `WeightsFile` | seed.onnx | Đổi mạng nơ-ron đang dùng (chọn đời mạnh/yếu); đời cao thường mạnh hơn. |
 | `Visits` | 800 | Số playout MCTS mỗi nước khi `go` không kèm `nodes`. **Núm chỉnh sức cờ chính** — cao = mạnh + chậm. |
 | `Threads` | 1 | Số luồng MCTS chạy song song; máy nhiều nhân đặt cao → nghĩ nhanh hơn (không yếu đi). |
-| `Provider` | cpu | Thiết bị tính mạng: `cpu` (bản thường) / `cuda` (bản build GPU). |
+| `Provider` | cpu | `cpu` / `cuda` (bản build GPU NVIDIA) / `dml` (DirectML iGPU/GPU Windows, chỉ khi build `-Duse_dml`). |
 | `FixedBatch` | 16 | Số thế gom đẩy GPU tính một lần (chỉ khi `cuda`); lớn → GPU hiệu quả hơn. |
 | `BackendThreads` | 1 | Số luồng tính mạng nơ-ron trên CPU; tăng nếu còn nhân rảnh. |
 | `PolicySoftmaxTemp` | **1.359** (khớp lc0) | Làm "mềm" gợi ý mạng: >1 cho nước phụ thêm cơ hội, <1 dồn vào vài nước top. |

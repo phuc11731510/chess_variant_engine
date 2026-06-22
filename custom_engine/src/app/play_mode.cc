@@ -91,9 +91,11 @@ void run_play(const std::string& weights, const std::string& provider, int fixed
     d->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
     d->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);
     d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights);
-    d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId,
-        provider == "cuda" ? "provider=cuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch))
-                           : "threads=1");
+    std::string play_bopts;
+    if (provider == "cuda")      play_bopts = "provider=cuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch));
+    else if (provider == "dml")  play_bopts = "provider=dml,threads=1";
+    else                         play_bopts = "threads=1";
+    d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, play_bopts);
     std::unique_ptr<lczero::Backend> backend;
     try { backend = arena_make_backend(parser.GetOptionsDict()); }
     catch (const std::exception& e) { std::cerr << "[play] backend load failed: " << e.what() << std::endl; return; }

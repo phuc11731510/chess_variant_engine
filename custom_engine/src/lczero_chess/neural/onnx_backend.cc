@@ -8,6 +8,11 @@
 #include <algorithm>
 #include <immintrin.h>
 
+#ifdef USE_DML
+// DirectML EP factory (only in the DirectML ONNX Runtime package).
+#include "dml_provider_factory.h"
+#endif
+
 namespace lczero {
 
 // AVX2 exp approximation helper function compiled with AVX2 and FMA
@@ -292,45 +297,54 @@ void OnnxBackend::InitializeSession() {
     session_options_ = Ort::SessionOptions();
     session_options_.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     
-    if (provider_ != "cpu" && fixed_batch_) {
-        // GPU Profile (CUDA / TensorRT)
-        session_options_.EnableMemPattern();
-        
-        if (fixed_batch_size_ > 0) {
-            // Override batch dimension using raw C API through C++ wrapper GetApi()
+    bool gpu_ep = false;   // true only if a real GPU Execution Provider was appended
+    if (provider_ != "cpu") {
+        // GPU-class provider: CUDA (Colab, -Duse_cuda) or DirectML (Windows iGPU/GPU,
+        // -Duse_dml). The CUDA path keeps its fixed-batch profile; DirectML usually
+        // runs dynamic batch (play = batch 1). EPs below are compiled in only when
+        // the matching build flag is set, so the plain CPU build is unaffected.
+        if (fixed_batch_ && fixed_batch_size_ > 0) {
+            session_options_.EnableMemPattern();
             try {
                 Ort::ThrowOnError(Ort::GetApi().AddFreeDimensionOverrideByName(session_options_, "batch", fixed_batch_size_));
-                std::cout << "[ONNX Backend] GPU profile options set: Fixed batch size = " << fixed_batch_size_ << std::endl;
+                std::cout << "[ONNX Backend] GPU profile: fixed batch size = " << fixed_batch_size_ << std::endl;
             } catch (const std::exception& e) {
-                std::cerr << "[ONNX Backend] Warning: Failed to set batch size override: " << e.what() << std::endl;
+                std::cerr << "[ONNX Backend] Warning: batch-size override failed: " << e.what() << std::endl;
             }
         }
-        
-        // Append the CUDA Execution Provider. Compiled only when the binary is
-        // built with -Duse_cuda=true (Linux/Colab GPU); the Windows CPU build
-        // never enters this code, so it remains unaffected.
 #ifdef USE_CUDA
         if (provider_ == "cuda") {
             OrtCUDAProviderOptions cuda_options{};
             cuda_options.device_id = 0;
             session_options_.AppendExecutionProvider_CUDA(cuda_options);
             std::cout << "[ONNX Backend] CUDA Execution Provider appended (device 0)." << std::endl;
+            gpu_ep = true;
         }
-#else
-        std::cout << "[ONNX Backend] WARNING: provider='" << provider_
-                  << "' requested but this binary was built WITHOUT USE_CUDA -> "
-                  << "falling back to the CPU Execution Provider." << std::endl;
 #endif
-
-        std::cout << "[ONNX Backend] GPU profile activated (" << provider_ << "): Fixed batch="
-                  << fixed_batch_size_ << std::endl;
-    } else {
-        // CPU Profile: Dynamic batching, Disable memory pattern, physical core optimization
+#ifdef USE_DML
+        if (provider_ == "dml") {
+            // DirectML requires sequential execution and no memory-pattern optimization.
+            session_options_.DisableMemPattern();
+            session_options_.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+            Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_DML(session_options_, 0));
+            std::cout << "[ONNX Backend] DirectML Execution Provider appended (device 0)." << std::endl;
+            gpu_ep = true;
+        }
+#endif
+        if (gpu_ep) {
+            std::cout << "[ONNX Backend] GPU profile activated (" << provider_ << ")." << std::endl;
+        } else {
+            std::cout << "[ONNX Backend] WARNING: provider='" << provider_
+                      << "' requested but its EP is not compiled into this binary "
+                      << "(rebuild with -Duse_cuda=true or -Duse_dml=true) -> CPU fallback." << std::endl;
+        }
+    }
+    if (!gpu_ep) {
+        // CPU profile (also the fallback when a GPU EP isn't compiled in).
         session_options_.SetIntraOpNumThreads(intra_op_threads_);
         session_options_.SetInterOpNumThreads(1);
         session_options_.DisableMemPattern();
-        
-        std::cout << "[ONNX Backend] CPU profile activated: Dynamic batching, DisableMemPattern, IntraOp=" 
+        std::cout << "[ONNX Backend] CPU profile activated: Dynamic batching, DisableMemPattern, IntraOp="
                   << intra_op_threads_ << std::endl;
     }
     

@@ -17,3 +17,13 @@ option('use_cuda',
        type : 'boolean',
        value: false,
        description: 'Enable the CUDA Execution Provider in OnnxBackend (-DUSE_CUDA)')
+
+option('use_dml',
+       type : 'boolean',
+       value: false,
+       description: 'Enable the DirectML Execution Provider (-DUSE_DML) for Windows iGPU/GPU. Needs the DirectML ONNX Runtime package (see onnxruntime_dir_win_dml).')
+
+option('onnxruntime_dir_win_dml',
+       type : 'string',
+       value: 'third_party/onnxruntime-win-x64-directml-1.18.0',
+       description: 'ONNX Runtime DirectML package root (Windows, used when use_dml=true)')
