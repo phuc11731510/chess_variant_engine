@@ -61,6 +61,12 @@ cd "$ENGINE_DIR"
 echo "[colab] ONNX Runtime: $ENGINE_DIR/third_party/$ORT_PKG"
 
 # --- (3) configure + build ---------------------------------------------------
+# Copying from Google Drive (FUSE) can leave source files with mtimes in the FUTURE
+# relative to the Colab VM clock, which makes meson abort with "Clock skew detected".
+# Normalize every timestamp in the engine tree to "now" before configuring.
+echo "[colab] normalizing source timestamps (avoid meson clock-skew) ..."
+find "$ENGINE_DIR" -exec touch {} + 2>/dev/null || true
+
 echo "[colab] meson setup (use_cuda=true) ..."
 if [ -d build-linux ]; then
   meson setup build-linux --reconfigure --buildtype=release \

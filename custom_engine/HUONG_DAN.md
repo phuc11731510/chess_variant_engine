@@ -574,6 +574,10 @@ Kết thúc, engine in số thắng/hòa/thua của A — nếu A thắng vượ
   dẫn `--weights`.
 - **Engine "đứng im" sau `go infinite`:** đúng vậy — nó nghĩ vô hạn; gõ `stop` để lấy nước.
 - **Python báo thiếu thư viện:** chạy `pip install -r python\requirements.txt`.
+- **Colab: meson báo `ERROR: Clock skew detected ... time stamp ...s in the future`:** do `cp` từ Google
+  Drive làm mtime tệp lệch về tương lai so với đồng hồ máy Colab. Sửa: chuẩn hóa timestamp rồi cấu hình lại —
+  `!find /content/FairyZero -exec touch {} +` → `!rm -rf .../engine_src/build-linux` → chạy lại `colab_setup.sh`.
+  (Bản `colab_setup.sh` mới đã tự `touch` trước khi `meson setup` nên sẽ không gặp lại.)
 - **Test engine còn nguyên vẹn:** `custom_engine.exe --test-uci` (kiểm tra I/O nước) phải in
   `[PASS]`.
 
