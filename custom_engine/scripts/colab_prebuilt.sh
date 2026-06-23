@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
 # =============================================================================
-# FairyZero — cache a prebuilt Linux engine on Google Drive so later Colab
-# sessions SKIP the meson/ninja build AND the ONNX Runtime download.
-# Companion to colab_setup.sh.
+# FairyZero — reuse a prebuilt Linux engine across Colab sessions so they SKIP
+# the meson/ninja build AND the ONNX Runtime download. Companion to colab_setup.sh.
 #
-#   # ONCE — right after colab_setup.sh has built successfully:
-#   !bash <bundle>/scripts/colab_prebuilt.sh save
+# TWO equivalent workflows — pick one:
 #
-#   # EVERY later session — instead of colab_setup.sh (takes seconds, no build):
-#   !bash <bundle>/scripts/colab_prebuilt.sh restore
-#   # then ALWAYS run the engine through the generated wrapper (it sets the
+# (1) SEPARATE CACHE on Drive (keeps the bundle source-only):
+#   !bash <bundle>/scripts/colab_prebuilt.sh save      # once, after a build
+#   !bash <bundle>/scripts/colab_prebuilt.sh restore   # every later session
+#
+# (2) BUILD INTO THE BUNDLE (the binary travels inside the bundle itself):
+#   # once: build on local disk, then copy the artifacts back into the Drive bundle
+#   !bash /content/FairyZero/scripts/colab_setup.sh
+#   !cp -r /content/FairyZero/engine_src/build-linux /content/drive/MyDrive/FairyZero/engine_src/
+#   !cp -r /content/FairyZero/engine_src/third_party /content/drive/MyDrive/FairyZero/engine_src/
+#   # every later session: copy the bundle to local (binary included), then:
+#   !bash /content/FairyZero/scripts/colab_prebuilt.sh wrap
+#
+#   # BOTH workflows: then run the engine through the generated wrapper (it sets the
 #   # library paths, which a bare `!cell` would otherwise lose):
 #   !bash /content/FairyZero/engine_src/run.sh --selfplay --games 1000 ...
 #   !bash /content/FairyZero/engine_src/run.sh --arena --model-a ... --model-b ...
@@ -69,6 +77,23 @@ EOF
   echo "[prebuilt] wrote wrapper: $wrap"
 }
 
+# Wrapper + light Python deps + a health check against the in-place binary.
+finish_local() {
+  chmod +x "$ENGINE_DIR/build-linux/custom_engine" 2>/dev/null || true
+  write_wrapper
+  # torch is preinstalled on Colab; the train/seed scripts also import these.
+  pip install -q onnx onnxruntime 2>/dev/null || true
+  echo "[prebuilt] health check: --test-uci ..."
+  if bash "$ENGINE_DIR/run.sh" --test-uci 2>/tmp/fz_health | grep -q '\[PASS\]'; then
+    echo "[prebuilt] OK — engine runs on this Colab image. SKIP colab_setup.sh."
+    echo "[prebuilt] Run the engine via:  bash $ENGINE_DIR/run.sh <args>"
+  else
+    echo "[prebuilt] !! engine did NOT run here (Colab image likely changed; see /tmp/fz_health)."
+    echo "[prebuilt] !! Fix: run colab_setup.sh once to rebuild (then 'save' if you cache to Drive)."
+    exit 1
+  fi
+}
+
 _copy_tree() {  # rsync if present (fast, skips unchanged), else plain cp -r
   local src="$1" dst="$2"
   rsync -a "$src/" "$dst/" 2>/dev/null || { mkdir -p "$(dirname "$dst")"; cp -rf "$src" "$(dirname "$dst")/"; }
@@ -99,22 +124,27 @@ case "$ACTION" in
     if [ ! -d "$ENGINE_DIR/third_party/$ORT_PKG" ]; then
       _copy_tree "$FZ_CACHE/third_party/$ORT_PKG" "$ENGINE_DIR/third_party/$ORT_PKG"
     fi
-    write_wrapper
-    # Light Python deps for the training/seed scripts (torch is preinstalled).
-    pip install -q onnx onnxruntime 2>/dev/null || true
-    # Health check: CPU-only engine logic, no GPU needed.
-    echo "[prebuilt] health check: --test-uci ..."
-    if bash "$ENGINE_DIR/run.sh" --test-uci 2>/tmp/fz_health | grep -q '\[PASS\]'; then
-      echo "[prebuilt] OK — prebuilt engine runs on this Colab image."
-      echo "[prebuilt] You can SKIP colab_setup.sh. Run the engine via:"
-      echo "           bash $ENGINE_DIR/run.sh <args>"
-    else
-      echo "[prebuilt] !! cached binary did NOT run here (Colab image likely changed)."
-      echo "[prebuilt] !! See /tmp/fz_health. Fix: run colab_setup.sh once, then 'save' again."
-      exit 1
-    fi
+    finish_local
+    ;;
+
+  wrap)
+    # "Build INTO the bundle" workflow: the binary + third_party/<ORT_PKG> are
+    # already present inside this bundle (you copied them back after building,
+    # or the bundle was distributed with them). No Drive cache is touched — just
+    # (re)generate run.sh for THIS path, fix perms, and health-check.
+    BIN="$ENGINE_DIR/build-linux/custom_engine"
+    [ -x "$BIN" ] || [ -f "$BIN" ] || {
+      echo "[prebuilt] no binary in bundle at $BIN."
+      echo "[prebuilt] Build once (colab_setup.sh) and keep build-linux/ + third_party/ in the bundle."; exit 1; }
+    [ -d "$ENGINE_DIR/third_party/$ORT_PKG" ] || \
+      echo "[prebuilt] WARNING: third_party/$ORT_PKG missing in bundle — engine may not find ONNX Runtime libs."
+    finish_local
     ;;
 
   *)
-    echo "usage: colab_prebuilt.sh [save|restore]   (default: restore)"; exit 1;;
+    echo "usage: colab_prebuilt.sh [save|restore|wrap]   (default: restore)"
+    echo "  save    : build once, then cache binary+ORT to \$FZ_CACHE on Drive"
+    echo "  restore : copy that cache back into the bundle (separate-cache workflow)"
+    echo "  wrap    : binary already lives in the bundle -> just write run.sh + check"
+    exit 1;;
 esac
