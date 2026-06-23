@@ -147,7 +147,8 @@ chỗ ("slot") để gắn các thứ này về sau mà không phải đập đi
 
 ### 5.2 Hai lệnh CẦN BỔ SUNG vào engine (nhỏ, xem §6)
 - **`legalmoves`** → in một dòng tất cả nước hợp lệ ở thế hiện tại, dạng UCI thật, cách nhau bởi
-  dấu cách. Ví dụ: `legal b3b5 b3b4 c2c3 ... f2f1b f2f1h f2f1m f2f1n f2f1v f2f1y`.
+  dấu cách, **có tiền tố `legalmoves`**. Ví dụ:
+  `legalmoves b3b4 c3c4 ... f2f1b f2f1h f2f1m f2f1n f2f1v f2f1y` (dòng chỉ có `legalmoves` nếu hết nước).
   Dùng để: tô ô đi được, kiểm tra nước người đi, **phát hiện phong cấp** (nhiều nước cùng
   from+to khác hậu tố), và phát hiện "hết nước".
 - **`result`** → in trạng thái ván: `result undecided` | `result white` | `result black` |
@@ -203,6 +204,15 @@ Mở khoá nhập cho người.
 ---
 
 ## 6. Phần engine cần bổ sung (C++, nhỏ)
+
+> ✅ **ĐÃ TRIỂN KHAI (M1, 2026-06-23)** trong `src/app/uci_nn_engine.cc` (vòng lặp `Loop()`, ngay
+> sau lệnh `d`). Đã build `build` (CPU) + `build-dml` và test tay. Định dạng output thực tế:
+> - `legalmoves <m1> <m2> ...` (một dòng; chỉ `legalmoves` nếu hết nước)
+> - `result undecided|white|black|draw`
+> - `fen <FEN một dòng, toạ độ thật>`
+> Hiệu năng `legalmoves`: movegen native `ChessBoard::GenerateLegalMoves()` + một `std::string`
+> đã `reserve` + một lần `Send` (không flush từng token). Lưu ý: `fen` của FSF in castling dạng
+> `KQkq` (nội bộ) thay cho nhãn `BIbi` — không ảnh hưởng GUI (chỉ dùng phần bố trí quân để vẽ).
 
 Thêm vào `UciNnEngine::Loop()` trong `src/app/uci_nn_engine.cc` hai nhánh lệnh, theo đúng style
 hiện có (đã có `CanonicalMoveToUci`, `ComputeGameResult`, movegen):
@@ -336,7 +346,7 @@ Hoặc double-click `gui.exe` để chạy với mặc định (CPU, model mặc
 | Mốc | Nội dung | Tiêu chí hoàn thành |
 |---|---|---|
 | **M0** | Dựng khung Flutter chạy được cửa sổ trống trên Windows; parse cờ lệnh → `LaunchConfig`. | `flutter run -d windows` mở cửa sổ; in ra config đọc được. |
-| **M1** | Engine bổ sung `legalmoves` + `result` (§6), build lại, test tay. | Gõ tay các lệnh ra đúng định dạng. |
+| **M1** ✅ | Engine bổ sung `legalmoves` + `result` (+ `fen`) (§6), build lại, test tay. | XONG: build CPU+DML, test tay ra đúng định dạng. |
 | **M2** | `UciProcessEngine`: spawn engine, làm trình tự khởi động, lấy FEN + legalmoves. | Log Dart in ra FEN xuất phát + danh sách nước hợp lệ. |
 | **M3** | Vẽ bàn tĩnh từ FEN: lưới 10×10 + quân (ảnh) căn giữa ô; lật bàn nếu `--black`. | Thấy đúng thế xuất phát, đúng màu/loại quân. |
 | **M4** | Nhập nước: chạm-chạm trước (đơn giản), tô sáng ô hợp lệ, gửi nước, máy đáp `go movetime`. | Chơi tay vài nước người↔máy, bàn cập nhật đúng. |

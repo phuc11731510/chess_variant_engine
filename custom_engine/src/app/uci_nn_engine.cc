@@ -174,6 +174,47 @@ public:
                     std::cout << "info string no position set (send 'position ...' first)"
                               << std::endl;
                 }
+            } else if (cmd == "legalmoves") {
+                // GUI helper: liệt kê TẤT CẢ nước hợp lệ ở thế hiện tại, MỘT dòng,
+                // UCI toạ-độ-thật. Hiệu năng: movegen native (không brute-force) +
+                // một buffer std::string đã reserve + một lần Send (không flush
+                // từng token, không std::endl). movegen mới là chi phí chính.
+                if (tree_) {
+                    const auto& board = tree_->GetPositionHistory().Last().GetBoard();
+                    const bool black = tree_->IsBlackToMove();
+                    const lczero::MoveList moves = board.GenerateLegalMoves();
+                    std::string line;
+                    line.reserve(moves.size() * 8 + 16);   // ~ "e10i6h " mỗi nước
+                    line += "legalmoves";
+                    for (const lczero::Move& m : moves) {
+                        line += ' ';
+                        line += CanonicalMoveToUci(m, black);
+                    }
+                    Send(line);
+                } else {
+                    Send("legalmoves");
+                }
+            } else if (cmd == "result") {
+                // GUI helper: kết quả ván ở thế hiện tại.
+                const char* r = "undecided";
+                if (tree_) {
+                    switch (tree_->GetPositionHistory().ComputeGameResult()) {
+                        case lczero::GameResult::WHITE_WON: r = "white"; break;
+                        case lczero::GameResult::BLACK_WON: r = "black"; break;
+                        case lczero::GameResult::DRAW:      r = "draw";  break;
+                        default: break;  // UNDECIDED -> "undecided"
+                    }
+                }
+                Send(std::string("result ") + r);
+            } else if (cmd == "fen") {
+                // GUI helper: FEN sạch một dòng (toạ độ thật) để GUI vẽ bàn cờ,
+                // khỏi phải parse tranh ASCII của lệnh `d`.
+                if (tree_) {
+                    Send("fen " + tree_->GetPositionHistory().Last()
+                                      .GetBoard().GetRawPosition().fen());
+                } else {
+                    Send("info string no position set (send 'position ...' first)");
+                }
             } else if (cmd == "debug" || cmd == "register") {
                 // Accept & ignore (robustness).
             } else if (cmd == "quit") {
