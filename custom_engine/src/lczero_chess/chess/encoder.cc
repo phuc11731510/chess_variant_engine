@@ -5,6 +5,33 @@
 
 namespace lczero {
 
+namespace {
+// PieceType -> piece-plane index (0..12), or -1 for types this variant never uses.
+// Replaces a per-square switch with an O(1) table lookup in the encode hot path.
+// PieceType values are sparse (KING=63, CUSTOM_PIECE_1=39, ...) so a full
+// PIECE_TYPE_NB-wide table is the safe, branch-free form.
+struct PieceTypeToPlaneLUT {
+    int lut[Stockfish::PIECE_TYPE_NB];
+    constexpr PieceTypeToPlaneLUT() : lut{} {
+        for (int i = 0; i < Stockfish::PIECE_TYPE_NB; ++i) lut[i] = -1;
+        lut[Stockfish::PAWN]           = 0;
+        lut[Stockfish::KNIGHT]         = 1;
+        lut[Stockfish::BISHOP]         = 2;
+        lut[Stockfish::ROOK]           = 3;
+        lut[Stockfish::QUEEN]          = 4;
+        lut[Stockfish::KING]           = 5;
+        lut[Stockfish::AMAZON]         = 6;
+        lut[Stockfish::CHANCELLOR]     = 7;
+        lut[Stockfish::ARCHBISHOP]     = 8;
+        lut[Stockfish::CENTAUR]        = 9;
+        lut[Stockfish::CUSTOM_PIECE_1] = 10;
+        lut[Stockfish::CUSTOM_PIECE_2] = 11;
+        lut[Stockfish::CUSTOM_PIECE_3] = 12;
+    }
+};
+constexpr auto kPieceTypeToPlane = PieceTypeToPlaneLUT();
+}  // namespace
+
 // Hàm mã hóa lịch sử thế cờ thành các mặt phẳng đầu vào (InputPlanes) cho Neural Network
 void EncodePositionForNN(
     const PositionHistory& history,
@@ -37,7 +64,19 @@ void EncodePositionForNN(
     Stockfish::Color us = last_position.IsBlackToMove() ? Stockfish::BLACK : Stockfish::WHITE;
     Stockfish::Color them = ~us;
     bool is_flipped = (us == Stockfish::BLACK); // Lật bàn cờ nếu quân đen đi để đồng bộ góc nhìn NN
-    
+
+    // Đặt bit của một quân `pc` tại ô `sq` vào mặt phẳng tương ứng cho bước lịch sử `d`.
+    auto emit_piece = [&](Stockfish::Piece pc, Stockfish::Square sq, int d) {
+        if (pc == Stockfish::NO_PIECE) return;
+        const int plane_idx = kPieceTypeToPlane.lut[Stockfish::type_of(pc)];
+        if (plane_idx < 0) return;
+        const int plane_offset = (Stockfish::color_of(pc) == us) ? 0 : 13;  // mình / đối thủ
+        const int dest_plane = d * kPlanesPerBoard + plane_offset + plane_idx;
+        const Stockfish::Square dest_sq =
+            is_flipped ? Stockfish::relative_square(Stockfish::BLACK, sq, Stockfish::RANK_10) : sq;
+        (*output_planes)[dest_plane].mask |= Stockfish::square_bb(dest_sq);
+    };
+
     // Duyệt qua lịch sử 8 nước đi (kMoveHistory = 8)
     for (int d = 0; d < kMoveHistory; ++d) {
         bool has_board = false;
@@ -70,55 +109,22 @@ void EncodePositionForNN(
             continue;
         }
         
-        // Duyệt qua bàn cờ 10x10 (hàng 0-9, cột 0-9)
-        for (int rank = 0; rank < 10; ++rank) {
-            for (int file = 0; file < 10; ++file) {
-                // Chỉ số ô cờ vật lý trong Stockfish (mỗi hàng rộng 12 ô do LARGEBOARDS)
-                int s = rank * 12 + file;
-                
-                Stockfish::Piece pc = Stockfish::NO_PIECE;
-                if (hist_board_ptr) {
-                    pc = static_cast<Stockfish::Piece>(hist_board_ptr[s]);
-                } else if (raw_board_ptr) {
-                    pc = static_cast<Stockfish::Piece>(raw_board_ptr->piece_on(static_cast<Stockfish::Square>(s)));
-                }
-                if (pc == Stockfish::NO_PIECE) continue;
-            
-            Stockfish::PieceType pt = Stockfish::type_of(pc);
-            Stockfish::Color c = Stockfish::color_of(pc);
-            
-            // Tìm chỉ số mặt phẳng (plane index) tương ứng với loại quân cờ (13 loại)
-            int plane_idx = -1;
-            switch (pt) {
-                case Stockfish::PAWN:           plane_idx = 0; break;
-                case Stockfish::KNIGHT:         plane_idx = 1; break;
-                case Stockfish::BISHOP:         plane_idx = 2; break;
-                case Stockfish::ROOK:           plane_idx = 3; break;
-                case Stockfish::QUEEN:          plane_idx = 4; break;
-                case Stockfish::KING:           plane_idx = 5; break;
-                case Stockfish::AMAZON:         plane_idx = 6; break;
-                case Stockfish::CHANCELLOR:     plane_idx = 7; break;
-                case Stockfish::ARCHBISHOP:     plane_idx = 8; break;
-                case Stockfish::CENTAUR:        plane_idx = 9; break;
-                case Stockfish::CUSTOM_PIECE_1: plane_idx = 10; break;
-                case Stockfish::CUSTOM_PIECE_2: plane_idx = 11; break;
-                case Stockfish::CUSTOM_PIECE_3: plane_idx = 12; break;
-                default: break;
+        // Với thế cờ sống (d==0 / điền FEN): duyệt CHỈ ô có quân qua bitboard
+        // occupancy (~20-44 quân thay vì quét cả 100 ô). Đường lịch sử là mảng
+        // byte (không có bitboard) nên quét 10x10 ô như cũ — vốn đã cache-friendly.
+        if (raw_board_ptr) {
+            Stockfish::Bitboard occ = raw_board_ptr->pieces();
+            while (occ) {
+                Stockfish::Square sq = Stockfish::pop_lsb(occ);
+                emit_piece(raw_board_ptr->piece_on(sq), sq, d);
             }
-            
-            if (plane_idx != -1) {
-                // Plane offset: 0 cho quân mình (us), 13 cho quân đối thủ (them)
-                int plane_offset = (c == us) ? 0 : 13;
-                int dest_plane = d * kPlanesPerBoard + plane_offset + plane_idx;
-                
-                Stockfish::Square dest_sq = static_cast<Stockfish::Square>(s);
-                if (is_flipped) {
-                    // Lật ô cờ dọc theo bàn cờ 10 hàng để giữ đồng bộ góc nhìn của quân đen
-                    dest_sq = Stockfish::relative_square(Stockfish::BLACK, dest_sq, Stockfish::RANK_10);
+        } else {  // hist_board_ptr
+            for (int rank = 0; rank < 10; ++rank) {
+                for (int file = 0; file < 10; ++file) {
+                    int s = rank * 12 + file;  // mỗi hàng rộng 12 ô do LARGEBOARDS
+                    emit_piece(static_cast<Stockfish::Piece>(hist_board_ptr[s]),
+                               static_cast<Stockfish::Square>(s), d);
                 }
-                
-                (*output_planes)[dest_plane].mask |= Stockfish::square_bb(dest_sq);
-            }
             }
         }
         
@@ -313,17 +319,23 @@ uint16_t MoveToNNIndex(Move move, int transform) {
             default: break;
         }
 
-        if (piece_idx != -1) {
-            int dir_idx = -1;
-            if (dx == -1) dir_idx = 0;      // Ăn chéo trái
-            else if (dx == 0) dir_idx = 1;  // Đi thẳng lên
-            else if (dx == 1) dir_idx = 2;   // Ăn chéo phải
+        int dir_idx = -1;
+        if (dx == -1) dir_idx = 0;      // Ăn chéo trái
+        else if (dx == 0) dir_idx = 1;  // Đi thẳng lên
+        else if (dx == 1) dir_idx = 2;   // Ăn chéo phải
 
-            if (dir_idx != -1) {
-                int type_idx = 88 + piece_idx * 3 + dir_idx;
-                return type_idx * 100 + from_flat;
-            }
+        if (piece_idx != -1 && dir_idx != -1) {
+            int type_idx = 88 + piece_idx * 3 + dir_idx;
+            return type_idx * 100 + from_flat;
         }
+
+        // GUARD: một nước PROMOTION không map được (quân phong cấp ngoài 6 loại,
+        // hoặc hướng lạ) TUYỆT ĐỐI không được rơi xuyên xuống nhánh nước-tia bên
+        // dưới — nếu rơi xuyên sẽ trả nhầm index của một nước đi-thẳng. Báo lỗi rõ.
+#ifndef NDEBUG
+        assert(false && "Unmapped PROMOTION move in MoveToNNIndex!");
+#endif
+        return 65535;
     }
 
     // 2. Kiểm tra nước nhảy của Mã (Knight moves) -> Kênh 72 đến 79
