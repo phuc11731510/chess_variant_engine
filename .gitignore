@@ -47,3 +47,9 @@ Thumbs.db
 custom_engine/third_party/
 /chess_variant_nnue/
 
+# Custom engine local directories
+custom_engine/dist/
+custom_engine/models/
+custom_engine/scratch/
+custom_engine/.cache/
+
