@@ -45,6 +45,7 @@
 #include "neural/shared_params.h"
 #include "neural/onnx_backend.h"
 #include "neural/zero_heap_cache.h"
+#include "neural/batching_backend.h"
 #include "utils/random.h"
 #include "chess/callbacks.h"
 #include "app/variant_setup.h"
@@ -96,7 +97,23 @@ int run_selfplay(const EngineOptions& o) {
         try {
             auto raw_backend = std::make_unique<lczero::OnnxBackend>();
             raw_backend->UpdateConfiguration(sp_options);
-            backend = lczero::CreateMemCache(std::move(raw_backend), sp_options);
+            std::unique_ptr<lczero::Backend> inner = std::move(raw_backend);
+            // A4: gom batch NN xuyên nhiều ván -> 1 inference đầy hơn (tốt cho GPU).
+            // Chèn GIỮA cache và Onnx: ZeroHeapCache -> BatchingBackend -> OnnxBackend.
+            if (o.sp_batch_aggregate) {
+                const int producers =
+                    std::max(1, o.sp_parallel) * std::max(1, o.sp_threads_per_game);
+                inner = std::make_unique<lczero::BatchingBackend>(
+                    std::move(inner), producers, o.sp_batch_timeout_us);
+                std::cout << "[selfplay] batch-aggregate ON (producers=" << producers
+                          << ", timeout=" << o.sp_batch_timeout_us << "us)" << std::endl;
+                if (o.sp_provider == "cpu") {
+                    std::cout << "[selfplay] NOTE: --batch-aggregate is a GPU optimization; "
+                                 "on CPU it serializes inference onto one thread and is SLOWER. "
+                                 "Use it with --provider cuda/dml." << std::endl;
+                }
+            }
+            backend = lczero::CreateMemCache(std::move(inner), sp_options);
         } catch (const std::exception& e) {
             std::cerr << "[selfplay] FATAL: could not load backend: " << e.what() << std::endl;
             Threads.set(0);

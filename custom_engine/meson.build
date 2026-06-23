@@ -112,7 +112,8 @@ search_sources = files(
 # Phase 4 neural backend source files
 neural_sources = files(
   'src/lczero_chess/neural/onnx_backend.cc',
-  'src/lczero_chess/neural/zero_heap_cache.cc'
+  'src/lczero_chess/neural/zero_heap_cache.cc',
+  'src/lczero_chess/neural/batching_backend.cc'
 )
 
 # Training data (self-play) source files

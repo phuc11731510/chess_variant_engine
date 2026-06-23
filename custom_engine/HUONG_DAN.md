@@ -539,6 +539,13 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--no-resign-frac F` | 0.10 | Tỉ lệ ván **tắt** resign, đánh tới cùng — để mạng vẫn học cách kết liễu/phòng thủ thế thua. |
 | `--search-opt name=value` (lặp) | — | Đặt **bất kỳ** search-param lc0 nào cho self-play (xem danh sách ~35 ở D.1). Lặp nhiều lần, vd `--search-opt cpuct-base=20000 --search-opt two-fold-draws=true`. |
 | `--show-nps` | tắt | Hiện **NPS tổng** (cộng dồn mọi worker = throughput tìm kiếm của engine) trong log mỗi ván + dòng tổng kết. Mặc định TẮT; thêm cờ để bật. Với `--parallel 1` thì NPS này = NPS một ván; parallel>1 thì chia cho số parallel để ra NPS/ván. |
+| `--batch-aggregate` | tắt | **(A4 — chỉ GPU)** Gom thế cờ cần eval từ NHIỀU ván song song vào **một batch NN** chạy một lần → GPU no hơn, ít lệnh inference hơn. Mặc định TẮT. |
+| `--batch-timeout-us N` | 2000 | Cửa sổ gộp batch (micro-giây) khi dùng `--batch-aggregate`: chờ tối đa N µs cho các ván khác kịp nộp rồi mới chạy (cũng là chốt chống treo). |
+
+> **`--batch-aggregate` dùng khi nào?** CHỈ với **GPU** (`--provider cuda` hoặc `dml`) **và `--parallel ≥ 2`**.
+> - Trên **DML (Windows)**: self-play `--parallel ≥ 2` mà KHÔNG bật cờ này sẽ **crash** (EP DirectML không cho nhiều luồng `Run` đồng thời). Bật `--batch-aggregate` vừa **hết crash** vừa nhanh hơn (đo trên Iris Xe: 50 vs 39 nps so với `--parallel 1`).
+> - Trên **CUDA (Colab T4)**: tăng throughput sinh dữ liệu khi chạy nhiều ván song song (GPU mạnh, batch lớn càng lợi).
+> - **ĐỪNG bật trên `--provider cpu`**: nó dồn inference vào một luồng → **CHẬM hơn** nhiều (engine sẽ tự in cảnh báo). CPU cứ để TẮT và dùng `--parallel = số nhân`.
 
 **CHƯA DÙNG ĐƯỢC từ CLI self-play:** `--resign-wdlstyle` (resign theo ngưỡng WDL) chưa viết.
 *Lưu ý: self-play VỐN đã tái dùng cây trong một ván (không cần cờ riêng).*

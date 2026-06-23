@@ -24,6 +24,8 @@ struct EngineOptions {
     int sp_resign_consecutive=3, sp_resign_earliest=0;
     std::vector<std::pair<std::string,std::string>> sp_search_opts;
     bool sp_show_nps=false;   // --show-nps: print aggregate MCTS NPS during self-play
+    bool sp_batch_aggregate=false;  // --batch-aggregate: gom batch NN xuyên nhiều ván (A4, GPU)
+    int sp_batch_timeout_us=2000;   // --batch-timeout-us: cửa sổ gộp batch (chống treo)
     std::string arena_a, arena_b;
 };
 

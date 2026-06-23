@@ -51,6 +51,10 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             o.sp_no_resign_frac = static_cast<float>(std::atof(argv[++i]));
         } else if (std::string(argv[i]) == "--show-nps") {
             o.sp_show_nps = true;                          // print aggregate MCTS NPS
+        } else if (std::string(argv[i]) == "--batch-aggregate") {
+            o.sp_batch_aggregate = true;                   // A4: gom batch NN xuyên nhiều ván
+        } else if (std::string(argv[i]) == "--batch-timeout-us" && i + 1 < argc) {
+            o.sp_batch_timeout_us = std::atoi(argv[++i]);
         } else if (std::string(argv[i]) == "--arena") {
             o.arena_mode = true;
         } else if (std::string(argv[i]) == "--model-a" && i + 1 < argc) {
