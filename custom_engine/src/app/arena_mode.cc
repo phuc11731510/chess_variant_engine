@@ -52,6 +52,7 @@
 #include "app/variant_setup.h"
 #include "app/backend_factory.h"
 #include "app/search_support.h"
+#include "app/uci_coords.h"
 
 using namespace Stockfish;
 
@@ -124,6 +125,7 @@ int run_arena(const EngineOptions& o) {
         const bool a_is_white = (g % 2 == 0);            // alternate colors for fairness
         tree->ResetToPosition(fen, {});
         lczero::GameResult result = lczero::GameResult::UNDECIDED;
+        std::string moves_str;                           // --arena-moves: UCI move list
 
         for (int ply = 0; ply < max_moves; ++ply) {
             const bool white_to_move = !tree->IsBlackToMove();
@@ -159,6 +161,10 @@ int run_arena(const EngineOptions& o) {
                     if (acc > toss) { played = e.GetMove(); break; }
                 }
             }
+            if (o.arena_show_moves) {
+                if ((ply % 2) == 0) moves_str += std::to_string(ply / 2 + 1) + ".";
+                moves_str += CanonicalMoveToUci(played, !white_to_move) + " ";
+            }
             tree->MakeMove(played);
             result = tree->GetPositionHistory().ComputeGameResult();
             if (result != lczero::GameResult::UNDECIDED) break;
@@ -180,6 +186,7 @@ int run_arena(const EngineOptions& o) {
             std::cout << "  | " << nps << " nps (tong)";
         }
         std::cout << std::endl;
+        if (o.arena_show_moves) std::cout << "    moves: " << moves_str << std::endl;
     }
 
     const double score_a = (a_wins + 0.5 * draws) / std::max(1, games);

@@ -612,6 +612,7 @@ nó dùng các cờ thiết bị/độ sâu/tìm kiếm dưới đây, nhưng **
 | `--cpuct F` | (mặc định search) | Hằng số thám hiểm MCTS; đặt giống nhau cho cả hai mạng để công bằng. |
 | `--policy-temp F` | 1.0 | Nhiệt độ làm mềm policy của mạng (giữ 1.0 cho đánh giá trung tính). |
 | `--show-nps` | tắt | In NPS (playout/giây) gộp sau mỗi ván + tổng kết, để đo tốc độ. |
+| `--arena-moves` | tắt | In **danh sách nước đi (UCI)** của mỗi ván (`moves: 1.e2e4 ...`) để bạn theo dõi/xem lại ván — vd kiểm tra mạng có thí quân bậy không. |
 
 > **Cờ self-play KHÔNG có tác dụng trong arena:** `--threads-per-game`, `--parallel`, `--noise-*`,
 > `--resign-*`, `--start-fen`, `--out`, `--policy-temp` của self-play... Arena đánh **tuần tự từng ván**

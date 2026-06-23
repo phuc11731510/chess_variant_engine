@@ -61,6 +61,8 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             o.arena_a = argv[++i];
         } else if (std::string(argv[i]) == "--model-b" && i + 1 < argc) {
             o.arena_b = argv[++i];
+        } else if (std::string(argv[i]) == "--arena-moves") {
+            o.arena_show_moves = true;             // in danh sách nước đi mỗi ván
         } else if (std::string(argv[i]) == "--weights" && i + 1 < argc) {
             o.weights_file = argv[++i];
         } else if (std::string(argv[i]) == "--test-ep") {

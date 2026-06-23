@@ -27,6 +27,7 @@ struct EngineOptions {
     bool sp_batch_aggregate=false;  // --batch-aggregate: gom batch NN xuyên nhiều ván (A4, GPU)
     int sp_batch_timeout_us=2000;   // --batch-timeout-us: cửa sổ gộp batch (chống treo)
     std::string arena_a, arena_b;
+    bool arena_show_moves=false;   // --arena-moves: in danh sách nước đi mỗi ván arena
 };
 
 EngineOptions parse_cli(int argc, char* argv[]);
