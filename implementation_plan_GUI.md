@@ -347,7 +347,7 @@ Hoặc double-click `gui.exe` để chạy với mặc định (CPU, model mặc
 |---|---|---|
 | **M0** | Dựng khung Flutter chạy được cửa sổ trống trên Windows; parse cờ lệnh → `LaunchConfig`. | `flutter run -d windows` mở cửa sổ; in ra config đọc được. |
 | **M1** ✅ | Engine bổ sung `legalmoves` + `result` (+ `fen`) (§6), build lại, test tay. | XONG: build CPU+DML, test tay ra đúng định dạng. |
-| **M2** | `UciProcessEngine`: spawn engine, làm trình tự khởi động, lấy FEN + legalmoves. | Log Dart in ra FEN xuất phát + danh sách nước hợp lệ. |
+| **M2** ✅ | `UciProcessEngine`: spawn engine, làm trình tự khởi động, lấy FEN + legalmoves. | XONG: `EngineService`+`UciProcessEngine`+`tool/m2_smoke.dart`; chạy thật ra FEN+34 nước+result; bonus go→bestmove OK. |
 | **M3** | Vẽ bàn tĩnh từ FEN: lưới 10×10 + quân (ảnh) căn giữa ô; lật bàn nếu `--black`. | Thấy đúng thế xuất phát, đúng màu/loại quân. |
 | **M4** | Nhập nước: chạm-chạm trước (đơn giản), tô sáng ô hợp lệ, gửi nước, máy đáp `go movetime`. | Chơi tay vài nước người↔máy, bàn cập nhật đúng. |
 | **M5** | Kéo-thả: quân bám con trỏ, thả hợp lệ thì snap giữa ô, sai thì bật về; animate. | Kéo mượt; sai nước không phá trạng thái. |
