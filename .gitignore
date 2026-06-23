@@ -53,3 +53,11 @@ custom_engine/models/
 custom_engine/scratch/
 custom_engine/.cache/
 
+# Large training data, models, logs, and scratch files
+*.pt
+/lczero-training-master/
+/selfplay_data/
+/scratch/
+output.txt
+
+
