@@ -26,7 +26,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(760, 880);
+  Win32Window::Size size(770, 800);  // client ~vuông; tỉ lệ bị khoá ở win32_window.cpp (WM_SIZING)
   if (!window.Create(L"fairyzero_gui", origin, size)) {
     return EXIT_FAILURE;
   }

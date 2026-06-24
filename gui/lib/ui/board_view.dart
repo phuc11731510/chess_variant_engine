@@ -57,6 +57,10 @@ class _BoardViewState extends State<BoardView> {
 
   double _cell = 1;
 
+  /// Lệch giữa con trỏ và góc trên-trái ô lúc bắt đầu kéo. Giữ nguyên suốt quá
+  /// trình kéo để quân KHÔNG "nhảy" về tâm con trỏ (giữ đúng điểm bạn đã bấm).
+  Offset _grabOffset = Offset.zero;
+
   @override
   void dispose() {
     _dragPos.dispose();
@@ -75,6 +79,10 @@ class _BoardViewState extends State<BoardView> {
     final p = _toBoard(d.localPosition);
     final ok = widget.onDragStart?.call(p.r, p.f) ?? false;
     if (ok) {
+      // Lưu lệch chuột↔ô để giữ nguyên điểm bấm (không dính tâm con trỏ).
+      final row = widget.flipped ? p.r : 9 - p.r;
+      final col = widget.flipped ? 9 - p.f : p.f;
+      _grabOffset = d.localPosition - Offset(col * _cell, row * _cell);
       setState(() => _dragFrom = (f: p.f, r: p.r));
       _dragPos.value = d.localPosition;
     }
@@ -207,8 +215,8 @@ class _BoardViewState extends State<BoardView> {
               builder: (context, pos, _) {
                 if (pos == null) return const SizedBox.shrink();
                 return Positioned(
-                  left: pos.dx - cell / 2,
-                  top: pos.dy - cell / 2,
+                  left: pos.dx - _grabOffset.dx,
+                  top: pos.dy - _grabOffset.dy,
                   width: cell,
                   height: cell,
                   child: IgnorePointer(

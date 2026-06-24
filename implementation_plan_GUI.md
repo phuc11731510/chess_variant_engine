@@ -352,7 +352,7 @@ Hoặc double-click `gui.exe` để chạy với mặc định (CPU, model mặc
 | **M4** ✅ | Nhập nước: chạm-chạm, tô sáng ô hợp lệ, gửi nước, máy đáp. | XONG: GameController + tô sáng (golden); app thật `--demo-move` f3f5 → máy đáp b8b6; test 8/8. |
 | **M5** ✅ | Kéo-thả: quân bám con trỏ, thả hợp lệ thì vào giữa ô, sai thì về chỗ cũ. | XONG: BoardView stateful + lớp kéo riêng; mô phỏng chuột kéo e3→e5 thật → máy đáp; test 11/11. (animate mượt = polish sau) |
 | **M6** ✅ (sớm) | Phong cấp (bảng chọn) + phát hiện kết thúc (`result`) + overlay kết quả. | XONG: bảng chọn 6 quân (golden+test); overlay kết quả ở M4. |
-| **M7** | Đóng gói portable Windows (§10) + `play.bat`; thử trên máy khác. | Bạn của bạn (NVIDIA/Windows) mở chơi được, dùng GPU (`--provider dml`). |
+| **M7** ✅ (thu gọn) | Khoá tỉ lệ cửa sổ (WM_SIZING client vuông) + sách hướng dẫn build/dùng (`HUONG_DAN_GUI.md`). Đóng gói portable BỎ theo ý người dùng (chỉ cần biết build & chạy). | XONG: cửa sổ vuông, bàn hiện đủ; guide chi tiết; +đổi kéo-thả giữ điểm bấm. |
 
 (Phong cấp đặt sau kéo-thả vì nó dựa trên `LegalMoveSet`, nhưng có thể làm sớm hơn nếu muốn.)
 

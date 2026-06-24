@@ -197,6 +197,30 @@ Win32Window::MessageHandler(HWND hwnd,
 
       return 0;
     }
+    case WM_SIZING: {
+      // Khoá VÙNG CLIENT thành hình vuông để bàn cờ (vuông) luôn vừa khít, không
+      // lề thừa. Trừ phần non-client (thanh tiêu đề + viền) khi tính.
+      RECT* rect = reinterpret_cast<RECT*>(lparam);
+      RECT wr, cr;
+      GetWindowRect(hwnd, &wr);
+      GetClientRect(hwnd, &cr);
+      const int ncW = (wr.right - wr.left) - (cr.right - cr.left);
+      const int ncH = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+      const int clientW = (rect->right - rect->left) - ncW;
+      const int clientH = (rect->bottom - rect->top) - ncH;
+      switch (wparam) {
+        case WMSZ_TOP:
+        case WMSZ_BOTTOM:
+          // Kéo cạnh trên/dưới -> khớp bề RỘNG theo chiều cao client.
+          rect->right = rect->left + (clientH + ncW);
+          break;
+        default:
+          // Kéo cạnh trái/phải hoặc góc -> khớp chiều CAO theo bề rộng client.
+          rect->bottom = rect->top + (clientW + ncH);
+          break;
+      }
+      return TRUE;
+    }
     case WM_SIZE: {
       RECT rect = GetClientArea();
       if (child_content_ != nullptr) {
