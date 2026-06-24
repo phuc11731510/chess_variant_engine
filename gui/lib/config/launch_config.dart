@@ -57,7 +57,15 @@ class LaunchConfig {
 
   /// Parse danh sách đối số dòng lệnh thành [LaunchConfig]. Đối số lạ bị bỏ qua
   /// (vd wrapper của `flutter run --dart-entrypoint-args`).
-  factory LaunchConfig.fromArgs(List<String> args) {
+  factory LaunchConfig.fromArgs(List<String> rawArgs) {
+    // `flutter run --dart-entrypoint-args "a b c"` gửi cả cụm là MỘT phần tử;
+    // tách theo khoảng trắng để cả hai cách truyền đều chạy. (Đường dẫn CHỨA
+    // khoảng trắng thì hãy chạy thẳng exe đã build thay vì qua flutter run.)
+    final args = <String>[];
+    for (final a in rawArgs) {
+      args.addAll(a.split(RegExp(r'\s+')).where((s) => s.isNotEmpty));
+    }
+
     String engine = defaultEngine;
     String? model;
     String provider = 'cpu';

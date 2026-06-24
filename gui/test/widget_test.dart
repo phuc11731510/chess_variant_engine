@@ -70,6 +70,11 @@ void main() {
     expect(d.provider, 'cpu');
     expect(d.movetimeMs, LaunchConfig.defaultMovetimeMs);
     expect(d.humanPlaysWhite, true);
+
+    // Dạng --dart-entrypoint-args "cụm nhiều cờ" (cả cụm là MỘT phần tử).
+    final packed = LaunchConfig.fromArgs(const ['--engine e.exe --provider dml']);
+    expect(packed.enginePath, 'e.exe');
+    expect(packed.provider, 'dml');
   });
 
   test('BoardState.fromFen startpos dung o + luot + check', () {
