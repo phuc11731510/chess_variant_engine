@@ -350,8 +350,8 @@ Hoặc double-click `gui.exe` để chạy với mặc định (CPU, model mặc
 | **M2** ✅ | `UciProcessEngine`: spawn engine, làm trình tự khởi động, lấy FEN + legalmoves. | XONG: `EngineService`+`UciProcessEngine`+`tool/m2_smoke.dart`; chạy thật ra FEN+34 nước+result; bonus go→bestmove OK. |
 | **M3** ✅ | Vẽ bàn tĩnh từ FEN: lưới 10×10 + quân (SVG) căn giữa ô; lật bàn nếu `--black`; royal symbol góc quân vua. | XONG: golden PNG đúng màu/loại/royal; engine wired runtime OK; full test 4/4. |
 | **M4** ✅ | Nhập nước: chạm-chạm, tô sáng ô hợp lệ, gửi nước, máy đáp. | XONG: GameController + tô sáng (golden); app thật `--demo-move` f3f5 → máy đáp b8b6; test 8/8. |
-| **M5** | Kéo-thả: quân bám con trỏ, thả hợp lệ thì snap giữa ô, sai thì bật về; animate. | Kéo mượt; sai nước không phá trạng thái. |
-| **M6** | Phong cấp (PromotionPopup) + phát hiện kết thúc (`result`) + overlay kết quả. | Phong đúng quân chọn; ván kết thúc hiện kết quả. |
+| **M5** ✅ | Kéo-thả: quân bám con trỏ, thả hợp lệ thì vào giữa ô, sai thì về chỗ cũ. | XONG: BoardView stateful + lớp kéo riêng; mô phỏng chuột kéo e3→e5 thật → máy đáp; test 11/11. (animate mượt = polish sau) |
+| **M6** ✅ (sớm) | Phong cấp (bảng chọn) + phát hiện kết thúc (`result`) + overlay kết quả. | XONG: bảng chọn 6 quân (golden+test); overlay kết quả ở M4. |
 | **M7** | Đóng gói portable Windows (§10) + `play.bat`; thử trên máy khác. | Bạn của bạn (NVIDIA/Windows) mở chơi được, dùng GPU (`--provider dml`). |
 
 (Phong cấp đặt sau kéo-thả vì nó dựa trên `LegalMoveSet`, nhưng có thể làm sớm hơn nếu muốn.)

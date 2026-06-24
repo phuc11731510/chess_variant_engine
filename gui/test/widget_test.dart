@@ -14,6 +14,7 @@ const _startPlacement =
 /// Engine giả: bàn cố định, lật lượt khi applyMove; ghi lại các lệnh.
 class FakeEngine implements EngineService {
   bool whiteToMove = true;
+  final String placement;
   final List<String> legalList;
   final String bestReply;
   final GameResult res;
@@ -24,9 +25,10 @@ class FakeEngine implements EngineService {
     required this.legalList,
     this.bestReply = '0000',
     this.res = GameResult.undecided,
+    this.placement = _startPlacement,
   });
 
-  String _fen() => '$_startPlacement ${whiteToMove ? "w" : "b"} - - 7+7 0 1';
+  String _fen() => '$placement ${whiteToMove ? "w" : "b"} - - 7+7 0 1';
 
   @override
   Future<void> start() async {}
@@ -142,5 +144,51 @@ void main() {
     expect(fake.bestCalls, 1);
     expect(c.humansTurn, true); // tới lượt người lại
     expect(c.engineThinking, false);
+  });
+
+  test('GameController: phong cấp hiện bảng chọn rồi đi đúng quân', () async {
+    // tốt Trắng ở b9, đi lên b10 (phong cấp 3 lựa chọn).
+    final fake = FakeEngine(
+      placement: '10/1P8/10/10/10/10/10/10/10/10',
+      legalList: const ['b9b10b', 'b9b10h', 'b9b10y'],
+    );
+    final c = GameController(engine: fake, humanIsWhite: true);
+    await c.init();
+
+    c.onTapSquare(8, 1); // chọn b9
+    expect(c.selected, const Sq(1, 8));
+
+    c.onTapSquare(9, 1); // chạm b10 -> phong cấp -> bảng chọn, CHƯA đi
+    expect(c.promoSquare, const Sq(1, 9).flat);
+    expect(c.promoOptions.toSet(), {'b', 'h', 'y'});
+    expect(fake.applied, isEmpty);
+
+    c.choosePromotion('h'); // chọn Archbishop
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(fake.applied, contains('b9b10h'));
+    expect(c.promoSquare, isNull);
+  });
+
+  test('GameController: kéo-thả đi nước', () async {
+    final fake = FakeEngine(legalList: const ['b3b4', 'b3b5'], bestReply: 'i8i7');
+    final c = GameController(engine: fake, humanIsWhite: true);
+    await c.init();
+
+    expect(c.beginDrag(2, 1), true); // nhấc b3 (tốt Trắng)
+    expect(c.selected, const Sq(1, 2));
+    expect(c.targets.contains(const Sq(1, 3).flat), true);
+
+    expect(c.beginDrag(5, 5), false); // nhấc ô trống -> không được
+
+    c.beginDrag(2, 1);
+    c.endDrag(3, 1); // thả vào b4 (hợp lệ) -> đi + máy đáp
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(fake.applied, ['b3b4', 'i8i7']);
+
+    // thả sai chỗ -> bỏ chọn, không đi
+    c.beginDrag(2, 1);
+    c.endDrag(5, 5);
+    expect(c.selected, isNull);
+    expect(fake.applied, ['b3b4', 'i8i7']);
   });
 }

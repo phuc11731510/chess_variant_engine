@@ -15,6 +15,8 @@ Future<void> _pumpBoard(
   required bool flipped,
   int? selectedFlat,
   Set<int> targets = const {},
+  int? promoSquare,
+  List<String> promoOptions = const [],
 }) async {
   await tester.runAsync(() async {
     await tester.pumpWidget(MaterialApp(
@@ -30,6 +32,9 @@ Future<void> _pumpBoard(
               flipped: flipped,
               selectedFlat: selectedFlat,
               targetFlats: targets,
+              promoSquare: promoSquare,
+              promoOptions: promoOptions,
+              playerIsWhite: true,
             ),
           ),
         ),
@@ -66,5 +71,17 @@ void main() {
     );
     await expectLater(find.byType(BoardView),
         matchesGoldenFile('goldens/board_highlight.png'));
+  });
+
+  testWidgets('bang chon phong cap (e10, quan Trang)', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(640, 660));
+    await _pumpBoard(
+      tester,
+      flipped: false,
+      promoSquare: const Sq(4, 9).flat, // e10
+      promoOptions: const ['h', 'v', 'm', 'y', 'n', 'b'],
+    );
+    await expectLater(find.byType(BoardView),
+        matchesGoldenFile('goldens/board_promotion.png'));
   });
 }

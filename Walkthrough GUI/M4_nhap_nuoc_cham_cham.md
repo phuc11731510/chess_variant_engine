@@ -50,6 +50,26 @@
 
 ---
 
+## 2b. Bổ sung sau khi chơi thử: bảng phong cấp (M6 đưa lên sớm)
+
+Người chơi báo khi tới hàng phong cấp bị **tự phong thành Alibaba** (do M4 lấy biến thể đầu). Đã làm
+**bảng chọn phong cấp** ngay:
+- `GameController`: khi nước có >1 biến thể (cùng from→to khác hậu tố) → giữ `_promoCands`, hiện
+  `promoSquare`/`promoOptions` (thứ tự `h v m y n b`), **CHƯA đi**; `choosePromotion(letter)` mới đi
+  (letter rỗng = huỷ).
+- `BoardView`: vẽ **backdrop tối** phủ bàn + **cột 6 quân** (màu người chơi) tại cột ô đích, chạy về
+  phía người; tap quân = chọn, tap nền = huỷ. Verify: golden `board_promotion.png` + unit test (b9→b10 chọn 'h').
+
+> Về việc "quét cả hàng máy mà nó không ăn lại": KHÔNG phải lỗi — mạng **đời 3 (3000 ván) còn rất yếu**,
+> chưa học phòng thủ/ăn lại. Sẽ khá dần qua các đời. Engine vẫn thấy đúng bàn (tự sinh nước hợp lệ).
+
+## 2c. Cách CHẠY đúng (người dùng hay vướng)
+
+- `flutter run --dart-entrypoint-args "..."` gửi cả cụm là **MỘT** phần tử → `LaunchConfig.fromArgs`
+  đã được sửa để **tách theo khoảng trắng** (đường dẫn có dấu cách thì chạy thẳng exe đã build).
+- **PHẢI có `--model`** thì máy mới nghĩ/đi (thiếu → bestmove 0000 → kẹt sau 1 nước người).
+- Kiểm: nhìn dòng `LaunchConfig:` in ra phải đúng engine/model/provider (không phải mặc định).
+
 ## 3. Lưu ý
 
 - **Phong cấp (M4 tạm):** khi ô đích có nhiều biến thể (f2f1b/h/m/n/v/y) tạm lấy **biến thể đầu**; M6 sẽ thêm bảng chọn.
