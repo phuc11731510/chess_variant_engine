@@ -37,6 +37,9 @@ class LaunchConfig {
   /// FEN bắt đầu tuỳ chọn. Null = dùng startpos mặc định của biến thể.
   final String? startFen;
 
+  /// (Gỡ lỗi) Tự chơi một nước của NGƯỜI ngay khi mở app, vd "--demo-move b3b4".
+  final String? demoMove;
+
   const LaunchConfig({
     required this.enginePath,
     this.modelPath,
@@ -45,6 +48,7 @@ class LaunchConfig {
     this.visits,
     this.humanPlaysWhite = true,
     this.startFen,
+    this.demoMove,
   });
 
   static const String defaultEngine = 'engine/custom_engine.exe';
@@ -61,6 +65,7 @@ class LaunchConfig {
     int? visits;
     bool humanWhite = true;
     String? fen;
+    String? demo;
 
     String? valueAfter(int i) => (i + 1 < args.length) ? args[i + 1] : null;
 
@@ -96,6 +101,10 @@ class LaunchConfig {
           final v = valueAfter(i);
           if (v != null) { fen = v; i++; }
           break;
+        case '--demo-move':
+          final v = valueAfter(i);
+          if (v != null) { demo = v; i++; }
+          break;
         default:
           break; // bỏ qua đối số không nhận diện
       }
@@ -113,6 +122,7 @@ class LaunchConfig {
       visits: visits,
       humanPlaysWhite: humanWhite,
       startFen: fen,
+      demoMove: demo,
     );
   }
 

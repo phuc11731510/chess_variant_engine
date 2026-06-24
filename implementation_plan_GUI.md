@@ -348,8 +348,8 @@ Hoặc double-click `gui.exe` để chạy với mặc định (CPU, model mặc
 | **M0** | Dựng khung Flutter chạy được cửa sổ trống trên Windows; parse cờ lệnh → `LaunchConfig`. | `flutter run -d windows` mở cửa sổ; in ra config đọc được. |
 | **M1** ✅ | Engine bổ sung `legalmoves` + `result` (+ `fen`) (§6), build lại, test tay. | XONG: build CPU+DML, test tay ra đúng định dạng. |
 | **M2** ✅ | `UciProcessEngine`: spawn engine, làm trình tự khởi động, lấy FEN + legalmoves. | XONG: `EngineService`+`UciProcessEngine`+`tool/m2_smoke.dart`; chạy thật ra FEN+34 nước+result; bonus go→bestmove OK. |
-| **M3** | Vẽ bàn tĩnh từ FEN: lưới 10×10 + quân (ảnh) căn giữa ô; lật bàn nếu `--black`. | Thấy đúng thế xuất phát, đúng màu/loại quân. |
-| **M4** | Nhập nước: chạm-chạm trước (đơn giản), tô sáng ô hợp lệ, gửi nước, máy đáp `go movetime`. | Chơi tay vài nước người↔máy, bàn cập nhật đúng. |
+| **M3** ✅ | Vẽ bàn tĩnh từ FEN: lưới 10×10 + quân (SVG) căn giữa ô; lật bàn nếu `--black`; royal symbol góc quân vua. | XONG: golden PNG đúng màu/loại/royal; engine wired runtime OK; full test 4/4. |
+| **M4** ✅ | Nhập nước: chạm-chạm, tô sáng ô hợp lệ, gửi nước, máy đáp. | XONG: GameController + tô sáng (golden); app thật `--demo-move` f3f5 → máy đáp b8b6; test 8/8. |
 | **M5** | Kéo-thả: quân bám con trỏ, thả hợp lệ thì snap giữa ô, sai thì bật về; animate. | Kéo mượt; sai nước không phá trạng thái. |
 | **M6** | Phong cấp (PromotionPopup) + phát hiện kết thúc (`result`) + overlay kết quả. | Phong đúng quân chọn; ván kết thúc hiện kết quả. |
 | **M7** | Đóng gói portable Windows (§10) + `play.bat`; thử trên máy khác. | Bạn của bạn (NVIDIA/Windows) mở chơi được, dùng GPU (`--provider dml`). |
