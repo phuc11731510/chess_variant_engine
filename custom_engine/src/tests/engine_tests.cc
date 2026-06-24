@@ -398,7 +398,7 @@ doubleStepRegionBlack = *10 *9 *8
 promotionRegionWhite = *8 *9 *10
 promotionRegionBlack = *3 *2 *1
 mandatoryPawnPromotion = true
-promotionPieceTypes = b h m n v y
+promotionPieceTypes = b m n r v y
 
 castling = true
 castlingKingsideFile = h
@@ -1102,7 +1102,7 @@ doubleStepRegionBlack = *10 *9 *8
 promotionRegionWhite = *8 *9 *10
 promotionRegionBlack = *3 *2 *1
 mandatoryPawnPromotion = true
-promotionPieceTypes = b h m n v y
+promotionPieceTypes = b m n r v y
 
 castling = true
 castlingKingsideFile = h
@@ -1236,7 +1236,7 @@ doubleStepRegionBlack = *10 *9 *8
 promotionRegionWhite = *8 *9 *10
 promotionRegionBlack = *3 *2 *1
 mandatoryPawnPromotion = true
-promotionPieceTypes = b h m n v y
+promotionPieceTypes = b m n r v y
 castling = true
 castlingKingsideFile = h
 castlingQueensideFile = d
@@ -1415,7 +1415,7 @@ doubleStepRegionBlack = *10 *9 *8
 promotionRegionWhite = *8 *9 *10
 promotionRegionBlack = *3 *2 *1
 mandatoryPawnPromotion = true
-promotionPieceTypes = b h m n v y
+promotionPieceTypes = b m n r v y
 castling = true
 castlingKingsideFile = h
 castlingQueensideFile = d
@@ -2037,7 +2037,7 @@ void run_nn_tests() {
         const int sdx[8] = {0,1,1,1,0,-1,-1,-1}, sdy[8] = {1,1,0,-1,-1,-1,0,1};
         const int ndx[8] = {1,2,2,1,-1,-2,-2,-1}, ndy[8] = {2,1,-1,-2,-2,-1,1,2};
         const int cdx[8] = {1,3,3,1,-1,-3,-3,-1}, cdy[8] = {3,1,-1,-3,-3,-1,1,3};
-        const Stockfish::PieceType promos[6] = {Stockfish::BISHOP, Stockfish::ARCHBISHOP,
+        const Stockfish::PieceType promos[6] = {Stockfish::BISHOP, Stockfish::ROOK,
             Stockfish::CENTAUR, Stockfish::KNIGHT, Stockfish::CUSTOM_PIECE_1, Stockfish::CUSTOM_PIECE_2};
         for (int r = 0; r < 10; ++r) for (int f = 0; f < 10; ++f) {
             for (int d = 0; d < 8; ++d) for (int dist = 1; dist <= 9; ++dist) {

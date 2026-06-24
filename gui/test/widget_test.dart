@@ -150,7 +150,7 @@ void main() {
     // tốt Trắng ở b9, đi lên b10 (phong cấp 3 lựa chọn).
     final fake = FakeEngine(
       placement: '10/1P8/10/10/10/10/10/10/10/10',
-      legalList: const ['b9b10b', 'b9b10h', 'b9b10y'],
+      legalList: const ['b9b10b', 'b9b10r', 'b9b10y'], // luật mới: có 'r', hết 'h'
     );
     final c = GameController(engine: fake, humanIsWhite: true);
     await c.init();
@@ -160,12 +160,12 @@ void main() {
 
     c.onTapSquare(9, 1); // chạm b10 -> phong cấp -> bảng chọn, CHƯA đi
     expect(c.promoSquare, const Sq(1, 9).flat);
-    expect(c.promoOptions.toSet(), {'b', 'h', 'y'});
+    expect(c.promoOptions.toSet(), {'b', 'r', 'y'});
     expect(fake.applied, isEmpty);
 
-    c.choosePromotion('h'); // chọn Archbishop
+    c.choosePromotion('r'); // chọn Rook
     await Future<void>.delayed(const Duration(milliseconds: 20));
-    expect(fake.applied, contains('b9b10h'));
+    expect(fake.applied, contains('b9b10r'));
     expect(c.promoSquare, isNull);
   });
 

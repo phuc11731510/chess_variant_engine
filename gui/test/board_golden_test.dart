@@ -79,7 +79,7 @@ void main() {
       tester,
       flipped: false,
       promoSquare: const Sq(4, 9).flat, // e10
-      promoOptions: const ['h', 'v', 'm', 'y', 'n', 'b'],
+      promoOptions: const ['r', 'v', 'm', 'y', 'n', 'b'],
     );
     await expectLater(find.byType(BoardView),
         matchesGoldenFile('goldens/board_promotion.png'));

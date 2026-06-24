@@ -167,7 +167,8 @@ class GameController extends ChangeNotifier {
 
   // --- nội bộ ---
 
-  static const _promoOrder = ['h', 'v', 'm', 'y', 'n', 'b'];
+  // Đổi luật: bỏ Archbishop 'h', thêm Rook 'r'. Thứ tự hiển thị bảng chọn phong cấp.
+  static const _promoOrder = ['r', 'v', 'm', 'y', 'n', 'b'];
 
   List<String> _orderPromos(List<String> letters) {
     final ls = letters.where((s) => s.isNotEmpty).toSet().toList();

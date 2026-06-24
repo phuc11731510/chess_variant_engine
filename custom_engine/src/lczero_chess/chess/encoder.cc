@@ -311,7 +311,7 @@ uint16_t MoveToNNIndex(Move move, int transform) {
         // Xác định loại quân phong cấp (6 loại quân)
         switch (promo_type) {
             case Stockfish::BISHOP:         piece_idx = 0; break;
-            case Stockfish::ARCHBISHOP:     piece_idx = 1; break;
+            case Stockfish::ROOK:           piece_idx = 1; break;  // đổi luật: Archbishop -> Rook (giữ slot 1)
             case Stockfish::CENTAUR:        piece_idx = 2; break;
             case Stockfish::KNIGHT:         piece_idx = 3; break;
             case Stockfish::CUSTOM_PIECE_1: piece_idx = 4; break;
@@ -474,7 +474,7 @@ Move MoveFromNNIndex(int idx, int transform) {
         Stockfish::PieceType promo_pt = Stockfish::NO_PIECE_TYPE;
         switch (piece_idx) {
             case 0: promo_pt = Stockfish::BISHOP; break;
-            case 1: promo_pt = Stockfish::ARCHBISHOP; break;
+            case 1: promo_pt = Stockfish::ROOK; break;  // đổi luật: Archbishop -> Rook (giữ slot 1)
             case 2: promo_pt = Stockfish::CENTAUR; break;
             case 3: promo_pt = Stockfish::KNIGHT; break;
             case 4: promo_pt = Stockfish::CUSTOM_PIECE_1; break;
