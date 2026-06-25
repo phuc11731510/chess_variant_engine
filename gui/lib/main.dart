@@ -1,10 +1,20 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 
 import 'config/launch_config.dart';
 import 'domain/game_controller.dart';
 import 'engine/engine_service.dart';
 import 'engine/uci_process_engine.dart';
+import 'engine/stub_engine.dart';
 import 'ui/board_view.dart';
+
+/// Chọn engine theo nền tảng: desktop spawn tiến trình UCI; mobile (M0) dùng
+/// stub (bàn cờ hiện ra, chưa chơi được) — sẽ thay bằng NativeFfiEngine ở M4.
+EngineService _makeEngine(LaunchConfig config) {
+  if (Platform.isAndroid || Platform.isIOS) return StubEngine();
+  return UciProcessEngine(config);
+}
 
 /// FairyZero GUI — điểm vào.
 ///
@@ -47,7 +57,7 @@ class _BoardScreenState extends State<BoardScreen> {
   void initState() {
     super.initState();
     controller = GameController(
-      engine: UciProcessEngine(widget.config),
+      engine: _makeEngine(widget.config),
       humanIsWhite: widget.config.humanPlaysWhite,
     );
     _start();

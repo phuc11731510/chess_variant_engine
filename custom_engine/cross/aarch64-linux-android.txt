@@ -1,0 +1,20 @@
+# Meson cross-file: build custom_engine for Android arm64 (aarch64) using the NDK.
+# Toolchain = Android NDK 28.2.13676358 (installed by the Flutter Gradle build).
+# API 24 baseline (ORT-android .so is minSdk 21; device runs API 36).
+#
+# Usage:
+#   meson setup build-android --cross-file cross/aarch64-linux-android.txt \
+#       --buildtype=release -Donnxruntime_dir=third_party/onnxruntime-android-1.18.0
+#   ninja -C build-android
+
+[binaries]
+c       = 'C:/Users/7/AppData/Local/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android24-clang.cmd'
+cpp     = 'C:/Users/7/AppData/Local/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android24-clang++.cmd'
+ar      = 'C:/Users/7/AppData/Local/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-ar.exe'
+strip   = 'C:/Users/7/AppData/Local/Android/Sdk/ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe'
+
+[host_machine]
+system     = 'android'
+cpu_family = 'aarch64'
+cpu        = 'aarch64'
+endian     = 'little'

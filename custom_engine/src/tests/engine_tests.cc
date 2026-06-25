@@ -2150,7 +2150,7 @@ void run_nn_tests() {
     // Critical safety: a 65535 here would mean an out-of-bounds write into pi[10600].
     {
         long total = 0, unmapped = 0, geo_fail = 0, inj_fail = 0;
-        lczero::ChessBoard start(std::string(lczero::ChessBoard::kStartposFen));
+        lczero::ChessBoard start(std::string{lczero::ChessBoard::kStartposFen});
         nn_check_moves(start, 3, total, unmapped, geo_fail, inj_fail);
         lczero::ChessBoard promo(std::string("5k4/P9/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1"));
         nn_check_moves(promo, 2, total, unmapped, geo_fail, inj_fail);

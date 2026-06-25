@@ -9,11 +9,20 @@ project('custom_engine', 'cpp',
 
 cc = meson.get_compiler('cpp')
 
-# CPU Architecture specific flags
+# CPU Architecture specific flags. AVX2/FMA only exist on x86; on ARM (aarch64/
+# Android) we pass nothing here and rely on scalar/NEON fallbacks (Stockfish core
+# via its USE_* macros, onnx_backend via FZ_X86_SIMD).
 if cc.get_id() == 'msvc'
   add_project_arguments('/arch:AVX2', language: 'cpp')
-else
+elif host_machine.cpu_family() == 'x86_64' or host_machine.cpu_family() == 'x86'
   add_project_arguments('-mavx2', '-mfma', language: 'cpp')
+endif
+
+# Clang (e.g. the Android NDK) has a low default constexpr step budget (~1M); the
+# big compile-time flip LUTs (~11*16384 iters) exceed it. GCC's default is higher,
+# so the desktop build is unaffected. Raise it for clang only.
+if cc.get_id() == 'clang'
+  add_project_arguments('-fconstexpr-steps=100000000', language: 'cpp')
 endif
 
 

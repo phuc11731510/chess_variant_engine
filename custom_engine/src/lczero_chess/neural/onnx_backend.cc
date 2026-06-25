@@ -6,7 +6,12 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+#define FZ_X86_SIMD 1
 #include <immintrin.h>
+#else
+#define FZ_X86_SIMD 0   // ARM/Android (or other): use portable scalar fallbacks below
+#endif
 
 #ifdef USE_DML
 // DirectML EP factory (only in the DirectML ONNX Runtime package).
@@ -15,6 +20,7 @@
 
 namespace lczero {
 
+#if FZ_X86_SIMD
 // AVX2 exp approximation helper function compiled with AVX2 and FMA
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((target("avx2,fma")))
@@ -86,6 +92,25 @@ inline void avx2_softmax(float* legal_logits, size_t num_legal, float softmax_te
         out_p[i] = legal_logits[i];
     }
 }
+#else  // !FZ_X86_SIMD : portable scalar softmax (ARM/Android). Output processing is
+       // ~0% of runtime, so the scalar path costs nothing measurable. Same semantics
+       // as the AVX2 version: subtract max, exp/temp, normalize, write to out_p.
+inline void avx2_softmax(float* legal_logits, size_t num_legal, float softmax_temp,
+                         float max_logit, float* out_p, size_t max_out_size) {
+    const float temp = std::max(1e-3f, softmax_temp);
+    const float inv_temp = 1.0f / temp;
+    float sum = 0.0f;
+    for (size_t i = 0; i < num_legal; ++i) {
+        const float e = std::exp((legal_logits[i] - max_logit) * inv_temp);
+        legal_logits[i] = e;
+        sum += e;
+    }
+    const float inv_sum = 1.0f / (sum > 0.0f ? sum : 1.0f);
+    for (size_t i = 0; i < num_legal && i < max_out_size; ++i) {
+        out_p[i] = legal_logits[i] * inv_sum;
+    }
+}
+#endif  // FZ_X86_SIMD
 
 // Helper function to split strings
 static std::vector<std::string> split_options(const std::string& s, char delimiter) {
