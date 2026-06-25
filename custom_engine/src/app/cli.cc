@@ -101,6 +101,8 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             o.test_uci_mode = true;
         } else if (std::string(argv[i]) == "--test-encoder") {
             o.test_encoder_mode = true;
+        } else if (std::string(argv[i]) == "--audit-generation") {
+            o.audit_generation_mode = true;
         } else if (std::string(argv[i]) == "--play") {
             o.play_mode = true;
         } else if (std::string(argv[i]) == "--play-black") {

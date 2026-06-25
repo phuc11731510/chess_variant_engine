@@ -28,6 +28,8 @@
 #include "selfplay/selfplay_driver.h"
 #include <cstring>
 #include <cstdlib>
+#include <random>
+#include <algorithm>
 #include <fstream>
 #include <cstdio>
 #include <cmath>
@@ -1765,6 +1767,92 @@ void run_perft_tests() {
         std::cout << "\n[PASS] PERFT: adapter path matches raw Fairy-Stockfish at all depths." << std::endl;
     } else {
         std::cerr << "\n[FAIL] PERFT mismatch — adapter wrapping diverges from raw FS!" << std::endl;
+        std::exit(1);
+    }
+}
+
+// ============================================================================
+// AUDIT-GENERATION: a differential movegen fuzzer over the REAL game distribution.
+// Plays many random games; at EVERY position it asserts (1) the adapter's legal-
+// move generation agrees with raw Fairy-Stockfish (count — the same robust check
+// perft uses, with no cross-system notation risk), and (2) every move's NN policy
+// index is in range AND injective per position. This is the "catch-all" for hidden
+// movegen/rule bugs in positions the fixed tests never reach (near-7-checks, EP
+// races, promotion, castling edges). No plane->position decoder needed: positions
+// are carried forward by FEN (which also exercises the FEN round-trip).
+// ============================================================================
+void run_audit_generation(int num_games, int max_moves) {
+    std::cout << "\n=== AUDIT-GENERATION: differential movegen fuzzer "
+                 "(adapter vs raw Fairy-Stockfish over random games) ===" << std::endl;
+    setup_custom_variant();
+    if (num_games <= 0) num_games = 1000;
+    if (max_moves <= 0) max_moves = 150;
+
+    std::mt19937_64 rng(0xC0FFEEULL);
+    uint64_t positions = 0, total_moves = 0;
+    uint64_t count_mismatch = 0, nn_oob = 0, nn_collision = 0, terminal_games = 0;
+    int reported = 0;
+
+    for (int g = 0; g < num_games; ++g) {
+        std::string fen = lczero::ChessBoard::kStartposFen;
+        for (int ply = 0; ply < max_moves; ++ply) {
+            lczero::ChessBoard board(fen);
+            lczero::MoveList adp = board.GenerateLegalMoves();
+            const size_t raw_n = MoveList<LEGAL>(board.GetRawPosition()).size();
+
+            ++positions;
+            total_moves += adp.size();
+
+            // (1) differential: adapter legal-move count must equal raw Fairy-Stockfish.
+            if (adp.size() != raw_n) {
+                ++count_mismatch;
+                if (reported++ < 12)
+                    std::cerr << "[MISMATCH] legal-move count adapter=" << adp.size()
+                              << " raw=" << raw_n << "  FEN: " << fen << std::endl;
+            }
+
+            // (2) NN policy index: in-range and injective for this position.
+            std::vector<int> seen;
+            seen.reserve(adp.size());
+            for (size_t i = 0; i < adp.size(); ++i) {
+                const int idx = static_cast<int>(lczero::MoveToNNIndex(adp[i], 0));
+                if (idx >= 10600) {
+                    ++nn_oob;
+                    if (reported++ < 12)
+                        std::cerr << "[NN-OOB] idx=" << idx << " move=" << board.MoveToString(adp[i])
+                                  << "  FEN: " << fen << std::endl;
+                }
+                if (std::find(seen.begin(), seen.end(), idx) != seen.end()) {
+                    ++nn_collision;
+                    if (reported++ < 12)
+                        std::cerr << "[NN-COLLISION] idx=" << idx << " move=" << board.MoveToString(adp[i])
+                                  << "  FEN: " << fen << std::endl;
+                } else {
+                    seen.push_back(idx);
+                }
+            }
+
+            if (adp.size() == 0) { ++terminal_games; break; }
+
+            // advance: pick a random legal move, apply on a copy, carry FEN forward.
+            const lczero::Move mv = adp[static_cast<size_t>(rng() % adp.size())];
+            lczero::ChessBoard child(board);
+            child.ApplyMove(mv);   // return = "did move reset rule50?", NOT success — ignore (as perft does)
+            fen = child.GetRawPosition().fen();
+        }
+    }
+
+    std::cout << "  games=" << num_games << "  positions audited=" << positions
+              << "  legal moves checked=" << total_moves
+              << "  (terminal-ending games=" << terminal_games << ")" << std::endl;
+    std::cout << "  count mismatches=" << count_mismatch
+              << "  NN out-of-range=" << nn_oob
+              << "  NN collisions=" << nn_collision << std::endl;
+    if (count_mismatch == 0 && nn_oob == 0 && nn_collision == 0) {
+        std::cout << "[PASS] AUDIT-GENERATION: adapter movegen == raw FS and NN mapping clean over "
+                  << positions << " real positions." << std::endl;
+    } else {
+        std::cerr << "[FAIL] AUDIT-GENERATION found discrepancies (see above)." << std::endl;
         std::exit(1);
     }
 }

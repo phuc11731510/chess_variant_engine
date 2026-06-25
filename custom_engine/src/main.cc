@@ -103,6 +103,8 @@ int main(int argc, char* argv[]) {
         run_uci_tests();
     } else if (o.test_encoder_mode) {
         run_encoder_tests();
+    } else if (o.audit_generation_mode) {
+        run_audit_generation(o.sp_games, o.sp_max_moves);
     } else if (o.uci_nn_mode) {
         run_uci_nn(o.weights_file, o.sp_provider, o.sp_fixed_batch);
     } else if (o.play_mode) {

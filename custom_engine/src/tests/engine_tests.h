@@ -17,3 +17,4 @@ void run_adapter_tests();
 void run_nn_tests();
 void run_uci_tests();
 void run_encoder_tests();
+void run_audit_generation(int num_games, int max_moves);
