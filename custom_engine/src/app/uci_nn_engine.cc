@@ -34,6 +34,8 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <deque>
+#include <cstring>
 #include <chrono>
 #include <memory>
 #include <map>
@@ -137,10 +139,17 @@ public:
     void Loop() {
         std::string line;
         while (std::getline(std::cin, line)) {
+            if (HandleLine(line)) break;           // quit -> leave the loop
+        }
+    }
+
+    // Process ONE UCI line. Returns true iff the engine should quit. Shared by the
+    // desktop stdin Loop() above AND the Android FFI bridge (fz_send -> HandleLine).
+    bool HandleLine(const std::string& line) {
             ReapIfDone();
             std::istringstream is(line);
             std::string cmd;
-            if (!(is >> cmd)) continue;            // blank line -> ignore (robustness)
+            if (!(is >> cmd)) return false;        // blank line -> ignore (robustness)
             if (cmd == "uci") {
                 HandleUci();
             } else if (cmd == "isready") {
@@ -219,15 +228,27 @@ public:
                 // Accept & ignore (robustness).
             } else if (cmd == "quit") {
                 AbortSearch();
-                break;
+                return true;
             }
             // Unknown commands are ignored per the UCI spec.
-        }
+        return false;
+    }
+
+    // FFI bridge (Android): turn Send() into a queue producer instead of stdout,
+    // and let the host drain lines one at a time.
+    void EnableQueueMode() { queue_mode_ = true; }
+    bool PopOutput(std::string& out) {
+        std::lock_guard<std::mutex> lk(io_mu_);
+        if (out_q_.empty()) return false;
+        out = std::move(out_q_.front());
+        out_q_.pop_front();
+        return true;
     }
 
 private:
     void Send(const std::string& s) {
         std::lock_guard<std::mutex> lk(io_mu_);
+        if (queue_mode_) { out_q_.push_back(s); return; }   // FFI: buffer for fz_poll
         std::cout << s << "\n" << std::flush;
     }
 
@@ -562,6 +583,8 @@ private:
     std::thread search_thread_;
     std::atomic<bool> searching_{false};
     std::mutex io_mu_;
+    bool queue_mode_ = false;                 // FFI: Send() -> out_q_ instead of stdout
+    std::deque<std::string> out_q_;           // output lines for fz_poll (guarded by io_mu_)
 };
 
 void run_uci_nn(const std::string& weights, const std::string& provider, int fixed_batch) {
@@ -569,6 +592,55 @@ void run_uci_nn(const std::string& weights, const std::string& provider, int fix
     UciNnEngine engine(weights, provider, fixed_batch);
     engine.Loop();
 }
+
+// ===========================================================================
+// C ABI (Android FFI). Wraps the UCI engine so Dart (dart:ffi) drives it via a
+// native libfairyzero.so instead of spawning a process (Android forbids that).
+// The Dart side speaks the SAME UCI protocol as the desktop UciProcessEngine;
+// only the transport changes (fz_send/fz_poll vs stdin/stdout pipes). Output
+// (info/bestmove/legalmoves/result/fen) is produced asynchronously by the search
+// worker thread and buffered; the Dart side polls fz_poll to drain it.
+// ===========================================================================
+extern "C" {
+
+void* fz_create(const char* model_path, const char* provider) {
+    try {
+        static std::once_flag init_once;
+        std::call_once(init_once, [] {
+            init_engine_globals();     // full Fairy-Stockfish init (no main() on Android)
+            setup_custom_variant();
+        });
+        auto* e = new UciNnEngine(model_path ? model_path : "",
+                                  (provider && *provider) ? provider : "cpu", 16);
+        e->EnableQueueMode();
+        return e;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void fz_send(void* handle, const char* uci_line) {
+    if (handle && uci_line) static_cast<UciNnEngine*>(handle)->HandleLine(uci_line);
+}
+
+// Pops ONE output line into `out` (NUL-terminated, truncated to out_cap-1).
+// Returns the length written, or 0 if the queue is currently empty.
+int fz_poll(void* handle, char* out, int out_cap) {
+    if (!handle || !out || out_cap <= 0) return 0;
+    std::string line;
+    if (!static_cast<UciNnEngine*>(handle)->PopOutput(line)) return 0;
+    int n = static_cast<int>(std::min<std::size_t>(line.size(),
+                                                   static_cast<std::size_t>(out_cap - 1)));
+    std::memcpy(out, line.data(), n);
+    out[n] = '\0';
+    return n;
+}
+
+void fz_destroy(void* handle) {
+    delete static_cast<UciNnEngine*>(handle);
+}
+
+}  // extern "C"
 
 // --play: a minimal ASCII terminal game vs the MCTS+NN engine (T8.x). For quick
 // human testing without a GUI; the real interface is --uci-nn.

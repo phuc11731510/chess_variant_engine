@@ -133,9 +133,9 @@ trainingdata_sources = files(
   'src/lczero_chess/selfplay/selfplay_driver.cc'
 )
 
-# Engine sources
+# Engine sources (shared by the executable and the FFI shared library; main.cc is
+# added only to the executable — the .so uses the C ABI in uci_nn_engine.cc instead).
 engine_sources = files(
-  'src/main.cc',
   'src/app/variant_setup.cc',
   'src/app/backend_factory.cc',
   'src/app/uci_coords.cc',
@@ -206,9 +206,29 @@ if host_machine.system() != 'windows'
   exe_kwargs += {'build_rpath': onnx_lib_dir}
 endif
 executable('custom_engine',
+  sources: [chess_sources, search_sources, neural_sources, trainingdata_sources, engine_sources, files('src/main.cc')],
+  include_directories: inc_dirs,
+  dependencies: deps,
+  install: true,
+  kwargs: exe_kwargs
+)
+
+# FFI shared library (libfairyzero.so / fairyzero.dll): the engine + C ABI
+# (fz_create/send/poll/destroy in uci_nn_engine.cc), no main(). Android loads this
+# via dart:ffi. Built on every platform; harmless on desktop.
+fairyzero_lib = shared_library('fairyzero',
   sources: [chess_sources, search_sources, neural_sources, trainingdata_sources, engine_sources],
   include_directories: inc_dirs,
   dependencies: deps,
   install: true,
+  kwargs: exe_kwargs
+)
+
+# Small harness that drives the C ABI through the .so (proves the FFI seam works).
+executable('fz_test',
+  sources: files('tools/fz_test.cc'),
+  link_with: fairyzero_lib,
+  include_directories: inc_dirs,
+  dependencies: deps,
   kwargs: exe_kwargs
 )

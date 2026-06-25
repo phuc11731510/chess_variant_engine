@@ -517,18 +517,14 @@ std::vector<std::string> Search::GetVerboseStats(const Node* node) const {
     std::optional<float> v;
     if (n && n->IsTerminal()) {
       v = n->GetQ(sign * draw_score);
-    } else if (n) {
-      auto history = GetPositionHistoryAtNode(n);
-#if 0
-      // Lc0-master original code:
-      std::optional<EvalResult> nneval = backend_->GetCachedEvaluation(
-          EvalPosition{history.GetPositions(), {}});
-#else
-      std::optional<EvalResult> nneval = backend_->GetCachedEvaluation(
-          EvalPosition{&history, {}});
-#endif
-      if (nneval) v = -nneval->q;
     }
+    // NOTE: the per-move "(V: cached-eval)" display was dropped here. Computing it
+    // called GetPositionHistoryAtNode(n), which reconstructs each child's history by
+    // walking the LIVE tree WITHOUT holding nodes_mutex_ (SendMovesStats only holds
+    // counters_mutex_, and the lock order forbids taking nodes_mutex_ afterwards).
+    // That read races worker tree-growth: x86's strong memory model tolerated it, but
+    // ARM (weak memory) faults (SIGSEGV in GetPositionHistoryAtNode). V: is purely
+    // informational verbose output, so it is dropped rather than risk a crash.
     if (v) {
       print(oss, "(V: ", sign * *v, ") ", 7, 4);
     } else {
@@ -611,8 +607,15 @@ void Search::SendMovesStats() const REQUIRES(counters_mutex_) {
 PositionHistory Search::GetPositionHistoryAtNode(const Node* node) const {
   PositionHistory history(played_history_);
   std::vector<Move> rmoves;
-  for (const Node* n = node; n != root_node_; n = n->GetParent()) {
-    rmoves.push_back(n->GetOwnEdge()->GetMove());
+  // Defensive walk: this best-effort stats path can race tree growth; on ARM's
+  // weak memory model a half-published parent/edge pointer would segfault. Guard
+  // null links and bound the walk so informational stats never crash the engine.
+  // (No-op on x86 where these links are always valid in this path.)
+  for (const Node* n = node; n && n != root_node_; n = n->GetParent()) {
+    const auto edge = n->GetOwnEdge();
+    if (!edge) break;
+    rmoves.push_back(edge->GetMove());
+    if (rmoves.size() > 4096) break;
   }
   for (auto it = rmoves.rbegin(); it != rmoves.rend(); it++) {
     history.Append(*it);

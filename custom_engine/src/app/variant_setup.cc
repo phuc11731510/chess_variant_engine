@@ -53,6 +53,30 @@
 using namespace Stockfish;
 
 
+// Full Fairy-Stockfish global init — the exact sequence main.cc runs before any
+// mode. The Android FFI path (fz_create) has no main(), so it must run this once
+// itself; otherwise bitboards/magics/options/threads are uninitialized and the
+// engine segfaults at startup. Idempotent.
+void init_engine_globals() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        static const char* kArgv[] = {"fairyzero"};
+        pieceMap.init();
+        variants.init();
+        CommandLine::init(1, const_cast<char**>(kArgv));
+        UCI::init(Options);
+        Tune::init();
+        PSQT::init(variants.find(Options["UCI_Variant"])->second);
+        Bitboards::init();
+        Position::init();
+        Bitbases::init();
+        Endgames::init();
+        Threads.set(size_t(Options["Threads"]));
+        Search::clear();
+        Eval::NNUE::init();
+    });
+}
+
 const Variant* setup_custom_variant() {
     std::string ini_text = R"(
 [custom_10x10_variant]
