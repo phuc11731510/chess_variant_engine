@@ -482,8 +482,16 @@ private:
         // Final `info` lines (one per MultiPV; multipv 1 = best move). These carry
         // the PV (computed safely now that workers have joined).
         for (int i = K - 1; i >= 0; --i) {
-            // Value of PLAYING edges[i], from our perspective: negate child's WL.
-            const float q = -edges[i].GetWL(static_cast<float>(-root->GetWL()));
+            // Score of PLAYING edges[i], from the ROOT's perspective. Mirror lc0's
+            // canonical reporting (classic/search.cc SendUciInfo): the value is
+            // `edge.GetWL(default_wl)` used DIRECTLY (NO extra negation), with
+            // default_wl = -root.WL as the FPU for an unvisited edge. GetWL() is
+            // already root-relative here — for terminal children, MakeTerminal
+            // stores wl_ white-absolute (WHITE_WON=+1), which at the (white-POV)
+            // edge is the correct sign. The previous `-` double-negated, flipping
+            // the sign of terminal/mate scores (a won mate showed as -12000). This
+            // is DISPLAY ONLY; move choice is by visit count, unaffected.
+            const float q = edges[i].GetWL(static_cast<float>(-root->GetWL()));
             const float d = edges[i].GetD(root->GetD());
             int w, dr, l; WdlPermille(q, d, w, dr, l);
             int pvlen = 0;

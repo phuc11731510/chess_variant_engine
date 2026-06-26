@@ -36,6 +36,12 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_svg: ^2.3.0
 
+  # M4: gọi engine native (libfairyzero.so) qua dart:ffi trên Android.
+  # (Thuần Dart — KHÔNG kéo plugin native nào, nên build Android trên Windows
+  # host không cần Developer Mode/symlink. Thư mục model lấy qua MethodChannel
+  # tự viết trong MainActivity, không dùng path_provider.)
+  ffi: ^2.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

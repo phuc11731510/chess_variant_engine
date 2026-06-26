@@ -6,13 +6,13 @@ import 'config/launch_config.dart';
 import 'domain/game_controller.dart';
 import 'engine/engine_service.dart';
 import 'engine/uci_process_engine.dart';
-import 'engine/stub_engine.dart';
+import 'engine/native_ffi_engine.dart';
 import 'ui/board_view.dart';
 
-/// Chọn engine theo nền tảng: desktop spawn tiến trình UCI; mobile (M0) dùng
-/// stub (bàn cờ hiện ra, chưa chơi được) — sẽ thay bằng NativeFfiEngine ở M4.
+/// Chọn engine theo nền tảng: desktop spawn tiến trình UCI; Android nạp
+/// libfairyzero.so qua dart:ffi ([NativeFfiEngine], M4) — chơi ngay trên máy.
 EngineService _makeEngine(LaunchConfig config) {
-  if (Platform.isAndroid || Platform.isIOS) return StubEngine();
+  if (Platform.isAndroid) return NativeFfiEngine(config);
   return UciProcessEngine(config);
 }
 

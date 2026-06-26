@@ -19,10 +19,16 @@ android {
         applicationId = "com.example.fairyzero_gui"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // minSdk 24: engine .so cross-compile voi aarch64-linux-android24-clang;
+        // libonnxruntime.so toi thieu API21 -> 24 la an toan.
+        minSdk = maxOf(24, flutter.minSdkVersion)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Chi co .so arm64-v8a (jniLibs); gioi han ABI cho khop & APK gon.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {
