@@ -8,6 +8,7 @@ project('custom_engine', 'cpp',
 )
 
 cc = meson.get_compiler('cpp')
+fs = import('fs')
 
 # CPU Architecture specific flags. AVX2/FMA only exist on x86; on ARM (aarch64/
 # Android) we pass nothing here and rely on scalar/NEON fallbacks (Stockfish core
@@ -215,20 +216,25 @@ executable('custom_engine',
 
 # FFI shared library (libfairyzero.so / fairyzero.dll): the engine + C ABI
 # (fz_create/send/poll/destroy in uci_nn_engine.cc), no main(). Android loads this
-# via dart:ffi. Built on every platform; harmless on desktop.
-fairyzero_lib = shared_library('fairyzero',
-  sources: [chess_sources, search_sources, neural_sources, trainingdata_sources, engine_sources],
-  include_directories: inc_dirs,
-  dependencies: deps,
-  install: true,
-  kwargs: exe_kwargs
-)
+# via dart:ffi. ANDROID-ONLY — gated on the FFI test harness being present: the
+# portable/Colab bundle (package.ps1) does NOT copy tools/, so a training/Colab
+# build skips these and only builds custom_engine (which is all it needs). The full
+# repo + the Android cross-build have tools/fz_test.cc, so they still build the .so.
+if fs.exists('tools' / 'fz_test.cc')
+  fairyzero_lib = shared_library('fairyzero',
+    sources: [chess_sources, search_sources, neural_sources, trainingdata_sources, engine_sources],
+    include_directories: inc_dirs,
+    dependencies: deps,
+    install: true,
+    kwargs: exe_kwargs
+  )
 
-# Small harness that drives the C ABI through the .so (proves the FFI seam works).
-executable('fz_test',
-  sources: files('tools/fz_test.cc'),
-  link_with: fairyzero_lib,
-  include_directories: inc_dirs,
-  dependencies: deps,
-  kwargs: exe_kwargs
-)
+  # Small harness that drives the C ABI through the .so (proves the FFI seam works).
+  executable('fz_test',
+    sources: files('tools/fz_test.cc'),
+    link_with: fairyzero_lib,
+    include_directories: inc_dirs,
+    dependencies: deps,
+    kwargs: exe_kwargs
+  )
+endif
