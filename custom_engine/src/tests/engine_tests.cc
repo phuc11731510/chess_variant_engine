@@ -1745,12 +1745,40 @@ void run_perft_tests() {
         {lczero::ChessBoard::kStartposFen, 3},
         {"5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1", 4},        // sparse: Sergeant + kings
         {"5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 7+7 0 1", 4},       // pawn tension
+        // --- undo_move stress cases: perft_raw exercises do_move/undo_move; the
+        // adapter rebuilds from FEN with NO undo, so a MATCH proves undo is correct
+        // for the move types present at the root (printed below per case). ---
+        {"5k4/10/10/10/10/10/1Pp7/10/10/5K4 b - b3b4 7+7 0 1", 3},    // ep+PROMO by pawn (c4xb3=, rank-3 zone)
+        {"5k4/10/10/1pS7/10/10/10/10/10/5K4 w - b8b7 7+7 0 1", 3},    // ep+PROMO by Sergeant (c7xb8=, rank-8 zone)
+        {"5k4/10/10/10/10/10/10/10/10/1R3K2R1 w BI - 7+7 0 1", 3},    // castling both sides (king-takes-rook undo)
+        // plain-ep combos (captured piece restored by stored type in undo_move):
+        {"5k4/10/10/10/10/1Ss7/10/10/10/5K4 b - b4b5 7+7 0 1", 3},    // sergeant-ep-sergeant (c5xb4, rank-4: no promo)
+        {"5k4/10/10/10/10/1Sp7/10/10/10/5K4 b - b4b5 7+7 0 1", 3},    // pawn-ep-sergeant (c5xb4)
+        {"5k4/10/10/10/1pS7/10/10/10/10/5K4 w - b7b6 7+7 0 1", 3},    // sergeant-ep-pawn (c6xb7)
     };
 
     bool all_ok = true;
     for (const auto& c : cases) {
         lczero::ChessBoard board(std::string(c.fen));   // adapter board (reused; perft copies)
         std::cout << "FEN: " << c.fen << std::endl;
+        // Coverage report: which special move types sit at the ROOT, so a green
+        // result provably exercises ep+promo / castling / plain-ep undo (each is
+        // do_move'd then undo_move'd at depth>=2 by perft_raw).
+        {
+            Stockfish::StateInfo cst;
+            Stockfish::Position cpos;
+            cpos.set(v, c.fen, false, &cst, nullptr);
+            int nEpPromo = 0, nCastle = 0, nPlainEp = 0;
+            for (const auto& em : Stockfish::MoveList<Stockfish::LEGAL>(cpos)) {
+                if (Stockfish::type_of(em.move) == Stockfish::CASTLING) ++nCastle;
+                else if (Stockfish::type_of(em.move) == Stockfish::EN_PASSANT) {
+                    if (Stockfish::ep_promotion_type(em.move) != Stockfish::NO_PIECE_TYPE) ++nEpPromo;
+                    else ++nPlainEp;
+                }
+            }
+            std::cout << "   root special moves: ep+promo=" << nEpPromo
+                      << "  castling=" << nCastle << "  plain-ep=" << nPlainEp << std::endl;
+        }
         for (int d = 1; d <= c.max_depth; ++d) {
             Stockfish::StateInfo st;
             Stockfish::Position pos;
