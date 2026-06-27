@@ -1478,6 +1478,7 @@ bool Position::gives_check(Move m) const {
 
   // Is there a direct check?
   if (type_of(m) != PROMOTION && type_of(m) != PIECE_PROMOTION && type_of(m) != PIECE_DEMOTION && type_of(m) != CASTLING
+      && !(type_of(m) == EN_PASSANT && ep_promotion_type(m) != NO_PIECE_TYPE)   // ep+promo: piece on `to` is promoted, handled in EN_PASSANT case
       && !((var->petrifyOnCaptureTypes & type_of(moved_piece(m))) && capture(m)))
   {
       PieceType pt = type_of(moved_piece(m));
@@ -1546,6 +1547,14 @@ bool Position::gives_check(Move m) const {
   {
       Square capsq = capture_square(to);
       Bitboard b = (pieces() ^ from ^ capsq) | to;
+
+      // ep + promotion: the piece on `to` becomes the promoted piece, which gives a
+      // DIRECT check differently than the pawn (the generic direct-check was skipped
+      // for ep+promo above). The discovered-check term below is unchanged.
+      PieceType epPromo = ep_promotion_type(m);
+      if (epPromo != NO_PIECE_TYPE
+          && (attacks_bb(sideToMove, epPromo, to, b) & square<KING>(~sideToMove)))
+          return true;
 
       return attackers_to(square<KING>(~sideToMove), b) & pieces(sideToMove) & b;
   }
@@ -2009,6 +2018,34 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           k ^= Zobrist::enpassant[file_of(pop_lsb(b))];
   }
 
+  // En passant capture that LANDS on a promotion square: ALSO promote the mover.
+  // The promotion blocks above only fire for PROMOTION-typed moves; this unified
+  // block handles the EN_PASSANT+promotion combo for BOTH a pawn and a pawn-type
+  // piece (Sergeant). The ep-captured piece was already removed; the mover is now
+  // on `to` (via move_piece) — swap it for the promotion piece. (undo_move mirrors.)
+  if (type_of(m) == EN_PASSANT && ep_promotion_type(m) != NO_PIECE_TYPE)
+  {
+      Piece promotion = make_piece(us, ep_promotion_type(m));
+      assert(promotion_zone(us) & to);
+      assert(type_of(promotion) >= KNIGHT && type_of(promotion) < KING);
+
+      st->promotionPawn = piece_on(to);
+      remove_piece(to);
+      put_piece(promotion, to);
+
+      // The move hash above already placed `pc` on `to`; swap it to the promotion.
+      k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
+#ifndef LCZERO_MCTS
+      if (type_of(pc) == PAWN)
+          st->pawnKey ^= Zobrist::psq[pc][to];
+      else
+          st->nonPawnMaterial[us] -= PieceValue[MG][pc];
+      st->materialKey ^=  Zobrist::psq[promotion][pieceCount[promotion] - 1]
+                        ^ Zobrist::psq[pc][pieceCount[pc]];
+      st->nonPawnMaterial[us] += PieceValue[MG][promotion];
+#endif
+  }
+
   // Set capture piece
   st->capturedPiece = captured;
 
@@ -2302,6 +2339,17 @@ void Position::undo_move(Move m) {
       Piece unpromotedPc = pc;
       pc = make_piece(us, promoted_piece_type(type_of(pc)));
       put_piece(pc, to, true, unpromotedPc);
+  }
+
+  // Mirror do_move's EN_PASSANT+promotion: un-promote (promotion piece back to the
+  // pawn/sergeant) BEFORE moving it back to `from` and restoring the ep-captured
+  // piece below.
+  if (type_of(m) == EN_PASSANT && ep_promotion_type(m) != NO_PIECE_TYPE)
+  {
+      assert(type_of(pc) == ep_promotion_type(m));
+      remove_piece(to);
+      pc = st->promotionPawn;
+      put_piece(pc, to);
   }
 
   if (type_of(m) == CASTLING)

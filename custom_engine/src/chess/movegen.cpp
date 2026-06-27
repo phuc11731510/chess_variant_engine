@@ -277,8 +277,24 @@ namespace {
             // En passant square is already disabled for non-fairy variants if there is no attacker
             assert(b || !pos.fast_attacks());
 
+            // An ep capture that LANDS on a promotion square also promotes (rare:
+            // only when the captured pawn double-stepped from the 2nd/9th rank so
+            // its passed square is the opponent's promotion rank).
+            bool epPromo = bool((pos.promotion_pawn_types(Us) & PAWN) && (pos.promotion_zone(Us) & epSquare));
+
             while (b)
-                moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, pop_lsb(b), epSquare);
+            {
+                Square epFrom = pop_lsb(b);
+                if (epPromo)
+                    for (PieceSet ps = pos.promotion_piece_types(Us); ps; )
+                    {
+                        PieceType ptP = pop_msb(ps);
+                        if (!pos.promotion_limit(ptP) || pos.promotion_limit(ptP) > pos.count(Us, ptP))
+                            moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, epFrom, epSquare, ptP);
+                    }
+                else
+                    moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, epFrom, epSquare);
+            }
         }
     }
 
@@ -362,10 +378,21 @@ namespace {
                         moveList = make_move_and_gating<PROMOTION>(pos, moveList, pos.side_to_move(), from, pop_lsb(promotions), ptP);
             }
 
-        // En passant captures
+        // En passant captures (also promote if the ep square is in the promotion zone)
         if (Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
             while (epSquares)
-                moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, from, pop_lsb(epSquares));
+            {
+                Square epTo = pop_lsb(epSquares);
+                if ((pos.promotion_pawn_types(Us) & Pt) && (promotion_zone & epTo))
+                    for (PieceSet ps = pos.promotion_piece_types(Us); ps; )
+                    {
+                        PieceType ptP = pop_msb(ps);
+                        if (!pos.promotion_limit(ptP) || pos.promotion_limit(ptP) > pos.count(Us, ptP))
+                            moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, from, epTo, ptP);
+                    }
+                else
+                    moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, from, epTo);
+            }
     }
 
     return moveList;

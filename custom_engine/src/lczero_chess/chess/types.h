@@ -116,8 +116,10 @@ public:
         
         std::string s = std::string(get_sq_str(from)) + get_sq_str(to);
         
-        if (Stockfish::type_of(m_) == Stockfish::PROMOTION) {
-            Stockfish::PieceType pt = Stockfish::promotion_type(m_);
+        Stockfish::PieceType pt = Stockfish::promotion_type(m_);
+        if (pt == Stockfish::NO_PIECE_TYPE && Stockfish::type_of(m_) == Stockfish::EN_PASSANT)
+            pt = Stockfish::ep_promotion_type(m_);   // ep capture landing on a promotion rank
+        if (pt != Stockfish::NO_PIECE_TYPE) {
             char pt_c = ' ';
             if (pt == Stockfish::KNIGHT) pt_c = 'n';
             else if (pt == Stockfish::BISHOP) pt_c = 'b';

@@ -304,9 +304,12 @@ uint16_t MoveToNNIndex(Move move, int transform) {
     int dx = to_file - from_file;
     int dy = to_rank - from_rank;
 
-    // 1. Kiểm tra nước đi Phong cấp (Promotion) -> Kênh 88 đến 105
-    if (Stockfish::type_of(move) == Stockfish::PROMOTION) {
-        Stockfish::PieceType promo_type = Stockfish::promotion_type(move);
+    // 1. Kiểm tra nước đi Phong cấp (Promotion, KỂ CẢ EN_PASSANT bắt-qua-đường rơi
+    //    vào hàng phong cấp) -> Kênh 88 đến 105
+    Stockfish::PieceType promo_type = Stockfish::promotion_type(move);
+    if (promo_type == Stockfish::NO_PIECE_TYPE && Stockfish::type_of(move) == Stockfish::EN_PASSANT)
+        promo_type = Stockfish::ep_promotion_type(move);   // ep capture landing on a promotion rank
+    if (promo_type != Stockfish::NO_PIECE_TYPE) {
         int piece_idx = -1;
         // Xác định loại quân phong cấp (6 loại quân)
         switch (promo_type) {

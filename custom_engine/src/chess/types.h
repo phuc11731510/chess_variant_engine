@@ -807,6 +807,14 @@ inline PieceType promotion_type(Move m) {
   return type_of(m) == PROMOTION ? PieceType((m >> (2 * SQUARE_BITS + MOVE_TYPE_BITS)) & (PIECE_TYPE_NB - 1)) : NO_PIECE_TYPE;
 }
 
+// Promotion piece carried by an EN_PASSANT move whose destination is a promotion
+// square (an ep capture that ALSO promotes). NO_PIECE_TYPE for a plain ep move
+// (its promotion field is 0). Reuses the same bit field as promotion_type since
+// EN_PASSANT and PROMOTION are distinct move types.
+inline PieceType ep_promotion_type(Move m) {
+  return type_of(m) == EN_PASSANT ? PieceType((m >> (2 * SQUARE_BITS + MOVE_TYPE_BITS)) & (PIECE_TYPE_NB - 1)) : NO_PIECE_TYPE;
+}
+
 inline PieceType gating_type(Move m) {
   return PieceType((m >> (2 * SQUARE_BITS + MOVE_TYPE_BITS)) & (PIECE_TYPE_NB - 1));
 }
