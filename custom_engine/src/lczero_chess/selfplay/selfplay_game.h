@@ -41,6 +41,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        float resign_threshold = -2.0f,
                        int resign_consecutive = 3, bool allow_resign = true,
                        int resign_earliest_move = 0,
-                       int64_t* out_nodes = nullptr);  // += total MCTS playouts (NPS)
+                       int64_t* out_nodes = nullptr,   // += total MCTS playouts (NPS)
+                       int* out_final_pieces = nullptr);  // số quân còn lại trên bàn (cả 2 bên + royal) lúc ván kết thúc
 
 }  // namespace lczero

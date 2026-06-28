@@ -74,7 +74,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        int search_threads, bool verbose,
                        float resign_threshold, int resign_consecutive,
                        bool allow_resign, int resign_earliest_move,
-                       int64_t* out_nodes) {
+                       int64_t* out_nodes, int* out_final_pieces) {
   auto tree = std::make_unique<classic::NodeTree>();
   tree->ResetToPosition(start_fen, {});
 
@@ -187,6 +187,11 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
   writer.Finalize();
 
   if (out_nodes) *out_nodes = local_nodes;
+  // Số quân còn lại trên bàn lúc ván kết thúc (cả Trắng + Đen, kể cả royal).
+  if (out_final_pieces) {
+    const auto& fb = tree->GetPositionHistory().Last().GetBoard();
+    *out_final_pieces = fb.ours().count() + fb.theirs().count();
+  }
   return final_result;
 }
 

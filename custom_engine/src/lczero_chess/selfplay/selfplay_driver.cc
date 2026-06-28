@@ -23,6 +23,7 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
   std::atomic<int> next_game{0};
   std::atomic<int> w_wins{0}, b_wins{0}, draws{0}, done{0};
   std::atomic<int64_t> total_nodes{0};   // sum of MCTS playouts (all workers) -> NPS
+  std::atomic<int64_t> total_final_pieces{0};  // sum of pieces-left-on-board at game end
   std::mutex log_mu;
   const auto t0 = std::chrono::steady_clock::now();
 
@@ -48,13 +49,15 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
           cfg.no_resign_frac <= 0.0f ||
           Random::Get().GetDouble(1.0) >= cfg.no_resign_frac;
       int64_t game_nodes = 0;
+      int game_pieces = 0;
       const GameResult r =
           PlayOneGame(fen, backend, options, cfg.visits,
                       cfg.max_moves, cfg.temp_cutoff_ply, fname,
                       cfg.threads_per_game, /*verbose=*/false,
                       cfg.resign_threshold, cfg.resign_consecutive, allow_resign,
-                      cfg.resign_earliest_move, &game_nodes);
+                      cfg.resign_earliest_move, &game_nodes, &game_pieces);
       total_nodes.fetch_add(game_nodes);
+      total_final_pieces.fetch_add(game_pieces);
 
       if (r == GameResult::WHITE_WON)
         w_wins.fetch_add(1);
@@ -67,7 +70,8 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
       {
         std::lock_guard<std::mutex> lk(log_mu);
         std::cout << "[selfplay] " << d << "/" << cfg.num_games
-                  << "  (game " << g << " -> result=" << static_cast<int>(r) << ")";
+                  << "  (game " << g << " -> result=" << static_cast<int>(r)
+                  << ", pieces=" << game_pieces << ")";
         if (cfg.show_nps) {
           const double el = std::chrono::duration_cast<std::chrono::milliseconds>(
                                 std::chrono::steady_clock::now() - t0).count() / 1000.0;
@@ -94,10 +98,15 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
     const long nps_final = secs > 0.0 ? static_cast<long>(total_nodes.load() / secs) : 0;
     std::cout << "  (" << nps_final << " nps tong, " << total_nodes.load() << " playouts)";
   }
+  const double avg_pieces =
+      cfg.num_games > 0
+          ? static_cast<double>(total_final_pieces.load()) / cfg.num_games
+          : 0.0;
   std::cout << ".\n"
             << "  White wins: " << w_wins.load()
             << " | Black wins: " << b_wins.load()
             << " | Draws: " << draws.load() << "\n"
+            << "  So quan con lai trung binh luc ket thuc: " << avg_pieces << "\n"
             << "  Output dir: " << cfg.out_dir << std::endl;
 }
 

@@ -271,6 +271,31 @@ python python\archive.py pack games_gen0 --out games_gen0.zip
 ```
 Khi huấn luyện, `train.py --data games_gen0.zip` **đọc thẳng tệp `.zip`** (KHÔNG cần giải nén).
 
+### B.5. Đọc log self-play: số quân còn lại khi ván kết thúc
+Khi sinh dữ liệu, engine in **mỗi ván một dòng** và một dòng **tổng kết** ở cuối. Ngoài kết quả,
+nó còn cho biết **trên bàn còn lại bao nhiêu quân lúc ván kết thúc** (đếm **cả Trắng + Đen, kể cả
+quân royal**) — chỉ số này **luôn bật**, không cần thêm cờ nào.
+```
+[selfplay] 1/200  (game 0 -> result=2, pieces=41)
+[selfplay] 2/200  (game 1 -> result=1, pieces=53)
+...
+[selfplay] Finished 200 games in 1423.5s.
+  White wins: 96 | Black wins: 99 | Draws: 5
+  So quan con lai trung binh luc ket thuc: 47.8     ← TRUNG BÌNH số quân còn lại
+  Output dir: games_gen0
+```
+- `pieces=N` (mỗi ván): số quân còn trên bàn ở thế cuối cùng của ván đó.
+- `So quan con lai trung binh...` (tổng kết): trung bình của `pieces` trên tất cả các ván.
+- `result=` là mã kết quả nội bộ (1 = Trắng thắng, 2 = Đen thắng, 0/3 = hòa/chưa phân định).
+
+**Dùng để làm gì:** đo **độ "sắc" của ván**. Thế bắt đầu có **60 quân**, nên:
+- Trung bình **cao** (gần 60) → ván thường kết thúc **sớm, còn nhiều quân** (thắng nhanh bằng đòn
+  chiến thuật / dồn đủ N lần chiếu) — trò chơi quyết liệt.
+- Trung bình **thấp** → ván hay kéo dài, **mài tới tàn cuộc thưa quân** mới phân thắng bại.
+
+Theo dõi con số này qua các đời giúp bạn thấy lối chơi của mạng thay đổi thế nào (vd khi đổi luật
+N-checks hoặc khi mạng mạnh lên thì ván sắc hơn hay dài hơn).
+
 ---
 
 ## C. HUẤN LUYỆN ĐỜI MẠNH HƠN
