@@ -271,30 +271,58 @@ python python\archive.py pack games_gen0 --out games_gen0.zip
 ```
 Khi huấn luyện, `train.py --data games_gen0.zip` **đọc thẳng tệp `.zip`** (KHÔNG cần giải nén).
 
-### B.5. Đọc log self-play: số quân còn lại khi ván kết thúc
-Khi sinh dữ liệu, engine in **mỗi ván một dòng** và một dòng **tổng kết** ở cuối. Ngoài kết quả,
-nó còn cho biết **trên bàn còn lại bao nhiêu quân lúc ván kết thúc** (đếm **cả Trắng + Đen, kể cả
-quân royal**) — chỉ số này **luôn bật**, không cần thêm cờ nào.
+### B.5. Đọc log self-play: số quân còn lại + điểm tấn công
+Khi sinh dữ liệu, engine in **mỗi ván một dòng** và một khối **tổng kết** ở cuối. Ngoài kết quả, nó
+còn in **2 chỉ số thống kê** (cả hai **luôn bật**, không cần thêm cờ) giúp bạn quan sát luật N-checks
+ảnh hưởng thế nào tới lối chơi:
 ```
-[selfplay] 1/200  (game 0 -> result=2, pieces=41)
-[selfplay] 2/200  (game 1 -> result=1, pieces=53)
+[selfplay] 1/200  (game 0 -> result=1, pieces=41, cong W=108 B=50 -> W)
+[selfplay] 2/200  (game 1 -> result=1, pieces=53, cong W=58 B=71 -> B)
 ...
 [selfplay] Finished 200 games in 1423.5s.
   White wins: 96 | Black wins: 99 | Draws: 5
-  So quan con lai trung binh luc ket thuc: 47.8     ← TRUNG BÌNH số quân còn lại
+  So quan con lai trung binh luc ket thuc: 47.8
+  Diem tan cong tich luy trung binh moi van: Trang=83  Den=60.5
+  So van moi ben choi the cong nhieu hon: Trang=104 | Den=91
+  Ben cong nhieu hon THANG: 118/195 van (60.5%)
   Output dir: games_gen0
 ```
-- `pieces=N` (mỗi ván): số quân còn trên bàn ở thế cuối cùng của ván đó.
-- `So quan con lai trung binh...` (tổng kết): trung bình của `pieces` trên tất cả các ván.
-- `result=` là mã kết quả nội bộ (1 = Trắng thắng, 2 = Đen thắng, 0/3 = hòa/chưa phân định).
+- `result=` là mã kết quả nội bộ: **1 = Đen thắng · 2 = hòa · 3 = Trắng thắng · 0 = chưa phân định**.
 
-**Dùng để làm gì:** đo **độ "sắc" của ván**. Thế bắt đầu có **60 quân**, nên:
-- Trung bình **cao** (gần 60) → ván thường kết thúc **sớm, còn nhiều quân** (thắng nhanh bằng đòn
-  chiến thuật / dồn đủ N lần chiếu) — trò chơi quyết liệt.
-- Trung bình **thấp** → ván hay kéo dài, **mài tới tàn cuộc thưa quân** mới phân thắng bại.
+**① Số quân còn lại — `pieces=N`** (đếm **cả Trắng + Đen, kể cả quân royal**):
+- `pieces=N` (mỗi ván): số quân còn trên bàn ở thế cuối cùng của ván.
+- `So quan con lai trung binh...` (tổng kết): trung bình của `pieces` trên mọi ván.
+- **Dùng để đo độ "sắc" của ván.** Thế bắt đầu có **60 quân**, nên trung bình **cao** (gần 60) → ván
+  kết thúc **sớm, còn nhiều quân** (thắng nhanh bằng đòn chiến thuật / dồn đủ N chiếu) = quyết liệt;
+  trung bình **thấp** → ván hay **mài tới tàn cuộc thưa quân** mới phân thắng bại.
 
-Theo dõi con số này qua các đời giúp bạn thấy lối chơi của mạng thay đổi thế nào (vd khi đổi luật
-N-checks hoặc khi mạng mạnh lên thì ván sắc hơn hay dài hơn).
+**② Điểm hệ số tấn công — `cong W=<wa> B=<ba> -> <bên>`** (đo bên nào "đóng quân trên sân địch" nhiều/lâu hơn):
+- Cách tính: ở **MỖI thế cờ** trong ván, đếm số quân của một bên đang ở **nửa bàn đối phương** rồi
+  **cộng dồn qua cả ván**. Trắng tấn công = quân Trắng ở **hạng 6-10** (nửa sân Đen); Đen tấn công =
+  quân Đen ở **hạng 1-5** (nửa sân Trắng). Điểm càng cao = quân ở sân địch **càng nhiều và càng lâu**.
+- `cong W=<wa> B=<ba> -> <W|B|=>` (mỗi ván): điểm tích luỹ của hai bên + bên nào công nhiều hơn ván đó.
+- `Diem tan cong tich luy trung binh moi van` (tổng kết): trung bình điểm công mỗi bên trên mọi ván.
+- `So van moi ben choi the cong nhieu hon` (tổng kết): trong tổng số ván, mỗi bên là bên-công-nhiều-hơn
+  bao nhiêu ván (cho biết có **MỘT MÀU bị buộc tấn công hệ thống** không — cân bằng thì nên ~50/50).
+- `Ben cong nhieu hon THANG: X/Y (Z%)` (tổng kết): **CON SỐ QUAN TRỌNG NHẤT để chỉnh N.** Trong **Y**
+  ván có **phân thắng-bại VÀ có bên-công-rõ-ràng** (bỏ ván hòa + ván hai bên công ngang nhau), bên-công-
+  nhiều-hơn thắng **X** ván → **`Z%` = xác suất "công nhiều hơn thì thắng"**.
+
+**Dùng để minh bạch khi chỉnh N:** con số `Z%` trả lời thẳng câu *"tấn công có đáng không"* ở mỗi N:
+- `Z%` **cao** (vd 70%) → tấn công **được tưởng thưởng** (thế công mạnh; bên lép vế khó phản công).
+- `Z%` **thấp** (vd 40% — tức bên phòng-thủ/phản-công thắng nhiều hơn) → tấn công **bị trừng phạt**
+  (phơi royal ra để công thì dễ ăn đòn phản công).
+- Dò N sao cho `Z%` về mức bạn thấy "đẹp" (vd ~50-60%: công đáng giá nhưng không bất khả chiến bại),
+  kết hợp với **"số quân còn lại trung bình"** để vừa cân bằng vừa đúng độ-dài/độ-sắc bạn muốn.
+
+> **Vì sao cần dòng `... THANG: X/Y` riêng (không tự suy từ các dòng kia)?** "White/Black wins" và "số
+> ván mỗi bên công nhiều hơn" là hai thống kê **RỜI NHAU (biên)** — từ chúng KHÔNG suy ra được bên-công-
+> có-trùng-bên-thắng không (cùng một bộ "biên" có thể ứng với P=0% **hoặc** P=100%). Phải đếm **khớp**
+> từng ván; dòng `... THANG: X/Y (Z%)` chính là phép đếm khớp đó (engine tính sẵn).
+>
+> **Lưu ý điểm tuyệt đối:** `Diem tan cong ... trung binh` là **tổng tích luỹ** nên ván dài điểm lớn hơn
+> ván ngắn — **đừng so con số tuyệt đối giữa các N** (bị độ-dài-ván làm nhiễu). So `W` vs `B` trong cùng
+> một ván thì công bằng; giữa các N hãy nhìn **`Z%`** và cột "số ván mỗi bên công nhiều hơn".
 
 ---
 

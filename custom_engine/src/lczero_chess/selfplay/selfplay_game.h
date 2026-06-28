@@ -42,6 +42,11 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        int resign_consecutive = 3, bool allow_resign = true,
                        int resign_earliest_move = 0,
                        int64_t* out_nodes = nullptr,   // += total MCTS playouts (NPS)
-                       int* out_final_pieces = nullptr);  // số quân còn lại trên bàn (cả 2 bên + royal) lúc ván kết thúc
+                       int* out_final_pieces = nullptr,  // số quân còn lại trên bàn (cả 2 bên + royal) lúc ván kết thúc
+                       // Điểm hệ số tấn công TÍCH LUỸ: ở mỗi thế cờ, đếm số quân của một bên đang
+                       // ở NỬA BÀN đối phương; cộng dồn qua mọi thế cờ. Trắng tấn công = quân Trắng
+                       // ở nửa Đen (hạng 6-10); Đen tấn công = quân Đen ở nửa Trắng (hạng 1-5).
+                       int64_t* out_white_attack = nullptr,
+                       int64_t* out_black_attack = nullptr);
 
 }  // namespace lczero

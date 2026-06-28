@@ -74,7 +74,8 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        int search_threads, bool verbose,
                        float resign_threshold, int resign_consecutive,
                        bool allow_resign, int resign_earliest_move,
-                       int64_t* out_nodes, int* out_final_pieces) {
+                       int64_t* out_nodes, int* out_final_pieces,
+                       int64_t* out_white_attack, int64_t* out_black_attack) {
   auto tree = std::make_unique<classic::NodeTree>();
   tree->ResetToPosition(start_fen, {});
 
@@ -93,7 +94,30 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
   const bool resign_active = allow_resign && resign_threshold > -1.0f;
   int resign_streak[2] = {0, 0};
 
+  // Điểm hệ số tấn công tích luỹ (xem header). Mặt nạ nửa bàn tính một lần.
+  int64_t white_attack = 0, black_attack = 0;
+  static const Stockfish::Bitboard kWhiteHalf = []{
+    Stockfish::Bitboard b = Stockfish::Bitboard(0);
+    for (int r = Stockfish::RANK_1; r <= Stockfish::RANK_5; ++r)
+      b |= Stockfish::rank_bb(Stockfish::Rank(r));   // nửa Trắng = hạng 1-5
+    return b;
+  }();
+  static const Stockfish::Bitboard kBlackHalf = []{
+    Stockfish::Bitboard b = Stockfish::Bitboard(0);
+    for (int r = Stockfish::RANK_6; r <= Stockfish::RANK_10; ++r)
+      b |= Stockfish::rank_bb(Stockfish::Rank(r));   // nửa Đen = hạng 6-10
+    return b;
+  }();
+
   for (int ply = 0; ply < max_moves; ++ply) {
+    // Tích luỹ điểm tấn công ở thế cờ hiện tại (trước khi đi nước này).
+    {
+      const auto& rp =
+          tree->GetPositionHistory().Last().GetBoard().GetRawPosition();
+      white_attack += Stockfish::popcount(rp.pieces(Stockfish::WHITE) & kBlackHalf);
+      black_attack += Stockfish::popcount(rp.pieces(Stockfish::BLACK) & kWhiteHalf);
+    }
+
     // --- Search (heap-allocated: PositionHistory holds 512-ply arrays) ---
     auto responder = std::make_unique<SilentResponder>();
     auto stopper = std::make_unique<PlayoutStopper>(visits);
@@ -192,6 +216,9 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     const auto& fb = tree->GetPositionHistory().Last().GetBoard();
     *out_final_pieces = fb.ours().count() + fb.theirs().count();
   }
+  // Điểm hệ số tấn công tích luỹ cả ván (bên nào đóng quân trên sân địch nhiều/lâu hơn).
+  if (out_white_attack) *out_white_attack = white_attack;
+  if (out_black_attack) *out_black_attack = black_attack;
   return final_result;
 }
 
