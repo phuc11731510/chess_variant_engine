@@ -45,8 +45,8 @@ using InputPlanes = std::array<InputPlane, kAuxPlaneBase + kAuxPlanesCount>;
  * - Plane 5: Rule 50 (Chuẩn hóa: rule50_ply / 100.0f)
  * - Plane 6: Không sử dụng (Để trống - All zeros)
  * - Plane 7: All ones (Tất cả 100 ô cờ là 1.0f giúp Neural Network nhận biết biên bàn cờ)
- * - Plane 8: White check count remaining (Chuẩn hóa: checks_remaining / 7.0f)
- * - Plane 9: Black check count remaining (Chuẩn hóa: checks_remaining / 7.0f)
+ * - Plane 8: White check count remaining (Chuẩn hóa: checks_remaining / 10.0f)
+ * - Plane 9: Black check count remaining (Chuẩn hóa: checks_remaining / 10.0f)
  */
 
 // Hàm mã hóa lịch sử thế cờ thành các mặt phẳng đầu vào (InputPlanes) cho Neural Network.

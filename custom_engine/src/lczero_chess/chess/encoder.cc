@@ -184,9 +184,11 @@ void EncodePositionForNN(
     // Plane 7: Đầy 1.0f giúp mạng nơ-ron nhận biết biên bàn cờ 10x10
     (*output_planes)[kAuxPlaneBase + 7].Fill(1.0f);
     
-    // Plane 8 & 9: Số lượt chiếu còn lại trước khi đạt mốc thắng cuộc 7-checks (chuẩn hóa checks / 7.0f)
-    (*output_planes)[kAuxPlaneBase + 8].Fill(static_cast<float>(raw_pos.checks_remaining(us)) / 7.0f);
-    (*output_planes)[kAuxPlaneBase + 9].Fill(static_cast<float>(raw_pos.checks_remaining(them)) / 7.0f);
+    // Plane 8 & 9: Số lượt chiếu còn lại, chuẩn hóa checks / 10.0f. Mẫu số 10 (max
+    // mà Fairy-SF biểu diễn được, FEN 1 chữ số nên N tối đa 9) cho headroom: mọi N
+    // khả thi (0-9) đều ≤ 1.0. Luật vẫn là 7-checks; đây chỉ là thang chuẩn hóa.
+    (*output_planes)[kAuxPlaneBase + 8].Fill(static_cast<float>(raw_pos.checks_remaining(us)) / 10.0f);
+    (*output_planes)[kAuxPlaneBase + 9].Fill(static_cast<float>(raw_pos.checks_remaining(them)) / 10.0f);
 }
 
 

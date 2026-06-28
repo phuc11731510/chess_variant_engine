@@ -244,8 +244,8 @@ def test_reconstruct_aux():
     check(np.allclose(pl[AB + 7], 1.0), "aux7 board-edge plane all ones")
     check(np.allclose(pl[AB + 6], 0.0), "aux6 unused plane all zeros")
     check(np.allclose(pl[AB + 5], 0.5), "aux5 rule50 == 50/100")
-    check(np.allclose(pl[AB + 8], 3 / 7) and np.allclose(pl[AB + 9], 1.0),
-          "aux8/9 checks == n/7")
+    check(np.allclose(pl[AB + 8], 3 / 10) and np.allclose(pl[AB + 9], 7 / 10),
+          "aux8/9 checks == n/10")
     # castling: us -> rank 0, them -> rank 9; 0xFF -> nothing
     check(pl[AB + 0, 0, 2] == 1.0 and pl[AB + 0].sum() == 1.0, "us_ooo file2 -> (rank0,file2)")
     check(pl[AB + 1].sum() == 0.0, "us_oo == 0xFF -> empty plane")

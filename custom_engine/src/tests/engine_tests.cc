@@ -2397,8 +2397,8 @@ void run_encoder_tests() {
         lczero::UnpackInputPlanes(planes, fp.data(), 10, 10);
         auto auxcell = [&](int k, int rank, int file) { return fp[(lczero::kAuxPlaneBase + k) * PS + rank * 10 + file]; };
         const float exp_r50 = static_cast<float>(hist.Last().GetRule50Ply()) / 100.0f;
-        const float exp_cu = static_cast<float>(pos.checks_remaining(us)) / 7.0f;
-        const float exp_ct = static_cast<float>(pos.checks_remaining(them)) / 7.0f;
+        const float exp_cu = static_cast<float>(pos.checks_remaining(us)) / 10.0f;
+        const float exp_ct = static_cast<float>(pos.checks_remaining(them)) / 10.0f;
         for (int rk = 0; rk < 10 && errs < 40; ++rk) for (int fl = 0; fl < 10; ++fl) {
             if (auxcell(7, rk, fl) != 1.0f)       { std::cerr << "  [FAIL] " << c.name << ": aux7 border != 1\n"; ++errs; break; }
             if (auxcell(6, rk, fl) != 0.0f)       { std::cerr << "  [FAIL] " << c.name << ": aux6 unused != 0\n"; ++errs; break; }

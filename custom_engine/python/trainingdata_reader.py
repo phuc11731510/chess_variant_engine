@@ -119,9 +119,10 @@ def reconstruct_planes(rec):
     # aux 5: rule50 normalized; aux 6: unused (zeros); aux 7: board-edge (all ones).
     planes[AUX_BASE + 5, :, :] = rec["rule50_count"] / 100.0
     planes[AUX_BASE + 7, :, :] = 1.0
-    # aux 8/9: remaining checks normalized (7-check rule).
-    planes[AUX_BASE + 8, :, :] = rec["checks_remaining_us"] / 7.0
-    planes[AUX_BASE + 9, :, :] = rec["checks_remaining_them"] / 7.0
+    # aux 8/9: remaining checks normalized by 10 (max Fairy-SF can express; N<=9).
+    # MUST match encoder.cc (/ 10.0f). Game is still 7-check; 10 is just the scale.
+    planes[AUX_BASE + 8, :, :] = rec["checks_remaining_us"] / 10.0
+    planes[AUX_BASE + 9, :, :] = rec["checks_remaining_them"] / 10.0
     return planes
 
 
