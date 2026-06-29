@@ -102,17 +102,35 @@ AlphaZero/lc0. Thang cỡ quen thuộc:
 - **Lưu ý SE:** mức nén = `filter ÷ ratio` phải **chia hết**. `128/8 = 16` (đẹp). Muốn "SE rộng kiểu lc0"
   (lc0 nén 192→32) thì ở 128 filter dùng `--se-ratio 4` (→32), **đừng** dùng 6 (`128/6` lẻ → bị làm tròn).
 
-**Bước 3 — Đóng gói bản portable** (gom exe + DLL + Python + mã nguồn + seed + sách thành 1 thư mục chạy được trên máy Windows sạch):
+**Bước 3 — Đóng gói bản portable** (gom thành 1 thư mục/bundle để chạy trên Windows sạch hoặc đưa lên Colab):
 ```
 powershell -ExecutionPolicy Bypass -File scripts\package.ps1
 ```
-→ ra `dist\FairyZero\`. Mặc định bundle bản **CPU** (lấy từ `build\`). Tham số hữu ích:
+→ mặc định ra `dist\FairyZero\` (target **both**: Windows CPU + mã nguồn Colab). **Hai siêu tham số chính:**
+
+- **`-Target both|colab|windows`** — chọn loại bundle:
+  - **`both`** (mặc định) — bản Windows chạy được (CHƠI + SINH DỮ LIỆU) **kèm** `engine_src/` + script Colab
+    để build lại binary GPU. Ra `dist\FairyZero\`. (Cần `build\` đã `ninja` xong.)
+  - **`colab`** — **CHỈ Colab, tối giản (~2MB)**: chỉ `engine_src/` + `python/` + script Colab; **KHÔNG** exe/DLL
+    Windows, **KHÔNG** ONNX Runtime, **KHÔNG** binary (không build Linux trên Windows được). Trên Colab chạy
+    `bash scripts/colab_setup.sh` **MỘT LẦN** (build binary GPU + tải ONNX Runtime), các phiên sau
+    `bash scripts/colab_prebuilt.sh wrap`. Đủ để **sinh dữ liệu, huấn luyện và arena**. Ra `dist\FairyZero_colab\`.
+  - **`windows`** — chỉ bản Windows (exe + DLL + python + play.bat), **không** kèm mã nguồn/script Colab.
+    Ra `dist\FairyZero_win\`.
+- **`-NoModel`** — **không** xuất seed model (vd khi bạn tải mạng từ GitHub release riêng). Mặc định (không có cờ
+  này) thì tự sinh seed 0-ELO qua `make_seed.py`; hoặc `-Model models\model_gen7.onnx` để đóng gói một mạng đã
+  train làm `seed.onnx`.
+
+Tham số khác:
 - `-Dml` — đóng gói bản **DirectML** (lấy từ `build-dml\`) thay cho CPU. **Một bundle phục vụ CẢ `Provider=cpu`
-  lẫn `Provider=dml`** (vì `onnxruntime.dll` bản DirectML chứa cả hai EP), có kèm `DirectML.dll`. Cần build
-  `build-dml` trước (`meson setup build-dml -Duse_dml=true; ninja -C build-dml`).
-- `-Model models\model_gen5.onnx` — đóng gói một mạng đã train làm `seed.onnx` (mặc định: tự sinh seed 0-ELO qua `make_seed.py`).
-- `-Zip` — tạo thêm `dist\FairyZero.zip` để chép đi.
+  lẫn `Provider=dml`** (vì `onnxruntime.dll` bản DirectML chứa cả hai EP), có kèm `DirectML.dll`. Chỉ áp dụng
+  target `both`/`windows`. Cần build `build-dml` trước (`meson setup build-dml -Duse_dml=true; ninja -C build-dml`).
+- `-Zip` — tạo thêm `<OutDir>.zip` để chép đi (lưu ý: WinRAR nén khối `.so` GPU tốt hơn `Compress-Archive` nhiều —
+  bản full ~262MB zip còn ~100MB rar).
 - `-OutDir <đường dẫn>` — đổi nơi xuất. `-Ucrt64Bin <...>` — chỉ chỗ DLL nếu MSYS2 không ở `C:\msys64`.
+
+> **Ví dụ bản colab tối giản để đẩy lên GitHub release:** `... package.ps1 -Target colab -NoModel`
+> → `dist\FairyZero_colab\` (~2MB, source-only). Đưa lên Colab, `colab_setup.sh` một lần, rồi `wrap` mỗi phiên.
 
 > **Về "1 bản portable cuda+dml+cpu":** CPU+DML gộp được vào một bundle (`-Dml`). **CUDA thì KHÔNG** đặt
 > vào bản Windows portable (cần `onnxruntime.dll` bản CUDA + CUDA toolkit cài sẵn) — CUDA là đường **Colab/Linux**,
