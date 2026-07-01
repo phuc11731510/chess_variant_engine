@@ -16,6 +16,7 @@ struct EngineOptions {
     std::string weights_file="weights_0_elo.onnx";
     int sp_games=100, sp_visits=200, sp_parallel=1, sp_threads_per_game=1;
     int sp_max_moves=200, sp_temp_cutoff=30, sp_backend_threads=1, sp_fixed_batch=16;
+    double sp_max_seconds=0.0;  // --max-seconds: wall-clock budget for self-play (0 = off)
     std::string sp_out="selfplay_data";
     std::string sp_provider="cpu";
     float sp_noise_eps=0.25f, sp_noise_alpha=0.3f, sp_policy_temp=1.0f, sp_cpuct=-1.0f;

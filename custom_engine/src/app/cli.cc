@@ -19,6 +19,8 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             o.sp_threads_per_game = std::atoi(argv[++i]);
         } else if (std::string(argv[i]) == "--max-moves" && i + 1 < argc) {
             o.sp_max_moves = std::atoi(argv[++i]);
+        } else if (std::string(argv[i]) == "--max-seconds" && i + 1 < argc) {
+            o.sp_max_seconds = std::atof(argv[++i]);        // wall-clock budget (0 = off)
         } else if (std::string(argv[i]) == "--temp-cutoff" && i + 1 < argc) {
             o.sp_temp_cutoff = std::atoi(argv[++i]);
         } else if (std::string(argv[i]) == "--backend-threads" && i + 1 < argc) {

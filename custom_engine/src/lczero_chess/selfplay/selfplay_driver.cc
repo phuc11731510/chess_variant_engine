@@ -28,16 +28,39 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
   std::atomic<int> w_more_aggr{0}, b_more_aggr{0};  // games where each side attacked more
   // P(bên công nhiều hơn thắng): chỉ tính ván CÓ thắng-bại VÀ có bên-công-rõ (wa != ba).
   std::atomic<int> aggr_decisive{0}, aggr_won{0};
+  std::atomic<bool> stopped_by_time{false};  // set once when the wall-clock budget ends the run
   std::mutex log_mu;
-  const auto t0 = std::chrono::steady_clock::now();
+  const auto t0 = std::chrono::steady_clock::now();  // reference for --max-seconds (first game)
 
   std::cout << "[selfplay] Generating " << cfg.num_games << " games into '"
             << cfg.out_dir << "' (" << workers << " parallel x "
             << cfg.threads_per_game << " threads/game, visits=" << cfg.visits
-            << ", max_moves=" << cfg.max_moves << ")" << std::endl;
+            << ", max_moves=" << cfg.max_moves << ")";
+  if (cfg.max_seconds > 0.0)
+    std::cout << " [gioi han thoi gian: " << cfg.max_seconds << "s]";
+  std::cout << std::endl;
 
   auto worker = [&]() {
     while (true) {
+      // Optional wall-clock budget. Checked ONCE PER GAME here (this loop iterates
+      // once per full game, ~seconds-to-minutes apart) — NEVER inside the MCTS/move
+      // hot path. When off (max_seconds<=0) it's a single double-compare per game
+      // and reads no clock, so the impact on self-play nps is effectively zero.
+      // Hitting the budget only stops taking NEW games; in-flight games finish
+      // normally (each still writes a complete .gz — no truncated training data).
+      if (cfg.max_seconds > 0.0) {
+        const double el = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              std::chrono::steady_clock::now() - t0).count() / 1000.0;
+        if (el >= cfg.max_seconds) {
+          if (!stopped_by_time.exchange(true)) {
+            std::lock_guard<std::mutex> lk(log_mu);
+            std::cout << "[selfplay] Dat nguong thoi gian " << cfg.max_seconds
+                      << "s -> ngung nhan van moi (da xong " << done.load()
+                      << " van, cac van dang chay se hoan tat)." << std::endl;
+          }
+          break;
+        }
+      }
       const int g = next_game.fetch_add(1);
       if (g >= cfg.num_games) break;
 
@@ -115,19 +138,25 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
           std::chrono::steady_clock::now() - t0)
           .count() /
       1000.0;
-  std::cout << "\n[selfplay] Finished " << cfg.num_games << " games in " << secs << "s";
+  // Games ACTUALLY finished (== .gz files written). Equals num_games normally, but
+  // is smaller when --max-seconds ended the run early; ALL averages use this count.
+  const int completed = done.load();
+  std::cout << "\n[selfplay] Finished " << completed << "/" << cfg.num_games
+            << " games in " << secs << "s";
+  if (stopped_by_time.load())
+    std::cout << " (dung som do dat nguong --max-seconds)";
   if (cfg.show_nps) {
     const long nps_final = secs > 0.0 ? static_cast<long>(total_nodes.load() / secs) : 0;
     std::cout << "  (" << nps_final << " nps tong, " << total_nodes.load() << " playouts)";
   }
   const double avg_pieces =
-      cfg.num_games > 0
-          ? static_cast<double>(total_final_pieces.load()) / cfg.num_games
+      completed > 0
+          ? static_cast<double>(total_final_pieces.load()) / completed
           : 0.0;
-  const double avg_wa = cfg.num_games > 0
-      ? static_cast<double>(total_white_attack.load()) / cfg.num_games : 0.0;
-  const double avg_ba = cfg.num_games > 0
-      ? static_cast<double>(total_black_attack.load()) / cfg.num_games : 0.0;
+  const double avg_wa = completed > 0
+      ? static_cast<double>(total_white_attack.load()) / completed : 0.0;
+  const double avg_ba = completed > 0
+      ? static_cast<double>(total_black_attack.load()) / completed : 0.0;
   // P(bên công nhiều hơn thắng) = số ván bên-công-nhiều THẮNG / số ván phân thắng-bại + công rõ.
   const int aggr_dec = aggr_decisive.load(), aggr_w = aggr_won.load();
   const double aggr_pct = aggr_dec > 0 ? 100.0 * aggr_w / aggr_dec : 0.0;

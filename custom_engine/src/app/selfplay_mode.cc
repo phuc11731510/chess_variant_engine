@@ -137,6 +137,7 @@ int run_selfplay(const EngineOptions& o) {
         }
         cfg.out_dir = o.sp_out;
         cfg.num_games = o.sp_games;
+        cfg.max_seconds = o.sp_max_seconds;
         cfg.visits = o.sp_visits;
         cfg.max_moves = o.sp_max_moves;
         cfg.temp_cutoff_ply = o.sp_temp_cutoff;
