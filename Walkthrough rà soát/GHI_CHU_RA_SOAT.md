@@ -272,7 +272,29 @@ và phép đo B2 xác nhận điều đó theo hướng thực nghiệm.
 - `sm%` cao và phẳng → GPU thật sự bão hoà, chỉ còn đường giảm FLOP.
 - `sm%` răng cưa dưới ~50% → vẫn còn chỗ ở khâu điều phối.
 
-### B4. Cấu trúc dữ liệu — chưa được xác nhận là nút thắt
+### B4. Cấu trúc dữ liệu — GIẢ THUYẾT ĐÃ BỊ BÁC BỎ (2026-09-21)
+
+> **Đính chính.** Phân tích bên dưới nói `PositionHistory` gây ra ~300 KB memcpy
+> và ám chỉ đây là chi phí hot path. **Sai.** Đọc kỹ `position.cpp:1600` cho thấy
+> `do_move` chỉ chép `offsetof(StateInfo, key)` = **104 byte** mỗi ply — đúng
+> phần "nóng" mà việc sắp xếp lại trường đã gom lên đầu. Con số 300 KB là của
+> **copy constructor** `PositionHistory`, chỉ dùng ở `GetPositionHistoryAtNode`
+> (đường thống kê verbose, đã bị bỏ) nên gần như không bao giờ chạy.
+>
+> Chi phí mỗi ply vì vậy **ngang ngửa lc0 gốc** (Position của lc0 ~80 byte).
+> `sizeof(PositionHistory) ≈ 1 MB` là kích thước **cấp phát**, và chỉ có một cái
+> cho mỗi cây + một cái cho mỗi luồng tìm kiếm — không phải mỗi nút.
+>
+> Thiết kế "mang theo cả lịch sử khi đi xuống cây" cũng **không phải của dự án
+> này**: `upstream/lc0/src/search/classic/search.h:362` có y hệt
+> `PositionHistory history;` trong `TaskWorkspace`. Cần có lịch sử vì đầu vào
+> mạng gồm 8 ply và vì phát hiện lặp thế.
+>
+> Khác biệt thật so với lc0 chỉ còn: mảng tĩnh 512 (lc0 dùng `std::vector` co
+> giãn) và bước nhảy 1,8 KB giữa các `mcts_states_[i]` làm locality kém hơn.
+> Cả hai đều là chi phí nhỏ, **không phải nút thắt**.
+
+*(Phân tích gốc, giữ lại để đối chiếu:)*
 
 Đo bằng cách đọc code (chưa đo thực nghiệm):
 
