@@ -118,7 +118,31 @@ int main(int argc, char* argv[]) {
         int rc = run_selfplay(o);
         if (rc != 0) return rc;
     } else {
-        UCI::loop(argc, argv);
+        // No classical-engine fallback. This binary is built with -DLCZERO_MCTS,
+        // which deliberately stops maintaining psq / materialKey / pawnKey /
+        // nonPawnMaterial (MCTS never reads them) and makes their accessors return
+        // constant 0. Fairy-Stockfish's own alpha-beta search and handcrafted eval
+        // are still linked but would silently run on those zeros -- e.g. every
+        // position hashes to the same Material::probe entry. Dropping into it on a
+        // typo'd flag produced a nonsense engine with nothing on screen to say so,
+        // hence this hard error instead of UCI::loop().
+        std::cerr
+            << "custom_engine: no mode selected.\n\n"
+               "  play / serve:  --uci-nn --weights <net.onnx>   (UCI engine for a GUI)\n"
+               "                 --play   --weights <net.onnx>   (play in the terminal)\n"
+               "  training:      --selfplay --weights <net.onnx> --out <dir>\n"
+               "                 --arena --model-a <a.onnx> --model-b <b.onnx>\n"
+               "  diagnostics:   --audit-generation | --emit-roundtrip <prefix>\n"
+               "  self-tests:    --test-adapter --test-bits --test-board --test-encoder\n"
+               "                 --test-ep --test-extract --test-mcts --test-nn\n"
+               "                 --test-perft --test-policy --test-rules --test-selfplay\n"
+               "                 --test-trainingdata --test-uci\n\n"
+               "See custom_engine/HUONG_DAN.md for the full flag reference.\n";
+        Threads.set(0);
+        variants.clear_all();
+        pieceMap.clear_all();
+        delete XBoard::stateMachine;
+        return 2;
     }
 
     Threads.set(0);

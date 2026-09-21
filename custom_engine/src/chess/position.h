@@ -110,10 +110,15 @@ struct StateInfo {
 };
 
 #ifdef LCZERO_MCTS
-static_assert(offsetof(StateInfo, key) < 128, 
-    "StateInfo::key is too far from start; check field ordering for MCTS cache efficiency");
-static_assert(offsetof(StateInfo, key) == 104,
-    "StateInfo::key offset is not optimized (expected 104 bytes)");
+// Everything ABOVE `key` is the block copied on every do_move(); keeping it
+// inside two 64-byte cache lines is the point of the field ordering above.
+// The bound is what matters -- NOT an exact offset: the precise byte count is
+// just today's padding arithmetic and shifts with the ABI (this project also
+// cross-compiles for Android ARM), so pinning it would break the build over a
+// non-problem.
+static_assert(offsetof(StateInfo, key) <= 128,
+    "StateInfo's copied-on-move block no longer fits in two cache lines; "
+    "re-check the field ordering above before adding to it");
 #endif
 
 

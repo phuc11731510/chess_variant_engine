@@ -2054,6 +2054,22 @@ void run_adapter_tests() {
         "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1",
         "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 7+7 0 1",
         "4k5/10/10/10/10/10/10/10/10/R8K b - - 1+7 0 1",  // BLACK to move
+        // --- en passant LANDING ON A PROMOTION SQUARE ---------------------------
+        // promotionRegionWhite = *8 *9 *10 and doubleStepRegionBlack = *10 *9 *8
+        // overlap, so an ep capture can land inside White's promotion region.
+        // Black pawn just played d9-d7; the ep square d8 is a promotion square, so
+        // Pe7xd8 e.p. MUST promote, and promotionPieceTypes = b m n r v y makes SIX
+        // legal moves that differ only in the promoted piece.
+        "k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 7+7 0 1",
+        // Same case, but the ep square comes from the Sergeant's Alfil double-step
+        // (s = fKifmnDifmnA): black s played d9-f7, passing through e8.
+        "k9/10/10/3P1s4/10/10/10/10/10/K9 w - e8 7+7 0 1",
+        // The Sergeant CAPTURES en passant too, and fK lets it do so BOTH straight
+        // ahead and diagonally -- a pawn can only do the latter. Both must be covered.
+        //   (a) straight: black s played e9-c7 (Alfil) through d8; white Sd7xd8 e.p.
+        "k9/10/10/2sS6/10/10/10/10/10/K9 w - d8 7+7 0 1",
+        //   (b) diagonal: black s played d9-d7 (Dabbaba) through d8; white Se7xd8 e.p.
+        "k9/10/10/3sS5/10/10/10/10/10/K9 w - d8 7+7 0 1",
     };
 
     for (const auto& fen : fens) {
@@ -2081,6 +2097,48 @@ void run_adapter_tests() {
         }
     }
     std::cout << "  [OK] MoveToString<->ParseMove for " << total << " legal moves (incl. Black-to-move)" << std::endl;
+
+    // Move strings must be UNIQUE among a position's legal moves. ParseMove (and
+    // Stockfish::UCI::to_move under it) resolves a string by scanning the legal
+    // moves and returning the FIRST whose string matches, so two legal moves that
+    // stringify identically make all but one unreachable through ANY string
+    // interface -- silently, with no error. The ep-capture-with-promotion case
+    // above is exactly that: six moves collapse to one string unless the promoted
+    // piece is appended.
+    int ep_promo_total = 0;
+    for (const auto& fen : fens) {
+        lczero::ChessBoard board(fen);
+        lczero::MoveList moves = board.GenerateLegalMoves();
+        std::map<std::string, int> seen;
+        int ep_promo_here = 0;
+        for (size_t i = 0; i < moves.size(); ++i) {
+            const Stockfish::Move sm = moves[i].raw();
+            if (Stockfish::type_of(sm) == Stockfish::EN_PASSANT
+                && Stockfish::ep_promotion_type(sm) != Stockfish::NO_PIECE_TYPE)
+                ++ep_promo_here;
+
+            const std::string s = board.MoveToString(moves[i]);
+            if (++seen[s] == 2) {
+                std::cerr << "[FAIL] two distinct legal moves share the UCI string '"
+                          << s << "'\n         in FEN: " << fen << std::endl;
+                std::exit(1);
+            }
+        }
+        ep_promo_total += ep_promo_here;
+        if (ep_promo_here)
+            std::cout << "  [info] " << ep_promo_here
+                      << " en-passant-with-promotion move(s) in: " << fen << std::endl;
+    }
+    // Guard the fixtures themselves: if a FEN above ever stops producing the case,
+    // the uniqueness check would pass vacuously and the coverage would be lost.
+    if (ep_promo_total == 0) {
+        std::cerr << "[FAIL] no en-passant-with-promotion move in ANY test position --\n"
+                     "         the fixtures no longer cover the case this test exists for"
+                  << std::endl;
+        std::exit(1);
+    }
+    std::cout << "  [OK] UCI strings unique within each position ("
+              << ep_promo_total << " ep-with-promotion moves covered)" << std::endl;
     std::cout << "[PASS] ADAPTER round-trip tests." << std::endl;
 }
 
