@@ -61,3 +61,6 @@ custom_engine/.cache/
 output.txt
 
 
+
+# Ban sao thuong nguon de doi chieu (khong phai ma nguon du an)
+upstream/

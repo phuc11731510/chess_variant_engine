@@ -8,7 +8,7 @@
 
 namespace lczero {
 
-const char* ChessBoard::kStartposFen = "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
+const char* ChessBoard::kStartposFen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
 
 ChessBoard::ChessBoard() {
     auto it = Stockfish::variants.find("custom_10x10_variant");
@@ -68,7 +68,7 @@ void ChessBoard::SetFromFen(std::string_view fen, int* rule50_ply, int* moves) {
 void ChessBoard::Clear() {
     state_index = 0;
     Stockfish::Thread* th = nullptr;
-    pos.set(variant_def, "10/10/10/10/10/10/10/10/10/10 w - - 7+7 0 1", false, &states[state_index], th);
+    pos.set(variant_def, "10/10/10/10/10/10/10/10/10/10 w - - 8+8 0 1", false, &states[state_index], th);
 }
 
 MoveList ChessBoard::GenerateLegalMoves() const {

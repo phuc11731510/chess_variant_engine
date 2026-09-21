@@ -59,7 +59,7 @@ int run_selfplay(const EngineOptions& o) {
         std::cout << "=== Self-play data generation ===" << std::endl;
         setup_custom_variant();
         const std::string fen =
-            "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
+            "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
 
         lczero::OptionsParser parser;
         lczero::classic::SearchParams::Populate(&parser);
