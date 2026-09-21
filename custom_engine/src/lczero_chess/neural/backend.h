@@ -13,7 +13,18 @@
 
 namespace lczero {
 
-constexpr size_t MaxBatchSize = 64;
+// Hard ceiling on a single NN batch. OnnxComputation sizes its STATIC buffers
+// from this, so raising it costs memory per live computation:
+//   input  22600 floats/pos, policy 10600, plus ~1.5 KB of move scratch
+//   => ~137 KB per slot, i.e. ~8.8 MB at 64 and ~35 MB at 256.
+// There is one live computation per search worker (or exactly one when
+// --batch-aggregate is on), so the cost is bounded and small.
+//
+// Raised 64 -> 256 (2026-09-21): measurement showed each session->Run() carries
+// a FIXED cost of roughly 2.5 ms on a T4 on top of ~0.186 ms per position, so
+// at batch 16 more than half the time is that fixed cost. Bigger batches
+// amortize it; 64 was cutting the sweep off before the curve flattened.
+constexpr size_t MaxBatchSize = 256;
 
 // Minimalistic static vector to avoid heap allocation
 template <typename T, size_t N>
