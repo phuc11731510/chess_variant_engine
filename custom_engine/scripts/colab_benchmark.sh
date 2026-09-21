@@ -129,7 +129,9 @@ echo "================================ KET QUA ================================"
 printf "%-11s %4s %4s %4s %6s %9s %11s %8s %8s %8s %6s\n" \
   "cau_hinh" "par" "fb" "agg" "van" "van/gio" "eval/giay" "ev/play" "batchTB" "pad%" "sm%"
 printf -- "-------------------------------------------------------------------------------------\n"
-printf "$RESULTS" | while IFS='|' read -r n p f a g vg ev ep bt pd sm; do
+# '%b' là bắt buộc: $RESULTS chứa '|', dùng nó làm chuỗi định dạng sẽ lỗi
+# "printf: `|': invalid format character" và mất sạch bảng.
+printf '%b' "$RESULTS" | while IFS='|' read -r n p f a g vg ev ep bt pd sm; do
   [ -z "$n" ] && continue
   printf "%-11s %4s %4s %4s %6s %9s %11s %8s %8s %8s %6s\n" \
     "$n" "$p" "$f" "$a" "$g" "$vg" "$ev" "$ep" "$bt" "$pd" "$sm"
