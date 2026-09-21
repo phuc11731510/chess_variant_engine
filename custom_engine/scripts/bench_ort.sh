@@ -34,9 +34,28 @@ PY="${PY:-python3}"
 if [ "${SKIP_INSTALL:-0}" != "1" ]; then
   echo "[bench] go onnxruntime cu va cai onnxruntime-gpu==$ORT_VER (khop engine) ..."
   $PY -m pip -q uninstall -y onnxruntime onnxruntime-gpu >/dev/null 2>&1 || true
-  $PY -m pip -q install "onnxruntime-gpu==$ORT_VER" onnx >/dev/null 2>&1 \
-    || { echo "[bench] pip that bai, thu khong ghim phien ban ..."; \
-         $PY -m pip -q install onnxruntime-gpu onnx >/dev/null 2>&1; }
+  if ! $PY -m pip -q install "onnxruntime-gpu==$ORT_VER" onnx >/dev/null 2>&1; then
+    echo "[bench] khong cai duoc $ORT_VER (Colab dung Python $($PY -c 'import sys;print(\"%d.%d\"%sys.version_info[:2])')"
+    echo "[bench] -- ORT $ORT_VER khong co wheel cho ban Python nay). Dung ban moi nhat."
+    echo "[bench] LUU Y: ban do se KHAC ban engine dung -> chi so tuyet doi khong"
+    echo "[bench] so thang duoc voi self-play; ti so TensorRT/CUDA thi van co nghia."
+    $PY -m pip -q install onnxruntime-gpu onnx >/dev/null 2>&1
+  fi
+
+  # ORT >= 1.23 duoc build cho CUDA 13 (loi dien hinh: "libcublasLt.so.13: cannot
+  # open shared object file"), trong khi torch cua Colab chi mang CUDA 12. Cai
+  # them bo thu vien cu13 -- driver Colab (nvidia-smi bao CUDA 13.0) ho tro.
+  ORT_NOW="$($PY -c 'import onnxruntime;print(onnxruntime.__version__)' 2>/dev/null || echo 0.0)"
+  NEEDS_CU13=0
+  $PY -c "import sys; v=sys.argv[1].split('.'); sys.exit(0 if (int(v[0]),int(v[1]))>=(1,23) else 1)" \
+      "$ORT_NOW" 2>/dev/null && NEEDS_CU13=1
+  if [ "${FORCE_CU13:-0}" = "1" ] || [ "$NEEDS_CU13" = "1" ]; then
+    echo "[bench] ORT $ORT_NOW can CUDA 13 -> cai bo thu vien nvidia-*-cu13 ..."
+    $PY -m pip -q install nvidia-cublas-cu13 nvidia-cudnn-cu13 \
+        nvidia-cuda-runtime-cu13 nvidia-cufft-cu13 nvidia-curand-cu13 \
+        nvidia-cusolver-cu13 nvidia-cusparse-cu13 nvidia-nvjitlink-cu13 \
+        >/dev/null 2>&1 || echo "[bench] mot so goi cu13 khong cai duoc (bo qua)"
+  fi
 fi
 
 # --- gom moi thu muc thu vien CUDA co the co -------------------------------

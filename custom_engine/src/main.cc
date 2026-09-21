@@ -52,6 +52,7 @@
 #include "app/uci_nn_engine.h"
 #include "app/play_mode.h"
 #include "app/selfplay_mode.h"
+#include "app/bench_nn.h"
 #include "tests/engine_tests.h"
 
 using namespace Stockfish;
@@ -114,6 +115,9 @@ int main(int argc, char* argv[]) {
         if (rc != 0) return rc;
     } else if (o.test_mcts_mode) {
         run_mcts_tests(o.weights_file);
+    } else if (o.bench_nn_mode) {
+        int rc = run_bench_nn(o);
+        if (rc != 0) return rc;
     } else if (o.selfplay_mode) {
         int rc = run_selfplay(o);
         if (rc != 0) return rc;
@@ -133,6 +137,8 @@ int main(int argc, char* argv[]) {
                "  training:      --selfplay --weights <net.onnx> --out <dir>\n"
                "                 --arena --model-a <a.onnx> --model-b <b.onnx>\n"
                "  diagnostics:   --audit-generation | --emit-roundtrip <prefix>\n"
+               "                 --bench-nn --weights <net.onnx> --provider cuda\n"
+               "                   (suy luan thuan tuy, khong MCTS)\n"
                "  self-tests:    --test-adapter --test-bits --test-board --test-encoder\n"
                "                 --test-ep --test-extract --test-mcts --test-nn\n"
                "                 --test-perft --test-policy --test-rules --test-selfplay\n"

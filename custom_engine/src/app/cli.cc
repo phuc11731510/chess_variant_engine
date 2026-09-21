@@ -90,6 +90,8 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             o.test_rules_mode = true;
         } else if (std::string(argv[i]) == "--test-adapter") {
             o.test_adapter_mode = true;
+        } else if (std::string(argv[i]) == "--bench-nn") {
+            o.bench_nn_mode = true;
         } else if (std::string(argv[i]) == "--test-nn") {
             o.test_nn_mode = true;
         } else if (std::string(argv[i]) == "--test-mcts") {
