@@ -3,7 +3,9 @@
 #include "neural/shared_params.h"
 #include "utils/exception.h"
 #include <sstream>
+#include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <algorithm>
 #if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
@@ -165,6 +167,26 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
     return ENQUEUED_FOR_EVAL;
 }
 
+namespace {
+// See OnnxEvalCounters in the header. Relaxed ordering: these are statistics,
+// never used to synchronise anything.
+std::atomic<uint64_t> g_eval_real{0};
+std::atomic<uint64_t> g_eval_padded{0};
+std::atomic<uint64_t> g_eval_runs{0};
+}  // namespace
+
+OnnxEvalCounters OnnxGetEvalCounters() {
+    return {g_eval_real.load(std::memory_order_relaxed),
+            g_eval_padded.load(std::memory_order_relaxed),
+            g_eval_runs.load(std::memory_order_relaxed)};
+}
+
+void OnnxResetEvalCounters() {
+    g_eval_real.store(0, std::memory_order_relaxed);
+    g_eval_padded.store(0, std::memory_order_relaxed);
+    g_eval_runs.store(0, std::memory_order_relaxed);
+}
+
 void OnnxComputation::ComputeBlocking() {
     if (enqueued_ == 0) return;
     if (!session_) {
@@ -231,6 +253,12 @@ void OnnxComputation::ComputeBlocking() {
             2
         );
         
+        // Instrumentation (see OnnxEvalCounters): current_batch is what the
+        // search asked for, run_batch is what the device actually computed.
+        g_eval_real.fetch_add(current_batch, std::memory_order_relaxed);
+        g_eval_padded.fetch_add(run_batch, std::memory_order_relaxed);
+        g_eval_runs.fetch_add(1, std::memory_order_relaxed);
+
         offset += current_batch;
     }
     

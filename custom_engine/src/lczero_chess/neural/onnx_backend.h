@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -15,6 +16,27 @@ constexpr size_t BoardHeight = 10;
 constexpr size_t InputBufferUnitSize = InputPlanesCount * BoardWidth * BoardHeight; // 22600
 constexpr size_t PolicyOutputSize = 10600; // 106 directions/promotions * 100 squares
 constexpr size_t ValueOutputSize = 3;     // WDL (Win, Draw, Loss)
+
+// --- Instrumentation: what actually reached the neural network ---------------
+//
+// The search's playout counter does NOT measure device work: several playouts
+// can share one evaluation (cache hits, collisions), and the fixed-batch profile
+// pads short batches so the device runs slots nobody asked for. These counters
+// measure the real thing, which is what decides whether the GPU is saturated.
+//
+//   real   : positions the search actually submitted.
+//   padded : slots the device computed, including fixed-batch zero padding.
+//            (padded - real) / padded = fraction of GPU time thrown away.
+//   runs   : number of session->Run() calls; real/runs = mean effective batch.
+//
+// Process-wide and lock-free; all backends funnel through OnnxComputation.
+struct OnnxEvalCounters {
+  uint64_t real = 0;
+  uint64_t padded = 0;
+  uint64_t runs = 0;
+};
+OnnxEvalCounters OnnxGetEvalCounters();
+void OnnxResetEvalCounters();
 
 class OnnxComputation : public BackendComputation {
  public:
