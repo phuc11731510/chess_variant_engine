@@ -238,8 +238,21 @@ Một `ChessBoard` + siêu dữ liệu: `rule50_ply_`, `repetitions_`, `ply_coun
 
 ### `class PositionHistory` — chồng thế cờ của MCTS
 
-Đây là lớp mà mục 4 nhắc tới "chồng tờ ghi chú". MCTS đi sâu xuống cây, và ở mỗi
-độ sâu cần một thế cờ đầy đủ. `PositionHistory` giữ nguyên cả đường đi đó:
+> ⚠ **KHÔNG phải mỗi nút cây giữ một cái.** Một `Node` rất nhẹ (chỉ vài bộ đếm
+> + con trỏ, cỡ vài chục byte). `PositionHistory` chỉ tồn tại **một cái cho mỗi
+> `NodeTree`** (lịch sử ván thật) và **một cái cho mỗi luồng tìm kiếm**
+> (`TaskWorkspace::history`, dùng làm vùng nháp khi đi xuống cây). Với
+> `--parallel 4` thì tổng cộng chỉ vài cái, không phải vài triệu.
+
+**Vì sao đi xuống cây lại cần cả lịch sử, không chỉ thế cờ hiện tại?** Hai lý do:
+đầu vào mạng nơ-ron gồm **8 ply lịch sử** (`kMoveHistory = 8`), và phát hiện lặp
+thế cần biết đường đã đi. Nên khi tới một lá, engine phải có sẵn cả đoạn đường.
+
+**lc0 gốc làm y hệt.** `upstream/lc0/src/search/classic/search.h:362` cũng có
+`PositionHistory history;` trong `TaskWorkspace`. Đây là thiết kế kế thừa,
+không phải phát minh của dự án này.
+
+Cấu trúc:
 
 ```cpp
 Position starting_position_;                     // thế cờ gốc
@@ -249,9 +262,26 @@ std::array<StateInfo, 512> mcts_states_;         // ~928 KB — tờ ghi chú m�
 size_t history_size_;
 ```
 
-`sizeof(PositionHistory) ≈ 1 MB`. Mảng tĩnh thay cho `std::vector` để tránh cấp
-phát heap trong hot path — đánh đổi là object rất to, nên nó luôn được cấp phát
-trên heap và truyền bằng **tham chiếu**.
+`sizeof(PositionHistory) ≈ 1 MB`. Mảng tĩnh 512 phần tử thay cho `std::vector`
+(lc0 gốc dùng `std::vector<Position>` co giãn theo độ sâu thật) để tránh cấp phát
+heap trong hot path — đánh đổi là object rất to, nên nó luôn được cấp phát trên
+heap và truyền bằng **tham chiếu**.
+
+**Nhưng 1 MB là kích thước CẤP PHÁT, không phải chi phí mỗi thao tác.** Đây là
+chỗ rất dễ hiểu nhầm, nên tách bạch ra:
+
+| Thao tác | Chi phí | Tần suất |
+|---|---|---|
+| `Append` khi đi xuống cây → `do_move` | memcpy **`offsetof(StateInfo, key)` = 104 byte** (`position.cpp:1600`) + ghi `LightweightPosition` | mỗi ply của mỗi lần đi xuống — **hot** |
+| copy constructor của `PositionHistory` | `history_size_ × (144 + 1856)` ≈ **300 KB** ở 160 ply | chỉ `GetPositionHistoryAtNode` (đường thống kê, đã bỏ) — **gần như không chạy** |
+| `sizeof` ≈ 1 MB | cấp phát + dấu chân cache | một lần cho mỗi cây và mỗi luồng |
+
+Dòng đầu bảng là lý do tồn tại của việc sắp xếp lại trường `StateInfo` và của
+`static_assert(offsetof(StateInfo, key) <= 128)`: nó ép phần "nóng" nằm trong
+2 cache line, và `do_move` **chỉ chép đúng phần đó**. Chi phí mỗi ply vì vậy
+ngang ngửa lc0 gốc (Position của lc0 cỡ ~80 byte), chứ không phải 1,8 KB.
+
+Phần còn lại của `mcts_states_[512]` chỉ được chạm tới ở tiền tố đang sống.
 
 | Phương thức | Vai trò |
 |---|---|
