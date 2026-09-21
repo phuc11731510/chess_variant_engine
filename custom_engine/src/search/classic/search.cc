@@ -1993,7 +1993,7 @@ void SearchWorker::ExtendNode(Node* node, int depth,
   const auto& board = history->Last().GetBoard();
   auto legal_moves = board.GenerateLegalMoves();
 
-  // Check game termination from bridge layer (including 7-checks, checkmate, stalemate)
+  // Check game termination from bridge layer (including 8-checks, checkmate, stalemate)
   GameResult mcts_res = history->ComputeMctsResult(legal_moves);
   if (mcts_res != GameResult::UNDECIDED) {
     node->MakeTerminal(mcts_res);

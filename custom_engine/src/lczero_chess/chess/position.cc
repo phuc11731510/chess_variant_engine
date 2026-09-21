@@ -192,14 +192,14 @@ GameResult PositionHistory::ComputeGameResult() const {
     const auto& board = Last().GetBoard();
     const auto& raw_pos = board.GetRawPosition();
     
-    // 1. Kiểm tra giới hạn 7-checks (O(1))
+    // 1. Kiểm tra giới hạn 8-checks (O(1))
     // checks_remaining(color) là số lần chiếu MÀ color cần thực hiện để chiến thắng.
-    // Nếu <= 0, color ĐÃ CHIẾU đủ 7 lần và chiến thắng!
+    // Nếu <= 0, color ĐÃ CHIẾU đủ 8 lần và chiến thắng!
     if (raw_pos.checks_remaining(Stockfish::WHITE) <= 0) {
-        return GameResult::WHITE_WON; // Trắng đã chiếu đủ 7 lần -> Trắng thắng
+        return GameResult::WHITE_WON; // Trắng đã chiếu đủ 8 lần -> Trắng thắng
     }
     if (raw_pos.checks_remaining(Stockfish::BLACK) <= 0) {
-        return GameResult::BLACK_WON; // Đen đã chiếu đủ 7 lần -> Đen thắng
+        return GameResult::BLACK_WON; // Đen đã chiếu đủ 8 lần -> Đen thắng
     }
 
     // 2. Luật 50 nước đi (100 plies) (O(1))
@@ -231,7 +231,7 @@ GameResult PositionHistory::ComputeMctsResult(const MoveList& legal_moves) const
     const auto& board = Last().GetBoard();
     const auto& raw_pos = board.GetRawPosition();
     
-    // 1. Luật 7-checks (Kiểm tra O(1) siêu nhanh)
+    // 1. Luật 8-checks (Kiểm tra O(1) siêu nhanh)
     if (raw_pos.checks_remaining(Stockfish::WHITE) <= 0) {
         // Trắng thắng. Nếu Đen chuẩn bị đi (Trắng vừa đi) -> Trắng thắng là WHITE_WON đối với MCTS
         return board.flipped() ? GameResult::WHITE_WON : GameResult::BLACK_WON;

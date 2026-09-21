@@ -27,6 +27,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 from trainingdata_reader import iter_records, iter_records_from_zip
 
+# N of the N-checks win rule = the value the starting FEN carries in its "N+N"
+# field. 8 since 2026-09-21 (was 7). Must match the startFen in
+# src/app/variant_setup.cc / src/lczero_chess/chess/board.cc.
+MAX_CHECKS = 8
+
 
 def _records(path):
     if os.path.isdir(path):
@@ -83,7 +88,11 @@ def main():
             err["plane_empty"] += 1
         if r["side_to_move"] not in (0, 1):
             err["stm"] += 1
-        if not (0 <= r["checks_remaining_us"] <= 7 and 0 <= r["checks_remaining_them"] <= 7):
+        # Upper bound = N of the N-checks rule (8 since 2026-09-21; was 7 before).
+        # Bump this together with the starting FEN's "N+N" field, or every fresh
+        # position in a new generation is flagged as corrupt.
+        if not (0 <= r["checks_remaining_us"] <= MAX_CHECKS
+                and 0 <= r["checks_remaining_them"] <= MAX_CHECKS):
             err["checks"] += 1
 
     print(f"=== AUDIT (data integrity): {path} ===")

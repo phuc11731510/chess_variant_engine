@@ -137,10 +137,20 @@ Tham số khác:
 > vào bản Windows portable (cần `onnxruntime.dll` bản CUDA + CUDA toolkit cài sẵn) — CUDA là đường **Colab/Linux**,
 > dùng `engine_src/` kèm trong bundle để build lại bằng `colab_setup.sh`.
 
-> **Lưu ý về biến thể:** luật cờ (10×10, bắt tốt qua đường, **7 lần chiếu = thắng**, các quân tùy biến…)
+> **Lưu ý về biến thể:** luật cờ (10×10, bắt tốt qua đường, **8 lần chiếu = thắng**, các quân tùy biến…)
 > được **nhúng thẳng trong engine** ở `src/app/variant_setup.cc` (một chuỗi `ini` đăng ký biến thể
 > `custom_10x10_variant`), **không** đọc từ tệp `variants.ini` ngoài. Muốn đổi luật thì sửa chuỗi đó rồi
-> build lại — sửa `variants.ini` bên ngoài sẽ KHÔNG có tác dụng. (Xem mục A để hiểu vì sao FEN có trường `7+7`.)
+> build lại — sửa `variants.ini` bên ngoài sẽ KHÔNG có tác dụng. (Xem mục A để hiểu vì sao FEN có trường `8+8`.)
+>
+> **CẬP NHẬT LUẬT — 2026-09-21.** Hai thay đổi, và chúng **phá vỡ tính tương thích của mọi
+> đời mạng cũ** (gen 0-12) — phải huấn luyện lại từ đời 0:
+> 1. **Amazon → Hậu** ở thế cờ bắt đầu: ô `e1` và `e10` giờ là `Q`/`q` thay vì `A`/`a`.
+>    Quân Amazon vẫn còn trong định nghĩa biến thể (giữ nguyên bố cục 13 plane của mạng)
+>    nhưng không còn xuất hiện trong ván đấu.
+> 2. **7-checks → 8-checks**: trường check trong FEN đổi từ `7+7` thành `8+8`.
+>
+> FEN bắt đầu mới:
+> `vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1`
 
 ---
 

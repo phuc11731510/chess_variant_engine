@@ -113,7 +113,7 @@ checkCounting = true
         Position pos;
         StateListPtr states(new std::deque<StateInfo>(1));
         // White King on f1, Black King on f10. White Sergeant on a3, Black Sergeant on b5.
-        std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1";
+        std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1";
         pos.set(v, fen, false, &states->back(), Threads.main());
 
         std::cout << "Initial board state:\n" << pos << std::endl;
@@ -178,7 +178,7 @@ checkCounting = true
         Position pos;
         StateListPtr states(new std::deque<StateInfo>(1));
         // White King on f1, Black King on f10. White Sergeant on a3, Black Sergeant on a5.
-        std::string fen = "5k4/10/10/10/10/s9/10/S9/10/5K4 w - - 7+7 0 1";
+        std::string fen = "5k4/10/10/10/10/s9/10/S9/10/5K4 w - - 8+8 0 1";
         pos.set(v, fen, false, &states->back(), Threads.main());
 
         std::cout << "Initial board state:\n" << pos << std::endl;
@@ -240,7 +240,7 @@ checkCounting = true
         {
             Position pos;
             StateListPtr states(new std::deque<StateInfo>(1));
-            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1";
+            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1";
             pos.set(v, fen, false, &states->back(), Threads.main());
 
             std::string move_str_a3c5 = "a3c5";
@@ -281,7 +281,7 @@ checkCounting = true
         {
             Position pos;
             StateListPtr states(new std::deque<StateInfo>(1));
-            std::string fen = "5k4/10/10/10/10/s9/10/S9/10/5K4 w - - 7+7 0 1";
+            std::string fen = "5k4/10/10/10/10/s9/10/S9/10/5K4 w - - 8+8 0 1";
             pos.set(v, fen, false, &states->back(), Threads.main());
 
             std::string move_str_a3c5 = "a3c5";
@@ -321,7 +321,7 @@ checkCounting = true
         // Sub-test 3.3: Round-trip using lczero::ChessBoard (Adapter Layer)
         {
             lczero::ChessBoard board1;
-            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1";
+            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1";
             board1.SetFromFen(fen);
 
             lczero::Move m_a3c5 = board1.ParseMove("a3c5");
@@ -479,7 +479,7 @@ checkCounting = true
     {
         std::cout << "TEST 3: Stalemate = Loss verification..." << std::endl;
         // White King on a1, Black King on j10, Black Rook on b2 protected by Rook on b10.
-        std::string stalemate_fen = "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 7+7 0 1";
+        std::string stalemate_fen = "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 8+8 0 1";
         lczero::ChessBoard board(stalemate_fen);
         std::cout << "Stalemate position:\n" << board.GetRawPosition() << std::endl;
 
@@ -494,13 +494,13 @@ checkCounting = true
         std::cout << "[PASS] TEST 3 passed! (Stalemate correctly marked as Loss)\n" << std::endl;
     }
 
-    // TEST 4: 7-checks limit rule verification
+    // TEST 4: 8-checks limit rule verification
     {
-        std::cout << "TEST 4: 7-checks limit verification..." << std::endl;
+        std::cout << "TEST 4: 8-checks limit verification..." << std::endl;
         
         // Case A: White checks remaining = 0
         {
-            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+7 0 1";
+            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+8 0 1";
             lczero::ChessBoard board(checks_0_fen);
             auto history = std::make_unique<lczero::PositionHistory>();
             history->Reset(board, 0, 1);
@@ -514,7 +514,7 @@ checkCounting = true
 
         // Case B: Black checks remaining = 0
         {
-            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 7+0 0 1";
+            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 8+0 0 1";
             lczero::ChessBoard board(checks_0_fen);
             auto history = std::make_unique<lczero::PositionHistory>();
             history->Reset(board, 0, 1);
@@ -526,7 +526,7 @@ checkCounting = true
             }
         }
 
-        std::cout << "[PASS] TEST 4 passed! (7-checks limit correctly ends the game)\n" << std::endl;
+        std::cout << "[PASS] TEST 4 passed! (8-checks limit correctly ends the game)\n" << std::endl;
     }
 
     // TEST 5: Encoder & Unpacker validation
@@ -615,13 +615,13 @@ checkCounting = true
         std::cout << "[PASS] TEST 5 passed! (Encoder & Unpacker validation correct)\n" << std::endl;
     }
 
-    // TEST 6: MCTS Relative & Absolute Result Verification (Checkmate & Stalemate & 7-checks)
+    // TEST 6: MCTS Relative & Absolute Result Verification (Checkmate & Stalemate & 8-checks)
     {
         std::cout << "TEST 6: MCTS Relative & Absolute Result Verification..." << std::endl;
 
         // Part A: White is checkmated. It is White's turn to move (board.flipped() == false).
         // White King on a1, Black Rooks on b1 and b2.
-        std::string white_checkmated_fen = "9k/10/10/10/10/10/10/10/1r8/Kr8 w - - 7+7 0 1";
+        std::string white_checkmated_fen = "9k/10/10/10/10/10/10/10/1r8/Kr8 w - - 8+8 0 1";
         lczero::ChessBoard board_white_cm(white_checkmated_fen);
         auto history_white_cm = std::make_unique<lczero::PositionHistory>();
         history_white_cm->Reset(board_white_cm, 0, 1);
@@ -652,7 +652,7 @@ checkCounting = true
 
         // Part B: Black is checkmated. It is Black's turn to move (board.flipped() == true).
         // Black King on a10, White Rooks on b10 and b9.
-        std::string black_checkmated_fen = "kR8/1R8/10/10/10/10/10/10/10/9K b - - 7+7 0 1";
+        std::string black_checkmated_fen = "kR8/1R8/10/10/10/10/10/10/10/9K b - - 8+8 0 1";
         lczero::ChessBoard board_black_cm(black_checkmated_fen);
         auto history_black_cm = std::make_unique<lczero::PositionHistory>();
         history_black_cm->Reset(board_black_cm, 0, 1);
@@ -681,11 +681,11 @@ checkCounting = true
         }
         std::cout << "  - Black checkmated returns relative GameResult::WHITE_WON (Correct)" << std::endl;
 
-        // Part C: Verify 7-checks in both absolute and MCTS.
+        // Part C: Verify 8-checks in both absolute and MCTS.
         // Scenario 1: White has 0 checks remaining (White won absolute).
         {
             // Case A: Black to move (board.flipped() == true). White just checked.
-            std::string white_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 0+7 0 1";
+            std::string white_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 0+8 0 1";
             lczero::ChessBoard board(white_win_black_turn);
             auto history = std::make_unique<lczero::PositionHistory>();
             history->Reset(board, 0, 1);
@@ -693,18 +693,18 @@ checkCounting = true
             // Absolute check
             lczero::GameResult abs = history->ComputeGameResult();
             if (abs != lczero::GameResult::WHITE_WON) {
-                std::cerr << "[FAIL] White win 7-checks absolute should be WHITE_WON, got: " << (int)abs << std::endl;
+                std::cerr << "[FAIL] White win 8-checks absolute should be WHITE_WON, got: " << (int)abs << std::endl;
                 std::exit(1);
             }
             // MCTS check (relative Win for White, who just moved)
             lczero::GameResult res = history->ComputeMctsResult(board.GenerateLegalMoves());
             if (res != lczero::GameResult::WHITE_WON) {
-                std::cerr << "[FAIL] White win 7-checks (Black's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
+                std::cerr << "[FAIL] White win 8-checks (Black's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
                 std::exit(1);
             }
 
             // Case B: White to move (board.flipped() == false). Black just moved (but White won).
-            std::string white_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+7 0 1";
+            std::string white_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+8 0 1";
             lczero::ChessBoard board_wt(white_win_white_turn);
             auto history_wt = std::make_unique<lczero::PositionHistory>();
             history_wt->Reset(board_wt, 0, 1);
@@ -712,13 +712,13 @@ checkCounting = true
             // Absolute check
             lczero::GameResult abs_wt = history_wt->ComputeGameResult();
             if (abs_wt != lczero::GameResult::WHITE_WON) {
-                std::cerr << "[FAIL] White win 7-checks absolute should be WHITE_WON, got: " << (int)abs_wt << std::endl;
+                std::cerr << "[FAIL] White win 8-checks absolute should be WHITE_WON, got: " << (int)abs_wt << std::endl;
                 std::exit(1);
             }
             // MCTS check (relative Loss for Black, who just moved)
             lczero::GameResult res_wt = history_wt->ComputeMctsResult(board_wt.GenerateLegalMoves());
             if (res_wt != lczero::GameResult::BLACK_WON) {
-                std::cerr << "[FAIL] White win 7-checks (White's turn) MCTS should be BLACK_WON, got: " << (int)res_wt << std::endl;
+                std::cerr << "[FAIL] White win 8-checks (White's turn) MCTS should be BLACK_WON, got: " << (int)res_wt << std::endl;
                 std::exit(1);
             }
         }
@@ -726,7 +726,7 @@ checkCounting = true
         // Scenario 2: Black has 0 checks remaining (Black won absolute).
         {
             // Case C: White to move (board.flipped() == false). Black just checked.
-            std::string black_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 7+0 0 1";
+            std::string black_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 8+0 0 1";
             lczero::ChessBoard board(black_win_white_turn);
             auto history = std::make_unique<lczero::PositionHistory>();
             history->Reset(board, 0, 1);
@@ -734,18 +734,18 @@ checkCounting = true
             // Absolute check
             lczero::GameResult abs = history->ComputeGameResult();
             if (abs != lczero::GameResult::BLACK_WON) {
-                std::cerr << "[FAIL] Black win 7-checks absolute should be BLACK_WON, got: " << (int)abs << std::endl;
+                std::cerr << "[FAIL] Black win 8-checks absolute should be BLACK_WON, got: " << (int)abs << std::endl;
                 std::exit(1);
             }
             // MCTS check (relative Win for Black, who just moved)
             lczero::GameResult res = history->ComputeMctsResult(board.GenerateLegalMoves());
             if (res != lczero::GameResult::WHITE_WON) {
-                std::cerr << "[FAIL] Black win 7-checks (White's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
+                std::cerr << "[FAIL] Black win 8-checks (White's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
                 std::exit(1);
             }
 
             // Case D: Black to move (board.flipped() == true). White just moved (but Black won).
-            std::string black_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 7+0 0 1";
+            std::string black_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 8+0 0 1";
             lczero::ChessBoard board_bt(black_win_black_turn);
             auto history_bt = std::make_unique<lczero::PositionHistory>();
             history_bt->Reset(board_bt, 0, 1);
@@ -753,19 +753,19 @@ checkCounting = true
             // Absolute check
             lczero::GameResult abs_bt = history_bt->ComputeGameResult();
             if (abs_bt != lczero::GameResult::BLACK_WON) {
-                std::cerr << "[FAIL] Black win 7-checks absolute should be BLACK_WON, got: " << (int)abs_bt << std::endl;
+                std::cerr << "[FAIL] Black win 8-checks absolute should be BLACK_WON, got: " << (int)abs_bt << std::endl;
                 std::exit(1);
             }
             // MCTS check (relative Loss for White, who just moved)
             lczero::GameResult res_bt = history_bt->ComputeMctsResult(board_bt.GenerateLegalMoves());
             if (res_bt != lczero::GameResult::BLACK_WON) {
-                std::cerr << "[FAIL] Black win 7-checks (Black's turn) MCTS should be BLACK_WON, got: " << (int)res_bt << std::endl;
+                std::cerr << "[FAIL] Black win 8-checks (Black's turn) MCTS should be BLACK_WON, got: " << (int)res_bt << std::endl;
                 std::exit(1);
             }
         }
-        std::cout << "  - [VERIFIED] All 7-checks absolute and relative evaluations checked successfully." << std::endl;
+        std::cout << "  - [VERIFIED] All 8-checks absolute and relative evaluations checked successfully." << std::endl;
 
-        std::cout << "[PASS] TEST 6 passed! (MCTS and Game absolute/relative checkmate and 7-checks values verified)\n" << std::endl;
+        std::cout << "[PASS] TEST 6 passed! (MCTS and Game absolute/relative checkmate and 8-checks values verified)\n" << std::endl;
     }
 
     // TEST 7: Castling Generation, Encoding, and Execution
@@ -773,8 +773,8 @@ checkCounting = true
         std::cout << "TEST 7: Castling Generation, Encoding, and Execution..." << std::endl;
         
         // Dựng thế cờ trắng nhập thành (f1->i1 hoặc f1->b1)
-        // 1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 w BIbi - 7+7 0 1
-        std::string castling_fen = "1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 w BIbi - 7+7 0 1";
+        // 1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 w BIbi - 8+8 0 1
+        std::string castling_fen = "1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 w BIbi - 8+8 0 1";
         lczero::ChessBoard board(castling_fen);
         std::cout << "Castling Board State:\n" << board.GetRawPosition() << std::endl;
         
@@ -917,7 +917,7 @@ checkCounting = true
         
         // 5. Test Black Castling with Flip logic
         std::cout << "Testing Black Castling (with Flip logic)..." << std::endl;
-        std::string black_castling_fen = "1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 b BIbi - 7+7 0 1";
+        std::string black_castling_fen = "1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 b BIbi - 8+8 0 1";
         lczero::ChessBoard board_black(black_castling_fen);
         
         auto moves_black = board_black.GenerateLegalMoves();
@@ -1128,7 +1128,7 @@ checkCounting = true
     PSQT::init(v);
 
     // 1. Dựng thế cờ 10x10 variant
-    std::string fen = "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
+    std::string fen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
     lczero::ChessBoard board(fen);
     
     // 2. Setup options
@@ -1254,7 +1254,7 @@ checkCounting = true
     UCI::init_variant(v);
     PSQT::init(v);
 
-    std::string fen = "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
+    std::string fen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
 
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
@@ -1433,7 +1433,7 @@ checkCounting = true
     UCI::init_variant(v);
     PSQT::init(v);
 
-    std::string fen = "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
+    std::string fen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
 
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
@@ -1665,7 +1665,7 @@ void run_roundtrip_emit(const std::string& prefix) {
         ++num_cases;
     };
 
-    // Case 0: startpos (white to move, castling BIbi, checks 7+7, no ep).
+    // Case 0: startpos (white to move, castling BIbi, checks 8+8, no ep).
     {
         auto board = std::make_unique<lczero::ChessBoard>();
         auto h = std::make_unique<lczero::PositionHistory>();
@@ -1675,7 +1675,7 @@ void run_roundtrip_emit(const std::string& prefix) {
     // Case 1: black to move with an active Sergeant en-passant (no castling).
     {
         auto board = std::make_unique<lczero::ChessBoard>(
-            std::string("5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1"));
+            std::string("5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1"));
         auto h = std::make_unique<lczero::PositionHistory>();
         h->Reset(*board, 0, 1);
         lczero::Move m = board->ParseMove("a3c5");
@@ -1743,18 +1743,18 @@ void run_perft_tests() {
     struct Case { const char* fen; int max_depth; };
     const std::vector<Case> cases = {
         {lczero::ChessBoard::kStartposFen, 3},
-        {"5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1", 4},        // sparse: Sergeant + kings
-        {"5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 7+7 0 1", 4},       // pawn tension
+        {"5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1", 4},        // sparse: Sergeant + kings
+        {"5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 8+8 0 1", 4},       // pawn tension
         // --- undo_move stress cases: perft_raw exercises do_move/undo_move; the
         // adapter rebuilds from FEN with NO undo, so a MATCH proves undo is correct
         // for the move types present at the root (printed below per case). ---
-        {"5k4/10/10/10/10/10/1Pp7/10/10/5K4 b - b3b4 7+7 0 1", 3},    // ep+PROMO by pawn (c4xb3=, rank-3 zone)
-        {"5k4/10/10/1pS7/10/10/10/10/10/5K4 w - b8b7 7+7 0 1", 3},    // ep+PROMO by Sergeant (c7xb8=, rank-8 zone)
-        {"5k4/10/10/10/10/10/10/10/10/1R3K2R1 w BI - 7+7 0 1", 3},    // castling both sides (king-takes-rook undo)
+        {"5k4/10/10/10/10/10/1Pp7/10/10/5K4 b - b3b4 8+8 0 1", 3},    // ep+PROMO by pawn (c4xb3=, rank-3 zone)
+        {"5k4/10/10/1pS7/10/10/10/10/10/5K4 w - b8b7 8+8 0 1", 3},    // ep+PROMO by Sergeant (c7xb8=, rank-8 zone)
+        {"5k4/10/10/10/10/10/10/10/10/1R3K2R1 w BI - 8+8 0 1", 3},    // castling both sides (king-takes-rook undo)
         // plain-ep combos (captured piece restored by stored type in undo_move):
-        {"5k4/10/10/10/10/1Ss7/10/10/10/5K4 b - b4b5 7+7 0 1", 3},    // sergeant-ep-sergeant (c5xb4, rank-4: no promo)
-        {"5k4/10/10/10/10/1Sp7/10/10/10/5K4 b - b4b5 7+7 0 1", 3},    // pawn-ep-sergeant (c5xb4)
-        {"5k4/10/10/10/1pS7/10/10/10/10/5K4 w - b7b6 7+7 0 1", 3},    // sergeant-ep-pawn (c6xb7)
+        {"5k4/10/10/10/10/1Ss7/10/10/10/5K4 b - b4b5 8+8 0 1", 3},    // sergeant-ep-sergeant (c5xb4, rank-4: no promo)
+        {"5k4/10/10/10/10/1Sp7/10/10/10/5K4 b - b4b5 8+8 0 1", 3},    // pawn-ep-sergeant (c5xb4)
+        {"5k4/10/10/10/1pS7/10/10/10/10/5K4 w - b7b6 8+8 0 1", 3},    // sergeant-ep-pawn (c6xb7)
     };
 
     bool all_ok = true;
@@ -1805,7 +1805,7 @@ void run_perft_tests() {
 // move generation agrees with raw Fairy-Stockfish (count — the same robust check
 // perft uses, with no cross-system notation risk), and (2) every move's NN policy
 // index is in range AND injective per position. This is the "catch-all" for hidden
-// movegen/rule bugs in positions the fixed tests never reach (near-7-checks, EP
+// movegen/rule bugs in positions the fixed tests never reach (near-8-checks, EP
 // races, promotion, castling edges). No plane->position decoder needed: positions
 // are carried forward by FEN (which also exercises the FEN round-trip).
 // ============================================================================
@@ -1928,8 +1928,8 @@ void run_bits_tests() {
     {
         const std::vector<std::string> wfens = {
             lczero::ChessBoard::kStartposFen,
-            "5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 7+7 0 1",
-            "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 7+7 0 1",
+            "5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 8+8 0 1",
+            "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 8+8 0 1",
         };
         for (const auto& fen : wfens) {
             auto board = std::make_unique<lczero::ChessBoard>(fen);
@@ -1986,7 +1986,7 @@ void run_rules_tests() {
     // 1. 3-fold repetition: kings shuffle back to the start twice -> DRAW.
     {
         lczero::GameResult res;
-        drive("k9/10/10/10/10/10/10/10/10/K9 w - - 7+7 0 1", 0,
+        drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 0 1", 0,
               {"a1b1","a10b10","b1a1","b10a10","a1b1","a10b10","b1a1","b10a10"}, res);
         if (res != lczero::GameResult::DRAW) { std::cerr << "[FAIL] 3-fold repetition not DRAW (got " << (int)res << ")" << std::endl; std::exit(1); }
         std::cout << "  [OK] 3-fold repetition -> DRAW" << std::endl;
@@ -1994,14 +1994,14 @@ void run_rules_tests() {
     // 2. rule50: start at 99, one non-zeroing king move -> 100 plies -> DRAW.
     {
         lczero::GameResult res;
-        drive("k9/10/10/10/10/10/10/10/10/K9 w - - 7+7 99 1", 99, {"a1b1"}, res);
+        drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 99 1", 99, {"a1b1"}, res);
         if (res != lczero::GameResult::DRAW) { std::cerr << "[FAIL] rule50=100 not DRAW (got " << (int)res << ")" << std::endl; std::exit(1); }
         std::cout << "  [OK] rule50 reaches 100 plies -> DRAW" << std::endl;
     }
     // 3. Dynamic 7-check: White needs 1 more check, delivers it -> WHITE_WON.
     {
         lczero::GameResult res;
-        drive("4k5/10/10/10/10/10/10/10/10/R8K w - - 1+7 0 1", 0, {"a1e1"}, res);
+        drive("4k5/10/10/10/10/10/10/10/10/R8K w - - 1+8 0 1", 0, {"a1e1"}, res);
         if (res != lczero::GameResult::WHITE_WON) { std::cerr << "[FAIL] dynamic 7th check not WHITE_WON (got " << (int)res << ")" << std::endl; std::exit(1); }
         std::cout << "  [OK] White delivers final (7th) check -> WHITE_WON" << std::endl;
     }
@@ -2011,7 +2011,7 @@ void run_rules_tests() {
     // double-step. Scenario: sergeant single-steps j2->i3 (diagonal), black replies, and
     // we expect the straight double-step i3->i5 to be among the legal moves.
     {
-        std::string fen = "k9/10/10/10/10/10/10/10/9S/K9 w - - 7+7 0 1";
+        std::string fen = "k9/10/10/10/10/10/10/10/9S/K9 w - - 8+8 0 1";
         auto board = std::make_unique<lczero::ChessBoard>(fen);
         auto h = std::make_unique<lczero::PositionHistory>();
         h->Reset(*board, 0, 1);
@@ -2051,25 +2051,25 @@ void run_adapter_tests() {
 
     const std::vector<std::string> fens = {
         lczero::ChessBoard::kStartposFen,
-        "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1",
-        "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 7+7 0 1",
-        "4k5/10/10/10/10/10/10/10/10/R8K b - - 1+7 0 1",  // BLACK to move
+        "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1",
+        "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 8+8 0 1",
+        "4k5/10/10/10/10/10/10/10/10/R8K b - - 1+8 0 1",  // BLACK to move
         // --- en passant LANDING ON A PROMOTION SQUARE ---------------------------
         // promotionRegionWhite = *8 *9 *10 and doubleStepRegionBlack = *10 *9 *8
         // overlap, so an ep capture can land inside White's promotion region.
         // Black pawn just played d9-d7; the ep square d8 is a promotion square, so
         // Pe7xd8 e.p. MUST promote, and promotionPieceTypes = b m n r v y makes SIX
         // legal moves that differ only in the promoted piece.
-        "k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 7+7 0 1",
+        "k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 8+8 0 1",
         // Same case, but the ep square comes from the Sergeant's Alfil double-step
         // (s = fKifmnDifmnA): black s played d9-f7, passing through e8.
-        "k9/10/10/3P1s4/10/10/10/10/10/K9 w - e8 7+7 0 1",
+        "k9/10/10/3P1s4/10/10/10/10/10/K9 w - e8 8+8 0 1",
         // The Sergeant CAPTURES en passant too, and fK lets it do so BOTH straight
         // ahead and diagonally -- a pawn can only do the latter. Both must be covered.
         //   (a) straight: black s played e9-c7 (Alfil) through d8; white Sd7xd8 e.p.
-        "k9/10/10/2sS6/10/10/10/10/10/K9 w - d8 7+7 0 1",
+        "k9/10/10/2sS6/10/10/10/10/10/K9 w - d8 8+8 0 1",
         //   (b) diagonal: black s played d9-d7 (Dabbaba) through d8; white Se7xd8 e.p.
-        "k9/10/10/3sS5/10/10/10/10/10/K9 w - d8 7+7 0 1",
+        "k9/10/10/3sS5/10/10/10/10/10/K9 w - d8 8+8 0 1",
     };
 
     for (const auto& fen : fens) {
@@ -2238,7 +2238,7 @@ void run_nn_tests() {
         long total = 0, unmapped = 0, geo_fail = 0, inj_fail = 0;
         lczero::ChessBoard start(std::string{lczero::ChessBoard::kStartposFen});
         nn_check_moves(start, 3, total, unmapped, geo_fail, inj_fail);
-        lczero::ChessBoard promo(std::string("5k4/P9/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1"));
+        lczero::ChessBoard promo(std::string("5k4/P9/10/10/10/10/10/10/10/5K4 w - - 8+8 0 1"));
         nn_check_moves(promo, 2, total, unmapped, geo_fail, inj_fail);
         if (unmapped || geo_fail || inj_fail) {
             std::cerr << "[FAIL] Part 2: unmapped=" << unmapped << " geo_fail=" << geo_fail << " inj_fail=" << inj_fail << std::endl;
@@ -2289,9 +2289,9 @@ void run_uci_tests() {
     // FENs incl Black-to-move, rank-10 destinations, promotion-ready, castling.
     const std::vector<std::string> fens = {
         kUciStartFen,
-        "4k5/10/10/10/10/10/10/10/10/R8K b - - 7+7 0 1",          // Black to move
-        "5k4/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1",
-        "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 7+7 0 1",
+        "4k5/10/10/10/10/10/10/10/10/R8K b - - 8+8 0 1",          // Black to move
+        "5k4/10/10/10/10/10/10/10/10/5K4 w - - 8+8 0 1",
+        "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 8+8 0 1",
     };
     long total = 0;
     int fail = 0;
@@ -2381,10 +2381,10 @@ void run_encoder_tests() {
     std::vector<Case> cases = {
         {startw, "startpos (White to move)"},
         {startb, "startpos board, Black to move (flip + us/them swap)"},
-        {"4k5/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1", "two kings (White)"},
+        {"4k5/10/10/10/10/10/10/10/10/5K4 w - - 8+8 0 1", "two kings (White)"},
         {"4k5/10/10/10/10/10/10/10/10/5K4 b - - 3+5 0 1", "two kings (Black, flip)"},
-        {"1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 6+7 0 1", "rooks vs lone king (asym)"},
-        {"5k4/10/10/10/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM w - - 7+7 0 1", "many White minors+pawns"},
+        {"1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 6+8 0 1", "rooks vs lone king (asym)"},
+        {"5k4/10/10/10/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM w - - 8+8 0 1", "many White minors+pawns"},
     };
 
     int fail = 0;
@@ -2493,8 +2493,8 @@ void run_encoder_tests() {
                                         lczero::FillEmptyHistory::NO, &out, &tr);
         };
         lczero::InputPlanes a, b;
-        enc("4k5/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1", a);   // white king f1
-        enc("4k5/10/10/10/10/10/10/10/10/6K3 w - - 7+7 0 1", b);   // white king g1
+        enc("4k5/10/10/10/10/10/10/10/10/5K4 w - - 8+8 0 1", a);   // white king f1
+        enc("4k5/10/10/10/10/10/10/10/10/6K3 w - - 8+8 0 1", b);   // white king g1
         int diff = 0;
         for (size_t p = 0; p < a.size(); ++p) if (Stockfish::popcount(a[p].mask ^ b[p].mask)) ++diff;
         if (diff == 0) { std::cerr << "  [FAIL] injectivity: distinct positions encoded identically!\n"; ++fail; }

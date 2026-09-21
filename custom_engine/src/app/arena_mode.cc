@@ -73,7 +73,7 @@ int run_arena(const EngineOptions& o) {
               << ", provider=" << o.sp_provider << ") ===" << std::endl;
     setup_custom_variant();
     const std::string fen =
-        "vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1";
+        "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
 
     // Backend options per provider (same selection as self-play / --uci-nn).
     // CUDA (Colab, needs -Duse_cuda): fixed batch. DML (Windows iGPU, needs

@@ -44,7 +44,7 @@ maxRank = 10, maxFile = j          -> bàn 10×10, 100 ô
 | `p` | Tốt | tốt chuẩn |
 | `n b r q` | Mã, Tượng, Xe, Hậu | chuẩn |
 | `k` | Vua | `KN` — Vua **cộng nước Mã** |
-| `a` | Amazon | Hậu + Mã |
+| `a` | Amazon | Hậu + Mã — **vẫn được định nghĩa nhưng KHÔNG còn trong thế cờ bắt đầu** (xem mục 2b) |
 | `e` | Chancellor | Xe + Mã |
 | `h` | Archbishop | Tượng + Mã |
 | `m` | Centaur | Vua + Mã |
@@ -68,8 +68,51 @@ promotionPieceTypes = b m n r v y     (6 lựa chọn)
 mandatoryPawnPromotion = true
 castling = true   (Vua h/d, Xe i/b)
 stalemateValue = loss                 (hết nước đi = THUA, không phải hoà)
-checkCounting = true                  (luật N-checks; FEN ghi "7+7")
+checkCounting = true                  (luật N-checks; FEN ghi "8+8")
 ```
+
+**Thế cờ bắt đầu:**
+
+```
+vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1
+```
+
+Định nghĩa biến thể nằm ở **`src/app/variant_setup.cc`** (chuỗi INI nhúng thẳng
+trong mã, đây mới là bản engine thật sự nạp). `src/chess/variants.ini` chỉ là
+bản chép tham chiếu — upstream Fairy-Stockfish chỉ đọc nó qua biến môi trường,
+engine này thì không. Hai bản từng lệch nhau và đã được đồng bộ ngày 2026-09-21.
+
+FEN bắt đầu được lặp lại ở 4 chỗ trong mã (`lczero_chess/chess/board.cc`
+`kStartposFen`, `app/selfplay_mode.cc`, `app/arena_mode.cc`, `app/uci_coords.cc`)
+cộng các bản trong test — đổi thế cờ phải đổi **tất cả**.
+
+---
+
+## 2b. CẬP NHẬT LUẬT — 2026-09-21
+
+Hai thay đổi, và chúng **phá vỡ tính tương thích của mọi đời mạng cũ (gen 0-12)**.
+Phải sinh dữ liệu và huấn luyện lại **từ đời 0**.
+
+**1. Amazon → Hậu ở thế cờ bắt đầu.** Ô `e1` và `e10` đổi từ `A`/`a` sang `Q`/`q`.
+Quân Amazon **vẫn còn trong định nghĩa biến thể** — cố ý giữ, để bố cục 13 plane
+quân của mạng không đổi (`encoder.cc` có sẵn `lut[QUEEN] = 4` và
+`lut[AMAZON] = 6`). Amazon giờ đơn giản là không bao giờ xuất hiện: nó không có
+trong thế cờ bắt đầu, và `promotionPieceTypes = b m n r v y` cũng không có nó.
+
+**2. 7-checks → 8-checks.** Trường check trong FEN đổi từ `7+7` thành `8+8`.
+
+Vì sao đổi luật này lại rẻ về mặt kỹ thuật:
+
+- Fairy-Stockfish xử lý `checkCounting` **tổng quát** — số chiếu lấy từ FEN, không
+  hard-code ở đâu. `CHECKS_NB = 11` nên 8 nằm gọn trong giới hạn.
+- Encoder chuẩn hoá `checks_remaining / 10.0f`, và **mẫu số 10 cố ý không bằng N**
+  của luật (nó là trần Fairy-SF biểu diễn được). Nên thang chuẩn hoá độc lập với
+  luật → không phải sửa `encoder.cc` hay `trainingdata_reader.py`.
+- Bố cục `TrainingDataV1` không đổi → reader Python không đổi.
+
+Chỗ duy nhất có hard-code phải sửa: **`python/audit_generation.py`** từng kiểm
+`checks_remaining <= 7`; nay dùng hằng `MAX_CHECKS = 8`. Nếu quên, **mọi thế cờ
+đầu ván của đời mới đều bị audit báo hỏng**.
 
 **Hệ quả đáng chú ý của thiết kế này:**
 
@@ -520,3 +563,11 @@ và cho các hàm đọc trả về hằng 0 — eval cổ điển sẽ chạy t
 10. **`nps` mà engine in ra đang đếm trùng.** `selfplay_game.cc` cộng
     `root->GetN()` mỗi nước, mà giá trị đó bao gồm cả cây tái sử dụng từ nước
     trước → phóng đại ~2×. Xem `GHI_CHU_RA_SOAT.md` B3.
+11. **FEN bắt đầu bị lặp ở 6+ chỗ**, không có hằng dùng chung: `board.cc`
+    (`kStartposFen`), `selfplay_mode.cc`, `arena_mode.cc`, `uci_coords.cc`,
+    `variants.ini`, và nhiều bản trong `engine_tests.cc`. Đổi thế cờ phải đổi
+    **tất cả**, nếu không engine và test sẽ chơi hai ván cờ khác nhau.
+12. **`python/audit_generation.py` hard-code `MAX_CHECKS`.** Đổi N của luật
+    N-checks mà quên sửa hằng này thì **mọi thế cờ đầu ván của đời mới đều bị
+    audit báo hỏng**. Đây là chỗ duy nhất trong toàn pipeline có hard-code N —
+    encoder và reader đều chuẩn hoá theo mẫu số 10, độc lập với luật.

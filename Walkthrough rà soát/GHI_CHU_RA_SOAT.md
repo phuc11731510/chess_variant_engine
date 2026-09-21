@@ -135,10 +135,10 @@ khác Tốt ở cả hai:
 
 | FEN | Ai tạo ô ep | Ai bắt | Kiểu bắt |
 |---|---|---|---|
-| `k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 7+7 0 1` | Tốt đen d9-d7 | Tốt trắng e7 | chéo |
-| `k9/10/10/3P1s4/10/10/10/10/10/K9 w - e8 7+7 0 1` | Sergeant đen d9-f7 (**Alfil**) | Tốt trắng d7 | chéo |
-| `k9/10/10/2sS6/10/10/10/10/10/K9 w - d8 7+7 0 1` | Sergeant đen e9-c7 (**Alfil**) | **Sergeant** trắng d7 | **thẳng** |
-| `k9/10/10/3sS5/10/10/10/10/10/K9 w - d8 7+7 0 1` | Sergeant đen d9-d7 (**Dabbaba**) | **Sergeant** trắng e7 | chéo |
+| `k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 8+8 0 1` | Tốt đen d9-d7 | Tốt trắng e7 | chéo |
+| `k9/10/10/3P1s4/10/10/10/10/10/K9 w - e8 8+8 0 1` | Sergeant đen d9-f7 (**Alfil**) | Tốt trắng d7 | chéo |
+| `k9/10/10/2sS6/10/10/10/10/10/K9 w - d8 8+8 0 1` | Sergeant đen e9-c7 (**Alfil**) | **Sergeant** trắng d7 | **thẳng** |
+| `k9/10/10/3sS5/10/10/10/10/10/K9 w - d8 8+8 0 1` | Sergeant đen d9-d7 (**Dabbaba**) | **Sergeant** trắng e7 | chéo |
 
 Điểm dễ bỏ sót: `fK` (forward King) cho Sergeant bắt **cả thẳng lẫn chéo**, trong
 khi Tốt chỉ bắt chéo. Ô ep cũng có thể sinh ra từ **hai** kiểu nước đôi khác nhau
