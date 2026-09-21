@@ -1,22 +1,25 @@
-// Bench: PURE neural-network inference, with no MCTS, no tree, no game logic.
+// Bench: PURE neural-network inference, with no MCTS, no tree, no cache.
 //
 // Why this exists. The self-play numbers mix two things that need separating:
 // how fast the device evaluates positions, and how much throughput the engine
-// loses coordinating CPU and GPU around those evaluations. Measuring inference
-// alone tells us which one is the ceiling.
+// loses coordinating CPU and GPU around those evaluations.
 //
 // Why it lives in the ENGINE and not in a Python script: it must use the exact
-// same ONNX Runtime the engine links (1.20.1), the same session options and the
-// same buffers. A Python benchmark installs whatever `pip` resolves -- which on
-// a Python 3.13 Colab is a much newer ORT built for a different CUDA major, so
-// it measures a stack the engine never runs.
+// ONNX Runtime the engine links (1.20.1), the same session options and the same
+// buffers. A Python benchmark installs whatever `pip` resolves -- on a Python
+// 3.13 Colab that is a much newer ORT built for a different CUDA major, which
+// measures a stack the engine never runs.
+//
+// WHAT IT SWEEPS. The variable that matters is the BATCH PROFILE, not the
+// number of inputs handed to one profile: on CUDA the backend always compiles a
+// fixed-batch session (see onnx_backend.cc, "CUDA/TensorRT always use a
+// fixed-batch profile"), so every Run() computes exactly fixed_batch slots no
+// matter how many were enqueued. Sweeping inputs inside one profile therefore
+// only measures padding waste. This builds a SEPARATE session per batch size
+// and runs each one full.
 //
 //   custom_engine --bench-nn --weights net.onnx --provider cuda
 //   custom_engine --bench-nn --weights net.onnx --provider cpu --backend-threads 2
-//
-// Reads --fixed-batch: 0/unset sweeps DYNAMIC batch shapes; a positive value
-// additionally reports the production path, where every Run() is padded up to
-// that size.
 
 #include "app/bench_nn.h"
 
@@ -41,24 +44,43 @@
 
 namespace {
 
-// FLOPs per position for the 12x144 SE-ResNet on a 10x10 board, measured from
-// the ONNX graph by scripts/bench_ort.py. Only used to print TFLOP/s so the
-// result is comparable with the GPU's nominal peak.
+// FLOPs per position for the 12x144 SE-ResNet on a 10x10 board, read off the
+// ONNX graph by scripts/bench_ort.py. Only used to print TFLOP/s so the number
+// is comparable with the device's nominal peak.
 constexpr double kGFlopsPerPosition = 0.997;
 
-struct Row {
-  int batch;
-  double pos_per_sec;
-  double ms_per_run;
+struct Sample {
+  int batch = 0;
+  double ms_per_run = 0.0;
+  double pos_per_sec = 0.0;
 };
 
-// Deliberately the RAW OnnxBackend: no ZeroHeapCache, no BatchingBackend.
-// A cache would turn every repeat of the same position into a hit and we would
-// be timing a hash lookup instead of the network.
-std::unique_ptr<lczero::Backend> MakeRawOnnxBackend(
-    const lczero::OptionsDict& opts) {
+// Deliberately the RAW OnnxBackend: no ZeroHeapCache (a cache would turn every
+// repeat of the same position into a hit, timing a hash lookup instead of the
+// network) and no BatchingBackend (that is the coordination layer we want to
+// exclude).
+std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
+                                             int fixed_batch,
+                                             std::string* opts_out) {
+  lczero::OptionsParser parser;
+  lczero::classic::SearchParams::Populate(&parser);
+  auto* d = parser.GetMutableDefaultsOptions();
+  d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, o.weights_file);
+
+  std::string bo;
+  if (o.sp_provider == "cuda") {
+    bo = "provider=cuda";
+  } else if (o.sp_provider == "dml") {
+    bo = "provider=dml,threads=" + std::to_string(std::max(1, o.sp_backend_threads));
+  } else {
+    bo = "threads=" + std::to_string(std::max(1, o.sp_backend_threads));
+  }
+  if (fixed_batch > 0) bo += ",fixed_batch=" + std::to_string(fixed_batch);
+  d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bo);
+  if (opts_out) *opts_out = bo;
+
   auto be = std::make_unique<lczero::OnnxBackend>();
-  be->UpdateConfiguration(opts);
+  be->UpdateConfiguration(parser.GetOptionsDict());
   return be;
 }
 
@@ -78,88 +100,115 @@ int run_bench_nn(const EngineOptions& o) {
   const lczero::EvalPosition ep{
       history.get(),
       std::span<const lczero::Move>(legal.data(), legal.size())};
-  std::cout << "the co: startpos, " << legal.size() << " nuoc hop le\n";
+  std::cout << "the co      : startpos, " << legal.size() << " nuoc hop le\n";
+  std::cout << "provider    : " << o.sp_provider << "\n";
+  std::cout << "tran batch  : " << lczero::MaxBatchSize << " (MaxBatchSize)\n";
 
-  auto run_sweep = [&](const std::string& label, int fixed_batch) {
-    lczero::OptionsParser parser;
-    lczero::classic::SearchParams::Populate(&parser);
-    auto* d = parser.GetMutableDefaultsOptions();
-    d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, o.weights_file);
+  // Time `batch` inputs through a session compiled for exactly that batch.
+  auto measure = [&](lczero::Backend* backend, int batch) -> Sample {
+    std::vector<lczero::EvalResult> res(batch);
+    for (auto& r : res) r.p.resize(legal.size());
 
-    std::string bo;
-    if (o.sp_provider == "cuda") {
-      bo = "provider=cuda";
-    } else if (o.sp_provider == "dml") {
-      bo = "provider=dml,threads=" + std::to_string(std::max(1, o.sp_backend_threads));
-    } else {
-      bo = "threads=" + std::to_string(std::max(1, o.sp_backend_threads));
-    }
-    if (fixed_batch > 0) bo += ",fixed_batch=" + std::to_string(fixed_batch);
-    d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bo);
+    auto one_run = [&]() {
+      auto comp = backend->CreateComputation();
+      for (int i = 0; i < batch; ++i) comp->AddInput(ep, res[i].AsPtr());
+      comp->ComputeBlocking();
+    };
+    // Warm up: the first calls pay session setup and shape specialization.
+    for (int i = 0; i < 5; ++i) one_run();
 
-    std::unique_ptr<lczero::Backend> backend;
-    try {
-      backend = MakeRawOnnxBackend(parser.GetOptionsDict());
-    } catch (const std::exception& e) {
-      std::cerr << "FATAL: khong nap duoc backend: " << e.what() << std::endl;
-      return false;
-    }
+    const int iters = batch >= 64 ? 15 : 40;
+    const auto t0 = std::chrono::steady_clock::now();
+    for (int i = 0; i < iters; ++i) one_run();
+    const double secs =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
 
-    const size_t cap = backend->GetAttributes().maximum_batch_size;
-    std::cout << "\n--- " << label << "  (backend-opts: " << bo
-              << ", tran batch = " << cap << ") ---\n";
-    std::printf("%7s %13s %12s %11s %12s\n", "batch", "pos/giay", "TFLOP/s",
-                "ms/Run", "us/vi tri");
-    std::printf("%s\n", std::string(59, '-').c_str());
-
-    std::vector<Row> rows;
-    for (int b : {1, 2, 4, 8, 16, 32, 64, 128, 256}) {
-      if (static_cast<size_t>(b) > cap) continue;
-      std::vector<lczero::EvalResult> res(b);
-      for (auto& r : res) r.p.resize(legal.size());
-
-      auto one_run = [&]() {
-        auto comp = backend->CreateComputation();
-        for (int i = 0; i < b; ++i) comp->AddInput(ep, res[i].AsPtr());
-        comp->ComputeBlocking();
-      };
-
-      // Warm up: first call pays session/kernel setup and, for a fixed-batch
-      // GPU profile, the shape specialization.
-      for (int i = 0; i < 5; ++i) one_run();
-
-      // Fewer iterations for big batches so the sweep stays quick.
-      const int iters = b >= 64 ? 20 : 40;
-      const auto t0 = std::chrono::steady_clock::now();
-      for (int i = 0; i < iters; ++i) one_run();
-      const double secs =
-          std::chrono::duration<double>(std::chrono::steady_clock::now() - t0)
-              .count();
-
-      const double per_run = secs / iters;
-      const double pps = b / per_run;
-      // pos/s * GFLOP/pos = GFLOP/s; /1000 -> TFLOP/s.
-      const double tflops = pps * kGFlopsPerPosition / 1000.0;
-      std::printf("%7d %13.1f %12.2f %11.3f %12.1f\n", b, pps, tflops,
-                  per_run * 1000.0, per_run * 1e6 / b);
-      rows.push_back({b, pps, per_run * 1000.0});
-    }
-    return true;
+    const double per_run = secs / iters;
+    return Sample{batch, per_run * 1000.0, batch / per_run};
   };
 
-  // Dynamic shapes: every Run() gets exactly the batch we hand it, no padding.
-  if (!run_sweep("DYNAMIC batch (khong pad)", 0)) return 1;
+  // ---- Main sweep: one SESSION PER BATCH SIZE, each run full ----------------
+  std::cout << "\n--- Quet BATCH PROFILE (moi co batch = mot session rieng) ---\n";
+  std::printf("%7s %13s %10s %11s %12s\n",
+              "batch", "pos/giay", "TFLOP/s", "ms/Run", "us/vi tri");
+  std::printf("%s\n", std::string(57, '-').c_str());
 
-  // The production path also pads every Run() up to --fixed-batch.
-  if (o.sp_fixed_batch > 0) {
-    run_sweep("FIXED batch = " + std::to_string(o.sp_fixed_batch) +
-                  " (giong self-play that)",
-              o.sp_fixed_batch);
+  std::vector<Sample> samples;
+  for (int b : {1, 2, 4, 8, 16, 32, 64, 128, 256}) {
+    if (static_cast<size_t>(b) > lczero::MaxBatchSize) continue;
+    std::unique_ptr<lczero::Backend> backend;
+    std::string bo;
+    try {
+      backend = MakeRawOnnx(o, b, &bo);
+    } catch (const std::exception& e) {
+      std::cerr << "  batch " << b << ": khong nap duoc backend: " << e.what() << "\n";
+      continue;
+    }
+    const Sample s = measure(backend.get(), b);
+    std::printf("%7d %13.1f %10.2f %11.3f %12.1f\n", s.batch, s.pos_per_sec,
+                s.pos_per_sec * kGFlopsPerPosition / 1000.0, s.ms_per_run,
+                s.ms_per_run * 1000.0 / s.batch);
+    samples.push_back(s);
   }
 
-  std::cout << "\nMOC SO SANH: self-play dat ~2200 NN eval/giay = ~2.2 TFLOP/s\n"
-               "  suy luan thuan CAO HON NHIEU -> engine mat hieu nang o khau\n"
-               "                                  dieu phoi CPU/GPU (sua duoc)\n"
-               "  xap xi 2200                  -> backend chinh la tran that su\n";
+  // ---- Separate the per-Run fixed cost from the per-position cost ----------
+  // Least squares on ms = a + b*batch. `a` is what bigger batches amortize.
+  if (samples.size() >= 3) {
+    double n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (const auto& s : samples) {
+      const double x = s.batch, y = s.ms_per_run;
+      n += 1; sx += x; sy += y; sxx += x * x; sxy += x * y;
+    }
+    const double den = n * sxx - sx * sx;
+    if (den != 0.0) {
+      const double slope = (n * sxy - sx * sy) / den;      // ms per position
+      const double intercept = (sy - slope * sx) / n;      // ms per Run, fixed
+      std::printf("\nKhop tuyen tinh: ms/Run  ~=  %.3f + %.4f * batch\n",
+                  intercept, slope);
+      std::printf("  chi phi moi VI TRI      : %.4f ms  (=> %.2f TFLOP/s tiem can)\n",
+                  slope, slope > 0 ? kGFlopsPerPosition / slope : 0.0);
+      if (intercept > 0.05) {
+        std::printf("  chi phi CO DINH moi Run : %.3f ms  <-- batch lon se pha loang\n",
+                    intercept);
+        const auto& big = samples.back();
+        std::printf("  o batch %d no chiem %.1f%% thoi gian; o batch %d chiem %.1f%%\n",
+                    samples.front().batch,
+                    100.0 * intercept / samples.front().ms_per_run,
+                    big.batch, 100.0 * intercept / big.ms_per_run);
+      } else {
+        std::printf("  chi phi CO DINH moi Run : ~0 (he so chan %.2f ms)\n", intercept);
+        std::printf("  => THUAN compute-bound: batch lon KHONG pha loang duoc gi.\n");
+      }
+    }
+  }
+
+  // ---- Padding cost: same session, fewer inputs than the profile -----------
+  const int prod = o.sp_fixed_batch > 0 ? o.sp_fixed_batch : 16;
+  if (static_cast<size_t>(prod) <= lczero::MaxBatchSize) {
+    std::string bo;
+    std::unique_ptr<lczero::Backend> backend;
+    try {
+      backend = MakeRawOnnx(o, prod, &bo);
+    } catch (const std::exception&) {
+      backend.reset();
+    }
+    if (backend) {
+      std::cout << "\n--- Chi phi PADDING: session fixed_batch=" << prod
+                << " nhung nop it hon ---\n";
+      std::printf("%7s %13s %11s\n", "nop", "pos/giay", "ms/Run");
+      std::printf("%s\n", std::string(33, '-').c_str());
+      for (int b : {1, prod / 4, prod / 2, prod}) {
+        if (b < 1 || b > prod) continue;
+        const Sample s = measure(backend.get(), b);
+        std::printf("%7d %13.1f %11.3f\n", s.batch, s.pos_per_sec, s.ms_per_run);
+      }
+      std::cout << "  (ms/Run gan nhu khong doi = GPU van tinh du " << prod
+                << " o; phan thua la phi)\n";
+    }
+  }
+
+  std::cout << "\nMOC SO SANH: self-play dat ~2900 NN eval/giay o fixed_batch=16.\n"
+               "  neu cot pos/giay o batch lon CAO HON HAN -> batch lon la don bay\n"
+               "  neu no phang -> GPU da bao hoa tinh toan, batch khong giup\n";
   return 0;
 }
