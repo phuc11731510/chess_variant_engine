@@ -8,6 +8,7 @@
 #include <thread>
 #include <vector>
 
+#include "neural/onnx_backend.h"  // OnnxGetEvalCounters (throughput report)
 #include "selfplay/selfplay_game.h"
 #include "trainingdata/writer.h"
 #include "utils/random.h"
@@ -147,7 +148,8 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
     std::cout << " (dung som do dat nguong --max-seconds)";
   if (cfg.show_nps) {
     const long nps_final = secs > 0.0 ? static_cast<long>(total_nodes.load() / secs) : 0;
-    std::cout << "  (" << nps_final << " nps tong, " << total_nodes.load() << " playouts)";
+    std::cout << "  (" << nps_final << " nps tong, " << total_nodes.load()
+              << " playout MOI)";
   }
   const double avg_pieces =
       completed > 0
@@ -170,8 +172,32 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
             << "  So van moi ben choi the cong nhieu hon: Trang=" << w_more_aggr.load()
             << " | Den=" << b_more_aggr.load() << "\n"
             << "  Ben cong nhieu hon THANG: " << aggr_w << "/" << aggr_dec
-            << " van (" << aggr_pct << "%)\n"
-            << "  Output dir: " << cfg.out_dir << std::endl;
+            << " van (" << aggr_pct << "%)\n";
+
+  // --- Throughput: the numbers that actually decide where the time goes ------
+  // van/gio is the objective. The NN counters below say whether the device is
+  // the limit: eval/s is real GPU work, batch TB shows how full each Run() was,
+  // and "phi do pad" is GPU time spent on fixed-batch zero padding.
+  if (completed > 0 && secs > 0.0) {
+    const auto ev = OnnxGetEvalCounters();
+    std::cout << "  --- Throughput ---\n"
+              << "  Van/gio            : " << (completed * 3600.0 / secs) << "\n"
+              << "  Giay/van           : " << (secs / completed) << "\n";
+    if (ev.runs > 0) {
+      const double waste =
+          ev.padded > 0 ? 100.0 * (ev.padded - ev.real) / ev.padded : 0.0;
+      std::cout << "  NN eval/giay       : " << (ev.real / secs) << "\n"
+                << "  NN eval/playout    : "
+                << (total_nodes.load() > 0
+                        ? static_cast<double>(ev.real) / total_nodes.load()
+                        : 0.0) << "\n"
+                << "  Batch TB moi Run() : " << (static_cast<double>(ev.real) / ev.runs)
+                << "  (so lan Run: " << ev.runs << ")\n"
+                << "  Phi do pad         : " << waste << "%  ("
+                << (ev.padded - ev.real) << "/" << ev.padded << " o batch)\n";
+    }
+  }
+  std::cout << "  Output dir: " << cfg.out_dir << std::endl;
 }
 
 }  // namespace lczero

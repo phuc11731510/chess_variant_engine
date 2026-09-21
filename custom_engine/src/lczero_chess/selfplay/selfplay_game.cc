@@ -1,5 +1,6 @@
 #include "selfplay/selfplay_game.h"
 
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <memory>
@@ -25,18 +26,36 @@ class SilentResponder : public UciResponder {
 
 // Stops after `max_new_playouts` NEW playouts this move (tree-reuse safe:
 // counts nodes since move start, not total tree size).
+//
+// It also REPORTS that same counter back, because it is the only tree-reuse-safe
+// playout number available to the caller. `root->GetN()` is NOT: with tree reuse
+// the new root already carries the visits its subtree accumulated under the
+// previous move, so summing it per move double-counts (measured ~2x inflation on
+// real games) and makes nps incomparable between configurations.
 class PlayoutStopper : public classic::SearchStopper {
  public:
   explicit PlayoutStopper(int64_t max_new_playouts)
       : max_new_(max_new_playouts) {}
   bool ShouldStop(const classic::IterationStats& stats,
                   classic::StoppersHints*) override {
+    // Recorded here as well as in OnSearchDone: a search that ends without the
+    // bestmove path running (terminal root) never reaches OnSearchDone, and this
+    // keeps the last observed value instead of reporting zero.
+    new_playouts_.store(stats.nodes_since_movestart, std::memory_order_relaxed);
     return stats.nodes_since_movestart >= max_new_;
   }
-  void OnSearchDone(const classic::IterationStats&) override {}
+  void OnSearchDone(const classic::IterationStats& stats) override {
+    new_playouts_.store(stats.nodes_since_movestart, std::memory_order_relaxed);
+  }
+
+  int64_t new_playouts() const {
+    return new_playouts_.load(std::memory_order_relaxed);
+  }
 
  private:
   int64_t max_new_;
+  // ShouldStop is called from the search threads; keep the store race-free.
+  std::atomic<int64_t> new_playouts_{0};
 };
 
 // Picks the move to play: temperature=1 (visit-proportional) sampling for plies
@@ -121,6 +140,9 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     // --- Search (heap-allocated: PositionHistory holds 512-ply arrays) ---
     auto responder = std::make_unique<SilentResponder>();
     auto stopper = std::make_unique<PlayoutStopper>(visits);
+    // Borrowed before the unique_ptr moves into Search, which owns it for the
+    // whole RunBlocking() call -- so the pointer stays valid where it is read.
+    PlayoutStopper* stopper_ptr = stopper.get();
     auto start = std::chrono::steady_clock::now();
     auto search = std::make_unique<classic::Search>(
         *tree, backend, std::move(responder), MoveList{}, start,
@@ -129,7 +151,10 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     search->RunBlocking(search_threads);
 
     const classic::Node* root = tree->GetCurrentHead();
-    local_nodes += root->GetN();   // playouts this move -> aggregate NPS
+    // NEW playouts this move (see PlayoutStopper): tree-reuse safe, unlike
+    // root->GetN() which this used to sum and which double-counted the reused
+    // subtree on every move after the first.
+    local_nodes += stopper_ptr->new_playouts();
 
     TrainingDataV1 rec;
     std::memset(&rec, 0, sizeof(rec));
