@@ -35,8 +35,9 @@ if [ "${SKIP_INSTALL:-0}" != "1" ]; then
   echo "[bench] go onnxruntime cu va cai onnxruntime-gpu==$ORT_VER (khop engine) ..."
   $PY -m pip -q uninstall -y onnxruntime onnxruntime-gpu >/dev/null 2>&1 || true
   if ! $PY -m pip -q install "onnxruntime-gpu==$ORT_VER" onnx >/dev/null 2>&1; then
-    echo "[bench] khong cai duoc $ORT_VER (Colab dung Python $($PY -c 'import sys;print(\"%d.%d\"%sys.version_info[:2])')"
-    echo "[bench] -- ORT $ORT_VER khong co wheel cho ban Python nay). Dung ban moi nhat."
+    PYVER="$($PY -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo '?')"
+    echo "[bench] khong cai duoc ORT $ORT_VER -- Colab dang chay Python $PYVER"
+    echo "[bench] va ORT $ORT_VER khong co wheel cho ban Python do. Dung ban moi nhat."
     echo "[bench] LUU Y: ban do se KHAC ban engine dung -> chi so tuyet doi khong"
     echo "[bench] so thang duoc voi self-play; ti so TensorRT/CUDA thi van co nghia."
     $PY -m pip -q install onnxruntime-gpu onnx >/dev/null 2>&1
