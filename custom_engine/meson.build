@@ -146,6 +146,7 @@ engine_sources = files(
   'src/app/play_mode.cc',
   'src/app/cli.cc',
   'src/app/selfplay_mode.cc',
+  'src/app/bench_nn.cc',
   'src/tests/engine_tests.cc'
 )
 
