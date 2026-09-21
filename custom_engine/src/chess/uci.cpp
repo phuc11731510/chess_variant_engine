@@ -540,6 +540,12 @@ string UCI::move(const Position& pos, Move m) {
 
   if (type_of(m) == PROMOTION)
       move += pos.piece_to_char()[make_piece(BLACK, promotion_type(m))];
+  else if (type_of(m) == EN_PASSANT && ep_promotion_type(m) != NO_PIECE_TYPE)
+      // An ep capture can land on a promotion square when the promotion region and
+      // the opponent's double-step region overlap (custom 10x10: *8 *9 *10 vs
+      // *10 *9 *8). Append the promoted piece, or all promotion choices collapse to
+      // one string and UCI::to_move can only ever reach the first of them.
+      move += pos.piece_to_char()[make_piece(BLACK, ep_promotion_type(m))];
   else if (type_of(m) == PIECE_PROMOTION)
       move += '+';
   else if (type_of(m) == PIECE_DEMOTION)
