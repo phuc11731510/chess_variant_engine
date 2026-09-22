@@ -131,8 +131,13 @@ static std::vector<std::string> split_options(const std::string& s, char delimit
 
 OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size)
     : session_(session), memory_info_(memory_info),
-      capacity_(fixed_batch ? std::min<size_t>(fixed_batch_size, MaxBatchSize)
-                            : MaxBatchSize),
+      // Capacity is how many positions the SEARCH may pile into one
+      // computation, which is NOT the same as the ORT session's fixed batch:
+      // ComputeBlocking deliberately slices `enqueued_` into several Run()s of
+      // fixed_batch_size_ each. Sizing this to fixed_batch_size_ made AddInput
+      // throw "Maximum batch size exceeded" as soon as the search gathered more
+      // than one session-batch worth of leaves.
+      capacity_(MaxBatchSize),
       input_buffer_(new float[capacity_ * InputBufferUnitSize]),
       policy_output_buffer_(new float[capacity_ * PolicyOutputSize]),
       value_output_buffer_(new float[capacity_ * ValueOutputSize]),
