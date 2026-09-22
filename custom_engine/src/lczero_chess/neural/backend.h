@@ -20,11 +20,12 @@ namespace lczero {
 // There is one live computation per search worker (or exactly one when
 // --batch-aggregate is on), so the cost is bounded and small.
 //
-// Raised 64 -> 256 (2026-09-21): measurement showed each session->Run() carries
-// a FIXED cost of roughly 2.5 ms on a T4 on top of ~0.186 ms per position, so
-// at batch 16 more than half the time is that fixed cost. Bigger batches
-// amortize it; 64 was cutting the sweep off before the curve flattened.
-constexpr size_t MaxBatchSize = 256;
+// Briefly raised to 256 (2026-09-21) to let --bench-nn sweep past 64. That
+// sweep then showed the per-position cost FLATTENS at batch 64 on a T4
+// (322 us/pos at 64, 313 at 128, 317 at 256), so there is nothing above 64 to
+// win -- while the bigger buffers cost real time on every CreateComputation().
+// Back to 64 (2026-09-22).
+constexpr size_t MaxBatchSize = 64;
 
 // Minimalistic static vector to avoid heap allocation
 template <typename T, size_t N>
