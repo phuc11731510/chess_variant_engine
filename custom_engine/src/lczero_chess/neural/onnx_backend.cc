@@ -131,9 +131,25 @@ static std::vector<std::string> split_options(const std::string& s, char delimit
 
 OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size)
     : session_(session), memory_info_(memory_info), softmax_temp_(softmax_temp), fixed_batch_(fixed_batch), fixed_batch_size_(fixed_batch_size) {
-    std::memset(input_buffer_, 0, sizeof(input_buffer_));
-    std::memset(policy_output_buffer_, 0, sizeof(policy_output_buffer_));
-    std::memset(value_output_buffer_, 0, sizeof(value_output_buffer_));
+    // NO buffer memset here, deliberately.
+    //
+    // These buffers are sized by MaxBatchSize, so zeroing them costs the SAME on
+    // every Run() no matter how small the real batch is: ~8.5 MB at MaxBatchSize
+    // 64, ~34 MB at 256. A fresh OnnxComputation is built for every batch, so
+    // that cost lands on every single NN call. Measured on a Colab T4 it was
+    // ~2.5 ms/Run at 64 and ~20.8 ms/Run at 256 -- at batch 16 that is roughly
+    // half, then five sixths, of the entire inference time.
+    //
+    // (An older CPU profiling pass concluded this memset was negligible. It was
+    // -- on CPU, where one eval took ~27 ms. On GPU an eval takes ~5 ms and the
+    // very same memset dominates. The conclusion did not survive the hardware.)
+    //
+    // It is also redundant:
+    //   * input_buffer_  -- UnpackInputPlanes (encoder.cc) memsets exactly the
+    //                       22600 floats of each slot before filling it, and
+    //                       ComputeBlocking memsets exactly the fixed-batch
+    //                       padding tail. Every byte ORT reads is written first.
+    //   * policy/value   -- written wholesale by ORT's Run().
 }
 
 BackendComputation::AddInputResult OnnxComputation::AddInput(
