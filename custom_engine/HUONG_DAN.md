@@ -282,8 +282,31 @@ Mở PowerShell tại thư mục `FairyZero`:
     --games 1000 --visits 200 --parallel 2 --provider cuda --fixed-batch 32 \
     --weights /content/FairyZero/models/seed.onnx --out /content/games_gen0
 ```
-- Khác bản Windows ở chỗ thêm `--provider cuda --fixed-batch 32` (chạy mạng trên GPU).
-- GPU mạnh hơn nên đặt `--games` lớn (1000+); `--parallel` để nhỏ (2) vì GPU là nút cổ chai, không phải CPU.
+- Khác bản Windows ở chỗ thêm `--provider cuda --fixed-batch ...` (chạy mạng trên GPU).
+
+> ### ⚠ CẬP NHẬT 2026-09-22 — cấu hình khuyến nghị đã ĐỔI (dựa trên đo đạc)
+>
+> Lời khuyên cũ ngay dưới đây (`--parallel 2 --fixed-batch 32`, "GPU là nút cổ chai nên để parallel
+> nhỏ") là **suy đoán và đã bị đo đạc bác bỏ**. Cấu hình tốt nhất đo được trên Colab T4:
+>
+> ```
+> --parallel 4 --provider cuda --fixed-batch 16
+> ```
+>
+> **Vì sao 16 chứ không phải 32/64:** MCTS gom trung bình ~15 lá mỗi lượt, nên `fixed-batch 16` lấp
+> đầy **94%** mỗi batch (chỉ 5,7% phí padding). Đặt 64 thì chỉ lấp được 62% → **38% thời gian GPU
+> tính ô rỗng**, và tổng lại **chậm hơn** dù mỗi lần gọi mạng hiệu quả hơn.
+>
+> **Vì sao parallel 4:** quét 1→32 ván song song cho throughput gần như phẳng; 4 cho `eval/giây` cao
+> nhất. Tăng parallel còn làm `--max-seconds` vượt giờ nặng hơn (dừng mềm chờ mọi ván đang chạy xong:
+> parallel 4 vượt ~2-3 phút, parallel 32 vượt tới **10 lần**).
+>
+> **`--batch-aggregate`: không dùng.** Đo được là ngang hoặc tệ hơn khi tắt.
+>
+> Trần phần cứng đo được cho mạng 12×144 trên T4 (fp32): **~3.170 vị trí/giây ≈ 3,2 TFLOP/s**, và
+> self-play đạt ~91% mức đó. Không còn đòn bẩy phần mềm đáng kể.
+
+- GPU mạnh hơn nên đặt `--games` lớn (1000+).
 - Muốn giữ dữ liệu lên Drive thì gói 1 zip trước (xem B.4) rồi mới chép.
 - **Khớp quota Colab bằng `--max-seconds`:** đặt `--games` thật lớn (vd `100000`) để **thời gian là ràng
   buộc** thay vì số ván, rồi đặt `--max-seconds` = hạn quota **trừ vài phút** đệm (vì dừng "mềm" có thể
@@ -656,7 +679,7 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--resign-earliest-move N` | 0 | Không cho xin thua trước nước thứ N (để không bỏ ván quá sớm). |
 | `--no-resign-frac F` | 0.10 | Tỉ lệ ván **tắt** resign, đánh tới cùng — để mạng vẫn học cách kết liễu/phòng thủ thế thua. |
 | `--search-opt name=value` (lặp) | — | Đặt **bất kỳ** search-param lc0 nào cho self-play (xem danh sách ~35 ở D.1). Lặp nhiều lần, vd `--search-opt cpuct-base=20000 --search-opt two-fold-draws=true`. |
-| `--show-nps` | tắt | Hiện **NPS tổng** (cộng dồn mọi worker = throughput tìm kiếm của engine) trong log mỗi ván + dòng tổng kết. Mặc định TẮT; thêm cờ để bật. Với `--parallel 1` thì NPS này = NPS một ván; parallel>1 thì chia cho số parallel để ra NPS/ván. |
+| `--show-nps` | tắt | Hiện **NPS tổng** (cộng dồn mọi worker) trong log mỗi ván + dòng tổng kết, **cộng một khối `--- Throughput ---`** ở cuối. Mặc định TẮT. **Từ 2026-09-22 nps đếm playout MỚI** — trước đó nó cộng `root->GetN()` mỗi nước, mà giá trị này đã bao gồm cây tái sử dụng từ nước trước nên **phóng đại ~2×**; số cũ và mới KHÔNG so thẳng được. |
 | `--batch-aggregate` | tắt | **(A4 — chỉ GPU)** Gom thế cờ cần eval từ NHIỀU ván song song vào **một batch NN** chạy một lần → GPU no hơn, ít lệnh inference hơn. Mặc định TẮT. |
 | `--batch-timeout-us N` | 2000 | Cửa sổ gộp batch (micro-giây) khi dùng `--batch-aggregate`: chờ tối đa N µs cho các ván khác kịp nộp rồi mới chạy (cũng là chốt chống treo). |
 
@@ -664,6 +687,31 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 > - Trên **DML (Windows)**: self-play `--parallel ≥ 2` mà KHÔNG bật cờ này sẽ **crash** (EP DirectML không cho nhiều luồng `Run` đồng thời). Bật `--batch-aggregate` vừa **hết crash** vừa nhanh hơn (đo trên Iris Xe: 50 vs 39 nps so với `--parallel 1`).
 > - Trên **CUDA (Colab T4)**: tăng throughput sinh dữ liệu khi chạy nhiều ván song song (GPU mạnh, batch lớn càng lợi).
 > - **ĐỪNG bật trên `--provider cpu`**: nó dồn inference vào một luồng → **CHẬM hơn** nhiều (engine sẽ tự in cảnh báo). CPU cứ để TẮT và dùng `--parallel = số nhân`.
+
+**Khối `--- Throughput ---` (mới 2026-09-22, in khi bật `--show-nps`):**
+
+| Dòng | Nghĩa |
+|---|---|
+| `Van/gio`, `Giay/van` | mục tiêu thật sự. **Cảnh báo:** với mẫu dưới ~50 ván, độ dài ván dao động áp đảo — đừng so cấu hình bằng con số này |
+| `NN eval/giay` | công việc GPU thật sự. Nhân ~1,0 GFLOP ra TFLOP/s (T4 đỉnh fp32 = 8,1) |
+| `NN eval/playout` | >1 nghĩa là nhiều lượt gọi mạng cho một playout (collision, cache miss) |
+| `Batch TB moi Run()` | batch trung bình mỗi lần gọi GPU. Thấp hơn `--fixed-batch` nhiều = lãng phí |
+| `Phi do pad` | % thời gian GPU tính ô rỗng do `--fixed-batch` pad. Nên dưới 10% |
+
+> **So sánh cấu hình thì dùng `NN eval/giay` hoặc `playout/giây`, KHÔNG dùng `Van/gio`.**
+
+**Chế độ `--bench-nn` (mới 2026-09-22) — đo suy luận THUẦN TUÝ, không MCTS:**
+
+```
+custom_engine --bench-nn --weights net.onnx --provider cuda --fixed-batch 16
+```
+
+Nạp mạng rồi gọi `ComputeBlocking()` lặp lại, **không cây, không cache**, dựng một ORT session riêng
+cho từng cỡ batch (1…64) và chạy đầy. Cho biết **trần tuyệt đối** của mạng trên máy đó, tách khỏi mọi
+thứ khác trong engine — dùng để trả lời "engine chậm, hay phần cứng chỉ được vậy?".
+
+In thêm một phép khớp tuyến tính `ms/Run ≈ a + b×batch`: `a` là chi phí cố định mỗi lần gọi (batch lớn
+sẽ pha loãng), `b` là chi phí mỗi vị trí (nghịch đảo ra trần TFLOP/s).
 
 **CHƯA DÙNG ĐƯỢC từ CLI self-play:** `--resign-wdlstyle` (resign theo ngưỡng WDL) chưa viết.
 *Lưu ý: self-play VỐN đã tái dùng cây trong một ván (không cần cờ riêng).*
