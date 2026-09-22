@@ -634,6 +634,127 @@ checkCounting = true
         std::cout << "[PASS] Sergeant straight EP+Promotion capture-square-file-safety test passed!" << std::endl;
     }
 
+    // TEST 9: end-to-end, REAL PLAY (do_move twice, no hand-written ep token at
+    // all) for the exact geometry TEST 7/8 needed a hand-added "d8c7" ep token
+    // for. This closes the gap those tests left open: it confirms do_move's OWN
+    // bookkeeping after an Alfil-style diagonal double-step marks BOTH the
+    // pass-through square AND the victim's actual square in st->epSquares (not
+    // just the midpoint) -- so capture_square() resolves correctly (via the
+    // "marked piece" branch, position.h ~1504) from ordinary self-play, not only
+    // from a hand-constructed FEN. Then plays the straight en-passant capture
+    // itself and verifies the victim is ACTUALLY removed from the board -- the
+    // strongest possible check, stronger than "a legal move with this shape
+    // exists": a resolver that silently pointed at the wrong square could still
+    // generate a plausible-looking move while corrupting the board on do_move.
+    {
+        std::cout << "\n--- TEST 9: Sergeant straight EP+Promotion via REAL PLAY (do_move, not a hand ep token) ---" << std::endl;
+        Position pos;
+        StateListPtr states(new std::deque<StateInfo>(1));
+        std::string fen = "9k/4s5/10/3S6/10/10/10/10/10/K9 b - - 8+8 0 1";
+        pos.set(v, fen, false, &states->back(), Threads.main());
+
+        std::string m1_str = "e9c7";
+        Move m1 = UCI::to_move(pos, m1_str);
+        if (m1 == MOVE_NONE) { std::cerr << "[FAIL] setup: e9c7 (Alfil double-step) not legal" << std::endl; std::exit(1); }
+        states->emplace_back();
+        pos.do_move(m1, states->back());
+
+        const Bitboard eps = pos.ep_squares();
+        const Square c7 = make_square(FILE_C, RANK_7), d8 = make_square(FILE_D, RANK_8);
+        if (!(eps & c7) || !(eps & d8)) {
+            std::cerr << "[FAIL] after e9c7 (real do_move), st->epSquares does not contain both the "
+                         "pass-through square (d8) and the victim's own square (c7) -- only the "
+                         "midpoint was marked. capture_square() would misresolve on a real self-play "
+                         "board, not just on a hand-written FEN." << std::endl;
+            std::exit(1);
+        }
+        if (pos.capture_square(d8) != c7) {
+            std::cerr << "[FAIL] capture_square(d8) = " << UCI::square(pos, pos.capture_square(d8))
+                      << ", expected c7, after REAL do_move (not a hand ep token)." << std::endl;
+            std::exit(1);
+        }
+
+        std::string m2_str = "d7d8r";  // straight capture, promote to Rook
+        Move m2 = UCI::to_move(pos, m2_str);
+        if (m2 == MOVE_NONE || type_of(m2) != EN_PASSANT) {
+            std::cerr << "[FAIL] d7d8r not recognized as a legal EN_PASSANT move after real play "
+                         "(got type=" << (m2 == MOVE_NONE ? -1 : (int)type_of(m2)) << ")" << std::endl;
+            std::exit(1);
+        }
+        states->emplace_back();
+        pos.do_move(m2, states->back());
+
+        if (pos.piece_on(c7) != NO_PIECE) {
+            std::cerr << "[FAIL] Black Sergeant still on c7 after White's straight e.p. capture -- "
+                         "the victim was NOT actually removed from the board. This is the corruption "
+                         "scenario a wrong capture_square() resolution would cause: the move looks "
+                         "legal and plausible, but the board silently keeps a piece that should be "
+                         "gone." << std::endl;
+            std::exit(1);
+        }
+        if (type_of(pos.piece_on(d8)) != ROOK || color_of(pos.piece_on(d8)) != WHITE) {
+            std::cerr << "[FAIL] d8 does not hold a White Rook after d7d8r e.p." << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  [OK] real do_move marks BOTH c7 and d8 in epSquares after the diagonal "
+                     "double-step (not just the midpoint)" << std::endl;
+        std::cout << "  [OK] capture_square(d8) = c7, resolved correctly from real play" << std::endl;
+        std::cout << "  [OK] Black Sergeant actually removed from c7; White Rook actually on d8"
+                  << std::endl;
+        std::cout << "[PASS] Sergeant straight EP+Promotion real-play end-to-end test passed!" << std::endl;
+    }
+
+    // TEST 10: the DIAGONAL analogue of TEST 6 -- vacating `from` alone opens a
+    // diagonal onto White's own King, exercised by a Bishop this time (the only
+    // piece in this variant whose checking geometry is purely diagonal, so a
+    // pass here cannot be hiding behind a Rook's rank/file coverage the way a
+    // Queen test could). White Pawn g7 sits on the a1-j10 diagonal; capturing
+    // DIAGONALLY LEFT en passant to f8 (promotion zone) leaves that diagonal --
+    // note capturing RIGHT to h8 would NOT leave it (h8 is also on a1-j10), so
+    // this geometry specifically isolates the "mover's own square was the only
+    // blocker" mechanism, same as TEST 6 but on the diagonal instead of a file.
+    {
+        std::cout << "\n--- TEST 10: EP+Promotion must not reveal own king to check (DIAGONAL, Bishop) ---" << std::endl;
+
+        auto count_g7f8 = [&](const std::string& fen) {
+            Position pos;
+            StateListPtr states(new std::deque<StateInfo>(1));
+            pos.set(v, fen, false, &states->back(), Threads.main());
+            int n = 0;
+            for (const auto& m : MoveList<LEGAL>(pos))
+                if (from_sq(m.move) == make_square(FILE_G, RANK_7) && to_sq(m.move) == make_square(FILE_F, RANK_8))
+                    ++n;
+            return n;
+        };
+
+        // Exposed: Black Bishop j10, nothing else on the a1-j10 diagonal between
+        // it and White's King at a1 once g7 (the only blocker) vacates.
+        const std::string exposed = "k8b/10/10/5pP3/10/10/10/10/10/K9 w - f8 8+8 0 1";
+        // Safe control: identical position, Black Bishop removed.
+        const std::string safe    = "k9/10/10/5pP3/10/10/10/10/10/K9 w - f8 8+8 0 1";
+
+        const int n_exposed = count_g7f8(exposed);
+        const int n_safe = count_g7f8(safe);
+
+        if (n_exposed != 0) {
+            std::cerr << "[FAIL] g7xf8 e.p.(+promo) is offered as LEGAL while it opens the a1-j10 "
+                         "diagonal onto White's own King (Black Bishop j10) -- found " << n_exposed
+                      << " such move(s)! The DIAGONAL case of own-king exposure is not being caught."
+                      << std::endl;
+            std::exit(1);
+        }
+        if (n_safe == 0) {
+            std::cerr << "[FAIL] test is vacuous: with the checking bishop removed, g7xf8 e.p.(+promo) "
+                         "should be legal (6 promotion choices) but NONE were found." << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  [OK] exposed position: 0 legal g7xf8 e.p. moves (correctly excluded, "
+                     "own King would be diagonally checked)" << std::endl;
+        std::cout << "  [OK] safe control: " << n_safe << " legal g7xf8 e.p.(+promo) move(s) found "
+                     "(fixture is not vacuous)" << std::endl;
+        std::cout << "[PASS] EP+Promotion own-king-safety (diagonal) test passed!" << std::endl;
+    }
+
     std::cout << "\n========================================" << std::endl;
     std::cout << "ALL EN PASSANT TESTS PASSED SUCCESSFULLY!" << std::endl;
     std::cout << "========================================" << std::endl;
