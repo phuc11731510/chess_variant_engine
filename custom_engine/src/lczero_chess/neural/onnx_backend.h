@@ -57,13 +57,20 @@ class OnnxComputation : public BackendComputation {
   
   size_t enqueued_ = 0;
   
-  // Static Zero-Heap buffers
-  alignas(64) float input_buffer_[MaxBatchSize * InputBufferUnitSize];
-  alignas(64) float policy_output_buffer_[MaxBatchSize * PolicyOutputSize];
-  alignas(64) float value_output_buffer_[MaxBatchSize * ValueOutputSize];
-  
-  EvalResultPtr results_[MaxBatchSize];
-  StaticVector<Move, 384> position_moves_[MaxBatchSize];
+  // Buffers sized to the batch this computation will ACTUALLY run, not to
+  // MaxBatchSize. They used to be fixed-size arrays of MaxBatchSize, which made
+  // every OnnxComputation ~8.5 MB at MaxBatchSize 64 and ~34 MB at 256 -- and a
+  // fresh one is built for EVERY Run(), so that allocation landed on every NN
+  // call regardless of how small the real batch was. Measured on a Colab T4 it
+  // showed up as a flat ~3.6 ms per Run once the redundant ctor memset was gone.
+  // With a CUDA fixed-batch profile of 16 the real need is 1.4 MB, not 34 MB.
+  const size_t capacity_;                  // slots this computation can hold
+  std::unique_ptr<float[]> input_buffer_;         // capacity_ * InputBufferUnitSize
+  std::unique_ptr<float[]> policy_output_buffer_; // capacity_ * PolicyOutputSize
+  std::unique_ptr<float[]> value_output_buffer_;  // capacity_ * ValueOutputSize
+
+  std::vector<EvalResultPtr> results_;
+  std::vector<StaticVector<Move, 384>> position_moves_;
   float softmax_temp_;
   bool fixed_batch_;
   size_t fixed_batch_size_;

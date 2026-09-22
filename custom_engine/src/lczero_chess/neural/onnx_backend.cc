@@ -130,15 +130,25 @@ static std::vector<std::string> split_options(const std::string& s, char delimit
 // ==========================================
 
 OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size)
-    : session_(session), memory_info_(memory_info), softmax_temp_(softmax_temp), fixed_batch_(fixed_batch), fixed_batch_size_(fixed_batch_size) {
+    : session_(session), memory_info_(memory_info),
+      capacity_(fixed_batch ? std::min<size_t>(fixed_batch_size, MaxBatchSize)
+                            : MaxBatchSize),
+      input_buffer_(new float[capacity_ * InputBufferUnitSize]),
+      policy_output_buffer_(new float[capacity_ * PolicyOutputSize]),
+      value_output_buffer_(new float[capacity_ * ValueOutputSize]),
+      results_(capacity_),
+      position_moves_(capacity_),
+      softmax_temp_(softmax_temp), fixed_batch_(fixed_batch),
+      fixed_batch_size_(fixed_batch_size) {
     // NO buffer memset here, deliberately.
     //
-    // These buffers are sized by MaxBatchSize, so zeroing them costs the SAME on
-    // every Run() no matter how small the real batch is: ~8.5 MB at MaxBatchSize
-    // 64, ~34 MB at 256. A fresh OnnxComputation is built for every batch, so
-    // that cost lands on every single NN call. Measured on a Colab T4 it was
-    // ~2.5 ms/Run at 64 and ~20.8 ms/Run at 256 -- at batch 16 that is roughly
-    // half, then five sixths, of the entire inference time.
+    // A fresh OnnxComputation is built for EVERY Run(), so anything this ctor
+    // touches is paid on every single NN call. These buffers used to be arrays
+    // of MaxBatchSize and to be memset in full, which cost the same whether the
+    // real batch was 1 or 256. Measured on a Colab T4: ~20.8 ms of fixed cost
+    // per Run at MaxBatchSize 256, i.e. five sixths of the whole inference at
+    // batch 16. Removing the memset cut that to ~3.6 ms; sizing the buffers to
+    // `capacity_` (above) removes what was left.
     //
     // (An older CPU profiling pass concluded this memset was negligible. It was
     // -- on CPU, where one eval took ~27 ms. On GPU an eval takes ~5 ms and the
@@ -156,7 +166,7 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
     const EvalPosition& pos,
     EvalResultPtr result) {
     
-    if (enqueued_ >= MaxBatchSize) {
+    if (enqueued_ >= capacity_) {
         throw Exception("ONNX Backend: Maximum batch size exceeded!");
     }
     
@@ -176,7 +186,7 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
     EncodePositionForNN(*pos.history, kMoveHistory, FillEmptyHistory::FEN_ONLY, &planes, &transform);
     
     // Unpack bits into flat float buffer
-    float* current_input_ptr = input_buffer_ + enqueued_ * InputBufferUnitSize;
+    float* current_input_ptr = input_buffer_.get() + enqueued_ * InputBufferUnitSize;
     UnpackInputPlanes(planes, current_input_ptr, BoardWidth, BoardHeight);
     
     enqueued_++;
@@ -220,14 +230,14 @@ void OnnxComputation::ComputeBlocking() {
         
         if (fixed_batch_ && run_batch > current_batch) {
             size_t pad_count = run_batch - current_batch;
-            std::memset(input_buffer_ + (offset + current_batch) * InputBufferUnitSize, 0, pad_count * InputBufferUnitSize * sizeof(float));
+            std::memset(input_buffer_.get() + (offset + current_batch) * InputBufferUnitSize, 0, pad_count * InputBufferUnitSize * sizeof(float));
         }
         
         // 1. Direct Memory Mapping: map C++ float arrays directly into Ort::Value (zero-copy)
         std::array<int64_t, 4> input_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(InputPlanesCount), static_cast<int64_t>(BoardHeight), static_cast<int64_t>(BoardWidth) };
         Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
             memory_info_,
-            input_buffer_ + offset * InputBufferUnitSize,
+            input_buffer_.get() + offset * InputBufferUnitSize,
             run_batch * InputBufferUnitSize,
             input_shape.data(),
             input_shape.size()
@@ -236,7 +246,7 @@ void OnnxComputation::ComputeBlocking() {
         std::array<int64_t, 2> policy_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(PolicyOutputSize) };
         Ort::Value policy_tensor = Ort::Value::CreateTensor<float>(
             memory_info_,
-            policy_output_buffer_ + offset * PolicyOutputSize,
+            policy_output_buffer_.get() + offset * PolicyOutputSize,
             run_batch * PolicyOutputSize,
             policy_shape.data(),
             policy_shape.size()
@@ -245,7 +255,7 @@ void OnnxComputation::ComputeBlocking() {
         std::array<int64_t, 2> value_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(ValueOutputSize) };
         Ort::Value value_tensor = Ort::Value::CreateTensor<float>(
             memory_info_,
-            value_output_buffer_ + offset * ValueOutputSize,
+            value_output_buffer_.get() + offset * ValueOutputSize,
             run_batch * ValueOutputSize,
             value_shape.data(),
             value_shape.size()
@@ -280,8 +290,8 @@ void OnnxComputation::ComputeBlocking() {
     
     // 4. Fill results and execute Softmax for legal moves
     for (size_t b = 0; b < enqueued_; ++b) {
-        float* raw_policy = policy_output_buffer_ + b * PolicyOutputSize;
-        float* raw_value = value_output_buffer_ + b * ValueOutputSize;
+        float* raw_policy = policy_output_buffer_.get() + b * PolicyOutputSize;
+        float* raw_value = value_output_buffer_.get() + b * ValueOutputSize;
         EvalResultPtr res = results_[b];
         
         // 4.1. Extract WDL value (win, draw, loss probabilities)
