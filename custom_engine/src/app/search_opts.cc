@@ -86,6 +86,7 @@ bool ApplySearchOpt(lczero::OptionsDict* d, const std::string& name,
     else if (name == "policy-softmax-temp")         d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, F(1.359f));
     // --- ints ---
     else if (name == "minibatch-size")              d->Set<int>(BP::kMiniBatchSizeId, I(256));
+    else if (name == "max-prefetch")                d->Set<int>(lczero::classic::SearchParams::kMaxPrefetchBatchId, I(32));
     else if (name == "tempdecay-moves")             d->Set<int>(BP::kTempDecayMovesId, I(0));
     else if (name == "tempdecay-delay-moves")       d->Set<int>(BP::kTempDecayDelayMovesId, I(0));
     else if (name == "temp-cutoff-move")            d->Set<int>(BP::kTemperatureCutoffMoveId, I(0));
