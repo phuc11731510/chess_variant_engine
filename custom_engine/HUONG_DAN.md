@@ -713,6 +713,30 @@ thứ khác trong engine — dùng để trả lời "engine chậm, hay phần 
 In thêm một phép khớp tuyến tính `ms/Run ≈ a + b×batch`: `a` là chi phí cố định mỗi lần gọi (batch lớn
 sẽ pha loãng), `b` là chi phí mỗi vị trí (nghịch đảo ra trần TFLOP/s).
 
+**`--cuda-graph` (mới 2026-09-22, THỰC NGHIỆM — CHƯA kiểm chứng trên phần cứng thật):**
+
+```
+custom_engine --bench-nn --weights net.onnx --provider cuda --fixed-batch 16 --cuda-graph
+```
+
+Bật CUDA Graph capture của ONNX Runtime (`enable_cuda_graph`) cho session CUDA. Ý tưởng: phép
+khớp tuyến tính ở trên tách được một khoản "chi phí cố định mỗi lần gọi" khá lớn ở batch sản xuất
+(16) — hình dạng đặc trưng của overhead khởi chạy kernel CUDA qua ~12 block ResNet, KHÔNG phải
+FLOPs (FLOPs/vị trí không đổi theo batch). CUDA Graph ghi lại chuỗi kernel một lần rồi phát lại
+bằng một lệnh gọi duy nhất, nhắm thẳng vào khoản chi phí đó. Đòi hỏi `--fixed-batch` (không hỗ trợ
+batch động).
+
+Khi bật cờ này, `--bench-nn` tự dựng **hai** session ở cùng `fixed_batch` (một có graph, một
+không) và in ra:
+1. **Sai lệch đầu ra** (`q`, `d`, toàn bộ policy hợp lệ) giữa hai session trên CÙNG một thế cờ —
+   `[FAIL]` nếu lệch quá 1e-3. Đây là bước bắt buộc: che giấu đúng-sai ở đây sẽ âm thầm làm hỏng
+   dữ liệu huấn luyện, không chỉ là crash.
+2. **Tốc độ** hai bên, % chênh lệch.
+
+**Chỉ tin dùng cho self-play/arena thật sau khi cả hai mục trên đều tốt trên Colab.** Cờ này CHƯA
+được nối vào `--selfplay`/`--arena`/`--uci-nn` — muốn dùng sản xuất phải thêm `cuda_graph=1` vào
+backend_opts tương ứng (xem `onnx_backend.cc`) sau khi đã xác minh.
+
 **CHƯA DÙNG ĐƯỢC từ CLI self-play:** `--resign-wdlstyle` (resign theo ngưỡng WDL) chưa viết.
 *Lưu ý: self-play VỐN đã tái dùng cây trong một ván (không cần cờ riêng).*
 

@@ -398,10 +398,57 @@ void OnnxBackend::InitializeSession() {
         }
 #ifdef USE_CUDA
         if (provider_ == "cuda") {
-            OrtCUDAProviderOptions cuda_options{};
-            cuda_options.device_id = 0;
-            session_options_.AppendExecutionProvider_CUDA(cuda_options);
-            std::cout << "[ONNX Backend] CUDA Execution Provider appended (device 0)." << std::endl;
+            // EXPERIMENTAL, opt-in via backend_opts "cuda_graph=1" (see --bench-nn
+            // --cuda-graph). UNVERIFIED on real hardware -- no local GPU to run it.
+            //
+            // Why this might matter: --bench-nn's own linear fit (ms/Run ~= a +
+            // b*batch) separates a FIXED per-Run cost from a per-position cost. At
+            // the production profile (fixed_batch=16) that fixed cost was a large
+            // share of the measured 482 us/pos (vs 322 us/pos at batch 64, where
+            // the same fixed cost is amortized over 4x more positions) -- the
+            // shape you'd expect from CUDA kernel-launch/dispatch overhead across
+            // the ~12-block SE-ResNet, NOT from FLOPs (FLOPs/position is constant
+            // across batch sizes). CUDA Graph capture replays a whole Run's kernel
+            // sequence as one launch, which is aimed exactly at that fixed cost.
+            //
+            // Preconditions this relies on (see AddFreeDimensionOverrideByName
+            // above and OnnxComputation::ComputeBlocking's padding branch): the
+            // session's "batch" dim is pinned to fixed_batch_size_ at session
+            // build time, and every Run() -- including padded ones -- always
+            // executes at EXACTLY that shape. CUDA Graph capture requires a
+            // static shape across replays; a session that ever varied its batch
+            // would silently either fail or (worse) replay stale data. Do not
+            // enable cuda_graph without fixed_batch.
+            //
+            // Before trusting this for real self-play/arena data: verify with
+            // `--bench-nn --provider cuda --fixed-batch 16 --cuda-graph`, which
+            // checks BOTH speed AND that graph-mode output (q/d/policy) matches
+            // the non-graph path bit-for-bit-ish on the same position -- a silent
+            // correctness bug here would corrupt training data, not just crash.
+            if (cuda_graph_ && !(fixed_batch_ && fixed_batch_size_ > 0)) {
+                std::cerr << "[ONNX Backend] WARNING: cuda_graph=1 requires fixed_batch > 0; "
+                             "ignoring cuda_graph (dynamic-shape graph capture is not supported here)."
+                          << std::endl;
+                cuda_graph_ = false;
+            }
+            if (cuda_graph_) {
+                OrtCUDAProviderOptionsV2* cuda_options_v2 = nullptr;
+                Ort::ThrowOnError(Ort::GetApi().CreateCUDAProviderOptions(&cuda_options_v2));
+                std::unique_ptr<OrtCUDAProviderOptionsV2, void(*)(OrtCUDAProviderOptionsV2*)> guard(
+                    cuda_options_v2,
+                    [](OrtCUDAProviderOptionsV2* p) { Ort::GetApi().ReleaseCUDAProviderOptions(p); });
+                const char* keys[] = {"device_id", "enable_cuda_graph"};
+                const char* values[] = {"0", "1"};
+                Ort::ThrowOnError(Ort::GetApi().UpdateCUDAProviderOptions(cuda_options_v2, keys, values, 2));
+                session_options_.AppendExecutionProvider_CUDA_V2(*cuda_options_v2);
+                std::cout << "[ONNX Backend] CUDA Execution Provider appended WITH GRAPH CAPTURE "
+                             "(device 0, EXPERIMENTAL -- verify correctness, see onnx_backend.cc)." << std::endl;
+            } else {
+                OrtCUDAProviderOptions cuda_options{};
+                cuda_options.device_id = 0;
+                session_options_.AppendExecutionProvider_CUDA(cuda_options);
+                std::cout << "[ONNX Backend] CUDA Execution Provider appended (device 0)." << std::endl;
+            }
             gpu_ep = true;
         }
 #endif
@@ -459,6 +506,7 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     provider_ = "cpu";
     fixed_batch_ = false;
     fixed_batch_size_ = 16;
+    cuda_graph_ = false;
 
     if (!backend_opts_.empty()) {
         for (const auto& opt : split_options(backend_opts_, ',')) {
@@ -479,6 +527,8 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
                         fixed_batch_size_ = std::stoi(parts[1]);
                         fixed_batch_ = true;
                     } catch (...) {}
+                } else if (parts[0] == "cuda_graph") {
+                    cuda_graph_ = (parts[1] == "1" || parts[1] == "true");
                 }
             }
         }

@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <iostream>
 #include <memory>
@@ -61,6 +62,7 @@ struct Sample {
 // exclude).
 std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
                                              int fixed_batch,
+                                             bool cuda_graph,
                                              std::string* opts_out) {
   lczero::OptionsParser parser;
   lczero::classic::SearchParams::Populate(&parser);
@@ -76,12 +78,24 @@ std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
     bo = "threads=" + std::to_string(std::max(1, o.sp_backend_threads));
   }
   if (fixed_batch > 0) bo += ",fixed_batch=" + std::to_string(fixed_batch);
+  if (cuda_graph) bo += ",cuda_graph=1";
   d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bo);
   if (opts_out) *opts_out = bo;
 
   auto be = std::make_unique<lczero::OnnxBackend>();
   be->UpdateConfiguration(parser.GetOptionsDict());
   return be;
+}
+
+// Runs ONE input through a backend and returns the raw result -- used to
+// compare cuda_graph output against the non-graph path on the same position.
+lczero::EvalResult RunOnce(lczero::Backend* backend, const lczero::EvalPosition& ep, size_t num_legal) {
+  lczero::EvalResult res;
+  res.p.resize(num_legal);
+  auto comp = backend->CreateComputation();
+  comp->AddInput(ep, res.AsPtr());
+  comp->ComputeBlocking();
+  return res;
 }
 
 }  // namespace
@@ -139,7 +153,7 @@ int run_bench_nn(const EngineOptions& o) {
     std::unique_ptr<lczero::Backend> backend;
     std::string bo;
     try {
-      backend = MakeRawOnnx(o, b, &bo);
+      backend = MakeRawOnnx(o, b, /*cuda_graph=*/false, &bo);
     } catch (const std::exception& e) {
       std::cerr << "  batch " << b << ": khong nap duoc backend: " << e.what() << "\n";
       continue;
@@ -188,7 +202,7 @@ int run_bench_nn(const EngineOptions& o) {
     std::string bo;
     std::unique_ptr<lczero::Backend> backend;
     try {
-      backend = MakeRawOnnx(o, prod, &bo);
+      backend = MakeRawOnnx(o, prod, /*cuda_graph=*/false, &bo);
     } catch (const std::exception&) {
       backend.reset();
     }
@@ -204,6 +218,49 @@ int run_bench_nn(const EngineOptions& o) {
       }
       std::cout << "  (ms/Run gan nhu khong doi = GPU van tinh du " << prod
                 << " o; phan thua la phi)\n";
+    }
+  }
+
+  // ---- EXPERIMENTAL: CUDA Graph capture (--cuda-graph) ----------------------
+  // Chua kiem chung tren phan cung that (moi viet, khong co GPU local de chay).
+  // Kiem CA toc do LAN tinh dung dan truoc khi dung cho selfplay/arena that --
+  // mot loi thinh lang o day se lam hong du lieu huan luyen, khong chi la crash.
+  if (o.sp_cuda_graph) {
+    if (o.sp_provider != "cuda") {
+      std::cout << "\n--cuda-graph chi ap dung cho --provider cuda; bo qua.\n";
+    } else if (static_cast<size_t>(prod) <= lczero::MaxBatchSize) {
+      std::cout << "\n--- EXPERIMENTAL: CUDA Graph capture (fixed_batch=" << prod << ") ---\n";
+      std::string bo_ref, bo_graph;
+      std::unique_ptr<lczero::Backend> ref, graph;
+      try { ref = MakeRawOnnx(o, prod, /*cuda_graph=*/false, &bo_ref); }
+      catch (const std::exception& e) { std::cerr << "  khong dung duoc backend doi chung: " << e.what() << "\n"; }
+      try { graph = MakeRawOnnx(o, prod, /*cuda_graph=*/true, &bo_graph); }
+      catch (const std::exception& e) { std::cerr << "  khong dung duoc backend cuda_graph: " << e.what() << "\n"; }
+
+      if (ref && graph) {
+        // 1) Dung: cung MOT the co, hai backend, so q/d/policy.
+        lczero::EvalResult r_ref = RunOnce(ref.get(), ep, legal.size());
+        lczero::EvalResult r_graph = RunOnce(graph.get(), ep, legal.size());
+        double max_diff = std::max(std::fabs(r_ref.q - r_graph.q), std::fabs(r_ref.d - r_graph.d));
+        for (size_t i = 0; i < legal.size(); ++i)
+          max_diff = std::max(max_diff, static_cast<double>(std::fabs(r_ref.p[i] - r_graph.p[i])));
+        std::printf("  dung : q(ref)=%.5f q(graph)=%.5f  d(ref)=%.5f d(graph)=%.5f  max|diff|=%.6f\n",
+                    r_ref.q, r_graph.q, r_ref.d, r_graph.d, max_diff);
+        if (max_diff > 1e-3) {
+          std::cout << "  [FAIL] cuda_graph LECH ket qua qua nguong -- KHONG dung cho selfplay/arena "
+                        "cho den khi dieu tra ro nguyen nhan.\n";
+        } else {
+          std::cout << "  [OK] cuda_graph khop duong khong-graph (trong sai so lam tron).\n";
+        }
+
+        // 2) Toc do: dung lai measure() cua vong quet chinh, cung batch=prod.
+        const Sample s_ref = measure(ref.get(), prod);
+        const Sample s_graph = measure(graph.get(), prod);
+        std::printf("  toc do: khong-graph %.1f pos/giay (%.3f ms/Run)  vs  graph %.1f pos/giay (%.3f ms/Run)"
+                    "  -> %+.1f%%\n",
+                    s_ref.pos_per_sec, s_ref.ms_per_run, s_graph.pos_per_sec, s_graph.ms_per_run,
+                    100.0 * (s_graph.pos_per_sec / s_ref.pos_per_sec - 1.0));
+      }
     }
   }
 
