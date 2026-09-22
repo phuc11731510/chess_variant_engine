@@ -64,3 +64,8 @@ output.txt
 
 # Ban sao thuong nguon de doi chieu (khong phai ma nguon du an)
 upstream/
+
+# Ghi chu / rat soat noi bo -- chi giu o may local, khong day len GitHub
+/Walkthrough/
+/Walkthrough GUI/
+/Walkthrough rà soát/
