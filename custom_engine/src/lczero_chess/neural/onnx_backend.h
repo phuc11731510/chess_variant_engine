@@ -100,6 +100,7 @@ class OnnxBackend : public Backend {
   std::string provider_ = "cpu";
   bool fixed_batch_ = false;
   size_t fixed_batch_size_ = 16;
+  bool cuda_graph_ = false;  // EXPERIMENTAL: "cuda_graph=1" backend opt, CUDA-only, needs fixed_batch_. See InitializeSession().
   int intra_op_threads_ = 1;
   int inter_op_threads_ = 1;
   float softmax_temp_ = 1.0f;

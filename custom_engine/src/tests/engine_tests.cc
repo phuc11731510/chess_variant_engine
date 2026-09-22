@@ -92,6 +92,7 @@ doubleStepRegionBlack = *10 *9 *8
 promotionRegionWhite = *8 *9 *10
 promotionRegionBlack = *3 *2 *1
 mandatoryPawnPromotion = true
+promotionPieceTypes = b m n r v y
 
 stalemateValue = loss
 checkCounting = true
@@ -355,6 +356,156 @@ checkCounting = true
         }
 
         std::cout << "[PASS] EP FEN Round-trip test passed!" << std::endl;
+    }
+
+    // TEST 4: En passant + promotion must NOT be offered if it exposes the
+    // mover's OWN king to check. This is the classic "two pawns vanish from the
+    // same rank" pin: White Pawn d7 captures Black Pawn e7 en passant, landing on
+    // e8 (a promotion square) -- BOTH d7 and e7 empty out on the SAME move, and if
+    // White's King and a Black Rook sit on that rank with nothing else between,
+    // the capture reveals check on White's own king and must be illegal.
+    //
+    // Position::legal()'s EN_PASSANT branch (position.cpp, PRE-EXISTING code, not
+    // touched by the ep+promotion feature) decides this purely from which SQUARES
+    // empty out (`from`, capture_square(to)) and which fills (`to`) -- it never
+    // looks at WHAT piece ends up on `to`, so promotion cannot bypass it. Verified
+    // here empirically rather than trusted from reading alone: same geometry,
+    // exposed (rook present) vs safe (rook removed) -- the move must flip from
+    // absent to present.
+    {
+        std::cout << "\n--- TEST 4: EP+Promotion must not reveal own king to check ---" << std::endl;
+
+        auto count_d7e8 = [&](const std::string& fen) {
+            Position pos;
+            StateListPtr states(new std::deque<StateInfo>(1));
+            pos.set(v, fen, false, &states->back(), Threads.main());
+            int n = 0;
+            for (const auto& m : MoveList<LEGAL>(pos))
+                if (from_sq(m.move) == make_square(FILE_D, RANK_7) && to_sq(m.move) == make_square(FILE_E, RANK_8))
+                    ++n;
+            return n;
+        };
+
+        // Exposed: White King b7, Black Rook j7, nothing else on rank 7 between
+        // them once d7 (mover) and e7 (captured pawn) vanish -> open rook check.
+        const std::string exposed = "9k/10/10/1K1Pp4r/10/10/10/10/10/10 w - e8 8+8 0 1";
+        // Safe control: identical position, Black Rook removed -> same capture,
+        // same landing-in-promotion-zone geometry, but no discovered check.
+        const std::string safe    = "9k/10/10/1K1Pp5/10/10/10/10/10/10 w - e8 8+8 0 1";
+
+        const int n_exposed = count_d7e8(exposed);
+        const int n_safe = count_d7e8(safe);
+
+        if (n_exposed != 0) {
+            std::cerr << "[FAIL] d7xe8 e.p.(+promo) is offered as LEGAL while it exposes White's "
+                         "own King to the Black Rook on rank 7 -- found " << n_exposed
+                      << " such move(s)! Position::legal()'s EN_PASSANT branch is not protecting "
+                         "the ep+promotion case." << std::endl;
+            std::exit(1);
+        }
+        if (n_safe == 0) {
+            std::cerr << "[FAIL] test is vacuous: with the checking rook removed, d7xe8 e.p.(+promo) "
+                         "should be legal (6 promotion choices) but NONE were found -- the fixture "
+                         "itself is broken, not (necessarily) the engine." << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  [OK] exposed position: 0 legal d7xe8 e.p. moves (correctly excluded, "
+                     "own King would be in check)" << std::endl;
+        std::cout << "  [OK] safe control: " << n_safe << " legal d7xe8 e.p.(+promo) move(s) found "
+                     "(fixture is not vacuous -- same geometry IS legal without the rook)" << std::endl;
+        std::cout << "[PASS] EP+Promotion own-king-safety test passed!" << std::endl;
+    }
+
+    // TEST 5: En passant + promotion must be OFFERED as a check EVASION when the
+    // captured pawn is the one giving check. This is the tricky mirror image of
+    // TEST 4: en passant captures on `capture_square(to)`, not on `to` itself, so
+    // the generic "landing square must be the checker's square" evasion filter
+    // used for ordinary captures does not directly apply -- an engine that only
+    // checked "is `to` the checker's square" would WRONGLY drop this move. Black
+    // pawn double-steps d9-d7, giving check to White's King on e6 directly (not
+    // discovered); White Pawn e7 can capture it en passant, landing on d8 (a
+    // promotion square) -- removing the checking pawn resolves the check.
+    {
+        std::cout << "\n--- TEST 5: EP+Promotion offered as check evasion (captures the checker) ---" << std::endl;
+        Position pos;
+        StateListPtr states(new std::deque<StateInfo>(1));
+        std::string fen = "9k/10/10/3pP5/4K5/10/10/10/10/10 w - d8 8+8 0 1";
+        pos.set(v, fen, false, &states->back(), Threads.main());
+
+        if (!pos.checkers()) {
+            std::cerr << "[FAIL] test setup error: White King should be in check from the Black "
+                         "Pawn on d7!" << std::endl;
+            std::exit(1);
+        }
+
+        int n_e7d8 = 0;
+        for (const auto& m : MoveList<LEGAL>(pos))
+            if (from_sq(m.move) == make_square(FILE_E, RANK_7) && to_sq(m.move) == make_square(FILE_D, RANK_8))
+                ++n_e7d8;
+
+        if (n_e7d8 == 0) {
+            std::cerr << "[FAIL] e7xd8 e.p.(+promo) — capturing the CHECKING pawn — is missing from "
+                         "legal evasions. An evasion filter that only checks 'does `to` equal the "
+                         "checker's square' would wrongly drop this (en passant captures on a "
+                         "DIFFERENT square than `to`)." << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  [OK] " << n_e7d8 << " legal e7xd8 e.p.(+promo) evasion move(s) found "
+                     "(correctly resolves check by capturing the checking pawn)" << std::endl;
+        std::cout << "[PASS] EP+Promotion check-evasion test passed!" << std::endl;
+    }
+
+    // TEST 6: same own-king-safety property as TEST 4, but along a FILE instead
+    // of a rank. TEST 4 relied on BOTH `from` and capture_square(to) vacating on
+    // the same rank (the classic two-pawns-disappear pin). This is a DIFFERENT
+    // mechanism: vacating `from` ALONE (regardless of what happens to the
+    // captured piece's square) can open a FILE if `from` was the only blocker
+    // between the King and an enemy Rook on that file. White King d1, White Pawn
+    // d7 blocking the d-file, Black Rook d10. Black Pawn double-steps e9-e7
+    // (ep-square e8); White's d7 pawn captures DIAGONALLY en passant to e8 --
+    // OFF the d-file -- which empties d7 and opens the file. Verifies
+    // Position::legal()'s generic `attackers_to(ksq, occupied, ~us)` (not
+    // rank-specific code) really does cover this geometry too, not just TEST 4's.
+    {
+        std::cout << "\n--- TEST 6: EP+Promotion must not reveal own king to check (FILE, not rank) ---" << std::endl;
+
+        auto count_d7e8 = [&](const std::string& fen) {
+            Position pos;
+            StateListPtr states(new std::deque<StateInfo>(1));
+            pos.set(v, fen, false, &states->back(), Threads.main());
+            int n = 0;
+            for (const auto& m : MoveList<LEGAL>(pos))
+                if (from_sq(m.move) == make_square(FILE_D, RANK_7) && to_sq(m.move) == make_square(FILE_E, RANK_8))
+                    ++n;
+            return n;
+        };
+
+        // Exposed: Black Rook d10, nothing else on the d-file between it and
+        // White's King at d1 once d7 (the only blocker) vacates -> open file check.
+        const std::string exposed = "3r5k/10/10/3Pp5/10/10/10/10/10/3K6 w - e8 8+8 0 1";
+        // Safe control: identical position, Black Rook removed.
+        const std::string safe    = "9k/10/10/3Pp5/10/10/10/10/10/3K6 w - e8 8+8 0 1";
+
+        const int n_exposed = count_d7e8(exposed);
+        const int n_safe = count_d7e8(safe);
+
+        if (n_exposed != 0) {
+            std::cerr << "[FAIL] d7xe8 e.p.(+promo) is offered as LEGAL while it opens the d-file "
+                         "onto White's own King (Black Rook d10) -- found " << n_exposed
+                      << " such move(s)! The FILE case of own-king exposure is not being caught."
+                      << std::endl;
+            std::exit(1);
+        }
+        if (n_safe == 0) {
+            std::cerr << "[FAIL] test is vacuous: with the checking rook removed, d7xe8 e.p.(+promo) "
+                         "should be legal (6 promotion choices) but NONE were found." << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  [OK] exposed position: 0 legal d7xe8 e.p. moves (correctly excluded, "
+                     "own King would be file-checked)" << std::endl;
+        std::cout << "  [OK] safe control: " << n_safe << " legal d7xe8 e.p.(+promo) move(s) found "
+                     "(fixture is not vacuous)" << std::endl;
+        std::cout << "[PASS] EP+Promotion own-king-safety (file) test passed!" << std::endl;
     }
 
     std::cout << "\n========================================" << std::endl;
@@ -1801,13 +1952,22 @@ void run_perft_tests() {
 
 // ============================================================================
 // AUDIT-GENERATION: a differential movegen fuzzer over the REAL game distribution.
-// Plays many random games; at EVERY position it asserts (1) the adapter's legal-
-// move generation agrees with raw Fairy-Stockfish (count — the same robust check
-// perft uses, with no cross-system notation risk), and (2) every move's NN policy
-// index is in range AND injective per position. This is the "catch-all" for hidden
-// movegen/rule bugs in positions the fixed tests never reach (near-8-checks, EP
-// races, promotion, castling edges). No plane->position decoder needed: positions
-// are carried forward by FEN (which also exercises the FEN round-trip).
+// Plays many random games; at EVERY position it asserts (1) the adapter's legal
+// move SET is IDENTICAL to raw Fairy-Stockfish's (not just the count — two
+// movesets of equal size that differ in content, e.g. one direction miscoded as
+// another, would pass a count-only check silently; this catches that), and (2)
+// every move's NN policy index is in range AND injective per position. This is
+// the "catch-all" for hidden movegen/rule bugs in positions the fixed tests never
+// reach (near-8-checks, EP races, promotion, castling edges). No plane->position
+// decoder needed: positions are carried forward by FEN (which also exercises the
+// FEN round-trip).
+//
+// Caveat this does NOT cover: "adapter" and "raw" both bottom out in the SAME
+// Stockfish::MoveList<LEGAL><Position> underneath (the adapter wraps, not
+// reimplements, movegen) — so this proves the adapter never diverges from the
+// core engine, not that the core engine's generation matches the INTENDED rules
+// of variants.ini. That is what the hand-built FEN cases in run_ep_tests /
+// run_rules_tests / run_adapter_tests / run_perft_tests are for.
 // ============================================================================
 void run_audit_generation(int num_games, int max_moves) {
     std::cout << "\n=== AUDIT-GENERATION: differential movegen fuzzer "
@@ -1818,7 +1978,8 @@ void run_audit_generation(int num_games, int max_moves) {
 
     std::mt19937_64 rng(0xC0FFEEULL);
     uint64_t positions = 0, total_moves = 0;
-    uint64_t count_mismatch = 0, nn_oob = 0, nn_collision = 0, terminal_games = 0;
+    uint64_t set_mismatch = 0, nn_oob = 0, nn_collision = 0, terminal_games = 0;
+    uint64_t set_mismatch_white = 0, set_mismatch_black = 0, positions_white = 0, positions_black = 0;
     int reported = 0;
 
     for (int g = 0; g < num_games; ++g) {
@@ -1826,18 +1987,69 @@ void run_audit_generation(int num_games, int max_moves) {
         for (int ply = 0; ply < max_moves; ++ply) {
             lczero::ChessBoard board(fen);
             lczero::MoveList adp = board.GenerateLegalMoves();
-            const size_t raw_n = MoveList<LEGAL>(board.GetRawPosition()).size();
+            const Position& raw_pos = board.GetRawPosition();
 
             ++positions;
             total_moves += adp.size();
 
-            // (1) differential: adapter legal-move count must equal raw Fairy-Stockfish.
-            if (adp.size() != raw_n) {
-                ++count_mismatch;
-                if (reported++ < 12)
-                    std::cerr << "[MISMATCH] legal-move count adapter=" << adp.size()
-                              << " raw=" << raw_n << "  FEN: " << fen << std::endl;
+            // (1) differential: adapter legal-move SET must equal raw Fairy-Stockfish's,
+            // not just its size. Sort both by the raw Move's integer encoding (a stable,
+            // cross-system-notation-free key — see the NN-interface test for the same
+            // trick) and merge-walk them so every one-sided move gets reported, not just
+            // the fact that a difference exists.
+            // GenerateLegalMoves() hands out CANONICAL moves: for Black to move it
+            // flips every move (board.cc, "the NN always sees its own pieces moving
+            // up the board") before returning, and ApplyMove() flips back on the way
+            // in -- self-consistent for real play, but it means adp's raw encoding
+            // is NOT directly comparable to raw_pos's un-flipped Stockfish::Move for
+            // Black positions. Flip the raw side the same way before keying, or every
+            // Black-to-move position "mismatches" by construction (caught empirically:
+            // an earlier version of this check flagged 99.9% of Black positions here,
+            // 0% of White ones, before this flip was added -- a test bug, not an
+            // engine bug; see the walkthrough for this session).
+            auto key = [](Move m) { return static_cast<uint32_t>(m); };
+            const bool black_to_move = raw_pos.side_to_move() == BLACK;
+            std::vector<Move> raw_moves;
+            raw_moves.reserve(adp.size() + 4);
+            for (const auto& em : MoveList<LEGAL>(raw_pos)) {
+                lczero::Move m(em.move);
+                if (black_to_move) m.Flip(raw_pos.max_rank());
+                raw_moves.push_back(m.raw());
             }
+            std::sort(raw_moves.begin(), raw_moves.end(),
+                      [&](Move a, Move b) { return key(a) < key(b); });
+
+            std::vector<lczero::Move> adp_moves;
+            adp_moves.reserve(adp.size());
+            for (size_t i = 0; i < adp.size(); ++i) adp_moves.push_back(adp[i]);
+            std::sort(adp_moves.begin(), adp_moves.end(),
+                      [&](const lczero::Move& a, const lczero::Move& b) { return key(a.raw()) < key(b.raw()); });
+
+            bool any_diff = false;
+            for (size_t ri = 0, ai = 0; ri < raw_moves.size() || ai < adp_moves.size(); ) {
+                const uint32_t rk = ri < raw_moves.size() ? key(raw_moves[ri]) : 0xFFFFFFFFu;
+                const uint32_t ak = ai < adp_moves.size() ? key(adp_moves[ai].raw()) : 0xFFFFFFFFu;
+                if (rk < ak) {
+                    any_diff = true;
+                    if (reported++ < 12)
+                        std::cerr << "[MISMATCH] only in RAW (adapter missing): "
+                                  << UCI::move(raw_pos, raw_moves[ri]) << "  FEN: " << fen << std::endl;
+                    ++ri;
+                } else if (ak < rk) {
+                    any_diff = true;
+                    if (reported++ < 12)
+                        std::cerr << "[MISMATCH] only in ADAPTER (raw missing): "
+                                  << board.MoveToString(adp_moves[ai]) << "  FEN: " << fen << std::endl;
+                    ++ai;
+                } else {
+                    ++ri; ++ai;
+                }
+            }
+            if (any_diff) {
+                ++set_mismatch;
+                if (raw_pos.side_to_move() == WHITE) ++set_mismatch_white; else ++set_mismatch_black;
+            }
+            if (raw_pos.side_to_move() == WHITE) ++positions_white; else ++positions_black;
 
             // (2) NN policy index: in-range and injective for this position.
             std::vector<int> seen;
@@ -1873,10 +2085,23 @@ void run_audit_generation(int num_games, int max_moves) {
     std::cout << "  games=" << num_games << "  positions audited=" << positions
               << "  legal moves checked=" << total_moves
               << "  (terminal-ending games=" << terminal_games << ")" << std::endl;
-    std::cout << "  count mismatches=" << count_mismatch
+    std::cout << "  coverage by side to move: white=" << positions_white
+              << " (mismatch " << set_mismatch_white << ")   black=" << positions_black
+              << " (mismatch " << set_mismatch_black << ")" << std::endl;
+    // Black-to-move is where GenerateLegalMoves()'s canonical Flip() (board.cc) is
+    // exercised at all -- if random play ever stopped reaching a Black move (e.g. a
+    // future max_moves=1 misconfiguration), the flip-comparison above would pass
+    // vacuously and silently lose coverage of exactly the thing that broke this
+    // check once already this session (see walkthrough).
+    if (positions_black == 0) {
+        std::cerr << "[FAIL] AUDIT-GENERATION never reached a Black-to-move position -- "
+                     "the move-set check's Flip()-handling is untested." << std::endl;
+        std::exit(1);
+    }
+    std::cout << "  move-set mismatches=" << set_mismatch
               << "  NN out-of-range=" << nn_oob
               << "  NN collisions=" << nn_collision << std::endl;
-    if (count_mismatch == 0 && nn_oob == 0 && nn_collision == 0) {
+    if (set_mismatch == 0 && nn_oob == 0 && nn_collision == 0) {
         std::cout << "[PASS] AUDIT-GENERATION: adapter movegen == raw FS and NN mapping clean over "
                   << positions << " real positions." << std::endl;
     } else {
@@ -2004,6 +2229,29 @@ void run_rules_tests() {
         drive("4k5/10/10/10/10/10/10/10/10/R8K w - - 1+8 0 1", 0, {"a1e1"}, res);
         if (res != lczero::GameResult::WHITE_WON) { std::cerr << "[FAIL] dynamic 7th check not WHITE_WON (got " << (int)res << ")" << std::endl; std::exit(1); }
         std::cout << "  [OK] White delivers final (7th) check -> WHITE_WON" << std::endl;
+    }
+
+    // 4. Check-counting must fire for a check that exists ONLY because of an
+    // en-passant-with-promotion (see position.cpp gives_check's ep+promo block,
+    // commit 52439cc): a check the PRE-promotion pawn geometrically could not
+    // give. White pawn e7 x d7 e.p. (Black just double-stepped d9-d7 through
+    // d8), landing on d8 -- a White promotion-zone square -- and promoting to
+    // Rook. A plain pawn on d8 attacks c9/e9, NOT d10, so the resulting check on
+    // the Black king (d10) along the open d-file exists ONLY via the promoted
+    // Rook. checksRemaining[WHITE] starts at 1: if gives_check() ever stops
+    // special-casing ep+promo, this check goes undetected, the counter does not
+    // reach 0, and the game does NOT end -- a sharp, binary regression signal.
+    {
+        lczero::GameResult res;
+        drive("3k6/10/10/3pP5/10/10/10/10/10/K9 w - d8 1+8 0 1", 0, {"e7d8r"}, res);
+        if (res != lczero::GameResult::WHITE_WON) {
+            std::cerr << "[FAIL] ep+promotion-only check did not end the game via check-counting "
+                         "(got " << (int)res << ", expected WHITE_WON -- gives_check() ep+promo "
+                         "branch may be broken)" << std::endl;
+            std::exit(1);
+        }
+        std::cout << "  [OK] check delivered SOLELY by an en-passant promotion (pawn->rook) "
+                     "correctly decrements check-counting -> WHITE_WON" << std::endl;
     }
 
     // Sergeant double-step on its SECOND move. doubleStepRegionWhite = *1 *2 *3, so a
