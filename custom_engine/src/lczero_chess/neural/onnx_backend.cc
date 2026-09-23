@@ -171,30 +171,35 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
     const EvalPosition& pos,
     EvalResultPtr result) {
     
-    if (enqueued_ >= capacity_) {
+    // Reserve this input's slot FIRST, atomically: several search task threads
+    // may be in here at once, and each must write only its own slot. (Reading
+    // enqueued_ here and incrementing it at the end let two threads fill the
+    // same slot and left another one unwritten.)
+    const size_t slot = enqueued_.fetch_add(1, std::memory_order_acq_rel);
+    if (slot >= capacity_) {
+        enqueued_.fetch_sub(1, std::memory_order_acq_rel);
         throw Exception("ONNX Backend: Maximum batch size exceeded!");
     }
-    
+
     // Save pointers to output destination
-    results_[enqueued_] = result;
-    
+    results_[slot] = result;
+
     // Save legal moves list
     size_t num_moves = std::min(pos.legal_moves.size(), static_cast<size_t>(384));
-    position_moves_[enqueued_].resize(num_moves);
+    position_moves_[slot].resize(num_moves);
     for (size_t i = 0; i < num_moves; ++i) {
-        position_moves_[enqueued_][i] = pos.legal_moves[i];
+        position_moves_[slot][i] = pos.legal_moves[i];
     }
-    
+
     // Encode board features using position history
     alignas(64) InputPlanes planes;
     int transform = 0;
     EncodePositionForNN(*pos.history, kMoveHistory, FillEmptyHistory::FEN_ONLY, &planes, &transform);
-    
+
     // Unpack bits into flat float buffer
-    float* current_input_ptr = input_buffer_.get() + enqueued_ * InputBufferUnitSize;
+    float* current_input_ptr = input_buffer_.get() + slot * InputBufferUnitSize;
     UnpackInputPlanes(planes, current_input_ptr, BoardWidth, BoardHeight);
-    
-    enqueued_++;
+
     return ENQUEUED_FOR_EVAL;
 }
 
@@ -219,14 +224,17 @@ void OnnxResetEvalCounters() {
 }
 
 void OnnxComputation::ComputeBlocking() {
-    if (enqueued_ == 0) return;
+    // Every AddInput has returned by now (the search joins its task threads
+    // first), so this count is final and every slot below it is filled.
+    const size_t enqueued = enqueued_.load(std::memory_order_acquire);
+    if (enqueued == 0) return;
     if (!session_) {
         throw Exception("ONNX Backend: ORT session is not initialized!");
     }
-    
+
     size_t offset = 0;
-    while (offset < enqueued_) {
-        size_t current_batch = enqueued_ - offset;
+    while (offset < enqueued) {
+        size_t current_batch = enqueued - offset;
         if (fixed_batch_ && current_batch > fixed_batch_size_) {
             current_batch = fixed_batch_size_;
         }
@@ -294,7 +302,7 @@ void OnnxComputation::ComputeBlocking() {
     }
     
     // 4. Fill results and execute Softmax for legal moves
-    for (size_t b = 0; b < enqueued_; ++b) {
+    for (size_t b = 0; b < enqueued; ++b) {
         float* raw_policy = policy_output_buffer_.get() + b * PolicyOutputSize;
         float* raw_value = value_output_buffer_.get() + b * ValueOutputSize;
         EvalResultPtr res = results_[b];
@@ -334,7 +342,7 @@ void OnnxComputation::ComputeBlocking() {
     }
     
     // Reset batch counter
-    enqueued_ = 0;
+    enqueued_.store(0, std::memory_order_release);
 }
 
 // ==========================================

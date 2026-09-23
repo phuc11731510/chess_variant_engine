@@ -27,6 +27,13 @@ Move FillSearchTargets(const classic::Node* root,
                        Backend* backend,
                        TrainingDataV1& rec);
 
+// Records the move actually played at the root (after temperature sampling).
+// When it differs from `best` (the max-visit move FillSearchTargets returned),
+// overrides played_idx and played_q/d with that move's own search value.
+// Returns the move to play (`best` when `played_edge` is empty).
+Move RecordPlayedMove(const classic::EdgeAndNode& played_edge, Move best,
+                      TrainingDataV1& rec);
+
 // Assigns z (result_q/d) at game end.
 //   abs_result    : absolute outcome (WHITE_WON / BLACK_WON / DRAW).
 //   black_to_move : whose turn it was at this recorded position.

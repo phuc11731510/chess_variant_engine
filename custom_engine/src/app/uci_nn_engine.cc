@@ -334,7 +334,11 @@ private:
                 if (m.is_null()) { ok = false; break; }
                 tree_->MakeMove(m);                 // descends into child subtree (keeps visits)
             }
-            if (ok) { tree_->TrimTreeAtHead(); reused = true; }  // free non-head branches
+            // MakeMove already frees the head's siblings (ReleaseChildrenExceptOne).
+            // Do NOT call TrimTreeAtHead() here: it discards the NEW head's own
+            // subtree and visits, i.e. exactly what reusing the tree is for (it
+            // did, until 2026-09-23, so ReuseTree never kept anything).
+            reused = ok;
         }
 
         if (!reused) {                              // rebuild a fresh tree
@@ -507,7 +511,10 @@ private:
         // Move selection: greedy (best) by default; with Temperature>0 (and within
         // TempCutoffPly) sample by visit counts -> weaker/more varied (difficulty).
         lczero::classic::EdgeAndNode chosen = edges[0];
-        const int ply = static_cast<int>(tree_->GetPositionHistory().GetPositions().size()) - 1;
+        // Plies already played since the `position` start (0 for its first move).
+        // Not the history length: that was one short, and NodeTree trims the
+        // history back to 100 plies once it reaches 200.
+        const int ply = static_cast<int>(current_moves_.size());
         if (temperature_ > 0 && (temp_cutoff_ply_ == 0 || ply < temp_cutoff_ply_)) {
             chosen = SampleByTemperature(edges, temperature_);
         }

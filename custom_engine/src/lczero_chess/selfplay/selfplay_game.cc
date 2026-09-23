@@ -24,14 +24,12 @@ class SilentResponder : public UciResponder {
   void OutputThinkingInfo(std::vector<ThinkingInfo>*) override {}
 };
 
-// Stops after `max_new_playouts` NEW playouts this move (tree-reuse safe:
-// counts nodes since move start, not total tree size).
-//
-// It also REPORTS that same counter back, because it is the only tree-reuse-safe
-// playout number available to the caller. `root->GetN()` is NOT: with tree reuse
-// the new root already carries the visits its subtree accumulated under the
-// previous move, so summing it per move double-counts (measured ~2x inflation on
-// real games) and makes nps incomparable between configurations.
+// Stops after `max_new_playouts` NEW playouts this move (counts nodes since move
+// start, not total tree size), and REPORTS that same counter back for the nps
+// statistics. Self-play now searches every move on a fresh tree (see
+// SearchSelfPlayMove), where the two are equal; the "new playouts" semantics is
+// kept because it stays correct if a caller ever searches a reused tree, whose
+// root already carries the visits of the previous move.
 class PlayoutStopper : public classic::SearchStopper {
  public:
   explicit PlayoutStopper(int64_t max_new_playouts)
@@ -87,6 +85,35 @@ classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, int ply,
 
 }  // namespace
 
+int64_t SearchSelfPlayMove(classic::NodeTree* tree, Backend* backend,
+                           const OptionsDict& options, int visits,
+                           int search_threads) {
+  // Every move gets a FRESH search tree, as in lc0's own self-play (ReuseTree
+  // defaults to false there: selfplay/game.cc calls TrimTreeAtHead before each
+  // move) and in the AlphaZero pseudocode (run_mcts builds a new root per move).
+  // Dirichlet noise is only mixed into a root's priors when that root is
+  // expanded (FetchSingleNodeResult). A reused root was expanded one move
+  // earlier, as an ordinary child, so keeping the subtree meant that only the
+  // first move of each game ever got root noise. The evaluations themselves
+  // survive in the NN cache, so re-expanding the old subtree costs cache hits,
+  // not GPU work.
+  tree->TrimTreeAtHead();
+  // Heap-allocated: Search/SearchWorker hold PositionHistory (512-ply arrays).
+  auto stopper = std::make_unique<PlayoutStopper>(visits);
+  // Borrowed before the unique_ptr moves into Search, which owns it until the
+  // Search is destroyed at the end of this function.
+  PlayoutStopper* stopper_ptr = stopper.get();
+  auto search = std::make_unique<classic::Search>(
+      *tree, backend, std::make_unique<SilentResponder>(), MoveList{},
+      std::chrono::steady_clock::now(), std::move(stopper), /*infinite=*/false,
+      /*ponder=*/false, options, /*syzygy_tb=*/nullptr);
+  search->RunBlocking(search_threads);
+  // NEW playouts this move (see PlayoutStopper), read while the Search (which
+  // owns the stopper) is still alive. The Search is destroyed on return, i.e.
+  // BEFORE the caller reads the tree or plays a move on it.
+  return stopper_ptr->new_playouts();
+}
+
 GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        const OptionsDict& options, int visits, int max_moves,
                        int temp_cutoff_ply, const std::string& out_filename,
@@ -137,24 +164,9 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
       black_attack += Stockfish::popcount(rp.pieces(Stockfish::BLACK) & kWhiteHalf);
     }
 
-    // --- Search (heap-allocated: PositionHistory holds 512-ply arrays) ---
-    auto responder = std::make_unique<SilentResponder>();
-    auto stopper = std::make_unique<PlayoutStopper>(visits);
-    // Borrowed before the unique_ptr moves into Search, which owns it for the
-    // whole RunBlocking() call -- so the pointer stays valid where it is read.
-    PlayoutStopper* stopper_ptr = stopper.get();
-    auto start = std::chrono::steady_clock::now();
-    auto search = std::make_unique<classic::Search>(
-        *tree, backend, std::move(responder), MoveList{}, start,
-        std::move(stopper), /*infinite=*/false, /*ponder=*/false, options,
-        /*syzygy_tb=*/nullptr);
-    search->RunBlocking(search_threads);
-
+    local_nodes +=
+        SearchSelfPlayMove(tree.get(), backend, options, visits, search_threads);
     const classic::Node* root = tree->GetCurrentHead();
-    // NEW playouts this move (see PlayoutStopper): tree-reuse safe, unlike
-    // root->GetN() which this used to sum and which double-counted the reused
-    // subtree on every move after the first.
-    local_nodes += stopper_ptr->new_playouts();
 
     TrainingDataV1 rec;
     std::memset(&rec, 0, sizeof(rec));
@@ -171,18 +183,9 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     EncodePlanesIntoRecord(tree->GetPositionHistory(), rec);
 
     // Move selection (temperature early, greedy late).
-    classic::EdgeAndNode played_edge = SelectMoveEdge(root, ply, temp_cutoff_ply);
-    Move played = played_edge.GetMove();
-    if (played.is_null()) {
-      played = best;
-    } else if (!(played == best)) {
-      // Played a non-best move: record its own value (child -> negate WL).
-      rec.played_idx = MoveToNNIndex(played, 0);
-      if (played_edge.GetN() > 0) {
-        rec.played_q = -played_edge.GetWL(0.0f);
-        rec.played_d = played_edge.GetD(0.0f);
-      }
-    }
+    const classic::EdgeAndNode played_edge =
+        SelectMoveEdge(root, ply, temp_cutoff_ply);
+    const Move played = RecordPlayedMove(played_edge, best, rec);
 
     records.push_back(rec);
     stm_black.push_back(black);

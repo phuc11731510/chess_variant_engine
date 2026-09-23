@@ -202,8 +202,19 @@ GameResult PositionHistory::ComputeGameResult() const {
         return GameResult::BLACK_WON; // Đen đã chiếu đủ 8 lần -> Đen thắng
     }
 
-    // 2. Luật 50 nước đi (100 plies) (O(1))
+    // Chiếu hết và hết nước (stalemate) đều là THUA cho bên tới lượt.
+    const GameResult stm_loses =
+        IsBlackToMove() ? GameResult::WHITE_WON : GameResult::BLACK_WON;
+
+    // 2. Luật 50 nước đi (100 plies) (O(1)) -- với ngoại lệ của Fairy-Stockfish
+    // (Position::is_optional_game_end: `!checkers() || MoveList<LEGAL>.size()`):
+    // luật này KHÔNG áp dụng khi bên tới lượt bị CHIẾU HẾT, nên nước chiếu hết
+    // đúng ở ply thứ 100 vẫn là thắng. Hết nước (stalemate) ở ply đó thì là HOÀ
+    // theo luật 50 nước (ở ply khác, stalemate là thua).
     if (Last().GetRule50Ply() >= 100) {
+        if (board.IsUnderCheck() && board.GenerateLegalMoves().empty()) {
+            return stm_loses;
+        }
         return GameResult::DRAW;
     }
 
@@ -212,15 +223,10 @@ GameResult PositionHistory::ComputeGameResult() const {
         return GameResult::DRAW;
     }
 
-    // 4. Kiểm tra nước đi hợp lệ (Chỉ chạy O(n) movegen khi thực sự cần thiết)
-    auto legal_moves = board.GenerateLegalMoves();
-    if (legal_moves.empty()) {
-        if (board.IsUnderCheck()) {
-            // Chiếu hết
-            return IsBlackToMove() ? GameResult::WHITE_WON : GameResult::BLACK_WON;
-        }
-        // Stalemate = LOSS (Bên bị stalemate thua)
-        return IsBlackToMove() ? GameResult::WHITE_WON : GameResult::BLACK_WON;
+    // 4. Kiểm tra nước đi hợp lệ (Chỉ chạy O(n) movegen khi thực sự cần thiết):
+    // chiếu hết, hoặc stalemate (= THUA trong biến thể này).
+    if (board.GenerateLegalMoves().empty()) {
+        return stm_loses;
     }
 
     return GameResult::UNDECIDED;
@@ -243,6 +249,12 @@ GameResult PositionHistory::ComputeMctsResult(const MoveList& legal_moves) const
 
     // 2. Luật kết thúc do hết nước đi (Checkmate hoặc Stalemate)
     if (legal_moves.empty()) {
+        // Ngoại lệ (khớp Fairy-Stockfish và ComputeGameResult): stalemate đúng ở
+        // ply thứ 100 không ăn quân/không đi tốt là HOÀ theo luật 50 nước, vì
+        // luật 50 nước chỉ nhường cho CHIẾU HẾT.
+        if (Last().GetRule50Ply() >= 100 && !board.IsUnderCheck()) {
+            return GameResult::DRAW;
+        }
         // Cả Checkmate và Stalemate đều dẫn đến bên bị Stalemate/Checkmate thua (to_move thua),
         // tức là bên vừa đi thắng -> Trả về GameResult::WHITE_WON
         return GameResult::WHITE_WON;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -43,7 +44,9 @@ class OnnxComputation : public BackendComputation {
   OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size);
   ~OnnxComputation() override = default;
 
-  size_t UsedBatchSize() const override { return enqueued_; }
+  size_t UsedBatchSize() const override {
+    return enqueued_.load(std::memory_order_acquire);
+  }
   
   AddInputResult AddInput(
       const EvalPosition& pos,
@@ -55,7 +58,10 @@ class OnnxComputation : public BackendComputation {
   Ort::Session* session_;
   Ort::MemoryInfo& memory_info_;
   
-  size_t enqueued_ = 0;
+  // Slots handed out so far. Atomic because lc0's search calls AddInput from
+  // several task threads at once (SearchWorker::ProcessPickedTask), each of
+  // which must get its own slot; ComputeBlocking runs after they all finished.
+  std::atomic<size_t> enqueued_{0};
   
   // Buffers sized to the batch this computation will ACTUALLY run, not to
   // MaxBatchSize. They used to be fixed-size arrays of MaxBatchSize, which made

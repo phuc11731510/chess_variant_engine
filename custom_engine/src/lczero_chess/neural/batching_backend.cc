@@ -1,5 +1,7 @@
 #include "neural/batching_backend.h"
 
+#include <atomic>
+
 namespace lczero {
 
 namespace {
@@ -11,25 +13,29 @@ class BatchingComputation : public BackendComputation {
  public:
   explicit BatchingComputation(BatchingBackend* backend) : backend_(backend) {}
 
-  size_t UsedBatchSize() const override { return used_; }
+  size_t UsedBatchSize() const override {
+    return used_.load(std::memory_order_acquire);
+  }
 
   AddInputResult AddInput(const EvalPosition& pos,
                           EvalResultPtr result) override {
+    // AddSlot is serialized by the backend's mutex, but this counter is not:
+    // lc0's search calls AddInput from several task threads at once.
     backend_->AddSlot(pos, result, &group_);
-    ++used_;
+    used_.fetch_add(1, std::memory_order_acq_rel);
     return ENQUEUED_FOR_EVAL;
   }
 
   void ComputeBlocking() override {
-    if (used_ == 0) return;
+    if (used_.load(std::memory_order_acquire) == 0) return;
     backend_->Flush(&group_);
-    used_ = 0;
+    used_.store(0, std::memory_order_release);
   }
 
  private:
   BatchingBackend* backend_;
   BatchingBackend::Group group_;
-  size_t used_ = 0;
+  std::atomic<size_t> used_{0};
 };
 
 }  // namespace
