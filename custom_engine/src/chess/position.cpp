@@ -39,7 +39,12 @@ namespace Stockfish {
 namespace Zobrist {
 
   Key psq[PIECE_NB][SQUARE_NB];
-  Key enpassant[FILE_NB];
+  // One key per SQUARE, not per file (Stockfish keys e.p. by file because it
+  // never has two e.p. squares on one file). Here a Sergeant's straight double
+  // step marks two squares on the SAME file (e.g. e8+e7); with per-file keys the
+  // two XORs cancelled, so that position hashed like the same board without
+  // e.p. rights (false repetitions, shared NN-cache entries).
+  Key enpassant[SQUARE_NB];
   Key castling[CASTLING_RIGHT_NB];
   Key side, noPawns;
   Key inHand[PIECE_NB][SQUARE_NB];
@@ -164,8 +169,8 @@ void Position::init() {
           for (Square s = SQ_A1; s <= SQ_MAX; ++s)
               Zobrist::psq[make_piece(c, pt)][s] = rng.rand<Key>();
 
-  for (File f = FILE_A; f <= FILE_MAX; ++f)
-      Zobrist::enpassant[f] = rng.rand<Key>();
+  for (Square s = SQ_A1; s <= SQ_MAX; ++s)
+      Zobrist::enpassant[s] = rng.rand<Key>();
 
   for (int cr = NO_CASTLING; cr <= ANY_CASTLING; ++cr)
       Zobrist::castling[cr] = rng.rand<Key>();
@@ -675,7 +680,7 @@ void Position::set_state(StateInfo* si) const {
   }
 
   for (Bitboard b = si->epSquares; b; )
-      si->key ^= Zobrist::enpassant[file_of(pop_lsb(b))];
+      si->key ^= Zobrist::enpassant[pop_lsb(b)];
 
   if (sideToMove == BLACK)
       si->key ^= Zobrist::side;
@@ -1753,7 +1758,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
   // Reset en passant squares
   while (st->epSquares)
-      k ^= Zobrist::enpassant[file_of(pop_lsb(st->epSquares))];
+      k ^= Zobrist::enpassant[pop_lsb(st->epSquares)];
 
   // Update castling rights if needed
   if (type_of(m) != DROP && !is_pass(m) && st->castlingRights && (castlingRightsMask[from] | castlingRightsMask[to]))
@@ -1928,7 +1933,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
               && !(walling() && gating_square(m) == to - pawn_push(us)))
           {
               st->epSquares |= to - pawn_push(us);
-              k ^= Zobrist::enpassant[file_of(to)];
+              k ^= Zobrist::enpassant[to - pawn_push(us)];
           }
           if (   std::abs(int(to) - int(from)) == 3 * NORTH
               && (var->enPassantRegion[them] & (to - 2 * pawn_push(us)))
@@ -1936,7 +1941,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
               && !(walling() && gating_square(m) == to - 2 * pawn_push(us)))
           {
               st->epSquares |= to - 2 * pawn_push(us);
-              k ^= Zobrist::enpassant[file_of(to)];
+              k ^= Zobrist::enpassant[to - 2 * pawn_push(us)];
           }
       }
 
@@ -2015,7 +2020,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       assert(type_of(pc) != PAWN);
       st->epSquares = between_bb(from, to) & var->enPassantRegion[them];
       for (Bitboard b = st->epSquares; b; )
-          k ^= Zobrist::enpassant[file_of(pop_lsb(b))];
+          k ^= Zobrist::enpassant[pop_lsb(b)];
   }
 
   // En passant capture that LANDS on a promotion square: ALSO promote the mover.
@@ -2467,7 +2472,7 @@ void Position::do_null_move(StateInfo& newSt) {
 #endif
 
   while (st->epSquares)
-      st->key ^= Zobrist::enpassant[file_of(pop_lsb(st->epSquares))];
+      st->key ^= Zobrist::enpassant[pop_lsb(st->epSquares)];
 
   st->key ^= Zobrist::side;
   prefetch(TT.first_entry(key()));

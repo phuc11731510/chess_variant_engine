@@ -4,9 +4,21 @@
 
 #include "chess/position.h"  // GameResult
 #include "neural/backend.h"
+#include "search/classic/node.h"  // classic::NodeTree
 #include "utils/optionsdict.h"
 
 namespace lczero {
+
+// Runs the MCTS search for ONE self-play move on `tree`'s current head: exactly
+// the search PlayOneGame performs before each move (same stopper, options and
+// thread count). The head's old subtree is discarded first, so every move is a
+// fresh search whose root gets Dirichlet noise (as in lc0 self-play and
+// AlphaZero). Returns the number of NEW playouts it performed. The Search is
+// fully destroyed before this returns, so the caller may read the tree and play
+// a move on it. Exposed so the tests exercise the production path.
+int64_t SearchSelfPlayMove(classic::NodeTree* tree, Backend* backend,
+                           const OptionsDict& options, int visits,
+                           int search_threads);
 
 // Plays one full self-play game from `start_fen` and writes a training record
 // for EVERY position (no filtering) to `out_filename` via TrainingDataWriter.

@@ -106,6 +106,10 @@ int main(int argc, char* argv[]) {
         run_encoder_tests();
     } else if (o.audit_generation_mode) {
         run_audit_generation(o.sp_games, o.sp_max_moves);
+    } else if (o.test_search_logic_mode) {
+        run_search_logic_tests(o.weights_file);
+    } else if (o.test_history_mode) {
+        run_history_tests();
     } else if (o.uci_nn_mode) {
         run_uci_nn(o.weights_file, o.sp_provider, o.sp_fixed_batch);
     } else if (o.play_mode) {
@@ -142,7 +146,9 @@ int main(int argc, char* argv[]) {
                "  self-tests:    --test-adapter --test-bits --test-board --test-encoder\n"
                "                 --test-ep --test-extract --test-mcts --test-nn\n"
                "                 --test-perft --test-policy --test-rules --test-selfplay\n"
-               "                 --test-trainingdata --test-uci\n\n"
+               "                 --test-trainingdata --test-uci --test-history\n"
+               "                 --test-search-logic [--weights <net.onnx>]\n"
+               "                   (see src/tests/README.md)\n\n"
                "See custom_engine/HUONG_DAN.md for the full flag reference.\n";
         Threads.set(0);
         variants.clear_all();

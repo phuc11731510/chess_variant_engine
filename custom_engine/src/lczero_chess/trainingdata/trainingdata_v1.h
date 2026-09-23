@@ -20,7 +20,13 @@ namespace lczero {
 // The struct is byte-packed; the static_assert below locks the layout so the
 // Python `struct.unpack` format stays in sync (silent corruption guard).
 
-constexpr uint32_t kTrainingDataVersion = 1;
+// Version history (the byte layout below has never changed):
+//   1: root_q, best_q, played_q were written from the OPPONENT's perspective
+//      (a sign error in FillSearchTargets). orig_q was already side-to-move,
+//      except when the cache missed and it fell back to best_q.
+//   2: all search values are side-to-move (2026-09-23). Readers flip the three
+//      fields above for version-1 records (python/dataset.py: search_q()).
+constexpr uint32_t kTrainingDataVersion = 2;
 constexpr uint32_t kInputFormat10x10 = 1;
 
 // Sentinel for "no castling right" in the castling-file fields.
@@ -55,7 +61,8 @@ struct TrainingDataV1 {
   uint8_t side_to_move;  // 0 = white-to-move frame, 1 = black (already canonical)
 
   // --- Value / eval targets ---
-  float result_q, result_d;  // z (game outcome), side-to-move perspective
+  // All side-to-move perspective (the three search values only from version 2).
+  float result_q, result_d;  // z (game outcome)
   float root_q, root_d;      // search root eval
   float best_q, best_d;      // q (best-move eval after search)
   float played_q, played_d;  // eval of the actually played move

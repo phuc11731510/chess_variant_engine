@@ -166,6 +166,32 @@ def test_qmix():
 
 
 # --------------------------------------------------------------------------- #
+# 3b. search-Q sign of legacy (version-1) records
+# --------------------------------------------------------------------------- #
+def test_legacy_search_q_sign():
+    print("\n[3b] search-Q sign: version-1 records are flipped back, version 2 kept")
+    ds = _DS(q_ratio=0.2)
+    base = make_rec(seed=11)
+    base.update(result_q=1.0, result_d=0.0, best_q=0.6, best_d=0.2,
+                root_q=0.5, root_d=0.2, played_q=0.4, played_d=0.2,
+                orig_q=0.33, orig_d=0.1)
+    # The same search, as the fixed engine (v2) and the old engine (v1) wrote it.
+    v2 = dict(base, version=2)
+    v1 = dict(base, version=1, best_q=-0.6, root_q=-0.5, played_q=-0.4)
+    good = 0.2 * D.wdl_from_qd(0.6, 0.2) + 0.8 * D.wdl_from_qd(1.0, 0.0)
+    check(np.allclose(ds._value(v2), good, atol=1e-6), "v2: value target uses best_q as stored")
+    check(np.allclose(ds._value(v1), good, atol=1e-6), "v1: value target undoes the legacy sign")
+    for key, want in (("best_q", 0.6), ("root_q", 0.5), ("played_q", 0.4)):
+        check(abs(D.search_q(v1, key) - want) < 1e-9 and abs(D.search_q(v2, key) - want) < 1e-9,
+              f"search_q({key}) is side-to-move for v1 and v2")
+    check(abs(D.orig_q(v1) - 0.33) < 1e-9, "v1: a real orig_q (raw net) is kept")
+    fallback = dict(v1, orig_q=v1["best_q"], orig_d=v1["best_d"])   # cache-miss copy of best_q
+    check(abs(D.orig_q(fallback) - 0.6) < 1e-9, "v1: orig_q copied from best_q is flipped too")
+    check(abs(D.search_q(make_rec(seed=3)) - make_rec(seed=3)["best_q"]) < 1e-9,
+          "records without a version field are treated as current")
+
+
+# --------------------------------------------------------------------------- #
 # 4. sparse == dense
 # --------------------------------------------------------------------------- #
 def test_sparse_equals_dense():
@@ -333,6 +359,7 @@ def main():
     test_struct_layout()
     test_wdl_from_qd()
     test_qmix()
+    test_legacy_search_q_sign()
     test_sparse_equals_dense()
     test_policy_loss_masking()
     test_reconstruct_aux()

@@ -69,6 +69,12 @@ int run_selfplay(const EngineOptions& o) {
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, o.sp_noise_alpha);
         if (o.sp_cpuct >= 0.0f)
             parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_cpuct);
+        // No speculative prefetch by default (lc0's default is 32). Prefetch only
+        // fills the NN cache with guesses; it never changes what the search
+        // computes. Measured 2026-09-23 on a Colab T4: +37% playouts/s without it
+        // (the GPU was saturated either way; prefetch spent ~27% of its slots on
+        // guesses and padding). `--search-opt max-prefetch=N` still overrides.
+        parser.GetMutableDefaultsOptions()->Set<int>(lczero::classic::SearchParams::kMaxPrefetchBatchId, 0);
         // T8.3 #4b: arbitrary lc0 search params for self-play via --search-opt name=value.
         for (const auto& kv : o.sp_search_opts) {
             if (ApplySearchOpt(parser.GetMutableDefaultsOptions(), kv.first, kv.second))

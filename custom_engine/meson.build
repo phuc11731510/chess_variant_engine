@@ -147,7 +147,15 @@ engine_sources = files(
   'src/app/cli.cc',
   'src/app/selfplay_mode.cc',
   'src/app/bench_nn.cc',
-  'src/tests/engine_tests.cc'
+  # Built-in self-tests, one file per area (see src/tests/README.md).
+  'src/tests/test_ep.cc',
+  'src/tests/test_board.cc',
+  'src/tests/test_rules.cc',
+  'src/tests/test_nn_io.cc',
+  'src/tests/test_trainingdata.cc',
+  'src/tests/test_search.cc',
+  'src/tests/test_search_logic.cc',
+  'src/tests/test_history.cc'
 )
 
 # ONNX Runtime link dependency (platform-specific root resolved above).

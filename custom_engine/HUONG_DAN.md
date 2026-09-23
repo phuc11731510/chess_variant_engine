@@ -323,6 +323,14 @@ vào lệnh `--selfplay` ở B.1/B.2:
 ```
 ... --resign-threshold -0.90 --resign-consecutive 3 --no-resign-frac 0.10
 ```
+> ⚠ **Engine trước 2026-09-23:** `best_q` (giá trị resign dựa vào) bị lưu NGƯỢC dấu, nên bật resign
+> khi đó sẽ khiến bên đang **thắng** xin thua. Dữ liệu sinh với resign bật bằng engine cũ có nhãn ván
+> sai — đừng dùng. Từ bản sửa, resign hoạt động đúng.
+
+> **Thay đổi 2026-09-23 (engine mới):** mỗi nước self-play là một lượt tìm kiếm **cây mới** (như lc0
+> và AlphaZero), nên **nhiễu Dirichlet có ở gốc của MỌI nước** (trước đây chỉ nước đầu mỗi ván). Bản
+> ghi dữ liệu mới mang `version = 2` (giá trị tìm kiếm đúng góc nhìn bên-tới-lượt); `train.py` tự đảo
+> dấu cho dữ liệu cũ `version = 1`, nên trộn dữ liệu cũ và mới trong cửa sổ trượt vẫn đúng.
 
 ### B.4. Đóng gói dữ liệu thành 1 tệp `.zip` (để tải lên Drive / cho gọn)
 Hàng ngàn tệp `.gz` nhỏ tải lên Drive rất chậm. Gom thành **1 tệp** (`archive.py` chạy được trên cả
@@ -399,6 +407,10 @@ còn in **2 chỉ số thống kê** (cả hai **luôn bật**, không cần th�
 ```
 pip install -r python\requirements.txt
 ```
+> **Colab:** mỗi phiên Colab là một máy mới, nên gói nào không có sẵn trong ảnh Colab phải cài lại mỗi
+> phiên. Ảnh Colab hiện tại (Python 3.13) **không có `onnx`**, mà `torch.onnx.export` cần nó → thêm vào
+> ô cài đặt đầu notebook: `!pip install -q onnx onnxscript onnxruntime`. Cảnh báo xung đột `protobuf`
+> của các gói Google khác là vô hại.
 
 ### C.1. Toàn cảnh: vòng đời 2 bước (làm TAY, tách bạch)
 Bản portable **không** gộp sinh dữ liệu và huấn luyện vào một lệnh tự động — bạn điều khiển từng
@@ -648,7 +660,7 @@ Mặc định = đúng default `lc0-master`.
 `infinite` (+`stop`) · `searchmoves m1 m2…` · `ponder` (+`ponderhit`). Engine phát `info ... score cp ...
 wdl ... multipv ... pv ...`.
 
-**CHƯA DÙNG ĐƯỢC:** vài tham số search hiếm/nội bộ chưa đưa vào (`max-prefetch`, `solid-tree-threshold`,
+**CHƯA DÙNG ĐƯỢC:** vài tham số search hiếm/nội bộ chưa đưa vào (`solid-tree-threshold`,
 `minimum-*-work`…); `go depth N`/`go mate N` (nhận nhưng chưa giới hạn); `score mate N` (chưa phát);
 ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm ngân sách thời gian).
 
@@ -679,7 +691,7 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--resign-earliest-move N` | 0 | Không cho xin thua trước nước thứ N (để không bỏ ván quá sớm). |
 | `--no-resign-frac F` | 0.10 | Tỉ lệ ván **tắt** resign, đánh tới cùng — để mạng vẫn học cách kết liễu/phòng thủ thế thua. |
 | `--search-opt name=value` (lặp) | — | Đặt **bất kỳ** search-param lc0 nào cho self-play (xem danh sách ~35 ở D.1). Lặp nhiều lần, vd `--search-opt cpuct-base=20000 --search-opt two-fold-draws=true`. |
-| `--search-opt max-prefetch=N` | 32 | **(mới 2026-09-23, cần A/B trên Colab)** Số vị trí tối đa mà search "nạp trước vào cache" khi batch chưa đầy. Đo cục bộ: Prefetch chiếm **~90% thời gian CPU** của search (≈316 µs/playout; tắt đi còn ≈32 µs), và làm mỗi vòng gom ~30 vị trí thay vì ~16 → với `--fixed-batch 16` là **2 lượt Run thay vì 1**, NN eval/playout 1,2 thay vì 1,0. Không đổi giá trị đánh giá (cache trả đúng kết quả mạng sẽ tính) nên **không ảnh hưởng chất lượng dữ liệu** — thuần hiệu năng. Trên iGPU Intel (batch động) hai bên hoà; trên T4 `fixed-batch 16` chưa đo. So sánh bằng `playout/giây` và `NN eval/playout`, không bằng `Van/gio`. |
+| `--search-opt max-prefetch=N` | **0** (self-play) | Số vị trí tối đa search "nạp trước vào cache" khi batch chưa đầy (lc0 mặc định 32). Prefetch chỉ đoán trước để lấp cache, **không đổi giá trị đánh giá** nên không ảnh hưởng chất lượng dữ liệu. Đo trên Colab T4 (`--parallel 4 --fixed-batch 16 --visits 800`): tắt prefetch cho **+37% playout/giây** (2.488 → 3.401), vì GPU bão hoà ở cả hai cấu hình và prefetch tốn ~27% ô batch cho phần đoán + pad. **Từ 2026-09-23 self-play mặc định 0**; đặt `max-prefetch=32` nếu muốn hành vi lc0 gốc. |
 | `--show-nps` | tắt | Hiện **NPS tổng** (cộng dồn mọi worker) trong log mỗi ván + dòng tổng kết, **cộng một khối `--- Throughput ---`** ở cuối. Mặc định TẮT. **Từ 2026-09-22 nps đếm playout MỚI** — trước đó nó cộng `root->GetN()` mỗi nước, mà giá trị này đã bao gồm cây tái sử dụng từ nước trước nên **phóng đại ~2×**; số cũ và mới KHÔNG so thẳng được. |
 | `--batch-aggregate` | tắt | **(A4 — chỉ GPU)** Gom thế cờ cần eval từ NHIỀU ván song song vào **một batch NN** chạy một lần → GPU no hơn, ít lệnh inference hơn. Mặc định TẮT. |
 | `--batch-timeout-us N` | 2000 | Cửa sổ gộp batch (micro-giây) khi dùng `--batch-aggregate`: chờ tối đa N µs cho các ván khác kịp nộp rồi mới chạy (cũng là chốt chống treo). |
@@ -857,7 +869,10 @@ chỉ **giữ đời mới làm mốc** nếu nó đạt ngưỡng thắng rõ r
   `!find /content/FairyZero -exec touch {} +` → `!rm -rf .../engine_src/build-linux` → chạy lại `colab_setup.sh`.
   (Bản `colab_setup.sh` mới đã tự `touch` trước khi `meson setup` nên sẽ không gặp lại.)
 - **Test engine còn nguyên vẹn:** `custom_engine.exe --test-uci` (kiểm tra I/O nước) phải in
-  `[PASS]`.
+  `[PASS]`. Bộ test đầy đủ (mỗi cờ một mảng, danh mục ở `src/tests/README.md`): quan trọng nhất là
+  `--test-search-logic --weights <mạng.onnx>` (dấu giá trị trong dữ liệu, nhiễu Dirichlet mọi nước,
+  sổ sách cây MCTS đa luồng, `AddInput` an toàn đa luồng, `ReuseTree`, stress vòng đời search) và
+  `--test-history` (cắt lịch sử 200 nước, khoá Zobrist/e.p., khoá cache, thứ tự luật kết thúc ván).
 
 ---
 

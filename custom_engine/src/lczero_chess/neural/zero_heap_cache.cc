@@ -1,16 +1,23 @@
 #include "neural/zero_heap_cache.h"
 #include "neural/shared_params.h"
 #include "utils/exception.h"
+#include "utils/hashcat.h"
 #include <cassert>
 #include <cstring>
 #include <algorithm>
 
 namespace lczero {
 
-// Helper to hash position history
+// Cache key of a position: its Zobrist key plus its repetition count, as in lc0
+// (Position::Hash() there is HashCat(board hash, repetitions)). The repetition
+// count is part of the NN input (plane 26 of every history step), so a first
+// occurrence and a repetition of the same board are evaluated differently and
+// must not share a cache entry. Like lc0 (CacheHistoryLength = 0), the earlier
+// history planes and rule50 are not part of the key.
 static uint64_t ComputeEvalPositionHash(const EvalPosition& pos) {
     if (!pos.history) return 0;
-    return pos.history->Last().Hash();
+    const Position& last = pos.history->Last();
+    return HashCat(last.Hash(), static_cast<uint64_t>(last.GetRepetitions()));
 }
 
 // ==========================================
@@ -48,32 +55,40 @@ class ZeroHeapCacheComputation : public BackendComputation {
           return AddInputResult::FETCHED_IMMEDIATELY;
       }
       
-      // 2. Cache Miss: queue for real neural inference
-      if (num_entries_ >= max_batch_size_) {
+      // 2. Cache Miss: queue for real neural inference. Reserve the entry
+      // atomically: lc0's search calls AddInput from several task threads at
+      // once, and a plain `num_entries_++` let two of them share one entry
+      // (one result was then never delivered -- its node kept garbage priors).
+      const size_t entry_idx = num_entries_.fetch_add(1, std::memory_order_acq_rel);
+      if (entry_idx >= max_batch_size_) {
+          num_entries_.fetch_sub(1, std::memory_order_acq_rel);
           throw Exception("ZeroHeapCache: Batch size limit exceeded.");
       }
-      
-      size_t entry_idx = num_entries_++;
       entries_[entry_idx] = Entry{.hash = hash, .result_ptr = result};
       
       // Allocate temporary results dynamically without using malloc/heap
       temp_results_[entry_idx].p.resize(num_moves);
       
-      // Route input to the underlying backend computation
+      // Route input to the underlying backend computation. (The wrapped
+      // backends -- OnnxBackend, BatchingBackend -- always enqueue; results are
+      // delivered to `result` in ComputeBlocking below.)
       return wrapped_->AddInput(pos, temp_results_[entry_idx].AsPtr());
   }
 
   void ComputeBlocking() override {
+      // All AddInput calls have returned by now (the search joins its task
+      // threads before evaluating), so this count is final.
+      const size_t num_entries = num_entries_.load(std::memory_order_acquire);
       if (wrapped_->UsedBatchSize() == 0) {
-          num_entries_ = 0;
+          num_entries_.store(0, std::memory_order_release);
           return;
       }
-      
+
       // Trigger execution of wrapped ONNX Runtime session
       wrapped_->ComputeBlocking();
-      
+
       // Copy outputs to client results and store in Cache
-      for (size_t i = 0; i < num_entries_; ++i) {
+      for (size_t i = 0; i < num_entries; ++i) {
           const auto& entry = entries_[i];
           auto& temp = temp_results_[i];
           
@@ -93,7 +108,7 @@ class ZeroHeapCacheComputation : public BackendComputation {
       }
       
       // Reset tracker
-      num_entries_ = 0;
+      num_entries_.store(0, std::memory_order_release);
   }
 
  private:
@@ -106,7 +121,7 @@ class ZeroHeapCacheComputation : public BackendComputation {
   ZeroHeapCache* cache_;
   size_t max_batch_size_;
   
-  size_t num_entries_ = 0;
+  std::atomic<size_t> num_entries_{0};
   alignas(64) Entry entries_[MaxBatchSize];
   alignas(64) EvalResult temp_results_[MaxBatchSize];
 };

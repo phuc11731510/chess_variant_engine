@@ -46,14 +46,18 @@ Move FillSearchTargets(const classic::Node* root,
   rec.played_idx = rec.best_idx;  // caller overrides after temperature sampling
 
   // --- 2. Value targets (all from side-to-move-at-root perspective) ---
-  // root->GetWL()/GetD() are already from the root's side-to-move view.
-  rec.root_q = root->GetWL();
+  // lc0 stores a node's WL from the view of the player who MOVED INTO it:
+  //   * the root was entered by the opponent -> negate to get our view;
+  //   * a child was entered by US (the side to move at the root) -> use as is.
+  // This is exactly how lc0 itself reports it (Search::GetBestEval /
+  // SendUciInfo: `-root->GetWL()` for the root, `edge.GetWL()` for a move).
+  // Draw probability is perspective-invariant so it is never negated.
+  // (Before training-data version 2 both signs were the other way round, i.e.
+  // the opponent's view; the Python reader undoes that for old records.)
+  rec.root_q = -root->GetWL();
   rec.root_d = root->GetD();
-  // A child node's value is from the OPPONENT's perspective -> negate WL to get
-  // the value (for us) of playing that move. Draw probability is perspective-
-  // invariant so it is not negated.
   if (best.GetN() > 0) {
-    rec.best_q = -best.GetWL(0.0f);
+    rec.best_q = best.GetWL(0.0f);
     rec.best_d = best.GetD(0.0f);
   } else {
     rec.best_q = rec.root_q;
@@ -95,6 +99,22 @@ Move FillSearchTargets(const classic::Node* root,
   }
 
   return best.GetMove();
+}
+
+Move RecordPlayedMove(const classic::EdgeAndNode& played_edge, Move best,
+                      TrainingDataV1& rec) {
+  const Move played = played_edge.GetMove();
+  if (played.is_null()) return best;
+  if (!(played == best)) {
+    // Played a non-best move: record its own value. The child was entered by
+    // the side to move, so its WL is already from our view (see above).
+    rec.played_idx = MoveToNNIndex(played, 0);
+    if (played_edge.GetN() > 0) {
+      rec.played_q = played_edge.GetWL(0.0f);
+      rec.played_d = played_edge.GetD(0.0f);
+    }
+  }
+  return played;
 }
 
 void AssignResult(TrainingDataV1& rec, GameResult abs_result,

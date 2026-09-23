@@ -30,6 +30,35 @@ def wdl_from_qd(q, d):
     return np.array([w / s, d / s, l / s], dtype=np.float32)
 
 
+# Records before training-data version 2 stored the search values root_q /
+# best_q / played_q from the OPPONENT's perspective (sign error in the C++
+# FillSearchTargets, fixed 2026-09-23; result_q was always right). From version 2
+# on every value is side-to-move. search_q() / orig_q() below return the
+# side-to-move value for either version, so old and new data can be mixed.
+FIRST_STM_SEARCH_Q_VERSION = 2
+
+
+def _is_legacy(rec):
+    # Synthetic records built in tests carry no "version": treat as current.
+    return rec.get("version", FIRST_STM_SEARCH_Q_VERSION) < FIRST_STM_SEARCH_Q_VERSION
+
+
+def search_q(rec, key="best_q"):
+    """Search value `key` (root_q / best_q / played_q), side-to-move perspective."""
+    q = rec[key]
+    return -q if _is_legacy(rec) else q
+
+
+def orig_q(rec):
+    """Raw net value of the root, side-to-move perspective. In version-1 records
+    it was already correct, except where the cache missed and the writer copied
+    the (sign-flipped) best_q into it -- recognizable as an exact copy."""
+    q = rec["orig_q"]
+    if _is_legacy(rec) and q == rec["best_q"] and rec["orig_d"] == rec["best_d"]:
+        return -q
+    return q
+
+
 def _resolve_files(data):
     """`data` may be a comma-separated list of dirs, globs, and/or .zip bundles
     (the rolling window passes several generation dirs; a .zip is an archive.py
@@ -51,7 +80,7 @@ def _diff_focus_keep(rec, slope, kld_w, pmin):
     """diff_focus (8.2.6): keep prob rises with how 'surprising' a position is,
     measured by |orig_q - best_q| (search disagreed with the static net eval) and
     policy_kld (visit distribution diverged from the raw prior)."""
-    surprise = abs(rec["orig_q"] - rec["best_q"]) + kld_w * max(0.0, rec["policy_kld"])
+    surprise = abs(orig_q(rec) - search_q(rec)) + kld_w * max(0.0, rec["policy_kld"])
     return min(1.0, max(pmin, pmin + slope * surprise))
 
 
@@ -128,7 +157,7 @@ class FairyDataset(Dataset):
 
     def _value(self, r):
         z_wdl = wdl_from_qd(r["result_q"], r["result_d"])
-        q_wdl = wdl_from_qd(r["best_q"], r["best_d"])
+        q_wdl = wdl_from_qd(search_q(r), r["best_d"])
         v = self.q_ratio * q_wdl + (1.0 - self.q_ratio) * z_wdl
         return v.astype(np.float32)
 
