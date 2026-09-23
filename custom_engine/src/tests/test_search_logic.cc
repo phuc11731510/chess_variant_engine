@@ -23,17 +23,22 @@
 //   7. Thousands of short searches in parallel games (a Search, i.e. a new set
 //      of threads, per move) neither crash nor hang. This caught the per-thread
 //      Node slab allocator corrupting memory at thread exit on MinGW.
+//   8. A game file written by PlayOneGame replays exactly: planes, pi mask,
+//      best/played indices, game end and z of every record.
 //
 // Every sub-test runs even if an earlier one failed; the process exits 1 at the
 // end if anything failed.
 
 #include "tests/test_common.h"
 #include "app/fairyzero_ffi.h"
+#include "app/uci_nn_engine.h"
+#include <iomanip>
 
 namespace {
 
 using lczero::classic::Node;
 using lczero::classic::NodeTree;
+using lczero::GameResult;
 
 int g_failures = 0;
 
@@ -591,25 +596,14 @@ void TestLegalMoveCapacity() {
 // count, so with a reused tree it carries the visits that move's subtree already
 // had (a large share of the first search); with a rebuilt tree it is only the
 // handful of playouts of the first gathers. Both settings are run and compared.
-void TestUciTreeReuse(const std::string& weights_path) {
-    std::cout << "\n--- 6. UCI engine: ReuseTree keeps the searched subtree ---" << std::endl;
-    std::ifstream probe(weights_path);
-    if (!probe.good()) {
-        std::cout << "  [SKIP] needs --weights <net.onnx>" << std::endl;
-        return;
-    }
-    probe.close();
-    void* h = fz_create(weights_path.c_str(), "cpu");
-    if (!h) {
-        ++g_failures;
-        std::cerr << "[FAIL] fz_create failed" << std::endl;
-        return;
-    }
-    // Sends a `go` and collects output until its bestmove (2-minute guard).
+// Runs the ReuseTree comparison on one engine handle; `label` names the backend.
+// `minutes` bounds each search (a CPU network can be slow; DetBackend is instant).
+void RunUciReuseComparison(void* h, const char* label, int minutes) {
+    // Sends a `go` and collects output until its bestmove.
     auto go = [&](const char* cmd, std::vector<std::string>* lines) {
         fz_send(h, cmd);
         char buf[4096];
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(2);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(minutes);
         while (std::chrono::steady_clock::now() < deadline) {
             if (fz_poll(h, buf, sizeof(buf)) > 0) {
                 lines->emplace_back(buf);
@@ -638,6 +632,7 @@ void TestUciTreeReuse(const std::string& weights_path) {
                          : "setoption name ReuseTree value false");
         fz_send(h, "position startpos");
         std::vector<std::string> first, second;
+        const auto t0 = std::chrono::steady_clock::now();
         const bool ok1 = go("go nodes 2000", &first);
         std::string bestmove;
         if (ok1) {
@@ -647,24 +642,55 @@ void TestUciTreeReuse(const std::string& weights_path) {
         }
         if (!ok1 || bestmove.empty()) {
             ++g_failures;
-            std::cerr << "[FAIL] setup: first search gave no bestmove" << std::endl;
-            fz_destroy(h);
+            std::cerr << "[FAIL] " << label << ": the first search gave no bestmove within "
+                      << minutes << " min" << std::endl;
             return;
         }
+        const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
         const std::string pos = "position startpos moves " + bestmove;
         fz_send(h, pos.c_str());
-        EXPECT(go("go nodes 1", &second), "second search gave no bestmove");
+        EXPECT(go("go nodes 1", &second), label << ": second search gave no bestmove");
         root_visits[reuse] = last_nodes(second);
-        std::cout << "  ReuseTree " << (reuse ? "true " : "false") << ": after '" << pos
-                  << "' + 'go nodes 1' the root has " << root_visits[reuse] << " visits"
-                  << std::endl;
+        std::cout << "  " << label << ", ReuseTree " << (reuse ? "true " : "false")
+                  << ": 2000 playouts in " << std::fixed << std::setprecision(1) << secs
+                  << " s; after '" << pos << "' + 'go nodes 1' the root has "
+                  << root_visits[reuse] << " visits" << std::endl;
     }
     // The best move of a 2000-playout search has at least the average share of
     // the visits (~2000 / 70 legal moves = 28), while the rebuilt tree only gets
     // what one gather adds (up to ~40 with NN-cache hits evaluated out of order).
     EXPECT(root_visits[1] >= root_visits[0] + 20,
-           "ReuseTree=true kept no more visits than a rebuilt tree (" << root_visits[1]
+           label << ": ReuseTree=true kept no more visits than a rebuilt tree (" << root_visits[1]
            << " vs " << root_visits[0] << "): the searched subtree was thrown away");
+}
+
+void TestUciTreeReuse(const std::string& weights_path) {
+    std::cout << "\n--- 6. UCI engine: ReuseTree keeps the searched subtree ---" << std::endl;
+    // Always: the UCI engine (the path the GUI drives) with the deterministic
+    // backend -- fast, and independent of the speed of the machine.
+    if (void* h = fz_create_with_backend(std::make_unique<fztest::DetBackend>(true, 8, 0))) {
+        RunUciReuseComparison(h, "DetBackend", 2);
+        fz_destroy(h);
+    } else {
+        ++g_failures;
+        std::cerr << "[FAIL] fz_create_with_backend failed" << std::endl;
+    }
+    // With --weights: the same through fz_create and the real ONNX backend. On a
+    // slow CPU 2000 playouts take minutes (7 playouts/s measured on a throttled
+    // laptop), so the bound is generous.
+    std::ifstream probe(weights_path);
+    if (!probe.good()) {
+        std::cout << "  [SKIP] real network: needs --weights <net.onnx>" << std::endl;
+        return;
+    }
+    probe.close();
+    void* h = fz_create(weights_path.c_str(), "cpu");
+    if (!h) {
+        ++g_failures;
+        std::cerr << "[FAIL] fz_create failed" << std::endl;
+        return;
+    }
+    RunUciReuseComparison(h, "ONNX network", 20);
     fz_destroy(h);
 }
 
@@ -724,6 +750,122 @@ void TestSearchLifecycleStress() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 8. A self-play game file replays exactly.
+// ---------------------------------------------------------------------------
+// PlayOneGame (the production path) writes one record per position. Replaying
+// the recorded moves from the start position must reproduce every record: its
+// 216 history planes and scalar fields are those of the replayed position; pi
+// is -1 exactly on the illegal indices and sums to 1 over the legal ones;
+// best_idx is a most-visited move; the move at played_idx is legal and leads
+// to the next record; no record lies after the end of the game; the game ends
+// where the rules say (or at max_moves, adjudicated a draw); z has the right
+// sign for the side to move of every record.
+void TestSelfPlayRecordsReplay() {
+    std::cout << "\n--- 8. A self-play game file replays exactly ---" << std::endl;
+    fztest::DetBackend backend(/*runs_on_cpu=*/true, /*batch=*/8, /*immediate_mod=*/0);
+    fztest::TestSearchOptions opts;
+    opts.SetNoise(0.25f, 0.3f);
+    const std::string file =
+        std::string("test_selfplay_replay") + lczero::TrainingDataWriter::Extension();
+    struct Case { const char* fen; int max_moves; };
+    const Case cases[] = {
+        {lczero::ChessBoard::kStartposFen, 60},                       // cut at max_moves
+        {"4k5/10/10/10/10/10/10/10/10/R3K4R w - - 8+8 0 1", 300},    // ends by the rules
+        {"n3k5/10/10/10/10/10/10/10/10/4K4N b - - 8+8 20 1", 300},   // quiet: repetition / rule 50
+    };
+    for (const auto& c : cases) {
+        const lczero::GameResult res = lczero::PlayOneGame(
+            c.fen, &backend, opts.Dict(), /*visits=*/48, c.max_moves, /*temp_cutoff_ply=*/10,
+            file, /*search_threads=*/1, /*verbose=*/false);
+        std::vector<lczero::TrainingDataV1> recs;
+        if (!lczero::ReadTrainingData(file, recs) || recs.empty()) {
+            ++g_failures;
+            std::cerr << "[FAIL] " << c.fen << ": no readable game file" << std::endl;
+            continue;
+        }
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(lczero::Position::FromFen(c.fen));
+        int bad = 0;
+        auto check = [&](bool ok, size_t i, const std::string& what) {
+            if (!ok && bad++ < 5) {
+                ++g_failures;
+                std::cerr << "[FAIL] " << c.fen << ", record " << i << ": " << what << std::endl;
+            }
+        };
+        bool replayed_all = true;
+        for (size_t i = 0; i < recs.size(); ++i) {
+            const auto& r = recs[i];
+            check(h->ComputeGameResult() == GameResult::UNDECIDED, i, "recorded after the end of the game");
+            lczero::TrainingDataV1 want = FreshRecord();
+            lczero::EncodePlanesIntoRecord(*h, want);
+            check(std::memcmp(r.piece_planes, want.piece_planes, sizeof(want.piece_planes)) == 0 &&
+                  std::memcmp(r.ep_mask, want.ep_mask, sizeof(want.ep_mask)) == 0 &&
+                  r.rule50_count == want.rule50_count && r.side_to_move == want.side_to_move &&
+                  r.checks_remaining_us == want.checks_remaining_us &&
+                  r.checks_remaining_them == want.checks_remaining_them &&
+                  r.castling_us_ooo_file == want.castling_us_ooo_file &&
+                  r.castling_us_oo_file == want.castling_us_oo_file &&
+                  r.castling_them_ooo_file == want.castling_them_ooo_file &&
+                  r.castling_them_oo_file == want.castling_them_oo_file,
+                  i, "planes/scalars differ from the replayed position");
+            check(r.version == lczero::kTrainingDataVersion && r.input_format == lczero::kInputFormat10x10,
+                  i, "version / input_format");
+            check(r.visits >= 48, i, "root visits " + std::to_string(r.visits) + " < 48");
+            const lczero::MoveList legal = h->Last().GenerateLegalMoves();
+            std::vector<char> is_legal(lczero::kPolicySize, 0);
+            for (const auto& m : legal) is_legal[lczero::MoveToNNIndex(m, 0)] = 1;
+            bool mask_ok = true;
+            double sum = 0.0;
+            float top = -1.0f;
+            for (int k = 0; k < lczero::kPolicySize; ++k) {
+                const float p = r.probabilities[k];
+                if (is_legal[k]) {
+                    mask_ok &= p >= 0.0f;
+                    sum += p;
+                    top = std::max(top, p);
+                } else {
+                    mask_ok &= p == -1.0f;
+                }
+            }
+            check(mask_ok, i, "pi is not -1 exactly on the illegal moves");
+            check(std::abs(sum - 1.0) < 1e-4, i, "sum(pi) = " + std::to_string(sum));
+            check(r.best_idx < lczero::kPolicySize && is_legal[r.best_idx] && r.probabilities[r.best_idx] == top,
+                  i, "best_idx is not a most-visited legal move");
+            lczero::Move played;
+            for (const auto& m : legal)
+                if (lczero::MoveToNNIndex(m, 0) == r.played_idx) played = m;
+            check(!played.is_null(), i, "played_idx is not a legal move");
+            if (played.is_null()) { replayed_all = false; break; }
+            if (static_cast<int>(i) >= 10)   // greedy after the temperature cutoff
+                check(r.played_idx == r.best_idx || r.probabilities[r.played_idx] == top, i,
+                      "played a non-best move after the temperature cutoff");
+            h->Append(played);
+        }
+        if (!replayed_all) continue;
+        const GameResult end = h->ComputeGameResult();
+        const bool capped = end == GameResult::UNDECIDED;
+        check(!capped || static_cast<int>(recs.size()) == c.max_moves, recs.size(),
+              "the file stops before the game ended");
+        const GameResult want_res = capped ? GameResult::DRAW : end;
+        check(res == want_res, recs.size(), "PlayOneGame returned a different result than the replay");
+        for (size_t i = 0; i < recs.size(); ++i) {
+            const auto& r = recs[i];
+            float q = 0.0f, d = 1.0f;
+            if (want_res != GameResult::DRAW) {
+                const bool stm_white = r.side_to_move == 0;
+                q = ((want_res == GameResult::WHITE_WON) == stm_white) ? 1.0f : -1.0f;
+                d = 0.0f;
+            }
+            check(r.result_q == q && r.result_d == d, i, "z has the wrong value or sign");
+        }
+        std::cout << "  " << recs.size() << " records replayed, game "
+                  << (capped ? "cut at max_moves (draw)" : "ended by the rules") << ", result "
+                  << static_cast<int>(want_res) << (bad ? "" : "  OK") << std::endl;
+        std::remove(file.c_str());
+    }
+}
+
 }  // namespace
 
 void run_search_logic_tests(const std::string& weights_path) {
@@ -739,6 +881,7 @@ void run_search_logic_tests(const std::string& weights_path) {
     TestLegalMoveCapacity();
     TestUciTreeReuse(weights_path);
     TestSearchLifecycleStress();
+    TestSelfPlayRecordsReplay();
 
     std::cout << "\n========================================" << std::endl;
     if (g_failures == 0) {

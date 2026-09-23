@@ -53,6 +53,7 @@
 #include "app/play_mode.h"
 #include "app/selfplay_mode.h"
 #include "app/bench_nn.h"
+#include "app/bench_cpu.h"
 #include "tests/engine_tests.h"
 
 using namespace Stockfish;
@@ -108,6 +109,8 @@ int main(int argc, char* argv[]) {
         run_audit_generation(o.sp_games, o.sp_max_moves);
     } else if (o.test_search_logic_mode) {
         run_search_logic_tests(o.weights_file);
+    } else if (o.audit_rules_mode) {
+        run_rules_oracle_audit(o.sp_games, o.sp_max_moves);
     } else if (o.test_history_mode) {
         run_history_tests();
     } else if (o.uci_nn_mode) {
@@ -119,6 +122,8 @@ int main(int argc, char* argv[]) {
         if (rc != 0) return rc;
     } else if (o.test_mcts_mode) {
         run_mcts_tests(o.weights_file);
+    } else if (o.bench_cpu_mode) {
+        return run_bench_cpu(o);
     } else if (o.bench_nn_mode) {
         int rc = run_bench_nn(o);
         if (rc != 0) return rc;
@@ -140,7 +145,8 @@ int main(int argc, char* argv[]) {
                "                 --play   --weights <net.onnx>   (play in the terminal)\n"
                "  training:      --selfplay --weights <net.onnx> --out <dir>\n"
                "                 --arena --model-a <a.onnx> --model-b <b.onnx>\n"
-               "  diagnostics:   --audit-generation | --emit-roundtrip <prefix>\n"
+               "  diagnostics:   --audit-generation | --audit-rules | --emit-roundtrip <prefix>\n"
+               "                 --bench-cpu   (CPU cost of movegen, history, encoding, records)\n"
                "                 --bench-nn --weights <net.onnx> --provider cuda\n"
                "                   (suy luan thuan tuy, khong MCTS)\n"
                "  self-tests:    --test-adapter --test-bits --test-board --test-encoder\n"

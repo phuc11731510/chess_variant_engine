@@ -145,6 +145,40 @@ void run_roundtrip_emit(const std::string& prefix) {
         emit(*h);
     }
 
+    // Cases 3+: positions from random games and a repetition sequence, so the
+    // Python reconstruction is checked over the whole range of every aux field
+    // (Black to move, castling rights lost one by one, a Sergeant's two e.p.
+    // squares, rule50 > 0, checks < 8) and over set repetition planes in several
+    // history plies -- not just three hand-picked boards.
+    {
+        std::mt19937_64 rng(0x5EED0DA7AULL);
+        const char* fens[] = {
+            lczero::ChessBoard::kStartposFen,
+            "1r3k2r1/2p4p2/10/4n5/10/10/5B4/10/2P4P2/1R3K2R1 w BIbi - 8+8 0 1",
+            "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 8+8 0 1",
+        };
+        for (const char* fen : fens) {
+            for (int game = 0; game < 4; ++game) {
+                auto h = std::make_unique<lczero::PositionHistory>();
+                h->Reset(lczero::Position::FromFen(fen));
+                for (int ply = 0; ply < 60; ++ply) {
+                    const lczero::MoveList lm = h->Last().GenerateLegalMoves();
+                    if (lm.empty() || h->ComputeGameResult() != lczero::GameResult::UNDECIDED) break;
+                    if (ply % 7 == 3) emit(*h);
+                    h->Append(lm[static_cast<size_t>(rng() % lm.size())]);
+                }
+            }
+        }
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(lczero::Position::FromFen("n3k5/10/10/10/10/10/10/10/10/4K4N w - - 8+8 30 20"));
+        for (const char* uci : {"j1i3", "a10b8", "i3j1", "b8a10", "j1i3", "a10b8", "i3j1"}) {
+            const lczero::Move m = fztest::ParseLegalMove(*h, uci);
+            if (m.is_null()) { std::cerr << "[FAIL] roundtrip setup: " << uci << std::endl; std::exit(1); }
+            h->Append(m);
+            emit(*h);   // from the 4th move on the current board is a repetition
+        }
+    }
+
     writer.Finalize();
     dense_out.close();
     std::cout << "[roundtrip] Emitted " << num_cases << " cases -> "

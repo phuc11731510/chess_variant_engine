@@ -20,3 +20,4 @@ void run_encoder_tests();
 void run_audit_generation(int num_games, int max_moves);
 void run_search_logic_tests(const std::string& weights_path);
 void run_history_tests();
+void run_rules_oracle_audit(int num_games, int max_plies);

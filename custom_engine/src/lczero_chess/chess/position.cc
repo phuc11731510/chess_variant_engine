@@ -43,17 +43,6 @@ Position Position::FromFen(std::string_view fen) {
     return pos;
 }
 
-PositionHistory::PositionHistory(std::span<const Position> positions) {
-    history_size_ = 0;
-    if (!positions.empty()) {
-        starting_position_ = positions.front();
-        last_position_ = starting_position_;
-        for (size_t i = 1; i < positions.size(); ++i) {
-            Append(positions[i].GetLastMove());
-        }
-    }
-}
-
 PositionHistory::PositionHistory(const PositionHistory& other) {
     starting_position_ = other.starting_position_;
     history_size_ = other.history_size_;

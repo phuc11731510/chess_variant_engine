@@ -92,6 +92,8 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             o.test_rules_mode = true;
         } else if (std::string(argv[i]) == "--test-adapter") {
             o.test_adapter_mode = true;
+        } else if (std::string(argv[i]) == "--bench-cpu") {
+            o.bench_cpu_mode = true;
         } else if (std::string(argv[i]) == "--bench-nn") {
             o.bench_nn_mode = true;
         } else if (std::string(argv[i]) == "--test-nn") {
@@ -111,6 +113,8 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             o.audit_generation_mode = true;
         } else if (std::string(argv[i]) == "--test-search-logic") {
             o.test_search_logic_mode = true;
+        } else if (std::string(argv[i]) == "--audit-rules") {
+            o.audit_rules_mode = true;
         } else if (std::string(argv[i]) == "--test-history") {
             o.test_history_mode = true;
         } else if (std::string(argv[i]) == "--play") {

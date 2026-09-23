@@ -7,7 +7,11 @@ checks — directly on the data you will train on — that:
   * the policy is a valid masked distribution (illegal == -1, legal sum == 1,
     >= 1 legal move per position),
   * input planes are non-empty (guards the historical "NN sees no pieces" bug),
-  * scalar aux (side-to-move, checks-remaining) are in range.
+  * scalar aux (side-to-move, checks-remaining) are in range,
+  * repetitions are right within every game: a repeated position carries the
+    repetition plane, a first occurrence does not, and no game goes on after a
+    threefold repetition (engines before data version 3 missed repetitions from
+    rule50 = 14 on; for such records this is reported, not failed).
 
 Also reports the result distribution (win/draw/loss from the side-to-move's
 perspective): a near 50/50 win/loss split is empirical confirmation that the
@@ -20,12 +24,12 @@ that one audits the move-generation process that produced it.
 Usage:
   python audit_generation.py <game_gen_N.zip | game.gz | dir>
 """
-import sys, os, glob
+import sys, os, glob, gzip, zipfile
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
-from trainingdata_reader import iter_records, iter_records_from_zip
+from trainingdata_reader import iter_records, _iter_stream
 
 # N of the N-checks win rule = the value the starting FEN carries in its "N+N"
 # field. 8 since 2026-09-21 (was 7). Must match the startFen in
@@ -34,6 +38,7 @@ MAX_CHECKS = 8
 
 
 def _records(path):
+    """Yields (game, record); one .gz/.bin file (or zip member) is one game."""
     if os.path.isdir(path):
         files = []
         for ext in ("*.gz", "*.bin", "*.zip"):
@@ -43,9 +48,22 @@ def _records(path):
     if not files:
         raise SystemExit(f"[audit] no .gz/.bin/.zip under: {path}")
     for f in files:
-        it = iter_records_from_zip(f) if f.endswith(".zip") else iter_records(f)
-        for r in it:
-            yield r
+        if not f.endswith(".zip"):
+            for r in iter_records(f):
+                yield f, r
+            continue
+        with zipfile.ZipFile(f) as zf:
+            for name in zf.namelist():
+                if name.endswith("/"):
+                    continue
+                with zf.open(name) as raw:
+                    if name.endswith(".gz"):
+                        with gzip.GzipFile(fileobj=raw) as g:
+                            for r in _iter_stream(g, f"{f}:{name}"):
+                                yield (f, name), r
+                    elif name.endswith(".bin"):
+                        for r in _iter_stream(raw, f"{f}:{name}"):
+                            yield (f, name), r
 
 
 def wdl(q, d):
@@ -61,9 +79,35 @@ def main():
     resq = {}
     legal_counts = []
     bad = []
+    # Repetition bookkeeping per game. "strict" = data version >= 3 (must be
+    # exact), "legacy" = older engines (known to miss repetitions; reported).
+    rep = {k: dict(missed=0, false_flag=0, games_past_threefold=0) for k in ("strict", "legacy")}
+    game, seen, past3 = None, {}, False
 
-    for r in _records(path):
+    for g, r in _records(path):
         n += 1
+        if g != game:
+            game, seen, past3 = g, {}, False
+        pp = r["piece_planes"]
+        # Position identity: pieces of the current board (planes 0-25; plane 26
+        # is the repetition flag itself) + castling, e.p., checks, side to move.
+        key = (tuple(pp[:52]), r["castling_us_ooo_file"], r["castling_us_oo_file"],
+               r["castling_them_ooo_file"], r["castling_them_oo_file"], tuple(r["ep_mask"]),
+               r["checks_remaining_us"], r["checks_remaining_them"], r["side_to_move"])
+        count = seen.get(key, 0)
+        seen[key] = count + 1
+        flagged = pp[52] != 0 or pp[53] != 0
+        kind = "strict" if r["version"] >= 3 else "legacy"
+        if count >= 1 and not flagged:
+            rep[kind]["missed"] += 1
+            if kind == "strict" and len(bad) < 8: bad.append(("REP_MISSED", n))
+        if count == 0 and flagged:
+            rep[kind]["false_flag"] += 1
+            if kind == "strict" and len(bad) < 8: bad.append(("REP_FALSE", n))
+        if count >= 2 and not past3:
+            past3 = True
+            rep[kind]["games_past_threefold"] += 1
+            if kind == "strict" and len(bad) < 8: bad.append(("PAST_THREEFOLD", n))
         rq, rd = r["result_q"], r["result_d"]
         resq[round(rq, 3)] = resq.get(round(rq, 3), 0) + 1
         w, dd, l = wdl(rq, rd)
@@ -101,9 +145,15 @@ def main():
     if legal_counts:
         lc = np.array(legal_counts)
         print(f"legal moves/pos: min={lc.min()} max={lc.max()} mean={lc.mean():.1f}")
+    for k, v in rep["strict"].items():
+        err["repetition_" + k] = v
     print("--- errors ---")
     for k, v in err.items():
         print(f"  {k}: {v}")
+    if any(rep["legacy"].values()):
+        print("--- data version < 3 (engine missed repetitions from rule50 = 14 on; not an error) ---")
+        for k, v in rep["legacy"].items():
+            print(f"  repetition_{k}: {v}")
     if bad:
         print("--- first failing records ---")
         for b in bad: print("  ", b)

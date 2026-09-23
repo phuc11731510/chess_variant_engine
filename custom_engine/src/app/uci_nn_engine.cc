@@ -237,6 +237,14 @@ public:
     // FFI bridge (Android): turn Send() into a queue producer instead of stdout,
     // and let the host drain lines one at a time.
     void EnableQueueMode() { queue_mode_ = true; }
+    // Tests only (fz_create_with_backend): search with `b` instead of building a
+    // backend from WeightsFile/Provider. The options parser is still built by
+    // EnsureBackend() as usual.
+    void InjectBackend(std::unique_ptr<lczero::Backend> b) {
+        backend_ = std::move(b);
+        injected_backend_ = true;
+        backend_dirty_ = true;
+    }
     bool PopOutput(std::string& out) {
         std::lock_guard<std::mutex> lk(io_mu_);
         if (out_q_.empty()) return false;
@@ -548,6 +556,10 @@ private:
         else
             bopts = "threads=" + std::to_string(std::max(1, backend_threads_));
         d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bopts);
+        if (injected_backend_) {   // tests: keep the injected backend
+            backend_dirty_ = false;
+            return true;
+        }
         try {
             backend_ = arena_make_backend(parser_->GetOptionsDict());
             backend_dirty_ = false;
@@ -586,6 +598,7 @@ private:
     bool reuse_tree_ = true;                       // keep MCTS tree across moves (T8.x)
     float policy_temp_ = 1.359f;                    // lc0 default (PolicySoftmaxTemp)
     bool backend_dirty_ = true;
+    bool injected_backend_ = false;                // see InjectBackend (tests only)
     std::chrono::steady_clock::time_point search_start_;
     std::string current_startfen_;                 // for tree-reuse prefix matching
     std::vector<std::string> current_moves_;
@@ -633,6 +646,19 @@ void* fz_create(const char* model_path, const char* provider) {
         return nullptr;
     }
 }
+
+}  // extern "C"
+
+// Tests only (declared in app/uci_nn_engine.h, not in the C ABI): an engine
+// driven exactly like fz_create's, but searching with `backend`, so the UCI
+// logic can be tested fast and deterministically without a network file.
+void* fz_create_with_backend(std::unique_ptr<lczero::Backend> backend) {
+    void* h = fz_create("", "cpu");
+    if (h) static_cast<UciNnEngine*>(h)->InjectBackend(std::move(backend));
+    return h;
+}
+
+extern "C" {
 
 void fz_send(void* handle, const char* uci_line) {
     if (handle && uci_line) static_cast<UciNnEngine*>(handle)->HandleLine(uci_line);

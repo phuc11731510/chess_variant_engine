@@ -39,9 +39,7 @@ public:
     int GetRule50Ply() const { return rule50_ply_; }
     const ChessBoard& GetBoard() const { return us_board_; }
 
-    Move GetLastMove() const { return us_board_.GetRawPosition().state()->move; }
-
-    uint64_t Hash() const { return us_board_.GetRawPosition().key(); }
+    uint64_t Hash() const { return us_board_.Hash(); }   // excludes rule50, see ChessBoard::Hash
     uint64_t GetHash() const { return Hash(); }
 
     MoveList GenerateLegalMoves() const { return us_board_.GenerateLegalMoves(); }
@@ -69,7 +67,6 @@ private:
 class PositionHistory {
 public:
     PositionHistory() = default;
-    PositionHistory(std::span<const Position> positions);
     
     // Custom copy constructor and copy assignment to optimize MCTS hot path
     PositionHistory(const PositionHistory& other);

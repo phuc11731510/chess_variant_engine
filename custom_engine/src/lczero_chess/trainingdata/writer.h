@@ -22,11 +22,13 @@ class TrainingDataWriter {
   TrainingDataWriter(const TrainingDataWriter&) = delete;
   TrainingDataWriter& operator=(const TrainingDataWriter&) = delete;
 
-  // Append one record. No-op if the file failed to open.
+  // Append one record. No-op if the file failed to open or a write failed.
   void WriteChunk(const TrainingDataV1& data);
 
-  // Flush and close. Idempotent; also invoked by the destructor.
-  void Finalize();
+  // Flush, close and move the file to its final name. Returns false (and
+  // leaves no file behind) if opening, any write or the close failed.
+  // Idempotent; also invoked by the destructor.
+  bool Finalize();
 
   bool IsOpen() const { return handle_ != nullptr; }
   const std::string& GetFileName() const { return filename_; }
@@ -38,8 +40,10 @@ class TrainingDataWriter {
   void Open();
 
   std::string filename_;
+  std::string tmp_filename_;  // written first, renamed to filename_ on success
   void* handle_ = nullptr;  // gzFile (HAVE_ZLIB) or std::ofstream* otherwise
   bool finalized_ = false;
+  bool failed_ = false;
 };
 
 // Reads every record from a file written by TrainingDataWriter (same build mode).

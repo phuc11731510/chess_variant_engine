@@ -10,19 +10,16 @@ namespace lczero {
 
 const char* ChessBoard::kStartposFen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
 
-ChessBoard::ChessBoard() {
+const Stockfish::Variant* ChessBoard::FindVariant() {
     auto it = Stockfish::variants.find("custom_10x10_variant");
-    if (it != Stockfish::variants.end()) {
-        variant_def = it->second;
-    } else {
-        std::cerr << "Warning: custom_10x10_variant not found, falling back to fairy!" << std::endl;
-        auto it_fairy = Stockfish::variants.find("fairy");
-        if (it_fairy != Stockfish::variants.end()) {
-            variant_def = it_fairy->second;
-        } else {
-            variant_def = nullptr;
-        }
-    }
+    if (it != Stockfish::variants.end()) return it->second;
+    std::cerr << "Warning: custom_10x10_variant not found, falling back to fairy!" << std::endl;
+    auto it_fairy = Stockfish::variants.find("fairy");
+    return it_fairy != Stockfish::variants.end() ? it_fairy->second : nullptr;
+}
+
+ChessBoard::ChessBoard() {
+    variant_def = FindVariant();
     state_index = 0;
     // Tối ưu 1: Ở chế độ MCTS, truyền nullptr để tránh thread contention trên main thread
     Stockfish::Thread* th = nullptr;

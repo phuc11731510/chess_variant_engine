@@ -277,9 +277,10 @@ namespace {
             // En passant square is already disabled for non-fairy variants if there is no attacker
             assert(b || !pos.fast_attacks());
 
-            // An ep capture that LANDS on a promotion square also promotes (rare:
-            // only when the captured pawn double-stepped from the 2nd/9th rank so
-            // its passed square is the opponent's promotion rank).
+            // An ep capture that LANDS on a promotion square also promotes. In the
+            // custom 10x10 variant this happens only when the double-stepper is a
+            // Sergeant that started on the 2nd/9th rank (pawns start on the
+            // 3rd/8th, so a pawn's passed square is never a promotion square).
             bool epPromo = bool((pos.promotion_pawn_types(Us) & PAWN) && (pos.promotion_zone(Us) & epSquare));
 
             while (b)
