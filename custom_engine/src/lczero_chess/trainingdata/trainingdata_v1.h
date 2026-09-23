@@ -26,7 +26,15 @@ namespace lczero {
 //      except when the cache missed and it fell back to best_q.
 //   2: all search values are side-to-move (2026-09-23). Readers flip the three
 //      fields above for version-1 records (python/dataset.py: search_q()).
-constexpr uint32_t kTrainingDataVersion = 2;
+//   3: repetitions are detected at every rule-50 count (2026-09-23, same day):
+//      before, a repetition was only seen while rule50 < 14, so games in
+//      versions 1-2 could go on past a threefold repetition (about 1 game in 4
+//      in gen0) and the repetition planes were missing on ~35% of repeated
+//      positions. Also from version 3 a double check counts 2 checks (rule
+//      fixed by the owner: every checking piece counts; before, 1 per checking
+//      move). The layout and every field's meaning are unchanged, so readers
+//      need nothing new; the number only tells the data apart.
+constexpr uint32_t kTrainingDataVersion = 3;
 constexpr uint32_t kInputFormat10x10 = 1;
 
 // Sentinel for "no castling right" in the castling-file fields.

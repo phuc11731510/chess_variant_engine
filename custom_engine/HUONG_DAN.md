@@ -240,7 +240,7 @@ Lý do tương đương: Fairy-Stockfish phiên dịch `K`/`Q` sang **cột xe**
 - **Nên dùng `KQkq`** (hoặc quyền lẻ `K`/`Q`/`k`/`q`) cho thế bình thường — gọn, dễ tương thích GUI khác.
 - Kiểu `BIbi` chỉ cần khi dựng thế **bất thường kiểu Chess960** (xe nằm cột lạ), vì nó nêu đích danh cột xe.
 - **Không nhập thành: `-`**.
-- ⚠️ Quyền chỉ "dính" nếu **vua + xe đang ở ô gốc**; ghi quyền mà quân không đúng chỗ thì engine tự bỏ.
+- ⚠️ Quyền chỉ "dính" nếu **Hoàng gia + xe đang ở ô gốc**; ghi quyền mà quân không đúng chỗ thì engine tự bỏ.
   Cách chắc ăn: nạp xong gõ `d` để engine in lại FEN hợp lệ rồi copy dùng.
 
 > **Độ khó gợi ý:** Dễ = `Visits 80` + `Temperature 500` · Vừa = `go nodes 400` · Khó = `go nodes 5000` + `Temperature 0`.
@@ -331,6 +331,21 @@ vào lệnh `--selfplay` ở B.1/B.2:
 > và AlphaZero), nên **nhiễu Dirichlet có ở gốc của MỌI nước** (trước đây chỉ nước đầu mỗi ván). Bản
 > ghi dữ liệu mới mang `version = 2` (giá trị tìm kiếm đúng góc nhìn bên-tới-lượt); `train.py` tự đảo
 > dấu cho dữ liệu cũ `version = 1`, nên trộn dữ liệu cũ và mới trong cửa sổ trượt vẫn đúng.
+
+> **Sửa lỗi lặp thế (2026-09-23, phiên 2) — bản ghi mới mang `version = 3`:** engine cũ so khoá
+> Zobrist có trộn bộ đếm luật 50 nước, nên từ rule50 ≥ 14 **không nhận ra thế cờ lặp**: ván không kết
+> thúc khi lặp 3 lần, và plane "lặp thế" của mạng bị tắt. Đo trên `games_gen0.zip` (engine cũ): 25% số
+> ván đi tiếp sau khi đã lặp 3 lần, 12% bản ghi nằm sau điểm lẽ ra đã hoà, 35% thế cờ lặp thiếu cờ lặp.
+> Cũng từ `version = 3`: **chiếu đôi tính 2 lần chiếu** (mỗi quân đang chiếu tính 1; trước đây mỗi nước
+> chiếu chỉ tính 1). Luật đầy đủ và các trường hợp biên: `LUAT_BIEN_THE.md`.
+> Bố cục bản ghi không đổi, `train.py` đọc `version = 3` như `version = 2`. Không cần sinh lại gen0: mỗi
+> đời chỉ học dữ liệu của đời trước, nên chỉ cần sinh dữ liệu từ nay bằng engine mới. Kiểm dữ liệu:
+> `python audit_generation.py <zip>` giờ kiểm cả lặp thế trong từng ván (với dữ liệu `version < 3` chỉ
+> báo con số, không tính là lỗi).
+>
+> File ván giờ được ghi vào `game_N.gz.tmp` rồi mới đổi tên thành `game_N.gz` khi ghi trọn vẹn: đĩa
+> đầy hay tiến trình bị dừng giữa chừng không còn để lại `.gz` hỏng lọt vào `archive.py`/`train.py`
+> (engine in `[TrainingDataWriter] FAILED ...` và bỏ ván đó).
 
 ### B.4. Đóng gói dữ liệu thành 1 tệp `.zip` (để tải lên Drive / cho gọn)
 Hàng ngàn tệp `.gz` nhỏ tải lên Drive rất chậm. Gom thành **1 tệp** (`archive.py` chạy được trên cả
@@ -872,7 +887,12 @@ chỉ **giữ đời mới làm mốc** nếu nó đạt ngưỡng thắng rõ r
   `[PASS]`. Bộ test đầy đủ (mỗi cờ một mảng, danh mục ở `src/tests/README.md`): quan trọng nhất là
   `--test-search-logic --weights <mạng.onnx>` (dấu giá trị trong dữ liệu, nhiễu Dirichlet mọi nước,
   sổ sách cây MCTS đa luồng, `AddInput` an toàn đa luồng, `ReuseTree`, stress vòng đời search) và
-  `--test-history` (cắt lịch sử 200 nước, khoá Zobrist/e.p., khoá cache, thứ tự luật kết thúc ván).
+  `--test-history` (cắt lịch sử 200 nước, khoá Zobrist/e.p., khoá cache, thứ tự luật kết thúc ván,
+  lặp thế ở mọi mức rule50) và `--audit-rules` (so engine với **một bộ luật viết lại độc lập** trên
+  ván ngẫu nhiên: nước hợp lệ, kết quả từng nước, chiếu, ep, nhập thành, kết thúc ván, plane mạng;
+  chạy sâu: `--audit-rules --games 1000 --max-moves 300`, ~70 s).
+- **Đo chi phí CPU của self-play:** `custom_engine.exe --bench-cpu` in ns/lần cho sinh nước, lịch sử,
+  mã hoá đầu vào mạng, ghi bản ghi + gzip (không cần mạng). Dùng để quyết có đáng tối ưu phần CPU không.
 
 ---
 

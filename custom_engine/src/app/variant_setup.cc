@@ -77,6 +77,15 @@ void init_engine_globals() {
     });
 }
 
+// The variant's rules and their edge cases are written out in LUAT_BIEN_THE.md,
+// and re-implemented independently by src/tests/test_rules_oracle.cc
+// (--audit-rules). Two rules are NOT expressible in this INI and live in code:
+//   * checkCounting counts every checking piece (a double check = 2 checks):
+//     Position::do_move, src/chess/position.cpp;
+//   * an e.p. capture that lands in the promotion zone promotes: movegen.cpp +
+//     position.cpp (commit 52439cc).
+// `k` is the royal piece ("Hoang gia", king step + knight): Fairy-Stockfish
+// requires the royal piece to use the king slot.
 const Variant* setup_custom_variant() {
     std::string ini_text = R"(
 [custom_10x10_variant]

@@ -1642,8 +1642,8 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   assert(captured == NO_PIECE || color_of(captured) == (type_of(m) != CASTLING ? them : us));
   assert(type_of(captured) != KING);
 
-  if (check_counting() && givesCheck)
-      k ^= Zobrist::checks[us][st->checksRemaining[us]] ^ Zobrist::checks[us][--(st->checksRemaining[us])];
+  // (Check counting is applied at the end, once the checkers are known: see
+  // "every checking piece counts" below.)
 
   if (type_of(m) == CASTLING)
   {
@@ -2210,11 +2210,22 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       k ^= Zobrist::wall[gating_square(m)];
   }
 
-  // Update the key with the final value
-  st->key = k;
   // Calculate checkers bitboard (if move gives check)
   st->checkersBB = givesCheck ? attackers_to(square<KING>(them), us) & pieces(us) : Bitboard(0);
   assert(givesCheck == bool(st->checkersBB));
+
+  // Check counting (project rule, custom 10x10 variant): every checking piece
+  // counts, so a double check counts 2 (upstream Fairy-Stockfish counts 1 per
+  // checking move). The counter stops at 0, which wins at once.
+  if (check_counting() && st->checkersBB)
+  {
+      const CheckCount left = CheckCount(std::max(int(st->checksRemaining[us]) - popcount(st->checkersBB), 0));
+      k ^= Zobrist::checks[us][st->checksRemaining[us]] ^ Zobrist::checks[us][left];
+      st->checksRemaining[us] = left;
+  }
+
+  // Update the key with the final value
+  st->key = k;
 
   sideToMove = ~sideToMove;
 

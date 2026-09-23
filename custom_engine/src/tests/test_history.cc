@@ -19,6 +19,7 @@
 //      (stalemate otherwise loses in this variant) -- in the game result AND in
 //      the MCTS terminal result.
 //   5. N-check wins are reported from the right side, for both colours.
+//   6. Repetitions (count, threefold draw, NN plane) at every rule-50 count.
 //
 // Every sub-test runs even if an earlier one failed; exit 1 at the end if any did.
 
@@ -397,6 +398,61 @@ void TestCheckCountResults() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 6. Repetitions are counted at every rule-50 count.
+// ---------------------------------------------------------------------------
+// Knights out and back (4 plies), twice, from positions whose rule-50 counter
+// starts at r. Plies 4-7 repeat plies 0-3 (repetitions = 1, NN repetition plane
+// set); ply 8 is the start position's third occurrence (threefold draw). Fairy-Stockfish's own n-fold check (is_optional_game_end,
+// which compares raw Zobrist keys along the StateInfo chain) is the reference.
+// Until 2026-09-23 PositionHistory compared Fairy-Stockfish's key(), which XORs
+// in a rule-50 bucket from rule50 = 14 on, so a repetition was only seen when
+// every occurrence had rule50 < 14; test 3 above starts at rule50 = 0 and could
+// not notice.
+void TestRepetitionAnyRule50() {
+    std::cout << "\n--- 6. Repetitions and threefold draws at every rule-50 count ---" << std::endl;
+    const char* moves[4] = {"j1i3", "a10b8", "i3j1", "b8a10"};
+    int cases = 0;
+    for (int r50 : {0, 5, 9, 10, 13, 14, 15, 20, 37, 50, 90}) {
+        const std::string fen =
+            "n3k5/10/10/10/10/10/10/10/10/4K4N w - - 8+8 " + std::to_string(r50) + " 40";
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(lczero::Position::FromFen(fen));
+        for (int ply = 1; ply <= 8; ++ply) {
+            const lczero::Move m = fztest::ParseLegalMove(*h, moves[(ply - 1) % 4]);
+            if (m.is_null()) {
+                ++g_failures;
+                std::cerr << "[FAIL] setup: " << moves[(ply - 1) % 4] << " not legal" << std::endl;
+                break;
+            }
+            h->Append(m);
+            const int reps = h->Last().GetRepetitions();
+            // Plies 4-7 repeat plies 0-3 once; ply 8 is the start position's third time.
+            const int want_reps = ply < 4 ? 0 : ply < 8 ? 1 : 2;
+            const GameResult res = h->ComputeGameResult();
+            const GameResult want = ply == 8 ? GameResult::DRAW : GameResult::UNDECIDED;
+            Value v = VALUE_NONE;
+            const bool fsf_draw = h->Last().GetBoard().GetRawPosition().is_optional_game_end(v, 0);
+            lczero::InputPlanes planes;
+            int t = 0;
+            lczero::EncodePositionForNN(*h, lczero::kMoveHistory,
+                                        lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
+            const bool rep_plane = bool(planes[26].mask) && planes[26].value == 1.0f;
+            EXPECT(reps == want_reps, "rule50 start " << r50 << ", ply " << ply << ": repetitions "
+                   << reps << ", expected " << want_reps);
+            EXPECT(res == want, "rule50 start " << r50 << ", ply " << ply << ": ComputeGameResult "
+                   << Name(res) << ", expected " << Name(want));
+            EXPECT(fsf_draw == (ply == 8), "setup: Fairy-Stockfish's n-fold check says "
+                   << fsf_draw << " at rule50 start " << r50 << ", ply " << ply);
+            EXPECT(rep_plane == (want_reps >= 1), "rule50 start " << r50 << ", ply " << ply
+                   << ": NN repetition plane " << (rep_plane ? "set" : "clear"));
+        }
+        ++cases;
+    }
+    std::cout << "  " << cases << " rule-50 starts x 8 plies checked (repetitions, result, "
+                 "Fairy-Stockfish n-fold, NN repetition plane)" << std::endl;
+}
+
 }  // namespace
 
 void run_history_tests() {
@@ -410,6 +466,7 @@ void run_history_tests() {
     TestCacheKeyRepetitions();
     TestGameEndPrecedence();
     TestCheckCountResults();
+    TestRepetitionAnyRule50();
 
     std::cout << "\n========================================" << std::endl;
     if (g_failures == 0) {

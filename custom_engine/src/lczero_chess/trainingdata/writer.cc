@@ -1,5 +1,6 @@
 #include "trainingdata/writer.h"
 
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 
@@ -27,11 +28,16 @@ TrainingDataWriter::TrainingDataWriter(const std::string& dir, int game_id)
   Open();
 }
 
+// Records go to "<name>.tmp" first; Finalize() renames it to <name> only after
+// every write and the close succeeded. A full disk or a killed process
+// therefore never leaves a truncated file under the .gz/.bin name that
+// archive.py and the Python reader pick up (they would fail mid-training).
 void TrainingDataWriter::Open() {
+  tmp_filename_ = filename_ + ".tmp";
 #ifdef HAVE_ZLIB
-  handle_ = gzopen(filename_.c_str(), "wb");
+  handle_ = gzopen(tmp_filename_.c_str(), "wb");
 #else
-  auto* ofs = new std::ofstream(filename_, std::ios::binary | std::ios::trunc);
+  auto* ofs = new std::ofstream(tmp_filename_, std::ios::binary | std::ios::trunc);
   if (!ofs->is_open()) {
     delete ofs;
     handle_ = nullptr;
@@ -40,7 +46,8 @@ void TrainingDataWriter::Open() {
   }
 #endif
   if (!handle_) {
-    std::cerr << "[TrainingDataWriter] Failed to open for writing: " << filename_
+    failed_ = true;
+    std::cerr << "[TrainingDataWriter] Failed to open for writing: " << tmp_filename_
               << std::endl;
   }
 }
@@ -48,27 +55,44 @@ void TrainingDataWriter::Open() {
 TrainingDataWriter::~TrainingDataWriter() { Finalize(); }
 
 void TrainingDataWriter::WriteChunk(const TrainingDataV1& data) {
-  if (!handle_) return;
+  if (!handle_ || failed_) return;
 #ifdef HAVE_ZLIB
-  gzwrite(static_cast<gzFile>(handle_), &data, sizeof(TrainingDataV1));
+  if (gzwrite(static_cast<gzFile>(handle_), &data, sizeof(TrainingDataV1)) !=
+      static_cast<int>(sizeof(TrainingDataV1)))
+    failed_ = true;
 #else
-  static_cast<std::ofstream*>(handle_)->write(
-      reinterpret_cast<const char*>(&data), sizeof(TrainingDataV1));
+  auto* ofs = static_cast<std::ofstream*>(handle_);
+  ofs->write(reinterpret_cast<const char*>(&data), sizeof(TrainingDataV1));
+  if (!*ofs) failed_ = true;
 #endif
 }
 
-void TrainingDataWriter::Finalize() {
-  if (finalized_) return;
+bool TrainingDataWriter::Finalize() {
+  if (finalized_) return !failed_;
   finalized_ = true;
-  if (!handle_) return;
+  if (handle_) {
 #ifdef HAVE_ZLIB
-  gzclose(static_cast<gzFile>(handle_));
+    if (gzclose(static_cast<gzFile>(handle_)) != Z_OK) failed_ = true;
 #else
-  auto* ofs = static_cast<std::ofstream*>(handle_);
-  ofs->close();
-  delete ofs;
+    auto* ofs = static_cast<std::ofstream*>(handle_);
+    ofs->close();
+    if (!*ofs) failed_ = true;
+    delete ofs;
 #endif
-  handle_ = nullptr;
+    handle_ = nullptr;
+  }
+  if (!failed_) {
+    // std::rename does not replace an existing file on Windows.
+    std::remove(filename_.c_str());
+    if (std::rename(tmp_filename_.c_str(), filename_.c_str()) != 0) failed_ = true;
+  }
+  if (failed_) {
+    std::remove(tmp_filename_.c_str());
+    std::cerr << "[TrainingDataWriter] FAILED to write " << filename_
+              << " (disk full or I/O error?) -- the game's records were dropped."
+              << std::endl;
+  }
+  return !failed_;
 }
 
 bool ReadTrainingData(const std::string& filename,

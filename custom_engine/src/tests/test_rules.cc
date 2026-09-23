@@ -10,42 +10,57 @@ void run_rules_tests() {
     std::cout << "\n=== RULES: repetition / rule50 / dynamic 7-check ===" << std::endl;
     setup_custom_variant();
 
-    auto drive = [](const std::string& fen, int rule50, const std::vector<std::string>& ucis,
-                    lczero::GameResult& out) {
-        auto board = std::make_unique<lczero::ChessBoard>(fen);
+    // Plays `ucis` from `fen` and returns the game result after EVERY ply
+    // (index 0 = the start position), so a test can require the game to end
+    // exactly on the right ply and not earlier.
+    auto drive = [](const std::string& fen, const std::vector<std::string>& ucis) {
         auto h = std::make_unique<lczero::PositionHistory>();
-        h->Reset(*board, rule50, 1);
-        out = h->ComputeGameResult();
+        h->Reset(lczero::Position::FromFen(fen));   // rule50 and ply taken from the FEN
+        std::vector<lczero::GameResult> out{h->ComputeGameResult()};
         for (const auto& uci : ucis) {
             lczero::Move m = h->Last().GetBoard().ParseMove(uci);
             if (m.is_null()) { std::cerr << "[FAIL] illegal move " << uci << " in " << fen << std::endl; std::exit(1); }
             h->Append(m);
-            out = h->ComputeGameResult();
+            out.push_back(h->ComputeGameResult());
+        }
+        return out;
+    };
+    // The game must stay UNDECIDED until the last ply, which must give `last`.
+    auto expect_end = [](const std::vector<lczero::GameResult>& res, lczero::GameResult last,
+                         const char* what) {
+        for (size_t i = 0; i + 1 < res.size(); ++i)
+            if (res[i] != lczero::GameResult::UNDECIDED) {
+                std::cerr << "[FAIL] " << what << ": game already over after ply " << i
+                          << " (result " << (int)res[i] << ")" << std::endl;
+                std::exit(1);
+            }
+        if (res.back() != last) {
+            std::cerr << "[FAIL] " << what << ": final result " << (int)res.back()
+                      << ", expected " << (int)last << std::endl;
+            std::exit(1);
         }
     };
+    const std::vector<std::string> shuffle2 = {"a1b1", "a10b10", "b1a1", "b10a10",
+                                               "a1b1", "a10b10", "b1a1", "b10a10"};
 
-    // 1. 3-fold repetition: kings shuffle back to the start twice -> DRAW.
-    {
-        lczero::GameResult res;
-        drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 0 1", 0,
-              {"a1b1","a10b10","b1a1","b10a10","a1b1","a10b10","b1a1","b10a10"}, res);
-        if (res != lczero::GameResult::DRAW) { std::cerr << "[FAIL] 3-fold repetition not DRAW (got " << (int)res << ")" << std::endl; std::exit(1); }
-        std::cout << "  [OK] 3-fold repetition -> DRAW" << std::endl;
-    }
+    // 1. 3-fold repetition: kings shuffle back to the start twice -> DRAW on the
+    // 8th ply (the third occurrence), not on the 4th (the second).
+    expect_end(drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 0 1", shuffle2),
+               lczero::GameResult::DRAW, "3-fold repetition from rule50=0");
+    std::cout << "  [OK] 3-fold repetition -> DRAW exactly on the third occurrence" << std::endl;
+    // 1b. The same with the rule-50 counter already at 30 (repetitions used to be
+    // missed from rule50 = 14 on, see test_history.cc test 6).
+    expect_end(drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 30 20", shuffle2),
+               lczero::GameResult::DRAW, "3-fold repetition from rule50=30");
+    std::cout << "  [OK] 3-fold repetition with rule50 = 30..38 -> DRAW" << std::endl;
     // 2. rule50: start at 99, one non-zeroing king move -> 100 plies -> DRAW.
-    {
-        lczero::GameResult res;
-        drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 99 1", 99, {"a1b1"}, res);
-        if (res != lczero::GameResult::DRAW) { std::cerr << "[FAIL] rule50=100 not DRAW (got " << (int)res << ")" << std::endl; std::exit(1); }
-        std::cout << "  [OK] rule50 reaches 100 plies -> DRAW" << std::endl;
-    }
-    // 3. Dynamic 7-check: White needs 1 more check, delivers it -> WHITE_WON.
-    {
-        lczero::GameResult res;
-        drive("4k5/10/10/10/10/10/10/10/10/R8K w - - 1+8 0 1", 0, {"a1e1"}, res);
-        if (res != lczero::GameResult::WHITE_WON) { std::cerr << "[FAIL] dynamic 7th check not WHITE_WON (got " << (int)res << ")" << std::endl; std::exit(1); }
-        std::cout << "  [OK] White delivers final (7th) check -> WHITE_WON" << std::endl;
-    }
+    expect_end(drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 99 1", {"a1b1"}),
+               lczero::GameResult::DRAW, "rule50 reaching 100");
+    std::cout << "  [OK] rule50 reaches 100 plies -> DRAW (not at 99)" << std::endl;
+    // 3. N-check: White needs 1 more check, delivers it -> WHITE_WON.
+    expect_end(drive("4k5/10/10/10/10/10/10/10/10/R8K w - - 1+8 0 1", {"a1e1"}),
+               lczero::GameResult::WHITE_WON, "last check");
+    std::cout << "  [OK] White delivers its last check -> WHITE_WON" << std::endl;
 
     // 4. Check-counting must fire for a check that exists ONLY because of an
     // en-passant-with-promotion (see position.cpp gives_check's ep+promo block,
@@ -57,17 +72,30 @@ void run_rules_tests() {
     // Rook. checksRemaining[WHITE] starts at 1: if gives_check() ever stops
     // special-casing ep+promo, this check goes undetected, the counter does not
     // reach 0, and the game does NOT end -- a sharp, binary regression signal.
+    expect_end(drive("3k6/10/10/3pP5/10/10/10/10/10/K9 w - d8 1+8 0 1", {"e7d8r"}),
+               lczero::GameResult::WHITE_WON,
+               "ep+promotion-only check (gives_check() ep+promo branch may be broken)");
+    std::cout << "  [OK] check delivered SOLELY by an en-passant promotion (pawn->rook) "
+                 "correctly decrements check-counting -> WHITE_WON" << std::endl;
+
+    // 5. A double check counts TWO checks (variant rule; upstream Fairy-Stockfish
+    // counts one per checking move). Ne6-d8 checks with the knight and uncovers
+    // the rook on the e-file.
     {
-        lczero::GameResult res;
-        drive("3k6/10/10/3pP5/10/10/10/10/10/K9 w - d8 1+8 0 1", 0, {"e7d8r"}, res);
-        if (res != lczero::GameResult::WHITE_WON) {
-            std::cerr << "[FAIL] ep+promotion-only check did not end the game via check-counting "
-                         "(got " << (int)res << ", expected WHITE_WON -- gives_check() ep+promo "
-                         "branch may be broken)" << std::endl;
+        const std::string dbl = "4k5/10/10/10/4N5/10/10/10/10/K3R5 w - - ";
+        expect_end(drive(dbl + "2+8 0 1", {"e6d8"}), lczero::GameResult::WHITE_WON,
+                   "double check with 2 checks left");
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(lczero::Position::FromFen(dbl + "3+8 0 1"));
+        h->Append(h->Last().GetBoard().ParseMove("e6d8"));
+        const auto& raw = h->Last().GetBoard().GetRawPosition();
+        if (popcount(raw.checkers()) != 2 || int(raw.checks_remaining(WHITE)) != 1 ||
+            h->ComputeGameResult() != lczero::GameResult::UNDECIDED) {
+            std::cerr << "[FAIL] double check with 3 checks left: checkers=" << popcount(raw.checkers())
+                      << " remaining=" << int(raw.checks_remaining(WHITE)) << " (expected 2 and 1)" << std::endl;
             std::exit(1);
         }
-        std::cout << "  [OK] check delivered SOLELY by an en-passant promotion (pawn->rook) "
-                     "correctly decrements check-counting -> WHITE_WON" << std::endl;
+        std::cout << "  [OK] a double check counts 2 checks (2 left -> win; 3 left -> 1 left)" << std::endl;
     }
 
     // Sergeant double-step on its SECOND move. doubleStepRegionWhite = *1 *2 *3, so a

@@ -35,6 +35,9 @@ def wdl_from_qd(q, d):
 # FillSearchTargets, fixed 2026-09-23; result_q was always right). From version 2
 # on every value is side-to-move. search_q() / orig_q() below return the
 # side-to-move value for either version, so old and new data can be mixed.
+# Version 3 (same layout and signs) marks data from the engine that detects
+# repetitions at every rule-50 count; versions 1-2 missed most of them
+# (trainingdata_v1.h). Nothing to convert, so it is read like version 2.
 FIRST_STM_SEARCH_Q_VERSION = 2
 
 

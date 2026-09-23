@@ -10,8 +10,8 @@ struct EngineOptions {
          test_selfplay_mode=false, emit_roundtrip_mode=false, test_perft_mode=false,
          test_bits_mode=false, test_rules_mode=false, test_adapter_mode=false, test_nn_mode=false,
          uci_nn_mode=false, test_uci_mode=false, test_encoder_mode=false, play_mode=false,
-         arena_mode=false, audit_generation_mode=false, bench_nn_mode=false,
-         test_search_logic_mode=false, test_history_mode=false;
+         arena_mode=false, audit_generation_mode=false, bench_nn_mode=false, bench_cpu_mode=false,
+         test_search_logic_mode=false, test_history_mode=false, audit_rules_mode=false;
     bool play_human_white=true;
     std::string rt_prefix="roundtrip";
     std::string weights_file="weights_0_elo.onnx";

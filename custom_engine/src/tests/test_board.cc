@@ -9,60 +9,7 @@ void run_board_tests() {
     std::cout << "========================================\n" << std::endl;
 
     // Load custom variant
-    std::string ini_text = R"(
-[custom_10x10_variant]
-maxRank = 10
-maxFile = j
-
-pawn = p
-knight = n
-bishop = b
-rook = r
-queen = q
-king = k:KN
-
-amazon = a
-chancellor = e
-archbishop = h
-centaur = m
-customPiece1 = v:CN
-customPiece2 = y:AD
-customPiece3 = s:fKifmnDifmnA
-
-pawnTypes = p s
-promotionPawnTypes = p s
-enPassantTypes = p s
-nMoveRuleTypes = p s
-
-doubleStep = true
-doubleStepRegionWhite = *1 *2 *3
-doubleStepRegionBlack = *10 *9 *8
-
-promotionRegionWhite = *8 *9 *10
-promotionRegionBlack = *3 *2 *1
-mandatoryPawnPromotion = true
-promotionPieceTypes = b m n r v y
-
-castling = true
-castlingKingsideFile = h
-castlingQueensideFile = d
-castlingRookKingsideFile = i
-castlingRookQueensideFile = b
-
-stalemateValue = loss
-checkCounting = true
-)";
-
-    std::istringstream ss(ini_text);
-    variants.parse_istream<false>(ss);
-
-    const Variant* v = variants.find("custom_10x10_variant")->second;
-    if (!v) {
-        std::cerr << "[FAIL] Failed to find custom_10x10_variant!" << std::endl;
-        std::exit(1);
-    }
-    UCI::init_variant(v);
-    PSQT::init(v);
+    setup_custom_variant();   // the real definition, not a copy
 
     // TEST 1: Default initialization and legal moves count (should be 34)
     {
