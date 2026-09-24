@@ -31,14 +31,57 @@ dat_tk() {
     ln -s "$HOME/.colab-cli-oauth-config.json" "$TKH/.colab-cli-oauth-config.json"
   return 0
 }
-ten_tk() { echo "${1:-chính}"; }
-tk_hop_le() { [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]] && [ "$1" != chinh ]; }
+# Ten tai khoan = ten thu muc ~/.fz_tk/<ten> (doi ten = doi ten thu muc). Tai khoan chinh
+# khong co thu muc: ten cua no nam trong ~/.fz_tk/.ten_chinh (mac dinh "chinh").
+ten_chinh() { local t; t=$(cat "$TKG/.ten_chinh" 2>/dev/null); echo "${t:-chinh}"; }
+ten_tk() { if [ -n "$1" ]; then echo "$1"; else ten_chinh; fi; }
+# Ten dung cho tai khoan moi / doi ten: chu, so, _ -, khong trung tai khoan nao.
+tk_hop_le() { [[ "$1" =~ ^[A-Za-z0-9_-]{1,20}$ ]]; }
+tk_trung() { [ "$1" = chinh ] || [ "$1" = "$(ten_chinh)" ] || [ -e "$TKG/$1" ]; }
+# `fz @<ten>`: ten -> TK ("" = tai khoan chinh). In ra TK, sai thi tra 1.
+tim_tk() {
+  if [ "$1" = chinh ] || [ "$1" = "$(ten_chinh)" ]; then echo ""; return; fi
+  tk_hop_le "$1" && [ -d "$TKG/$1" ] && echo "$1"
+}
+
+# Cua so nao dung tai khoan nao: moi menu dang mo ghi ~/.fz_tk/.cua_so/<pid> = "@<TK>".
+# Hai cua so cung tai khoan = dung chung may '$S' -> canh bao truoc khi chon.
+CS=$TKG/.cua_so
+ghi_cua_so() { mkdir -p "$CS" && echo "@$TK" > "$CS/$$"; }
+trap 'rm -f "$CS/$$"' EXIT
+# In pid cac cua so KHAC dang dung tai khoan $1 (don tep cua cua so da dong).
+cua_so_khac() {
+  local f pid
+  for f in "$CS"/*; do
+    [ -f "$f" ] || continue
+    pid=${f##*/}
+    [ "$pid" = $$ ] && continue
+    if ! tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q 'menu\.sh'; then
+      rm -f "$f"; continue          # cua so da dong (pid co the da cap cho tien trinh khac)
+    fi
+    [ "$(cat "$f" 2>/dev/null)" = "@$1" ] && echo "$pid"
+  done
+}
+# Hoi truoc khi dung tai khoan $1 neu cua so khac dang dung no. 0 = dung duoc.
+hoi_trung() {
+  local x
+  [ -z "$(cua_so_khac "$1")" ] && return 0
+  echo "[!] Tài khoản $(ten_tk "$1") đang mở ở cửa sổ Termux khác -- hai cửa sổ sẽ dùng CHUNG máy '$S'"
+  echo "    (ô chạy nền cửa sổ này có thể chồng lên cửa sổ kia)."
+  read -rp "    Vẫn dùng? Gõ 'co' (Enter = không): " x
+  [ "$x" = co ]
+}
+# Cua so nay chuyen sang tai khoan $1 (co hoi neu trung). 0 = da chuyen.
+chon_tk() { hoi_trung "$1" || return 1; dat_tk "$1"; ghi_cua_so; }
+
 TK=
 if [[ "${1:-}" == @* ]]; then
-  TK=${1#@}; shift
-  tk_hop_le "$TK" || { echo "[!] Tên tài khoản chỉ gồm chữ, số, _ và - (vd: fz @B)"; exit 1; }
+  TK=$(tim_tk "${1#@}") || { echo "[!] Không có tài khoản '${1#@}' -- xem/thêm: fz -> a"; exit 1; }
+  shift
 fi
+hoi_trung "$TK" || exit 1
 dat_tk "$TK"
+ghi_cua_so
 colab() { HOME=$TKH command colab "$@"; }
 py_colab() { HOME=$TKH python "$@"; }
 
@@ -134,7 +177,7 @@ tai_khoan() {
   for x in "$HOME/.config/colab-cli/luu"/*/; do
     [ -f "$x/token.json" ] || continue
     ten=$(basename "$x")
-    tk_hop_le "$ten" && [ ! -e "$TKG/$ten" ] || continue
+    tk_hop_le "$ten" && ! tk_trung "$ten" || continue
     mkdir -p "$TKG/$ten/.config/colab-cli" && cp "$x"/*.json "$TKG/$ten/.config/colab-cli/"
   done
   while true; do
@@ -143,29 +186,55 @@ tai_khoan() {
     clear
     echo "== Tài khoản Colab =="
     for i in "${!ds[@]}"; do
-      printf " %2d  %-12s %-16s %s\n" $((i + 1)) "$(ten_tk "${ds[$i]}")" \
-        "$(tk_dang_nhap "${ds[$i]}" && echo "đã đăng nhập" || echo "CHƯA đăng nhập")" \
-        "$([ "${ds[$i]}" = "$TK" ] && echo "<- cửa sổ này")"
+      ten=${ds[$i]}; x=""
+      [ "$ten" = "$TK" ] && x="<- cửa sổ này"
+      [ -n "$(cua_so_khac "$ten")" ] && x="${x:+$x, }đang mở ở cửa sổ khác"
+      printf " %2d  %-20s %-15s %s\n" $((i + 1)) "$(ten_tk "$ten")$([ -z "$ten" ] && echo " (chính)")" \
+        "$(tk_dang_nhap "$ten" && echo "đã đăng nhập" || echo "CHƯA đăng nhập")" "$x"
     done
     echo "---"
     echo " Số = cửa sổ này dùng tài khoản đó (cửa sổ khác không đổi)"
-    echo " n  = thêm tài khoản · x = đăng xuất / xoá tài khoản · Enter = về menu"
+    echo " n  = thêm tài khoản · r = đổi tên · x = đăng xuất / xoá · Enter = về menu"
     echo " Dùng CÙNG LÚC: mở thêm cửa sổ Termux (vuốt từ mép trái -> NEW SESSION), gõ: fz @<tên>"
     read -rp "Chọn: " x || return
     case "$x" in
     "") return ;;
     n|N)
-      read -rp "Tên tài khoản mới (chữ/số, vd B): " ten
+      read -rp "Tên tài khoản mới (chữ/số/_/-, tối đa 20, vd B hoac phuc2): " ten
       tk_hop_le "$ten" || { echo "[!] Tên không hợp lệ"; dung; continue; }
-      [ -e "$TKG/$ten" ] && { echo "[!] Đã có tài khoản $ten"; dung; continue; }
-      dat_tk "$ten"
+      tk_trung "$ten" && { echo "[!] Đã có tài khoản $ten"; dung; continue; }
+      dat_tk "$ten"; ghi_cua_so
       echo "[cửa sổ này dùng tài khoản $ten] Mở link dưới đây, chọn ĐÚNG tài khoản Google muốn thêm:"
       colab sessions      # chua co token -> CLI in link dang nhap o day
       dung; return ;;
+    r|R)
+      read -rp "Số tài khoản cần đổi tên: " i
+      [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ] || continue
+      ten=${ds[$((i - 1))]}
+      if [ -n "$(cua_so_khac "$ten")" ]; then
+        echo "[!] Tài khoản $(ten_tk "$ten") đang mở ở cửa sổ khác -- thoát menu bên đó (q) rồi đổi tên."
+        dung; continue
+      fi
+      read -rp "Tên mới cho $(ten_tk "$ten") (chữ/số/_/-, tối đa 20): " x
+      tk_hop_le "$x" || { echo "[!] Tên không hợp lệ"; dung; continue; }
+      cu=$(ten_tk "$ten"); [ "$x" = "$cu" ] && continue
+      tk_trung "$x" && { echo "[!] Đã có tài khoản $x"; dung; continue; }
+      if [ -z "$ten" ]; then
+        mkdir -p "$TKG" && echo "$x" > "$TKG/.ten_chinh"
+      else
+        mv "$TKG/$ten" "$TKG/$x" || { dung; continue; }
+        [ "$TK" = "$ten" ] && { dat_tk "$x"; ghi_cua_so; }
+      fi
+      echo "[đã đổi tên] $cu -> $x   (mở song song: fz @$x)"
+      dung ;;
     x|X)
       read -rp "Số tài khoản cần đăng xuất: " i
       [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ] || continue
       ten=${ds[$((i - 1))]}; cu=$TK
+      if [ -n "$(cua_so_khac "$ten")" ]; then
+        echo "[!] Tài khoản $(ten_tk "$ten") đang mở ở cửa sổ khác -- thoát menu bên đó (q) trước."
+        dung; continue
+      fi
       dat_tk "$ten"
       if tk_dang_nhap "$ten"; then
         echo "Máy tài khoản $(ten_tk "$ten") đang giữ (đăng xuất rồi vẫn tính hạn mức tới khi Colab thu hồi):"
@@ -179,10 +248,11 @@ tai_khoan() {
         else rm -f "$HOME/.config/colab-cli/token.json" "$HOME/.config/colab-cli/sessions.json"; fi
         echo "[đã đăng xuất] $(ten_tk "$ten")"
       fi
-      dat_tk "$cu"; dung ;;
+      dat_tk "$cu"; ghi_cua_so; dung ;;
     *)
       [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#ds[@]} ] || continue
-      dat_tk "${ds[$((x - 1))]}"
+      [ "${ds[$((x - 1))]}" = "$TK" ] && return
+      chon_tk "${ds[$((x - 1))]}" || continue
       echo "[cửa sổ này dùng tài khoản $(ten_tk "$TK")]"
       tk_dang_nhap "$TK" || echo "Chưa đăng nhập -- mở link dưới đây:"
       colab sessions

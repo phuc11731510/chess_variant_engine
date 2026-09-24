@@ -153,8 +153,12 @@ Google** trong trình duyệt (như mục 3). Cửa sổ đó chuyển sang dùn
 2. Vuốt từ mép trái Termux → **NEW SESSION** → cửa sổ 2: `fz @B` → `m` → chạy ô 04… trên máy của `B`.
 3. Qua lại giữa các cửa sổ bằng cùng thanh vuốt đó. Dòng đầu menu ghi `Tài khoản: B` để khỏi nhầm.
 
-Chạy thẳng ô cũng được: `o @B 05`. Hai cửa sổ **cùng** một tài khoản thì dùng chung máy `fz` — đừng
-chạy ô chạy nền ở cả hai.
+Chạy thẳng ô cũng được: `o @B 05`. `fz @<tên>` nhận cả tên của tài khoản chính (và `@chinh`).
+
+**Tránh hai cửa sổ dùng chung một máy:** mỗi menu đang mở ghi lại nó dùng tài khoản nào
+(`~/.fz_tk/.cua_so/<pid>`, tự dọn khi thoát). Mở / chọn một tài khoản đang mở ở cửa sổ khác thì menu
+cảnh báo "hai cửa sổ sẽ dùng CHUNG máy 'fz'" và chỉ tiếp tục khi gõ `co`. Danh sách ở mục `a` ghi
+`<- cửa sổ này` / `đang mở ở cửa sổ khác` cạnh từng tài khoản.
 
 Mục `a` còn làm được:
 
@@ -162,7 +166,8 @@ Mục `a` còn làm được:
 |---|---|
 | số | Cửa sổ này dùng tài khoản đó (cửa sổ khác không đổi) |
 | `n` | Thêm tài khoản mới |
-| `x` | Đăng xuất một tài khoản: hỏi trả máy `fz` của nó trước (nên trả — máy vẫn tiêu hạn mức tới khi Colab thu hồi), gõ `co` → xoá token; tài khoản phụ bị xoá khỏi danh sách |
+| `r` | Đổi tên (tên nội bộ để phân biệt, vd `phuc`, `phuc2`) — cả tài khoản chính (mặc định tên `chinh`). Chữ, số, `_`, `-`, tối đa 20 ký tự. Không đổi được khi tài khoản đang mở ở cửa sổ khác |
+| `x` | Đăng xuất một tài khoản (không được khi nó đang mở ở cửa sổ khác): hỏi trả máy `fz` của nó trước (nên trả — máy vẫn tiêu hạn mức tới khi Colab thu hồi), gõ `co` → xoá token; tài khoản phụ bị xoá khỏi danh sách |
 
 Tài khoản đã "cất" bằng menu cũ (`~/.config/colab-cli/luu/<tên>/`) tự thành tài khoản phụ cùng tên
 khi mở `a`. Token hết hạn thì CLI hỏi đăng nhập lại như bình thường.
