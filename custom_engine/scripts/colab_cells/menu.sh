@@ -5,12 +5,14 @@
 # `fz @B` / `o @B 04`: dung tai khoan Colab B. Nhieu tai khoan CUNG LUC = moi cua so Termux mot
 # tai khoan (xem tai_khoan() -- muc a).
 #
-# Cach chay mot o:
-#   - O co dong "# fz: nhanh" (01, 05, 09): gui thang cho `colab exec`, ket qua hien ngay.
-#   - O con lai: `colab exec` chi KHOI DONG o do chay nen tren may Colab (IPython rieng, log o
-#     /content/fz_log/<o>.log) roi tra ve ngay; menu xem log truc tiep qua ssh (fz_may.py).
-#     Ctrl+C chi dong phan xem (ssh), o van chay tiep. Kernel cua colab exec khong bi giu, nen
-#     menu khong bao gio phai cho o chay nen.
+# Cach chay mot o -- MOI o (ke ca o ban them sau nay) chay QUA SSH, khong dung kernel Jupyter
+# cua may Colab (kernel chet / khoi dong lai khong anh huong; colab exec vao kernel cu con lam
+# Colab CLI xoa phien + tat keep-alive, xem fz_nhan_may.py):
+#   - O co dong "# fz: nhanh" (01, 05, 09): IPython chay ngay tren may, ket qua hien ngay.
+#   - O con lai: chay nen tren may (IPython rieng, log /content/fz_log/<o>.log), menu xem log truc
+#     tiep (fz_may.py theo_doi). Ctrl+C chi dong phan xem, o van chay tiep.
+#   - Moi may, lan dau: colab exec MOT lan de chup moi truong kernel (env.json) -- ssh co moi
+#     truong khac (thieu duong dan toi driver GPU...). ssh hong thi quay ve colab exec.
 D=$HOME/storage/downloads/FairyZero/o_lenh
 TAI=$HOME/storage/downloads/FairyZero
 S=${S:-fz}
@@ -79,11 +81,9 @@ if [[ "${1:-}" == @* ]]; then
   TK=$(tim_tk "${1#@}") || { echo "[!] Không có tài khoản '${1#@}' -- xem/thêm: fz -> a"; exit 1; }
   shift
 fi
-NEN=
-[ "${1:-}" = --dong-bo ] && NEN=1     # tien trinh dong bo chay nen (dong_bo_bat), khong phai cua so
-[ -n "$NEN" ] || hoi_trung "$TK" || exit 1
+hoi_trung "$TK" || exit 1
 dat_tk "$TK"
-[ -n "$NEN" ] || ghi_cua_so
+ghi_cua_so
 colab() { HOME=$TKH command colab "$@"; }
 py_colab() { HOME=$TKH python "$@"; }
 
@@ -132,6 +132,45 @@ g["khoi_dong"]("$1", "$b", ep=("${3:-}" == "ep"))
 EOF
 }
 
+# Gui ~/fz_may.py (dong 1 cua stdin, base64) + ma o $3 (dong 2) roi chay "fz_may.py $1 $2 [$4]"
+# tren may qua ssh. $1 = khoi_dong (o chay nen, in FZ_PID=/FZ_BAN=) | chay_nhanh (o nhanh, in thang).
+# Ma thoat 97 = may chua co env.json (FZ_THIEU_ENV), 255 = ssh loi.
+ssh_fz() {
+  { base64 -w0 "$MAY"; echo; ghep "$3" | base64 -w0; echo; } |
+    ssh_colab "mkdir -p $LOGD && read -r m && echo \"\$m\" | base64 -d > $LOGD/fz_may.py && python3 $LOGD/fz_may.py $1 $2 ${4:-}"
+}
+
+# Chup moi truong cua kernel Colab vao $LOGD/env.json (mot lan moi may) -- duy nhat cho con dung
+# colab exec. Phien bi CLI xoa (kernel cu 404) -> nhan lai may roi thu lai.
+luu_env() {
+  local ma out
+  ma="import json, os
+os.makedirs('$LOGD', exist_ok=True)
+json.dump(dict(os.environ), open('$LOGD/env.json.tmp', 'w'))
+os.replace('$LOGD/env.json.tmp', '$LOGD/env.json')
+print('FZ_ENV_OK')"
+  echo "[máy mới] Chụp môi trường kernel Colab (một lần mỗi máy)..."
+  out=$(colab exec -s "$S" <<<"$ma" 2>&1)
+  grep -q FZ_ENV_OK <<<"$out" && return 0
+  cuu_phien && out=$(colab exec -s "$S" <<<"$ma" 2>&1)
+  grep -q FZ_ENV_OK <<<"$out" && return 0
+  echo "$out" | tail -3
+  echo "[!] Không chụp được môi trường kernel (colab exec lỗi)"
+  return 1
+}
+
+# Khoi dong o $1 (tep $2, $3 = ep) chay nen qua ssh. In FZ_PID=/FZ_BAN=; 1 = ssh khong dung duoc.
+khoi_dong_ssh() {
+  local out rc
+  out=$(ssh_fz khoi_dong "$1" "$2" "${3:-}" 2>&1); rc=$?
+  if [ $rc = 97 ]; then
+    luu_env >&2 || return 1
+    out=$(ssh_fz khoi_dong "$1" "$2" "${3:-}" 2>&1)
+  fi
+  grep -q '^FZ_\(PID\|BAN\)=' <<<"$out" || { echo "$out" | tail -2 >&2; return 1; }
+  echo "$out"
+}
+
 # Xem log o $1 (pid $2) tu dau va theo tiep den khi o ket thuc (fz_may.py theo_doi).
 # Tra ve 0 = o da ket thuc, khac 0 = Ctrl+C (o van chay tiep).
 # Rot mang: ssh tra 255 (khac Ctrl+C = 130, o xong = 0) -> tu noi lai moi 5 giay, in tiep 20
@@ -160,24 +199,46 @@ xem() {
 
 # Chay o tep $1: nhanh thi chay thang; con lai thi chay nen + xem log.
 # Tra ve 0 = o ket thuc; 1 = Ctrl+C khi dang xem (o VAN chay nen); 2 = khong khoi dong / huy.
+# Giu may cua phien $S (~/fz_nhan_may.py, xem dau tep do): Colab CLI XOA phien va TAT keep-alive
+# khi colab exec gap loi 404/401 -- ca khi may van song (vd kernel cu chet). kiem_may: phien con
+# thi bat lai keep-alive neu no chet + ghi endpoint; cuu_phien: phien vua bi xoa ma may con -> nhan
+# lai. 0 = phien dung duoc.
+kiem_may() { [ -f ~/fz_nhan_may.py ] && py_colab ~/fz_nhan_may.py kiem "$S"; }
+cuu_phien() { [ -f ~/fz_nhan_may.py ] && py_colab ~/fz_nhan_may.py cuu "$S"; }
+
 chay_o() {
-  local f=$1 id out pid ban x lan
+  local f=$1 id out pid ban x lan qua
   id=$(basename "$f"); id=${id%%_*}
   echo
   echo "====== Ô $id: $(tieu_de "$f") ======"
   if doc "$f" | grep -q '^# fz: nhanh'; then
-    ghep "$f" | colab exec -s "$S" ||
-      echo "[!] colab exec lỗi. 'Connection was lost' = mất kết nối tới kernel (mạng chập chờn) -- chạy lại ô $id."
+    ssh_fz chay_nhanh "$id" "$f"; x=$?
+    if [ $x = 97 ]; then luu_env && { ssh_fz chay_nhanh "$id" "$f"; x=$?; }; fi
+    [ $x = 255 ] || return 0
+    [ $NGAT = 1 ] && return 0
+    echo "[ssh lỗi -- chạy ô $id qua colab exec]"
+    if ! ghep "$f" | colab exec -s "$S"; then
+      if cuu_phien; then ghep "$f" | colab exec -s "$S"
+      else echo "[!] colab exec lỗi. 'Connection was lost' = mất kết nối tới kernel (mạng chập chờn) -- chạy lại ô $id."; fi
+    fi
     return 0
   fi
+  kiem_may >/dev/null
   kiem_secs "$f" || return 2
+  lan=1; qua=ssh
+  if ! out=$(khoi_dong_ssh "$id" "$f"); then
+    qua=exec
+    echo "[ssh không khởi động được ô $id -- dùng colab exec]"
+  fi
   # colab exec mo websocket toi kernel truoc khi chay ma; mang chap chon -> "Connection was lost"
   # NGAY buoc do (ma khoi dong o chua chay) -> thu lai. Ma khoi dong luon in FZ_PID= / FZ_BAN=,
   # khong co dong nao = chua chay duoc.
-  for lan in 1 2 3; do
+  [ $qua = exec ] && for lan in 1 2 3; do
     out=$(khoi_dong "$id" "$f" 2>&1)
     grep -q '^FZ_\(PID\|BAN\)=' <<<"$out" && break
     [ -f "$MAY" ] && [ $lan -lt 3 ] || break
+    # CLI co the vua xoa phien (kernel cu 404) du may con -> nhan lai truoc khi thu lai.
+    grep -q 'appears to be lost\|not found' <<<"$out" && cuu_phien
     echo "[!] Không kết nối được kernel Colab ($(grep -o 'Connection was lost\|[A-Za-z]*Error: [^│]*' <<<"$out" | tail -1 | sed 's/ *$//'))"
     echo "    thử lại lần $((lan + 1))/3 sau 5 giây... (Ctrl+C = thôi)"
     sleep 5 || return 2
@@ -191,11 +252,10 @@ chay_o() {
   if [ -n "$ban" ]; then
     read -rp "Ô $ban vẫn đang chạy nền. Vẫn chạy thêm ô $id song song? (co = chạy): " x
     [ "$x" = co ] || return 2
-    out=$(khoi_dong "$id" "$f" ep)
+    if [ $qua = ssh ]; then out=$(khoi_dong_ssh "$id" "$f" ep); else out=$(khoi_dong "$id" "$f" ep); fi
   fi
   pid=$(sed -n 's/^FZ_PID=//p' <<<"$out")
   if [ -z "$pid" ]; then echo "$out"; echo "[!] Không khởi động được ô $id"; return 2; fi
-  dong_bo_bat "$id" "$f" "$pid"
   xem "$id" "$pid" || return 1
   tai_theo_o "$id"
   return 0
@@ -211,132 +271,6 @@ log_truc_tiep() {
   dung
 }
 
-# ---- Dong bo van ve dien thoai TRONG LUC o chay ----
-# O in "FZ_DONG_BO=<thu muc tren Colab>" (o 04: thu muc van) -> khi khoi dong o do, menu bat mot
-# tien trinh nen TREN DIEN THOAI: cu DB_CHU_KY giay chep cac van game_*.gz MOI ve
-#   Download/FairyZero/dong_bo/<tai khoan>_<ngay-gio>/<ten thu muc>/
-# Engine ghi van vao .gz.tmp roi moi doi ten -> moi game_*.gz tren Colab luon day du. May Colab bi
-# thu hoi giua chung (het quota) thi chi mat cac van cua chu ky cuoi. Tu dung khi o ket thuc (sau
-# luot chep cuoi) hoac may mat han (ssh loi lien tuc ~15 phut). Van tiep tuc khi dong menu (q),
-# can Termux song (muc 10). Trang thai: ~/.fz_tk/.dong_bo/<pid>, nhat ky: ~/.fz_tk/dong_bo.log.
-DB_CHU_KY=${DB_CHU_KY:-120}
-DBD=$TKG/.dong_bo
-
-# Mot luot: hoi Colab trang thai o + danh sach van (fz_may.py dong_bo), chep van thieu/khac kich
-# thuoc (tar qua ssh, mot lan cho ca thu muc), bo tep chep do. Dat DB_TT (chay/xong/dung), DB_N.
-dong_bo_luot() {
-  local o=$1 pid=$2 goc=$3 ra dong d L i can tam
-  local -a ds=()
-  ra=$(ssh_colab "python3 $LOGD/fz_may.py dong_bo $o $pid" 2>/dev/null) || return 1
-  DB_TT=${ra%%$'\n'*}
-  [[ "$DB_TT" =~ ^(chay|xong|dung)$ ]] || return 1
-  tam=$(mktemp -d)
-  while IFS= read -r dong; do
-    case "$dong" in
-      "D "*) ds+=("${dong#D }"); : > "$tam/${#ds[@]}" ;;
-      "F "*) [ ${#ds[@]} -gt 0 ] && echo "${dong#F }" >> "$tam/${#ds[@]}" ;;
-    esac
-  done <<<"$ra"
-  DB_N=0
-  for i in "${!ds[@]}"; do
-    d=${ds[$i]}; L=$goc/${d##*/}
-    mkdir -p "$L"
-    find "$L" -maxdepth 1 -name 'game_*.gz' -printf '%f %s\n' > "$tam/co"
-    can=$(awk 'FILENAME==ARGV[1]{a[$0];next} !($0 in a){print $1}' "$tam/co" "$tam/$((i + 1))")
-    if [ -n "$can" ]; then
-      ssh_colab "cd $(printf %q "$d") && tar cf - -T -" <<<"$can" |
-        tar xf - -C "$L" --no-same-owner --no-same-permissions -m 2>>"$TKG/dong_bo.log"
-      # Tep chep do (duong truyen dut giua tar): khac kich thuoc -> xoa, luot sau chep lai.
-      find "$L" -maxdepth 1 -name 'game_*.gz' -printf '%f %s\n' > "$tam/co"
-      awk 'FILENAME==ARGV[1]{a[$0];next} !($0 in a){print $1}' "$tam/$((i + 1))" "$tam/co" |
-        while read -r x; do grep -qx "$x" <<<"$can" && rm -f "$L/$x"; done
-    fi
-    DB_N=$((DB_N + $(find "$L" -maxdepth 1 -name 'game_*.gz' | wc -l)))
-  done
-  rm -rf "$tam"
-  return 0
-}
-
-# Than tien trinh nen: $1 o, $2 pid, $3 thu muc goc tren dien thoai.
-dong_bo_chay() {
-  local o=$1 pid=$2 goc=$3 loi=0 st=$DBD/$$ gio
-  mkdir -p "$DBD" "$goc"
-  trap 'rm -f "$st"' EXIT
-  DB_TT=chay; DB_N=0
-  while true; do
-    if dong_bo_luot "$o" "$pid" "$goc"; then loi=0; gio=$(date +%H:%M)
-    else loi=$((loi + 1)); fi
-    echo "@$TK|$S|$o|${goc#$TAI/}|$DB_N|${gio:--}|$([ $loi -gt 0 ] && echo "mất kết nối x$loi" || echo "$DB_TT")" > "$st"
-    [ $loi = 0 ] && [ "$DB_TT" != chay ] && break         # o xong: luot vua roi la luot cuoi
-    [ $loi -ge $((900 / DB_CHU_KY + 1)) ] && break          # ~15 phut khong vao duoc may
-    sleep "$DB_CHU_KY"
-  done
-  echo "$(date '+%F %T') [$(ten_tk "$TK")] o $o: dung dong bo ($DB_TT, loi $loi), $DB_N van -> $goc" >> "$TKG/dong_bo.log"
-}
-
-# Khoi dong o $1 (tep $2, pid $3) xong: o co FZ_DONG_BO -> bat dong bo nen.
-dong_bo_bat() {
-  local goc
-  doc "$2" | grep -q FZ_DONG_BO || {
-    [ "$1" = 04 ] && echo "[!] Ô 04 trên điện thoại là bản CŨ, chưa chép dần ván về điện thoại (máy Colab mất = mất ván). Cập nhật: bash ~/lay_ve.sh 04 (rồi đặt lại SECS)"
-    return 0; }
-  goc=$TAI/dong_bo/$(ten_tk "$TK")_$(date +%Y%m%d-%H%M)
-  mkdir -p "$DBD"
-  $(command -v setsid) nohup env S="$S" DB_CHU_KY="$DB_CHU_KY" bash "$0" ${TK:+"@$TK"} --dong-bo "$1" "$3" "$goc" \
-    >> "$TKG/dong_bo.log" 2>&1 < /dev/null &
-  echo "[đồng bộ] Chép dần ván về điện thoại mỗi $((DB_CHU_KY / 60)) phút -> Download/FairyZero/${goc#$TAI/}"
-}
-
-# Dong trang thai dong bo cho dau menu (tien trinh con song, cung tai khoan).
-dong_bo_trang_thai() {
-  local f pid tk s o thu n gio tt
-  for f in "$DBD"/*; do
-    [ -f "$f" ] || continue
-    pid=${f##*/}
-    tr '\0' ' ' 2>/dev/null < "/proc/$pid/cmdline" | grep -q -- '--dong-bo' || { rm -f "$f"; continue; }
-    IFS='|' read -r tk s o thu n gio tt < "$f"
-    [ "$tk" = "@$TK" ] || continue
-    echo " Đồng bộ ô $o: $n ván đã về điện thoại (lượt cuối $gio, $tt) -> $thu"
-  done
-}
-
-# Muc g: gom van da dong bo (Download/FairyZero/dong_bo/<lan chay>/<thu muc>) thanh zip TREN DIEN
-# THOAI (~/fz_archive.py = python/archive.py, zip giong o 06), roi tuy chon dua len Colab lam
-# /content/<thu muc>.zip cho o 07 -- dung khi may Colab mat truoc khi kip chay 06.
-gom_dong_bo() {
-  local ds i x L ten dich kt
-  mapfile -t ds < <(find "$TAI/dong_bo" -mindepth 2 -maxdepth 2 -type d 2>/dev/null | sort)
-  echo "== Gom ván đã chép về điện thoại thành zip =="
-  if [ ${#ds[@]} -eq 0 ]; then
-    echo " (chưa có -- ô 04 chép dần ván về Download/FairyZero/dong_bo/ trong lúc chạy)"; return
-  fi
-  for i in "${!ds[@]}"; do
-    printf " %2d  %s  (%s ván)\n" $((i + 1)) "${ds[$i]#$TAI/}" "$(find "${ds[$i]}" -maxdepth 1 -name 'game_*.gz' | wc -l)"
-  done
-  read -rp "Chọn số (Enter = về menu): " i
-  [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ] || return
-  L=${ds[$((i - 1))]}
-  [ -f ~/fz_archive.py ] || { echo "[!] Thiếu ~/fz_archive.py -- chạy: bash ~/lay_ve.sh"; return; }
-  ten=$(ten_trong "${L##*/}.zip")
-  python ~/fz_archive.py pack "$L" --out "$TAI/.dang_gom_$$.zip" &&
-    mv "$TAI/.dang_gom_$$.zip" "$TAI/$ten" ||
-    { rm -f "$TAI/.dang_gom_$$.zip"; echo "[!] Gom lỗi"; return; }
-  echo "[xong] Download/FairyZero/$ten"
-  command -v termux-media-scan >/dev/null && termux-media-scan "$TAI/$ten" >/dev/null 2>&1
-  dich=/content/${L##*/}.zip
-  read -rp "Tải lên Colab (máy '$S' đang giữ) làm $dich cho ô 07? (co = tải lên): " x
-  [ "$x" = co ] || return
-  kt=$(stat -c %s "$TAI/$ten")
-  echo "Tải lên $dich ($(kich_thuoc "$kt")) ..."
-  # Qua ssh (khong base64, khong giu ca tep trong RAM); ghi tep tam, du kich thuoc moi doi ten.
-  if ssh_colab "cat > $dich.dang_tai && [ \$(stat -c %s $dich.dang_tai) = $kt ] && mv $dich.dang_tai $dich" < "$TAI/$ten"; then
-    echo "[xong] $dich"
-  else
-    ssh_colab "rm -f $dich.dang_tai" 2>/dev/null
-    echo "[!] Tải lên lỗi -- thử lại, hoặc menu u"
-  fi
-}
-
 # Truoc khi chay o co "SECS = N" (o 04): SECS lon hon thoi gian han muc con lai -> Colab ngat
 # giua chung (het quota), khong kip 06. Chi CANH BAO (khong tu doi SECS). 0 = chay tiep.
 kiem_secs() {
@@ -349,7 +283,7 @@ kiem_secs() {
   [ "$secs" -le "$goi" ] && return 0
   echo "[!] SECS = $secs (≈ $((secs / 60)) phút) nhưng hạn mức chỉ còn đủ cho SECS ≈ $goi (≈ $((goi / 60)) phút,"
   echo "    đã trừ 20 phút gom zip + tải về). Colab sẽ ngắt máy khi hết hạn mức -> 06 không kịp chạy."
-  echo "    (Đồng bộ nền vẫn giữ các ván đã chép về.) Sửa SECS ở ô 04, hoặc chạy tiếp."
+  echo "    Sửa SECS ở ô 04, hoặc chạy tiếp."
   read -rp "    Vẫn chạy với SECS = $secs? Gõ 'co' (Enter = huỷ): " x
   [ "$x" = co ]
 }
@@ -663,8 +597,26 @@ tra_may() {
     done
     echo "---"
     echo " Số (nhiều số cách nhau) = trả các máy đó · a = trả TẤT CẢ · Enter = về menu"
+    echo " n <số> = NHẬN LẠI máy '?' làm phiên '$S' (máy vẫn chạy nhưng mất tên -- vd CLI xoá phiên khi kernel chết)"
     read -rp "Chọn: " -a chon || return
     [ ${#chon[@]} -eq 0 ] && return
+    if [ "${chon[0]}" = n ] || [ "${chon[0]}" = N ]; then
+      x=${chon[1]:-}
+      [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#ds[@]} ] || continue
+      dong=${ds[$((x - 1))]}
+      ten=${dong%%]*}; ten=${ten#[}
+      ep=${dong#*] }; ep=${ep%% *}
+      [ "$ten" = "?" ] || { echo "[!] Máy $x đã có tên '$ten'"; dung; continue; }
+      if grep -q "^\[$S\]" <<<"$(printf '%s\n' "${ds[@]}")"; then
+        read -rp "Phiên '$S' đang là máy khác -- TRẢ máy đó (mất /content của nó) rồi nhận máy $x? Gõ 'co': " x
+        [ "$x" = co ] || continue
+        colab stop -s "$S"
+      elif colab status -s "$S" >/dev/null 2>&1; then
+        colab stop -s "$S" >/dev/null 2>&1    # ten con trong sessions.json nhung may da mat
+      fi
+      [ -f ~/fz_nhan_may.py ] && py_colab ~/fz_nhan_may.py nhan "$S" "$ep" || echo "[!] Thiếu ~/fz_nhan_may.py -- chạy: bash ~/lay_ve.sh"
+      dung; continue
+    fi
     if [ "${chon[0]}" = a ] || [ "${chon[0]}" = A ]; then chon=($(seq ${#ds[@]})); fi
     local hop=()
     for x in "${chon[@]}"; do
@@ -708,7 +660,6 @@ chay_cac_o() {
   done
 }
 
-if [ -n "$NEN" ]; then dong_bo_chay "$2" "$3" "$4"; exit; fi
 if [ $# -gt 0 ]; then chay_cac_o "$@"; exit; fi
 
 while true; do
@@ -716,7 +667,6 @@ while true; do
   gen=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^GEN_CURRENT *= *\([0-9]*\).*/\1/p')
   echo "======== FairyZero trên Colab ========"
   echo " Tài khoản: $(ten_tk "$TK")   ·   Phiên: $S   ·   Đời: ${gen:-?}"
-  dong_bo_trang_thai
   echo " Ô lệnh: Download/FairyZero/o_lenh"
   echo "--------------------------------------"
   files=()
@@ -736,7 +686,6 @@ while true; do
   echo " h    Hạn mức còn lại (máy đang giữ + T4)"
   echo " d    Duyệt tệp Colab, tải về điện thoại"
   echo " u    Duyệt tệp điện thoại, tải lên Colab"
-  echo " g    Gom ván đã chép dần về điện thoại thành zip (máy Colab mất trước 06)"
   echo " t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)"
   echo " a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)"
   echo " q    Thoát"
@@ -747,10 +696,10 @@ while true; do
 
   case "${chon[0]}" in
   q|Q) exit 0 ;;
-  m|M) colab new -s "$S" --gpu T4; colab status -s "$S"; dung; continue ;;
+  m|M) colab new -s "$S" --gpu T4; colab status -s "$S"; kiem_may >/dev/null; dung; continue ;;
   c|C)
     # Khong --gpu = may CPU. O dung GPU (04, 07, 08: --provider cuda / --amp) se loi tren may nay.
-    colab new -s "$S"; colab status -s "$S"
+    colab new -s "$S"; colab status -s "$S"; kiem_may >/dev/null
     echo; echo "[máy CPU] Hợp để thử menu, ô 01/02/03/05/06, tải lên/về. Ô 04/07/08 cần T4."
     echo "          Đổi sang T4: t (trả máy) rồi m."
     dung; continue ;;
@@ -761,7 +710,6 @@ while true; do
   t|T) tra_may; continue ;;
   d|D) duyet_colab; continue ;;
   u|U) duyet_dt; continue ;;
-  g|G) gom_dong_bo; dung; continue ;;
   esac
 
   chay_cac_o "${chon[@]}"
