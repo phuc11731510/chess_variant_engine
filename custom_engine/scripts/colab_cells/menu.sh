@@ -165,7 +165,7 @@ log_truc_tiep() {
   dc=$(ssh_colab "cat $LOGD/dang_chay 2>/dev/null")
   read -r id pid <<<"$dc"
   if [ -z "$id" ]; then echo "(chưa có ô nào chạy nền trên máy này)"; dung; return; fi
-  xem "$id" "$pid"
+  xem "$id" "$pid" && tai_theo_o "$id"
   dung
 }
 
@@ -320,13 +320,35 @@ tai_ve() {
 
 # Sau khi o $1 chay nen xong: tai ve moi tep o do yeu cau bang dong "FZ_TAI_VE=<duong dan>"
 # trong log (vd o 06 -> zip van). Nho vay "04 06" = sinh du lieu, gom zip, tai ve dien thoai.
+# Moi lan chay o chi tai mot lan: tai xong ghi dong dau log (co gio bat dau) vao <o>.da_tai;
+# xem lai bang `l` thi khong tai lai, nhung lan chay truoc chua tai (Ctrl+C, loi ssh) thi tai bu.
 tai_theo_o() {
-  local ds f
-  mapfile -t ds < <(ssh_colab "sed -n 's/^FZ_TAI_VE=//p' $LOGD/$1.log 2>/dev/null")
-  [ ${#ds[@]} -eq 0 ] && return 0
+  local ra ds f dau da loi=0 tep
+  ra=$(ssh_colab "printf '%s\n' \"\$(head -1 $LOGD/$1.log 2>/dev/null)\" \"\$(cat $LOGD/$1.da_tai 2>/dev/null)\"; sed -n 's/^FZ_TAI_VE=//p' $LOGD/$1.log 2>/dev/null") ||
+    { echo "[!] Không đọc được log ô $1 qua ssh -- không tải về được. Thử lại: fz -> l"; return 1; }
+  mapfile -t ds <<<"$ra"
+  dau=${ds[0]:-}; da=${ds[1]:-}; ds=("${ds[@]:2}")   # $(..) bo dong trong cuoi -> co the thieu
+  [ -z "${ds[*]}" ] && ds=()
+  if [ ${#ds[@]} -eq 0 ]; then
+    tep=$(ls "$D/$1"_*.py 2>/dev/null | head -1)
+    if [ -n "$tep" ] && doc "$tep" | grep -q FZ_TAI_VE; then
+      echo; echo "[!] Ô $1 không yêu cầu tải gì (không có dòng FZ_TAI_VE trong log -- ô lỗi?)."
+    elif [ "$1" = 06 ]; then
+      echo; echo "[!] Ô 06 trên điện thoại là bản CŨ (không tự tải zip). Cập nhật: bash ~/lay_ve.sh 06"
+      echo "    Zip vẫn nằm trên Colab -- tải tay: fz -> d"
+    fi
+    return 0
+  fi
+  if [ -n "$dau" ] && [ "$da" = "$dau" ]; then
+    echo; echo "(ô $1 lần chạy này đã tải về rồi -- tải lại: fz -> d)"; return 0
+  fi
   echo
   echo "== Ô $1 yêu cầu tải về điện thoại: ${#ds[@]} tệp =="
-  for f in "${ds[@]}"; do tai_ve "$f"; done
+  for f in "${ds[@]}"; do tai_ve "$f" || loi=1; done
+  if [ $loi = 0 ]; then
+    ssh_colab "cat > $LOGD/$1.da_tai" <<<"$dau"
+    echo "Tệp ở: bộ nhớ trong -> Download -> FairyZero (Files / MT Manager: /sdcard/Download/FairyZero)"
+  fi
 }
 
 # Muc d: duyet thu muc tren may Colab (liet ke qua ssh), chon so de vao thu muc / tai tep ve

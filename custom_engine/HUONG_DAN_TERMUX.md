@@ -520,8 +520,15 @@ ván thành `games_gen0.zip` rồi **tự tải zip về** `Download/FairyZero/`
 chuỗi; 06 không chạy.
 
 Chạy riêng: đợi ô 04 chạy xong (log in `[fz] o 04 xong …`; hoặc ô 05 báo `DA XONG`), rồi menu `fz` →
-**`06`** (gõ tắt: `o 06`). Zip tự tải về khi 06 xong (cần xem 06 tới cuối; Ctrl+C giữa chừng thì
-tải tay: menu **`d`** → `games_gen0.zip`).
+**`06`** (gõ tắt: `o 06`). Zip tự tải về khi 06 xong. Ctrl+C giữa chừng (hoặc ssh lỗi) thì mở lại
+**`l`**: xem tới cuối là menu **tải bù** (mỗi lần chạy ô chỉ tải một lần — `l` lần nữa không tải lại).
+
+**Tệp về đâu:** bộ nhớ trong → `Download` → `FairyZero` (MT Manager: `/sdcard/Download/FairyZero`);
+menu in `[xong] Download/FairyZero/<tên>`. Không thấy dòng đó:
+- `Ô 06 trên điện thoại là bản CŨ` → ô 06 trên điện thoại chưa có phần tự tải (`lay_ve.sh` không ghi
+  đè ô đã có): `bash ~/lay_ve.sh 06`. Zip vẫn trên Colab — tải tay bằng `d`.
+- `Ô 06 không yêu cầu tải gì` → gom zip lỗi; xem log (`l`).
+- `Không đọc được log ô 06 qua ssh` → thử lại `l`.
 
 Gom vào tệp tạm rồi mới thay zip, nên gom lỗi thì zip cũ trên Colab vẫn nguyên, không tải gì. Ô nào
 in dòng `FZ_TAI_VE=<đường dẫn>` thì menu tải tệp đó về khi ô xong — tự thêm vào ô của bạn được.
