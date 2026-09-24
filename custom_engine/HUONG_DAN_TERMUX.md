@@ -138,6 +138,17 @@ Thông tin đăng nhập được lưu lại; các lần sau không hỏi nữa.
 Colab CLI không có lệnh `logout` riêng. "Đăng xuất" = xoá tệp chứa thông tin đăng nhập; lần gọi
 tiếp theo nó không thấy thì hỏi đăng nhập lại (mục 3) — lúc đó chọn tài khoản khác.
 
+**Cách nhanh: menu `fz` → `a` (Đổi tài khoản Colab).** Nó hỏi lần lượt:
+
+1. Trả máy `fz` của tài khoản hiện tại không (gõ `co` để trả — nên trả, sau khi đổi thì không điều
+   khiển máy đó được nữa).
+2. Cất tài khoản hiện tại không: gõ một tên (vd `A`) → token được cất vào
+   `~/.config/colab-cli/luu/A/`, lần sau chọn lại được mà không phải đăng nhập; Enter = không cất.
+3. Chọn: `0` = đăng nhập tài khoản **mới** (in link, chọn tài khoản trong trình duyệt); `1`, `2`, … =
+   dùng lại tài khoản đã cất; Enter = huỷ, giữ nguyên tài khoản hiện tại.
+
+Làm tay thì như sau:
+
 1. **Trả hết máy của tài khoản cũ trước** (sau khi đổi tài khoản thì không điều khiển chúng được nữa):
 
    ```bash
@@ -157,9 +168,7 @@ tiếp theo nó không thấy thì hỏi đăng nhập lại (mục 3) — lúc 
 3. Đăng nhập tài khoản mới: menu `fz` → `m` (hoặc `colab sessions`) → nó in link đăng nhập →
    làm như mục 3, **chọn tài khoản khác** trong trình duyệt.
 
-Muốn đổi qua lại nhiều lần: cất token của từng tài khoản rồi chép vào khi cần, vd
-`cp ~/.config/colab-cli/token.json ~/token_A.json` (đang ở tài khoản A), sau này
-`cp ~/token_A.json ~/.config/colab-cli/token.json` để về lại A mà không phải đăng nhập lại.
+Token đã cất mà hết hạn thì CLI hỏi đăng nhập lại như bình thường.
 
 ---
 
@@ -277,6 +286,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     d    Tải tệp Colab -> điện thoại
     u    Tải tệp điện thoại -> Colab
     t    Trả máy (XOÁ /content)
+    a    Đổi tài khoản Colab
     q    Thoát
    --------------------------------------
     Nhiều ô liền nhau: gõ cách nhau, vd: 01 02
@@ -301,6 +311,7 @@ Các mục chữ của menu:
 | `d` | Hỏi đường dẫn trên Colab (vd `/content/games_gen0.zip`), tải về `Download/FairyZero/` | `colab download` |
 | `u` | Liệt kê tệp trong `Download/FairyZero/`, chọn số → tải lên `/content/` | `colab upload` |
 | `t` | Trả máy — hỏi lại, phải gõ `co` | `colab stop -s fz` |
+| `a` | Đổi tài khoản Colab (trả máy, cất token, đăng nhập mới / dùng lại tài khoản đã cất) | mục 3.1 |
 
 **Lệnh `o` — gõ tắt, không qua menu.** `o 04` chạy ô 04; `o 04 05` chạy ô 04 rồi 05. Nó làm đúng
 việc menu làm khi chọn `04`:
