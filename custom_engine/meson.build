@@ -157,7 +157,9 @@ engine_sources = files(
   'src/tests/test_search.cc',
   'src/tests/test_search_logic.cc',
   'src/tests/test_history.cc',
-  'src/tests/test_rules_oracle.cc'
+  'src/tests/test_rules_oracle.cc',
+  'src/tests/test_neural.cc',
+  'src/tests/test_app.cc'
 )
 
 # ONNX Runtime link dependency (platform-specific root resolved above).

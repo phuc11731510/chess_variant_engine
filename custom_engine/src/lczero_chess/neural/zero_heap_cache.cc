@@ -171,9 +171,14 @@ std::optional<EvalResult> ZeroHeapCache::GetCachedEvaluation(const EvalPosition&
     
     uint32_t seq2 = bucket.sequence.load(std::memory_order_acquire);
     if (seq1 != seq2) return std::nullopt;
-    if (cv.num_moves != num_moves) return std::nullopt;
-    
-    size_t copy_moves = std::min(static_cast<size_t>(num_moves), static_cast<size_t>(384));
+    // An empty move list is an existence probe: lc0's PrefetchIntoCache asks
+    // "is this position cached?" without generating its moves (lc0's own cache
+    // does not compare move counts). Requiring num_moves == 0 here made every
+    // probe miss, so prefetch regenerated the moves of positions it already had.
+    const bool probe = pos.legal_moves.empty();
+    if (!probe && cv.num_moves != num_moves) return std::nullopt;
+
+    size_t copy_moves = probe ? 0 : std::min(static_cast<size_t>(num_moves), static_cast<size_t>(384));
     EvalResult result;
     result.q = cv.q;
     result.d = cv.d;
@@ -208,12 +213,12 @@ void ZeroHeapCache::SetCacheSize(size_t size) {
 }
 
 void ZeroHeapCache::UpdateConfiguration(const OptionsDict& opts) {
+    // Ask BEFORE reconfiguring: once the wrapped backend has loaded the new
+    // weights it reports them as "the same configuration", so asking afterwards
+    // never cleared the cache and the old net's evaluations stayed in use.
+    const bool same = wrapped_backend_->IsSameConfiguration(opts);
     wrapped_backend_->UpdateConfiguration(opts);
-    
-    // Re-verify weights matching
-    if (!wrapped_backend_->IsSameConfiguration(opts)) {
-        ClearCache();
-    }
+    if (!same) ClearCache();
 }
 
 bool ZeroHeapCache::IsSameConfiguration(const OptionsDict& opts) const {
@@ -270,7 +275,12 @@ void ZeroHeapCache::Insert(uint64_t hash, uint16_t num_moves, float q, float d, 
             break;
         }
     }
-    
+    // The odd sequence must be visible before any of the data stores below, or a
+    // reader could copy half-written data and still see the old even sequence.
+    // The acquire on the CAS does not order the CAS's own store before later
+    // stores; this fence does (dmb on ARM, nothing but a compiler barrier on x86).
+    std::atomic_thread_fence(std::memory_order_release);
+
     bucket.hash.store(hash, std::memory_order_relaxed);
     bucket.value.q = q;
     bucket.value.d = d;

@@ -106,9 +106,10 @@ private:
     std::function<void(const std::string&)> send_;
 };
 
-// T8.3 — passthrough of lc0 search params: maps a UCI/lc0 option NAME + string
-// value into the OptionsDict. Returns false for names it doesn't handle (so the
-// caller can ignore unknowns). Curated high-value set; extend by adding cases.
+// Picks a root move by temperature (difficulty knob). temp_permille in (0,..]:
+// weight_i = N_i^(1/T), T = temp_permille/1000 (clamped). T->0 = greedy best;
+// T=1 = proportional to visits; T large = flatter/random. Returns the best edge
+// when temp<=0 or counts are empty.
 static lczero::classic::EdgeAndNode SampleByTemperature(
     const std::vector<lczero::classic::EdgeAndNode>& edges, int temp_permille) {
     if (temp_permille <= 0 || edges.empty()) return edges.empty() ? lczero::classic::EdgeAndNode() : edges[0];

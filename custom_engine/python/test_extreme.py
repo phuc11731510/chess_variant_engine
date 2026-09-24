@@ -10,6 +10,8 @@ convention-sensitive logic where a silent bug would corrupt training without cra
   6. reconstruct_planes aux-plane semantics (edge, rule50, checks, castling, ep)
   7. bitboard decode: s=rank*12+file mapping + padding columns never leak
   8. archive.py pack -> read_records_from_zip == reading the dir (bit-faithful)
+  9. audit_generation.py passes clean games and catches each kind of corruption
+ 10. diff_focus keeps records without a raw eval at the average rate
 
 Run:  python test_extreme.py
 """
@@ -96,14 +98,22 @@ def test_struct_layout():
     pi = [-1.0] * R.POLICY_SIZE
     pi[123] = 0.25; pi[7777] = 0.75
     pp = list(range(R.HISTORY_PLANES * 2))           # 0,1,2,... distinct sentinels
-    fields = ([7, 1] + pi + pp +
+    fields = ([4, 1] + pi + pp +
               [200, 0, 9, 255, 4,                    # rule50 + 4 castling
                0xAAAA, 0xBBBB,                       # ep_mask
                6, 7, 1,                              # checks_us/them, side
                1.0, 0.0, 0.2, 0.1, -0.3, 0.15, 0.4, 0.05, 0.6, 0.2, 1.234,  # 11 floats
                300, 123, 7777])                      # visits, played_idx, best_idx
     rec = R.unpack_record(R._STRUCT.pack(*fields))
-    check(rec["version"] == 7 and rec["input_format"] == 1, "version/input_format")
+    check(rec["version"] == 4 and rec["input_format"] == 1, "version/input_format")
+    # A version or input format the reader does not know must be refused, not read.
+    for bad_version, bad_format in ((0, 1), (5, 1), (7, 1), (4, 2)):
+        try:
+            R.unpack_record(R._STRUCT.pack(*([bad_version, bad_format] + fields[2:])))
+            refused = False
+        except ValueError:
+            refused = True
+        check(refused, f"version {bad_version} / input format {bad_format} refused")
     check(abs(rec["probabilities"][123] - 0.25) < 1e-6 and
           abs(rec["probabilities"][7777] - 0.75) < 1e-6, "probabilities[idx] preserved")
     check(rec["piece_planes"][0] == 0 and rec["piece_planes"][431] == 431, "piece_planes order")
@@ -352,6 +362,127 @@ def test_archive_roundtrip():
         check(keyset(dir_recs) == keyset(zip_recs), "zip records == dir records (bit-faithful)")
 
 
+# --------------------------------------------------------------------------- #
+# 9. audit_generation.py catches corrupted games (and passes clean ones)
+# --------------------------------------------------------------------------- #
+def _audit_game(rng, n_plies, white_result, version=4):
+    """A well-formed game: alternating side to move, one final result, pi over 30
+    legal moves, best = most visited, repetition-free boards."""
+    recs = []
+    for ply in range(n_plies):
+        stm = ply % 2
+        pi = np.full(R.POLICY_SIZE, -1.0, dtype=np.float32)
+        legal = rng.choice(R.POLICY_SIZE, size=30, replace=False)
+        v = rng.random(30).astype(np.float32)
+        pi[legal] = v / v.sum()
+        best = int(legal[int(np.argmax(v))])
+        pp = [0] * (R.HISTORY_PLANES * 2)
+        pp[0] = int(rng.integers(1, 2**62))           # a different board every ply
+        pp[2] = int(rng.integers(1, 2**62))
+        zq = white_result if stm == 0 else -white_result
+        rec = dict(version=version, pi=pi, pp=pp, stm=stm, result_q=float(zq),
+                   result_d=1.0 if white_result == 0 else 0.0, best=best, played=best,
+                   best_q=0.1, best_d=0.2, orig_q=0.05, orig_d=0.25, kld=0.3)
+        recs.append(rec)
+    return recs
+
+
+def _audit_pack(rec):
+    fields = ([rec["version"], 1] + rec["pi"].tolist() + rec["pp"] +
+              [3, 255, 255, 255, 255, 0, 0, 8, 8, rec["stm"],
+               rec["result_q"], rec["result_d"], 0.1, 0.2, rec["best_q"], rec["best_d"],
+               rec["best_q"], rec["best_d"], rec["orig_q"], rec["orig_d"], rec["kld"],
+               800, rec["played"], rec["best"]])
+    return R._STRUCT.pack(*fields)
+
+
+def _run_audit(games, tmp, name):
+    import zipfile
+    path = os.path.join(tmp, name + ".zip")
+    with zipfile.ZipFile(path, "w") as zf:
+        for k, g in enumerate(games):
+            zf.writestr(f"game_{k}.gz", gzip.compress(b"".join(_audit_pack(r) for r in g)))
+    p = subprocess.run([sys.executable, os.path.join(HERE, "audit_generation.py"), path],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    counts = {}
+    for line in p.stdout.splitlines():
+        line = line.strip()
+        if ":" in line and line.split(":")[0].replace("_", "").isalnum():
+            k, _, v = line.partition(":")
+            if v.strip().isdigit():
+                counts[k.strip()] = int(v)
+    return p.returncode, counts
+
+
+def test_audit_generation():
+    print("\n[9] audit_generation.py: clean games pass, each corruption is caught")
+    rng = np.random.default_rng(9)
+    clean = [_audit_game(rng, 24, +1), _audit_game(rng, 17, -1), _audit_game(rng, 30, 0)]
+    with tempfile.TemporaryDirectory() as tmp:
+        rc, c = _run_audit(clean, tmp, "clean")
+        check(rc == 0 and c.get("game_result") == 0, f"clean games pass (rc={rc})")
+
+        def corrupted(key, mutate):
+            games = [[dict(r) for r in g] for g in clean]
+            mutate(games)
+            rc, c = _run_audit(games, tmp, key)
+            check(rc == 1 and c.get(key, 0) >= 1, f"{key}: caught (rc={rc}, count={c.get(key)})")
+
+        corrupted("game_result", lambda g: g[0][5].update(result_q=-g[0][5]["result_q"]))
+        corrupted("stm_alternation", lambda g: g[1][4].update(stm=1 - g[1][4]["stm"],
+                                                               result_q=-g[1][4]["result_q"]))
+        def illegal_best(g):
+            r = g[2][3]
+            r["best"] = int(np.nonzero(r["pi"] < 0)[0][0])
+        corrupted("move_idx", illegal_best)
+        def not_most_visited(g):
+            r = g[0][7]
+            legal = np.nonzero(r["pi"] >= 0)[0]
+            r["best"] = int(legal[np.argmin(r["pi"][legal])])
+            r["played"] = r["best"]
+        corrupted("best_not_most_visited", not_most_visited)
+        corrupted("orig_copy_v4", lambda g: g[1][2].update(orig_q=0.1, orig_d=0.2, kld=0.0))
+
+
+# --------------------------------------------------------------------------- #
+# 10. diff_focus: records without a raw eval (data < v4) are neither dropped
+#     like dull positions nor kept like surprising ones, whatever the file order
+# --------------------------------------------------------------------------- #
+def test_diff_focus_unknown_orig():
+    print("\n[10] diff_focus keeps records without a raw eval at the average rate")
+    rng = np.random.default_rng(10)
+    n = 1500
+
+    def pack(rule50, orig_q, kld):
+        pi = np.full(R.POLICY_SIZE, -1.0, dtype=np.float32)
+        legal = rng.choice(R.POLICY_SIZE, size=20, replace=False)
+        pi[legal] = 1.0 / 20
+        pp = [int(x) for x in rng.integers(1, 2**62, size=R.HISTORY_PLANES * 2)]
+        best_q, best_d = 0.1, 0.2
+        orig_d = best_d if orig_q == best_q else 0.3
+        fields = ([3, 1] + pi.tolist() + pp +
+                  [rule50, 255, 255, 255, 255, 0, 0, 8, 8, 0,
+                   1.0, 0.0, 0.1, 0.2, best_q, best_d, best_q, best_d, orig_q, orig_d, kld,
+                   800, int(legal[0]), int(legal[0])])
+        return R._STRUCT.pack(*fields)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # "a_..." is read first: the records without a raw eval come before any other.
+        with gzip.open(os.path.join(tmp, "a_unknown.gz"), "wb") as f:
+            for _ in range(n):
+                f.write(pack(11, 0.1, 0.0))                  # orig == best, kld 0: the copy
+        with gzip.open(os.path.join(tmp, "b_known.gz"), "wb") as f:
+            for _ in range(n):
+                f.write(pack(22, 0.7, 0.0))                  # surprise 0.6 -> keep 0.2 + 0.6 = 0.8
+        ds = D.FairyDataset(tmp, diff_focus=True, df_slope=1.0, df_kld_w=0.5, df_min=0.2)
+        kept_unknown = sum(1 for c in ds._cached if c["rule50_count"] == 11) / n
+        kept_known = sum(1 for c in ds._cached if c["rule50_count"] == 22) / n
+    check(abs(kept_known - 0.8) < 0.05, f"known records kept at {kept_known:.3f} (keep prob 0.8)")
+    check(abs(kept_unknown - 0.8) < 0.05,
+          f"records without a raw eval kept at {kept_unknown:.3f}, the average rate "
+          f"(0.2 would treat them as dull positions, 1.0 as surprising ones)")
+
+
 def main():
     print("=" * 60)
     print("EXTREME TESTS — Python training pipeline")
@@ -365,6 +496,8 @@ def main():
     test_reconstruct_aux()
     test_bitboard_decode()
     test_archive_roundtrip()
+    test_audit_generation()
+    test_diff_focus_unknown_orig()
     print("\n" + "=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")
     print("=" * 60)

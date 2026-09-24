@@ -61,6 +61,51 @@ int run_selfplay(const EngineOptions& o) {
         const std::string fen =
             "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
 
+        // Start positions, checked before the network is loaded (fail fast).
+        std::string start_fen = fen;  // default = startpos
+        std::vector<std::string> start_fens;
+        if (!o.sp_start_fen.empty()) {
+            // Every start position is checked before the first game (CheckStartFen:
+            // Fairy-Stockfish itself accepts a FEN without "8+8" as 1+1, etc.).
+            auto trim = [](std::string s) {
+                const auto b = s.find_first_not_of(" \t\r\n");
+                if (b == std::string::npos) return std::string();
+                return s.substr(b, s.find_last_not_of(" \t\r\n") - b + 1);
+            };
+            std::ifstream ff(o.sp_start_fen);
+            if (ff) {  // an opening book: one FEN per line (# = comment)
+                std::string line;
+                for (int line_no = 1; std::getline(ff, line); ++line_no) {
+                    line = trim(line);   // a book saved on Windows ends its lines in \r
+                    if (line.empty() || line[0] == '#') continue;
+                    const std::string why = CheckStartFen(line);
+                    if (!why.empty()) {
+                        std::cerr << "[selfplay] FATAL: " << o.sp_start_fen << ":" << line_no
+                                  << ": " << why << "\n  " << line << std::endl;
+                        Threads.set(0);
+                        return 1;
+                    }
+                    start_fens.push_back(line);
+                }
+                if (start_fens.empty()) {
+                    std::cerr << "[selfplay] FATAL: no FEN in " << o.sp_start_fen << std::endl;
+                    Threads.set(0);
+                    return 1;
+                }
+                std::cout << "[selfplay] opening book: " << start_fens.size()
+                          << " FENs from " << o.sp_start_fen << std::endl;
+            } else {
+                start_fen = trim(o.sp_start_fen);  // a single FEN string
+                const std::string why = CheckStartFen(start_fen);
+                if (!why.empty()) {
+                    std::cerr << "[selfplay] FATAL: --start-fen is neither a readable file nor a "
+                                 "valid FEN: " << why << "\n  " << start_fen << std::endl;
+                    Threads.set(0);
+                    return 1;
+                }
+            }
+        }
+
         lczero::OptionsParser parser;
         lczero::classic::SearchParams::Populate(&parser);
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, o.sp_policy_temp);
@@ -76,11 +121,17 @@ int run_selfplay(const EngineOptions& o) {
         // guesses and padding). `--search-opt max-prefetch=N` still overrides.
         parser.GetMutableDefaultsOptions()->Set<int>(lczero::classic::SearchParams::kMaxPrefetchBatchId, 0);
         // T8.3 #4b: arbitrary lc0 search params for self-play via --search-opt name=value.
+        // One that cannot be applied stops the run (it used to be a warning line
+        // lost in the log, and the data was generated without it).
         for (const auto& kv : o.sp_search_opts) {
-            if (ApplySearchOpt(parser.GetMutableDefaultsOptions(), kv.first, kv.second))
-                std::cout << "[selfplay] search-opt " << kv.first << "=" << kv.second << std::endl;
-            else
-                std::cout << "[selfplay] WARNING: unknown --search-opt '" << kv.first << "' (ignored)" << std::endl;
+            const std::string err =
+                ApplySearchOptChecked(parser.GetMutableDefaultsOptions(), kv.first, kv.second);
+            if (!err.empty()) {
+                std::cerr << "[selfplay] FATAL: " << err << std::endl;
+                Threads.set(0);
+                return 1;
+            }
+            std::cout << "[selfplay] search-opt " << kv.first << "=" << kv.second << std::endl;
         }
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, o.weights_file);
         // Backend options. CPU: game-level parallelism + low intra-op threads.
@@ -127,20 +178,8 @@ int run_selfplay(const EngineOptions& o) {
         }
 
         lczero::SelfPlayConfig cfg;
-        cfg.start_fen = fen;  // default = startpos
-        if (!o.sp_start_fen.empty()) {
-            std::ifstream ff(o.sp_start_fen);
-            if (ff) {  // an opening book: one FEN per line (# = comment)
-                std::string line;
-                while (std::getline(ff, line)) {
-                    if (!line.empty() && line[0] != '#') cfg.start_fens.push_back(line);
-                }
-                std::cout << "[selfplay] opening book: " << cfg.start_fens.size()
-                          << " FENs from " << o.sp_start_fen << std::endl;
-            } else {
-                cfg.start_fen = o.sp_start_fen;  // a single FEN string
-            }
-        }
+        cfg.start_fen = start_fen;
+        cfg.start_fens = std::move(start_fens);
         cfg.out_dir = o.sp_out;
         cfg.num_games = o.sp_games;
         cfg.max_seconds = o.sp_max_seconds;

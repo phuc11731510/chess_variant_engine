@@ -11,10 +11,15 @@ struct EngineOptions {
          test_bits_mode=false, test_rules_mode=false, test_adapter_mode=false, test_nn_mode=false,
          uci_nn_mode=false, test_uci_mode=false, test_encoder_mode=false, play_mode=false,
          arena_mode=false, audit_generation_mode=false, bench_nn_mode=false, bench_cpu_mode=false,
-         test_search_logic_mode=false, test_history_mode=false, audit_rules_mode=false;
+         test_search_logic_mode=false, test_history_mode=false, audit_rules_mode=false,
+         test_neural_mode=false, test_cli_mode=false;
+    // Command-line errors (unknown flag, missing value, bad number): main() prints
+    // them and exits 2 instead of running with a default the user did not ask for.
+    std::vector<std::string> errors;
     bool play_human_white=true;
     std::string rt_prefix="roundtrip";
     std::string weights_file="weights_0_elo.onnx";
+    bool weights_given=false;  // --weights was on the command line (not the default above)
     int sp_games=100, sp_visits=200, sp_parallel=1, sp_threads_per_game=1;
     int sp_max_moves=200, sp_temp_cutoff=30, sp_backend_threads=1, sp_fixed_batch=16;
     double sp_max_seconds=0.0;  // --max-seconds: wall-clock budget for self-play (0 = off)

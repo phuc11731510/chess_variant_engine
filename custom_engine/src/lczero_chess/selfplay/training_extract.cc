@@ -70,10 +70,26 @@ Move FillSearchTargets(const classic::Node* root,
   // The cache stores the NN policy in GenerateLegalMoves() order (deterministic),
   // so raw->p[i] corresponds to legal[i]. We map both pi and p_nn through
   // MoveToNNIndex (NOT by array position, since the root edges have been sorted).
+  // The cache holds what the net returned; the Dirichlet noise only ever goes
+  // into the root's edge priors, so this is the un-noised eval.
   MoveList legal = history.Last().GetBoard().GenerateLegalMoves();
   EvalPosition ep{&history,
                   std::span<const Move>(legal.data(), legal.size())};
   std::optional<EvalResult> raw = backend->GetCachedEvaluation(ep);
+  if (!raw && !legal.empty()) {
+    // The root's entry is gone: the cache is direct-mapped and shared by all
+    // games, so the search's own insertions (and the other games') overwrite it
+    // now and then -- 8.5% of the gen-0 records. Those records used to get
+    // orig_q = best_q and policy_kld = 0, which --diff-focus reads as "an easy
+    // position" and drops. Evaluating the root again costs one NN input on
+    // those moves only (the net is deterministic, so it is the same eval).
+    EvalResult fresh;
+    fresh.p.resize(legal.size());
+    auto computation = backend->CreateComputation();
+    computation->AddInput(ep, fresh.AsPtr());
+    computation->ComputeBlocking();
+    raw = fresh;
+  }
 
   if (raw && !raw->p.empty()) {
     rec.orig_q = raw->q;
@@ -92,7 +108,8 @@ Move FillSearchTargets(const classic::Node* root,
     // Clamp tiny negative values from floating-point error (KLD >= 0 in theory).
     rec.policy_kld = static_cast<float>(std::max(0.0, kld));
   } else {
-    // Cache miss (~1% hash collision) or non-caching backend: safe fallback.
+    // No legal move (never written: the game is over) or an evaluation without
+    // a policy. Readers recognise this copy (python/dataset.py).
     rec.orig_q = rec.best_q;
     rec.orig_d = rec.best_d;
     rec.policy_kld = 0.0f;

@@ -76,9 +76,12 @@ void run_trainingdata_tests() {
     std::cout << "========================================\n" << std::endl;
 }
 
-// Parses + registers the custom 10x10 variant from an inline ini (so self-play
-// and tests don't depend on an external variants.ini being loaded).
-void run_roundtrip_emit(const std::string& prefix) {
+// --emit-roundtrip: ground truth for python/test_roundtrip.py. For each case
+// writes BOTH <prefix>_records.gz (TrainingDataV1 records) and <prefix>_dense.bin
+// (the [226*100] floats UnpackInputPlanes gives the NN for the SAME position);
+// Python rebuilds the planes from the record and compares. With --weights it also
+// writes <prefix>_eval.bin for python/test_engine_parity.py (eval_backend below).
+void run_roundtrip_emit(const std::string& prefix, const std::string& weights_path) {
     std::cout << "=== Emitting round-trip ground-truth data ===" << std::endl;
     setup_custom_variant();
 
@@ -86,6 +89,30 @@ void run_roundtrip_emit(const std::string& prefix) {
     std::ofstream dense_out(prefix + "_dense.bin", std::ios::binary);
     if (!dense_out) { std::cerr << "[FAIL] cannot open dense output" << std::endl; std::exit(1); }
     int num_cases = 0;
+
+    // With --weights: also what the ENGINE's backend stack (NN cache over the
+    // ONNX backend, policy temperature 1, as in self-play) says about each case,
+    // for python/test_engine_parity.py. Per case, little-endian:
+    //   float q, float d, uint32 n, then n x (uint16 policy index, float prior)
+    // over the legal moves in generation order.
+    std::unique_ptr<lczero::Backend> eval_backend;
+    std::ofstream eval_out;
+    lczero::OptionsParser eval_parser;
+    if (!weights_path.empty()) {
+        auto* d = eval_parser.GetMutableDefaultsOptions();
+        d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_path);
+        d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "threads=1");
+        d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
+        eval_backend = lczero::CreateMemCache(
+            [&] {
+                auto b = std::make_unique<lczero::OnnxBackend>();
+                b->UpdateConfiguration(eval_parser.GetOptionsDict());
+                return b;
+            }(),
+            eval_parser.GetOptionsDict());
+        eval_out.open(prefix + "_eval.bin", std::ios::binary);
+        if (!eval_out) { std::cerr << "[FAIL] cannot open eval output" << std::endl; std::exit(1); }
+    }
 
     auto emit = [&](const lczero::PositionHistory& h) {
         lczero::InputPlanes planes;
@@ -111,6 +138,25 @@ void run_roundtrip_emit(const std::string& prefix) {
         rec.played_idx = 2005; rec.best_idx = 2005;
         writer.WriteChunk(rec);
         ++num_cases;
+
+        if (eval_backend) {
+            const lczero::MoveList legal = h.Last().GetBoard().GenerateLegalMoves();
+            lczero::EvalResult r;
+            r.p.resize(legal.size());
+            auto comp = eval_backend->CreateComputation();
+            comp->AddInput(lczero::EvalPosition{&h, std::span<const lczero::Move>(legal.data(), legal.size())},
+                           r.AsPtr());
+            comp->ComputeBlocking();
+            const uint32_t n = static_cast<uint32_t>(legal.size());
+            eval_out.write(reinterpret_cast<const char*>(&r.q), 4);
+            eval_out.write(reinterpret_cast<const char*>(&r.d), 4);
+            eval_out.write(reinterpret_cast<const char*>(&n), 4);
+            for (uint32_t i = 0; i < n; ++i) {
+                const uint16_t idx = lczero::MoveToNNIndex(legal[i], 0);
+                eval_out.write(reinterpret_cast<const char*>(&idx), 2);
+                eval_out.write(reinterpret_cast<const char*>(&r.p[i]), 4);
+            }
+        }
     };
 
     // Case 0: startpos (white to move, castling BIbi, checks 8+8, no ep).
@@ -183,4 +229,9 @@ void run_roundtrip_emit(const std::string& prefix) {
     dense_out.close();
     std::cout << "[roundtrip] Emitted " << num_cases << " cases -> "
               << prefix << "_records.gz / " << prefix << "_dense.bin" << std::endl;
+    if (eval_backend) {
+        eval_out.close();
+        std::cout << "[roundtrip] engine evaluations (" << weights_path << ") -> " << prefix
+                  << "_eval.bin" << std::endl;
+    }
 }

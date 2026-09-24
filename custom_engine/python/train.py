@@ -55,7 +55,9 @@ def export_onnx(net, path):
     print(f"[export] wrote {path}")
 
 
-def verify_onnx(path):
+def verify_onnx(path, net=None):
+    """Checks the exported graph's I/O contract and, when `net` is given, that the
+    .onnx computes what the PyTorch net does (the .pt saved next to it)."""
     import onnx
     import onnxruntime as ort
     m = onnx.load(path)
@@ -86,6 +88,22 @@ def verify_onnx(path):
     vsum = val.sum(axis=1)
     assert np.allclose(vsum, 1.0, atol=1e-4), f"value (WDL) must sum to 1, got {vsum}"
     print(f"[verify] runtime OK: policy{pol.shape} value{val.shape} value_sum={vsum}")
+    if net is not None:
+        # Same numbers from ONNX Runtime and PyTorch, on inputs shaped like real
+        # planes (0/1 squares, scalar aux planes), not only the right shapes.
+        rng = np.random.default_rng(0)
+        xr = (rng.random((8, 226, 10, 10)) < 0.08).astype(np.float32)
+        xr[:, 216:226] = rng.random((8, 10, 1, 1)).astype(np.float32)
+        o_pol, o_val = sess.run(["policy", "value"], {"input": xr})
+        was_training = net.training
+        net.eval()
+        with torch.no_grad():
+            t_pol, t_val = ExportNet(net)(torch.from_numpy(xr))
+        net.train(was_training)
+        dp = float(np.abs(o_pol - t_pol.numpy()).max())
+        dv = float(np.abs(o_val - t_val.numpy()).max())
+        print(f"[verify] onnx vs torch: max |policy logit| {dp:.2e}, max |WDL| {dv:.2e}")
+        assert dp < 1e-3 and dv < 1e-4, "the .onnx does not compute what the PyTorch net does"
     print("[verify] PASS: ONNX I/O contract matches engine (policy=logits, value=softmax WDL).")
 
 
@@ -105,7 +123,12 @@ def main():
     ap.add_argument("--workers", type=int, default=None,
                     help="DataLoader worker processes (default: auto = CPU count on GPU, else 0)")
     ap.add_argument("--pin-memory", action="store_true", help="pin host memory (faster CPU->GPU copy)")
-    ap.add_argument("--no-cache", action="store_true", help="stream records (lower RAM for big data)")
+    # NOT streaming: it keeps every raw record (dense 10600-float policy + planes as
+    # Python ints: 51 KB each, measured, vs 4.8 KB in the default sparse cache), then
+    # rebuilds each item from it. Its help used to say "lower RAM" -- the opposite.
+    ap.add_argument("--no-cache", action="store_true",
+                    help="keep the RAW records and rebuild each item from them (~10x the RAM of "
+                         "the default sparse cache; for debugging only)")
     ap.add_argument("--diff-focus", action="store_true", help="prefer 'surprising' positions (8.2.6)")
     ap.add_argument("--df-slope", type=float, default=1.0, help="diff_focus: keep-prob slope")
     ap.add_argument("--df-kld-w", type=float, default=0.5, help="diff_focus: policy_kld weight")
@@ -202,11 +225,16 @@ def main():
     print(f"[train] optimizer={args.optimizer} grad_clip={args.grad_clip} "
           f"lr_sched={'on' if use_lr_sched else f'const {args.lr}'} seed={args.seed}")
     swa_net = AveragedModel(net)
-    swa_start = max(1, int(args.epochs * args.swa_start_frac))
+    # SWA averages the weights at the end of the epochs that START after
+    # `swa_start_frac` of the training: with 20 epochs and 0.75 that is epochs
+    # 16-20. It used to be max(1, int(E * frac)), one epoch early: epochs 15-20,
+    # and with the usual `--epochs 2` both epochs (the average then included the
+    # half-trained weights of epoch 1). `--swa-start-frac 0` averages every epoch.
+    swa_start = min(args.epochs, int(args.epochs * args.swa_start_frac) + 1)
     swa_sched = SWALR(opt, swa_lr=(args.swa_lr if args.swa_lr > 0 else args.lr * 0.5))
 
     print(f"[train] params={sum(p.numel() for p in net.parameters())/1e6:.2f}M "
-          f"swa_start_epoch={swa_start}")
+          f"swa: averages the end of epochs {swa_start}..{args.epochs}")
     accum = max(1, args.accum_steps)
     global_step = 0          # counts OPTIMIZER steps (after accumulation)
     micro = 0                # counts micro-batches
@@ -257,19 +285,27 @@ def main():
             swa_sched.step()
         print(f"  epoch {epoch:3d}: policy_loss={tp/n:.4f}  value_loss={tv/n:.4f}")
 
-    # Recompute BN running stats for the SWA-averaged weights, then export.
-    print("[swa] updating BatchNorm statistics on the averaged model...")
-    update_bn(dl, swa_net, device=device)
-
-    # Move back to CPU for a portable checkpoint + a CPU-graph ONNX export
-    # (the dummy input in export_onnx lives on CPU).
-    final = swa_net.module.to("cpu")
+    if int(swa_net.n_averaged) == 0:
+        # Stopped (--max-steps) before the first SWA epoch ended. The averaged
+        # model is then still the deep copy made BEFORE training, and exporting
+        # it -- as this used to -- wrote out the untrained starting weights.
+        print("[swa] WARNING: training stopped before any SWA epoch ended; exporting the "
+              "trained weights as they are (no average)")
+        final = net.to("cpu")
+    else:
+        # Recompute BN running stats for the SWA-averaged weights, then export.
+        print(f"[swa] averaged {int(swa_net.n_averaged)} epoch(s); updating BatchNorm "
+              "statistics on the averaged model...")
+        update_bn(dl, swa_net, device=device)
+        # Move back to CPU for a portable checkpoint + a CPU-graph ONNX export
+        # (the dummy input in export_onnx lives on CPU).
+        final = swa_net.module.to("cpu")
     ckpt = os.path.splitext(args.out)[0] + ".pt"
     torch.save(final.state_dict(), ckpt)
     print(f"[ckpt] saved {ckpt}")
 
     export_onnx(final, args.out)
-    verify_onnx(args.out)
+    verify_onnx(args.out, final)
 
 
 if __name__ == "__main__":
