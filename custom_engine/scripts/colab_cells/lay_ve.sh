@@ -1,8 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # lay_ve.sh -- tai cac o lenh FairyZero ve thu muc CHUNG cua dien thoai
-# (Download/FairyZero/o_lenh, mo/sua duoc bang MT Manager) va them lenh `o` vao ~/.bashrc.
+# (Download/FairyZero/o_lenh, mo/sua duoc bang MT Manager), tai menu ve ~/fz_menu.sh,
+# va them hai lenh vao ~/.bashrc:  fz (mo menu)  va  o <so> [<so> ...] (chay o thang).
 #   bash lay_ve.sh        # chi tai o nao CHUA co (khong ghi de o ban da sua)
-#   bash lay_ve.sh -f     # tai lai TAT CA, GHI DE o ban da sua
+#   bash lay_ve.sh -f     # tai lai TAT CA o, GHI DE o ban da sua
 set -euo pipefail
 
 URL=https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/custom_engine/scripts/colab_cells
@@ -23,12 +24,17 @@ for c in $CELLS; do
     curl -fsSL -o "$f" "$URL/$c.py" && echo "[tai]        $f"
   fi
 done
+# Menu khong phai thu ban sua -> luon lay ban moi.
+curl -fsSL -o ~/fz_menu.sh "$URL/menu.sh" && echo "[tai]        ~/fz_menu.sh"
 
-# o <so>: chay o <so>_*.py tren may Colab, sau khi ghep o cau hinh 00 vao dau.
-# sed bo BOM va \r (neu trinh sua tep tren dien thoai them vao).
+# Thay hai dong cu (neu co) trong ~/.bashrc.
+#   fz            : mo menu.
+#   o 04 [05 ...] : chay o 04 (roi 05 ...) tren may Colab, sau khi ghep o cau hinh 00 vao dau;
+#                   sed bo BOM va \r ma trinh sua tep tren dien thoai co the them.
 touch ~/.bashrc
-sed -i '/^o() /d' ~/.bashrc
+sed -i '/^o() /d; /^fz() /d' ~/.bashrc
 cat >> ~/.bashrc <<'EOF'
-o() { d=~/storage/downloads/FairyZero/o_lenh; cat "$d"/00_cau_hinh.py "$d"/"$1"_*.py | sed 's/^\xEF\xBB\xBF//; s/\r$//' | colab exec -s "${S:-fz}"; }
+fz() { bash ~/fz_menu.sh; }
+o() { local d=~/storage/downloads/FairyZero/o_lenh i; for i in "$@"; do echo "====== o $i ======"; cat "$d"/00_cau_hinh.py "$d"/"$i"_*.py | sed 's/^\xEF\xBB\xBF//; s/\r$//' | colab exec -s "${S:-fz}"; done; }
 EOF
-echo "[xong] o lenh o: Download/FairyZero/o_lenh -- chay: source ~/.bashrc"
+echo "[xong] chay: source ~/.bashrc   roi go:  fz"

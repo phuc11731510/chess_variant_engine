@@ -38,21 +38,22 @@ Có hai cách dùng:
 ```
  Điện thoại (Termux)                              Máy Colab (Linux + GPU T4)
  ───────────────────                              ──────────────────────────
- colab new -s fz --gpu T4            ──────────▶   xin máy
- o 02   (= cat 00 + 02 | colab exec) ──────────▶   chạy ô 02 như một ô sổ tay
- o 04                                ──────────▶   nohup run.sh --selfplay … &   (chạy NỀN)
- o 05                                ──────────▶   tail log                       (xem tiến độ)
- colab download … games_gen0.zip  ◀──────────────  tệp trên máy Colab
- colab stop -s fz                    ──────────▶   trả máy (xoá sạch /content)
+ fz  → menu, chọn  m                 ──────────▶   xin máy T4
+ fz  → chọn  02                      ──────────▶   chạy ô 02 như một ô sổ tay
+ fz  → chọn  04                      ──────────▶   nohup run.sh --selfplay … &   (chạy NỀN)
+ fz  → chọn  05                      ──────────▶   tail log                       (xem tiến độ)
+ fz  → chọn  d                    ◀──────────────  tải games_gen0.zip về điện thoại
+ fz  → chọn  t                       ──────────▶   trả máy (xoá sạch /content)
 ```
 
 - **Mỗi ô của sổ tay là một tệp** trong thư mục chung **`Download/FairyZero/o_lenh/`** của điện thoại
   — mở, đọc, sửa bằng **MT Manager** (hay trình quản lý tệp bất kỳ) — (`02_khoi_dong.py`,
   `04_sinh_du_lieu.py`, …), viết đúng cú pháp ô Colab (`!lệnh`, `%cd`, biến Python).
-- Lệnh **`o <số>`** gửi ô đó lên máy Colab và chạy. Nó **ghép ô cấu hình `00_cau_hinh.py` vào đầu**,
-  nên mọi ô đều biết `GEN_CURRENT`, `E`, `CURRENT_ONNX`, … — giống sổ tay chạy ô cấu hình trước.
+- Gõ **`fz`** trong Termux → hiện **menu** liệt kê các ô kèm tên; gõ số ô (vd `04`) → ô đó được gửi
+  lên máy Colab và chạy. Trước mỗi ô, menu **ghép ô cấu hình `00_cau_hinh.py` vào đầu**, nên mọi ô
+  đều biết `GEN_CURRENT`, `E`, `CURRENT_ONNX`, … — giống sổ tay chạy ô cấu hình trước.
 - Việc dài (selfplay, train, arena) mặc định chạy **nền** trên máy Colab (`CHAY_NEN = True`): lệnh
-  trả về ngay, mất sóng hay đóng Termux thì engine **vẫn chạy**; xem tiến độ bằng `o 05`.
+  trả về ngay, mất sóng hay đóng Termux thì engine **vẫn chạy**; xem tiến độ bằng ô `05`.
 - Tải tệp giữa điện thoại và máy Colab: `colab upload` / `colab download` (thay cho `files.download`
   của sổ tay, vốn cần trình duyệt). Các ô in sẵn lệnh tải đúng đường dẫn.
 
@@ -173,20 +174,16 @@ source ~/.bashrc
 
 (`-f`: đường link lỗi thì `curl` báo lỗi, thay vì lưu trang `404: Not Found` vào tệp.)
 
-`lay_ve.sh` làm hai việc:
+`lay_ve.sh` làm ba việc:
 
 1. Tải 11 ô về **`Download/FairyZero/o_lenh/`** (trong Termux: `~/storage/downloads/FairyZero/o_lenh`).
    Ô nào **đã có thì giữ nguyên** (không ghi đè ô bạn đã sửa). Muốn tải lại bản mới nhất, ghi đè
    hết: `bash lay_ve.sh -f`.
-2. Ghi vào `~/.bashrc` một dòng định nghĩa lệnh `o` (chạy lại thì thay dòng cũ, không nhân đôi):
+2. Tải menu về `~/fz_menu.sh` (luôn lấy bản mới — đây không phải thứ bạn sửa).
+3. Thêm hai lệnh vào `~/.bashrc` (chạy lại thì thay dòng cũ, không nhân đôi): **`fz`** mở menu, và
+   **`o`** — cách gõ tắt không qua menu (mục 6).
 
-   ```bash
-   o() { d=~/storage/downloads/FairyZero/o_lenh; cat "$d"/00_cau_hinh.py "$d"/"$1"_*.py | sed 's/^\xEF\xBB\xBF//; s/\r$//' | colab exec -s "${S:-fz}"; }
-   ```
-
-   Tức là `o 04` = ghép `00_cau_hinh.py` + `04_sinh_du_lieu.py` rồi gửi cho máy Colab chạy. `sed`
-   chỉ bỏ ký tự BOM và `\r` mà trình sửa tệp trên điện thoại có thể thêm vào (sẽ làm Python báo lỗi).
-   Không có gì ẩn — muốn thì gõ thẳng vế phải thay cho `o`.
+Sau `source ~/.bashrc` (hoặc mở lại Termux), gõ `fz` là vào menu.
 
 Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 
@@ -210,13 +207,60 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 
 1. **Xem / sửa** bằng **MT Manager**: vào bộ nhớ trong → `Download` → `FairyZero` → `o_lenh` →
    chạm `04_sinh_du_lieu.py` → mở bằng trình sửa văn bản của MT Manager → sửa → **Lưu**.
-2. **Chạy** trong Termux:
+2. **Chạy**: trong Termux gõ `fz`, menu hiện ra:
 
-   ```bash
-   o 04
+   ```
+   ======== FairyZero trên Colab ========
+    Phiên: fz   ·   Đời hiện tại: 0
+    Ô lệnh: Download/FairyZero/o_lenh
+   --------------------------------------
+    01   Kiểm GPU (mục 0)
+    02   Khởi động: mã, binary, ONNX Runtime, mạng (mục 1)
+    02b  Biên dịch lại, chỉ khi cần (mục 1b)
+    03   Tạo mạng đời 0 MỚI, ghi đè gen0 (mục 2)
+    04   Sinh dữ liệu (mục 3)
+    05   Xem tiến độ việc chạy nền
+    06   Gom ván thành zip (mục 4)
+    07   Huấn luyện đời sau (mục 5)
+    08   Arena đời mới đấu đời cũ (mục 6)
+    09   Dừng NGAY việc chạy nền
+   --------------------------------------
+    m    Xin máy T4
+    k    Xem máy đang giữ
+    d    Tải tệp Colab -> điện thoại
+    u    Tải tệp điện thoại -> Colab
+    t    Trả máy (XOÁ /content)
+    q    Thoát
+   --------------------------------------
+    Nhiều ô liền nhau: gõ cách nhau, vd: 01 02
+   Chọn:
    ```
 
-`o` đọc tệp **ngay lúc chạy**, nên sửa xong, lưu xong là `o` dùng bản mới — không cần tải lại gì.
+   Gõ `04`, Enter → ô 04 chạy, kết quả hiện ra; xong nhấn Enter để về menu. Gõ `01 02` → chạy ô 01
+   rồi ô 02.
+
+Menu đọc tệp **ngay lúc chạy**: sửa trong MT Manager, lưu, rồi chọn ô trong menu là dùng bản mới —
+không cần tải lại gì. Tên mỗi ô trong menu là **dòng đầu tiên** của tệp (dòng `# …`); đổi dòng đó
+thì tên trong menu đổi theo. Thêm ô mới: tạo tệp `10_ten_gi_do.py` trong `o_lenh`, menu tự hiện.
+
+Các mục chữ của menu:
+
+| Chọn | Việc | Tương đương lệnh |
+|---|---|---|
+| `m` | Xin máy T4 | `colab new -s fz --gpu T4` |
+| `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
+| `d` | Hỏi đường dẫn trên Colab (vd `/content/games_gen0.zip`), tải về `Download/FairyZero/` | `colab download` |
+| `u` | Liệt kê tệp trong `Download/FairyZero/`, chọn số → tải lên `/content/` | `colab upload` |
+| `t` | Trả máy — hỏi lại, phải gõ `co` | `colab stop -s fz` |
+
+**Lệnh `o` — gõ tắt, không qua menu.** `o 04` chạy ô 04; `o 04 05` chạy ô 04 rồi 05. Nó làm đúng
+việc menu làm khi chọn `04`:
+
+1. lấy `00_cau_hinh.py` và `04_…py` trong `Download/FairyZero/o_lenh`, nối thành một khối;
+2. bỏ ký tự lạ (BOM, `\r`) mà trình sửa tệp trên điện thoại có thể thêm vào — chúng làm Python báo lỗi;
+3. gửi khối đó cho `colab exec -s fz`: máy Colab chạy nó như **một ô sổ tay**, in kết quả về Termux.
+
+Dùng menu là đủ; `o` chỉ để ai quen gõ lệnh.
 
 Sửa trong Termux cũng được: `nano ~/storage/downloads/FairyZero/o_lenh/04_sinh_du_lieu.py`
 (lưu: Ctrl+O, Enter; thoát: Ctrl+X).
@@ -264,17 +308,13 @@ colab console -s fz
 
 Ví dụ đời 0 → đời 1. Trước khi bắt đầu:
 
-```bash
-termux-wake-lock                 # mục 10
-# MT Manager: Download/FairyZero/o_lenh/00_cau_hinh.py -> GEN_CURRENT = 0
-colab new -s fz --gpu T4         # mục 4 (bỏ qua nếu đã có phiên fz T4)
-```
+1. MT Manager: `Download/FairyZero/o_lenh/00_cau_hinh.py` → `GEN_CURRENT = 0`, lưu.
+2. Termux: `termux-wake-lock` (mục 10), rồi `fz` để mở menu.
+3. Menu: `k` xem đã có máy `fz` T4 chưa; chưa có thì `m` để xin (mục 4).
 
 ### Ô 01 — kiểm GPU
 
-```bash
-o 01
-```
+Menu `fz` → chọn **`01`** (gõ tắt: `o 01`).
 
 Phải thấy `Tesla T4, 15360 MiB`. Không thấy → máy CPU, xem mục 4.
 
@@ -289,9 +329,7 @@ TAI_PT = True       # tải gen{GEN_CURRENT}.pt   từ GitHub Release v3.0.0
 
 Đặt `False` cho tệp nào bạn định **tự tải lên từ điện thoại** (mục 8) hoặc **tự tạo** (ô 03).
 
-```bash
-o 02
-```
+Menu `fz` → chọn **`02`** (gõ tắt: `o 02`).
 
 Phải thấy `[quick] OK -- engine chay duoc tren Colab image nay.` và cuối cùng danh sách
 `/content/gen0.onnx`, `/content/gen0.pt`. Nếu một tệp không có trên Release, ô in
@@ -309,28 +347,22 @@ FairyZero.
 Chỉ khi muốn mạng đời 0 **mới** (seed mới). Nó ghi đè `/content/gen0.onnx` và `gen0.pt`. Có mạng
 đời 0 rồi (từ Release hay điện thoại) thì bỏ qua.
 
-```bash
-o 03
-```
+Menu `fz` → chọn **`03`** (gõ tắt: `o 03`).
 
 ### Ô 04 — sinh dữ liệu · theo `SECS`
 
 Sửa tham số trong `04_sinh_du_lieu.py` nếu muốn, rồi:
 
-```bash
-o 04
-```
+Menu `fz` → chọn **`04`** (gõ tắt: `o 04`).
 
-In lệnh đầy đủ rồi `[da chay nen] xem: o 05`. Có thể thoát Termux.
+In lệnh đầy đủ rồi `[da chay nen] xem: o 05` (tức ô 05 trong menu). Có thể thoát Termux.
 
 > `--max-seconds` dừng mềm: hết giờ thì không nhận ván mới, ván đang chạy vẫn chơi nốt —
 > thường vượt 2-3 phút.
 
 ### Ô 05 — xem tiến độ
 
-```bash
-o 05
-```
+Menu `fz` → chọn **`05`** (gõ tắt: `o 05`).
 
 In 15 dòng log cuối, số tệp ván, mức dùng GPU, và **`[DANG CHAY]`** hoặc
 **`[KHONG con tien trinh -- xong hoac loi]`**. Khi xong, cuối log có khối `--- Throughput ---` —
@@ -345,9 +377,7 @@ Lỡ sai tham số, muốn dừng ngay: `o 09`.
 
 Đợi `o 05` báo **KHONG con tien trinh**, rồi:
 
-```bash
-o 06
-```
+Menu `fz` → chọn **`06`** (gõ tắt: `o 06`).
 
 Ô in sẵn lệnh tải về. **Chạy lệnh đó trong Termux** (không phải trong ô):
 
@@ -362,9 +392,7 @@ colab download -s fz /content/games_gen0.zip ~/storage/downloads/FairyZero/games
 Kiểm `/content/gen0.pt` có trên máy (`echo '!ls -la /content' | colab exec -s fz`). Sửa tham số
 trong `07_huan_luyen.py` nếu muốn (`--epochs`, `--lr`, `DATA`, …), rồi:
 
-```bash
-o 07
-```
+Menu `fz` → chọn **`07`** (gõ tắt: `o 07`).
 
 Theo dõi: `LOG = "train"` trong ô 05, rồi `o 05`. Xong thì tải mạng mới về (ô 07 in sẵn lệnh):
 
@@ -375,9 +403,7 @@ colab download -s fz /content/gen1.pt   ~/storage/downloads/FairyZero/gen1.pt
 
 ### Ô 08 — arena · ~30 phút (tuỳ chọn)
 
-```bash
-o 08
-```
+Menu `fz` → chọn **`08`** (gõ tắt: `o 08`).
 
 Theo dõi: `LOG = "arena"` trong ô 05. 48 ván vẫn sai số lớn (hàng trăm Elo); phát hiện chênh
 ~50 Elo cần 400-1000 ván — sửa `--games`, `--visits` trong ô.
@@ -419,10 +445,10 @@ colab ls -s fz /content
 ## 9. Sang đời tiếp theo
 
 1. MT Manager: `00_cau_hinh.py` → `GEN_CURRENT = 1`, lưu.
-2. `colab new -s fz --gpu T4` (nếu đã trả máy), `o 01`, `o 02`.
+2. Menu `fz`: `m` (nếu đã trả máy), rồi `01 02`.
 3. Mạng đời 1: có trên Release thì ô 02 tự tải; không thì `TAI_… = False` và `colab upload` từ
    `Download/FairyZero/`.
-4. `o 04` → `o 05` → `o 06` → `o 07` → …
+4. Ô `04` → `05` → `06` → `07` → …
 
 Kiến trúc `144 × 12` SE-8 phải giữ nguyên suốt chuỗi warm-start.
 

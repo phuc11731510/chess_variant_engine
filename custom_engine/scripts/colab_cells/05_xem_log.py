@@ -1,3 +1,4 @@
+# Xem tiến độ việc chạy nền
 # Xem tiến độ việc đang chạy nền. Đổi LOG thành "train" hoặc "arena" khi cần.
 LOG = "selfplay"
 SO_DONG = 15
