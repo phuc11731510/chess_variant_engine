@@ -40,8 +40,10 @@ Có hai cách dùng:
  ───────────────────                              ──────────────────────────
  fz  → menu, chọn  m                 ──────────▶   xin máy T4
  fz  → chọn  02                      ──────────▶   chạy ô 02 như một ô sổ tay
- fz  → chọn  04                      ──────────▶   nohup run.sh --selfplay … &   (chạy NỀN)
- fz  → chọn  05                      ──────────▶   tail log                       (xem tiến độ)
+ fz  → chọn  04   (colab exec)       ──────────▶   khởi động ô 04 chạy NỀN, log /content/fz_log/04.log
+      màn hình log trực tiếp (ssh) ◀──────────────  tail -F log: từng dòng hiện ngay khi in
+      Ctrl+C → về menu                                ô 04 VẪN chạy tiếp
+ fz  → chọn  l    (ssh)              ◀──────────────  xem tiếp log ô đang chạy
  fz  → chọn  d                    ◀──────────────  tải games_gen0.zip về điện thoại
  fz  → chọn  t                       ──────────▶   trả máy (xoá sạch /content)
 ```
@@ -52,8 +54,9 @@ Có hai cách dùng:
 - Gõ **`fz`** trong Termux → hiện **menu** liệt kê các ô kèm tên; gõ số ô (vd `04`) → ô đó được gửi
   lên máy Colab và chạy. Trước mỗi ô, menu **ghép ô cấu hình `00_cau_hinh.py` vào đầu**, nên mọi ô
   đều biết `GEN_CURRENT`, `E`, `CURRENT_ONNX`, … — giống sổ tay chạy ô cấu hình trước.
-- Việc dài (selfplay, train, arena) mặc định chạy **nền** trên máy Colab (`CHAY_NEN = True`): lệnh
-  trả về ngay, mất sóng hay đóng Termux thì engine **vẫn chạy**; xem tiến độ bằng ô `05`.
+- **Mọi ô** (trừ 3 ô ngắn 01, 05, 09) chạy **nền** trên máy Colab, và menu **hiện log của ô đó
+  trực tiếp** như ô sổ tay trên web. **Ctrl+C** chỉ đóng màn hình log, **ô vẫn chạy tiếp**; mất sóng
+  hay đóng Termux cũng vậy. Xem lại: menu `l`. Chi tiết cơ chế: mục 6.1.
 - Tải tệp giữa điện thoại và máy Colab: `colab upload` / `colab download` (thay cho `files.download`
   của sổ tay, vốn cần trình duyệt). Các ô in sẵn lệnh tải đúng đường dẫn.
 
@@ -249,11 +252,11 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 | 02b | `02b_bien_dich.py` | 1b | biên dịch lại (chỉ khi cần) |
 | 03 | `03_tao_gen0.py` | 2 | tạo mạng đời 0 mới (ghi đè gen0) |
 | 04 | `04_sinh_du_lieu.py` | 3 | sinh dữ liệu |
-| 05 | `05_xem_log.py` | — | xem log việc chạy nền, còn chạy hay không |
+| 05 | `05_xem_log.py` | — | tình trạng ô chạy nền gần nhất: còn chạy hay xong, log cuối |
 | 06 | `06_dong_goi.py` | 4 | gom ván thành zip |
 | 07 | `07_huan_luyen.py` | 5 | huấn luyện đời sau |
 | 08 | `08_arena.py` | 6 | arena |
-| 09 | `09_dung_viec_nen.py` | — | dừng ngay việc chạy nền |
+| 09 | `09_dung_viec_nen.py` | — | dừng ngay ô đang chạy nền |
 
 ---
 
@@ -273,16 +276,16 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     02b  Biên dịch lại, chỉ khi cần (mục 1b)
     03   Tạo mạng đời 0 MỚI, ghi đè gen0 (mục 2)
     04   Sinh dữ liệu (mục 3)
-    05   Xem tiến độ việc chạy nền
+    05   Tình trạng ô chạy nền gần nhất
     06   Gom ván thành zip (mục 4)
     07   Huấn luyện đời sau (mục 5)
     08   Arena đời mới đấu đời cũ (mục 6)
-    09   Dừng NGAY việc chạy nền
+    09   Dừng NGAY ô đang chạy nền
    --------------------------------------
     m    Xin máy T4
-    l    Log trực tiếp (việc đang chạy)
+    l    Log trực tiếp ô đang chạy nền
     k    Xem máy đang giữ
-    h    Hạn mức GPU còn lại (colab usage)
+    h    Hạn mức GPU (colab usage)
     d    Tải tệp Colab -> điện thoại
     u    Tải tệp điện thoại -> Colab
     t    Trả máy (XOÁ /content)
@@ -305,7 +308,7 @@ Các mục chữ của menu:
 | Chọn | Việc | Tương đương lệnh |
 |---|---|---|
 | `m` | Xin máy T4 | `colab new -s fz --gpu T4` |
-| `l` | Log trực tiếp việc đang chạy, làm mới mỗi 5 giây, phím bất kỳ để thoát | ô 05 lặp lại |
+| `l` | Log trực tiếp ô chạy nền gần nhất (từ đầu), Ctrl+C để về menu | `ssh … tail -F` |
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
 | `h` | Mức dùng / số dư đơn vị tính toán của tài khoản | `colab usage` |
 | `d` | Hỏi đường dẫn trên Colab (vd `/content/games_gen0.zip`), tải về `Download/FairyZero/` | `colab download` |
@@ -313,14 +316,36 @@ Các mục chữ của menu:
 | `t` | Trả máy — hỏi lại, phải gõ `co` | `colab stop -s fz` |
 | `a` | Đổi tài khoản Colab (trả máy, cất token, đăng nhập mới / dùng lại tài khoản đã cất) | mục 3.1 |
 
-**Lệnh `o` — gõ tắt, không qua menu.** `o 04` chạy ô 04; `o 04 05` chạy ô 04 rồi 05. Nó làm đúng
-việc menu làm khi chọn `04`:
+**Lệnh `o` — gõ tắt, không qua menu.** `o 04` = chọn `04` trong menu; `o 04 05` = chọn `04 05`.
+Nó gọi đúng menu (`bash ~/fz_menu.sh 04 05`), chỉ không vẽ menu ra. Dùng menu là đủ; `o` chỉ để ai
+quen gõ lệnh.
 
-1. lấy `00_cau_hinh.py` và `04_…py` trong `Download/FairyZero/o_lenh`, nối thành một khối;
-2. bỏ ký tự lạ (BOM, `\r`) mà trình sửa tệp trên điện thoại có thể thêm vào — chúng làm Python báo lỗi;
-3. gửi khối đó cho `colab exec -s fz`: máy Colab chạy nó như **một ô sổ tay**, in kết quả về Termux.
+### 6.1. Menu chạy một ô như thế nào
 
-Dùng menu là đủ; `o` chỉ để ai quen gõ lệnh.
+1. **Ghép:** lấy `00_cau_hinh.py` và tệp ô trong `Download/FairyZero/o_lenh`, nối thành một khối
+   (bỏ ký tự lạ BOM, `\r` mà trình sửa tệp trên điện thoại có thể thêm vào). Nhờ vậy mỗi ô biết
+   `GEN_CURRENT`, `E`, … — không có biến nào được "truyền" giữa các ô, mã của ô 00 chạy lại ở đầu
+   mỗi ô.
+2. **Ô ngắn** — có dòng `# fz: nhanh` (01, 05, 09): gửi khối cho `colab exec`, máy Colab chạy nó
+   như một ô sổ tay, chữ hiện ngay về Termux. Xong là xong.
+3. **Ô còn lại:** `colab exec` chỉ chạy một đoạn khởi động ngắn (vài giây) trên máy Colab: lưu khối
+   thành `/content/fz_log/<ô>.ipy`, chạy nó **nền** bằng IPython riêng (hiểu `!lệnh`, `%cd` như ô
+   sổ tay), mọi chữ in ra ghi vào `/content/fz_log/<ô>.log`, và ghi "ô nào đang chạy" vào
+   `/content/fz_log/dang_chay`.
+4. **Xem:** menu mở `ssh` tới máy Colab và chạy `tail -F` log đó: mỗi dòng hiện **ngay lúc in**,
+   từ đầu log. Ô chạy xong thì log in `[fz] o 04 xong …, ma thoat 0` và màn hình tự dừng.
+   **Ctrl+C** đóng `ssh` (và `tail` trên Colab tắt theo) — **ô không bị ảnh hưởng**.
+
+Vì sao hai đường (`colab exec` để khởi động, `ssh` để xem)? Máy Colab chỉ có **một kernel**, chạy mỗi
+lần một khối mã; Ctrl+C trên `colab exec` **không** dừng được khối đang chạy trên kernel (đã thử),
+nên nếu xem log bằng `colab exec` thì thoát ra xong mọi lệnh sau phải xếp hàng chờ. `ssh` chạy
+trong shell riêng, tách hẳn khỏi kernel.
+
+`ssh` cần gói `openssh` và khoá cá nhân `~/.ssh/id_ed25519` — `lay_ve.sh` tự cài / tự tạo nếu thiếu.
+Menu gọi `ssh` qua `colab ssh --proxy-mode`, không cần `~/.ssh/config`.
+
+Đang có ô chạy nền mà chọn thêm một ô chạy nền khác → menu hỏi lại (`co` = vẫn chạy song song).
+Hai ô cùng dùng GPU thì chậm cả hai — thường là không nên.
 
 Sửa trong Termux cũng được: `nano ~/storage/downloads/FairyZero/o_lenh/04_sinh_du_lieu.py`
 (lưu: Ctrl+O, Enter; thoát: Ctrl+X).
@@ -344,10 +369,6 @@ Mỗi dòng của lệnh phải kết thúc bằng ` \` (trừ dòng cuối); đ
 
 Mỗi ô in lệnh đầy đủ (`print(cmd)`) trước khi chạy, nên bạn luôn thấy chính xác cái gì được chạy.
 
-**Chạy nền hay chờ:** các ô 04, 07, 08 có `CHAY_NEN = True` (mặc định). Đặt `False` thì ô chạy như
-ô sổ tay — Termux chờ đến khi xong; an toàn hơn cho việc ngắn, nhưng với selfplay ~4,3 giờ thì
-Android mà tắt Termux giữa chừng là không biết kết quả.
-
 **Ô chạy một lệnh lẻ** không cần tệp:
 
 ```bash
@@ -359,7 +380,7 @@ echo '!nvidia-smi' | colab exec -s fz
 
 ```bash
 colab console -s fz
-# trong đó:  tail -f /content/selfplay.log    (Ctrl+C để dừng xem; exit để thoát)
+# trong đó:  ls /content/fz_log ; nvidia-smi ; …    (exit để thoát)
 ```
 
 ---
@@ -415,41 +436,30 @@ Sửa tham số trong `04_sinh_du_lieu.py` nếu muốn, rồi:
 
 Menu `fz` → chọn **`04`** (gõ tắt: `o 04`).
 
-In lệnh đầy đủ rồi `[da chay nen] xem: o 05` (tức ô 05 trong menu). Có thể thoát Termux.
+Màn hình log hiện lệnh đầy đủ rồi log của engine chạy ra liên tục. Ctrl+C để về menu (selfplay vẫn
+chạy), có thể thoát Termux; xem lại: menu `l`.
 
 > `--max-seconds` dừng mềm: hết giờ thì không nhận ván mới, ván đang chạy vẫn chơi nốt —
 > thường vượt 2-3 phút.
 
-### Ô 05 — xem tiến độ
+### Theo dõi: `l` (trực tiếp) và ô 05 (tóm tắt)
 
-Menu `fz` → chọn **`05`** (gõ tắt: `o 05`).
+- Menu **`l`**: mở lại log trực tiếp của ô chạy nền gần nhất, từ đầu log; Ctrl+C để về.
+- Ô **`05`**: tóm tắt nhanh — **`[DANG CHAY: ô 04]`** hoặc **`[DA XONG: ô 04]`**, 15 dòng log cuối,
+  số tệp ván, mức dùng GPU. Nhiều dòng hơn: sửa `SO_DONG` trong ô.
 
-Ô 05 **tự nhận việc nào đang chạy** trên máy Colab (xem danh sách tiến trình: có `--selfplay` →
-log selfplay; `--arena` → log arena; `train.py` → log train) và in: **`[DANG CHAY: …]`** hoặc
-**`[KHONG con tien trinh -- xong hoac loi]`**, 15 dòng log cuối, số tệp ván (khi là selfplay), mức
-dùng GPU. Không còn việc nào chạy thì hiện log **mới ghi gần nhất**. Muốn xem cố định một log: sửa
-`LOG = "train"` (hoặc `"selfplay"`, `"arena"`); nhiều dòng hơn: sửa `SO_DONG`.
+Khi selfplay xong, cuối log có khối `--- Throughput ---` — so cấu hình bằng `NN eval/giay`, đừng bằng
+`Van/gio`.
 
-Khi xong, cuối log có khối `--- Throughput ---` — so cấu hình bằng `NN eval/giay`, đừng bằng `Van/gio`.
-
-**Log trực tiếp ngay trong menu:** chọn **`l`**. Menu chạy ô 05 lặp lại, xoá màn hình và in lại mỗi
-5 giây; **nhấn phím bất kỳ** để về menu. Việc trên Colab không bị ảnh hưởng (chỉ việc xem dừng).
-Đổi nhịp làm mới: `CHO=10 fz`. Mỗi lần làm mới là một lệnh `colab exec` (mất vài giây qua mạng), nên
-nhịp thực tế chậm hơn con số một chút.
-
-Lỡ sai tham số, muốn dừng ngay: `o 09`.
+Lỡ sai tham số, muốn dừng ngay: ô **`09`** (dừng ô chạy nền gần nhất cùng engine / train.py của nó).
 
 ### Ô 06 — đóng gói · vài phút
 
-Đợi `o 05` báo **KHONG con tien trinh**, rồi:
+Đợi ô 04 chạy xong (log in `[fz] o 04 xong …`; hoặc ô 05 báo `DA XONG`), rồi:
 
 Menu `fz` → chọn **`06`** (gõ tắt: `o 06`).
 
-Ô in sẵn lệnh tải về. **Chạy lệnh đó trong Termux** (không phải trong ô):
-
-```bash
-colab download -s fz /content/games_gen0.zip ~/storage/downloads/FairyZero/games_gen0.zip
-```
+Rồi tải về điện thoại: menu **`d`** → gõ `/content/games_gen0.zip` → tệp về `Download/FairyZero/`.
 
 Đây là bản gốc dữ liệu của bạn — giữ cẩn thận.
 
@@ -460,18 +470,14 @@ trong `07_huan_luyen.py` nếu muốn (`--epochs`, `--lr`, `DATA`, …), rồi:
 
 Menu `fz` → chọn **`07`** (gõ tắt: `o 07`).
 
-Theo dõi: menu `l` (tự nhận là train). Xong thì tải mạng mới về (ô 07 in sẵn lệnh):
-
-```bash
-colab download -s fz /content/gen1.onnx ~/storage/downloads/FairyZero/gen1.onnx
-colab download -s fz /content/gen1.pt   ~/storage/downloads/FairyZero/gen1.pt
-```
+Log huấn luyện hiện trực tiếp. Xong thì tải mạng mới về: menu **`d`** → `/content/gen1.onnx`, rồi
+lại **`d`** → `/content/gen1.pt`.
 
 ### Ô 08 — arena · ~30 phút (tuỳ chọn)
 
 Menu `fz` → chọn **`08`** (gõ tắt: `o 08`).
 
-Theo dõi: menu `l`. 48 ván vẫn sai số lớn (hàng trăm Elo); phát hiện chênh
+48 ván vẫn sai số lớn (hàng trăm Elo); phát hiện chênh
 ~50 Elo cần 400-1000 ván — sửa `--games`, `--visits` trong ô.
 
 ### Trả máy
@@ -544,7 +550,7 @@ selfplay/train hãy giữ Termux sống:
   "Ứng dụng ngủ" / "Ứng dụng ngủ sâu".
 - Đừng vuốt tắt Termux khỏi danh sách đa nhiệm.
 
-Termux lỡ bị giết: mở lại, `colab sessions` xem máy còn không. Còn thì `o 05` tiếp; mất rồi thì dữ
+Termux lỡ bị giết: mở lại, `colab sessions` xem máy còn không. Còn thì menu `l` xem tiếp; mất rồi thì dữ
 liệu trên máy đó mất theo — máy hay chết thì selfplay theo lượt ngắn hơn (`SECS = 7200`) và tải zip
 về sau mỗi lượt.
 
@@ -615,8 +621,7 @@ cấu hình. Dùng `o <số>`.
 **Ô 02 báo `[quick]` lỗi** — Release chưa có binary hoặc Colab đổi image: `o 02b` (8-12 phút), rồi
 tải binary về theo lệnh ô in ra và đưa lên GitHub Release (tên đúng: `custom_engine`).
 
-**Ô 05 báo KHONG con tien trinh quá sớm** — engine lỗi khi khởi động. Tăng `SO_DONG = 80` trong ô 05
-rồi `o 05` để đọc lỗi. Hay gặp: thiếu mạng (`/content/genN.onnx` không có — kiểm `GEN_CURRENT`),
+**Ô chạy nền xong ngay (`ma thoat` khác 0)** — lỗi khi khởi động; đọc log bằng menu `l` (in từ đầu). Hay gặp: thiếu mạng (`/content/genN.onnx` không có — kiểm `GEN_CURRENT`),
 hoặc máy không có GPU.
 
 **Huấn luyện báo không thấy `.pt`** — `gen{GEN_CURRENT}.pt` chưa có trên máy (Release chưa có tệp đó):

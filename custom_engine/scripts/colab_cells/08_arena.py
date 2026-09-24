@@ -7,11 +7,5 @@ cmd = f"""bash {E}/run.sh --arena \
     --games 48 --visits 400 --temp-cutoff 32 \
     --provider cuda --fixed-batch 16 --max-moves 400 --show-nps"""
 
-CHAY_NEN = True   # False = chờ đến khi xong (~30 phút)
-
 print(cmd)
-if CHAY_NEN:
-    !nohup {cmd} > /content/arena.log 2>&1 &
-    print('[da chay nen] xem: menu fz -> l (log truc tiep) hoac o 05')
-else:
-    !{cmd}
+!{cmd}

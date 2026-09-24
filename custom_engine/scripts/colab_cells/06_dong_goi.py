@@ -1,7 +1,6 @@
 # Gom ván thành zip (mục 4)
 # Mục 4 của sổ tay: gom hàng nghìn tệp .gz thành một .zip (train.py đọc .zip trực tiếp).
-# Đợi ô 05 báo "KHONG con tien trinh" rồi mới chạy, nếu không sẽ thiếu các ván cuối.
+# Đợi ô 04 chạy xong (log in "[fz] o 04 xong") rồi mới chạy, nếu không sẽ thiếu các ván cuối.
 !python {E}/python/archive.py pack {OUT_GAMES_DIR} --out {ZIP_GAMES}
 !ls -la {ZIP_GAMES}
-print("Tai ve dien thoai (chay trong Termux):")
-print(f"  colab download -s fz {ZIP_GAMES} ~/storage/downloads/FairyZero/games_gen{GEN_CURRENT}.zip")
+print(f"Tai ve dien thoai: menu fz -> d -> {ZIP_GAMES}")
