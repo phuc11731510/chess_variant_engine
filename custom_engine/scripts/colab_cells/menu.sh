@@ -128,11 +128,9 @@ doi_tai_khoan() {
   colab sessions      # chua co token -> CLI in link dang nhap o day
 }
 
-# Muc h: colab usage + han muc mien phi con lai (~/fz_han_muc.py doc freeCcuQuotaInfo).
+# Muc h: han muc mien phi con lai + so du, may dang giu, GPU duoc dung (~/fz_han_muc.py).
 han_muc() {
-  colab usage
-  echo
-  if [ -f ~/fz_han_muc.py ]; then python ~/fz_han_muc.py; else echo "[!] Thiếu ~/fz_han_muc.py -- chạy: bash ~/lay_ve.sh"; fi
+  if [ -f ~/fz_han_muc.py ]; then python ~/fz_han_muc.py; else echo "[!] Thiếu ~/fz_han_muc.py -- chạy: bash ~/lay_ve.sh"; colab usage; fi
 }
 
 # Kich thuoc de doc (1.2M, 340K).

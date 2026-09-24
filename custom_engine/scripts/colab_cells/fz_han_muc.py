@@ -75,20 +75,27 @@ ten, info = co_han_muc[0]
 rate = float(info.get("consumptionRateHourly") or 0)
 q = info["freeCcuQuotaInfo"]
 tok = q.get("remainingTokens")
-print(f"(nguồn: {ten}) đang tiêu: {rate:.2f} đơn vị/giờ")
+print("== Hạn mức GPU của tài khoản Colab ==")
 if tok is None:
     print("Có freeCcuQuotaInfo nhưng không có remainingTokens (tài khoản còn đơn vị mua?).")
+    h = None
 else:
     ccu = int(tok) / 1000
-    print(f"Hạn mức miễn phí còn: {ccu:.2f} đơn vị tính toán")
     if rate > 0:
         h = ccu / rate
-        print(f"=> Với mức tiêu hiện tại: còn khoảng {gio_phut(h)}")
+        print(f"Còn lại:       {ccu:.2f} đơn vị  ≈  {gio_phut(h)} (theo mức đang tiêu {rate:.2f}/giờ)")
     else:
         h = ccu / T4_UOC_TINH
-        print(f"=> Chưa giữ máy nào; nếu xin T4 (~{T4_UOC_TINH}/giờ): khoảng {gio_phut(h)}")
-    goi_y = max(0, int(h * 3600) - 20 * 60)
-    print(f"   Gợi ý SECS cho ô 04 (trừ 20 phút để gom zip + tải về): {goi_y}")
+        print(f"Còn lại:       {ccu:.2f} đơn vị  ≈  {gio_phut(h)} nếu xin T4 (~{T4_UOC_TINH}/giờ; chưa giữ máy nào)")
+print(f"Máy đang giữ:  {info.get('assignmentsCount', '?')} · đơn vị mua: "
+      f"{float(info.get('currentBalance') or info.get('paidComputeUnitsBalance') or 0):.2f}")
+if info.get("eligibleGpus") is not None:
+    print(f"GPU được dùng: {', '.join(info.get('eligibleGpus') or []) or '(không)'}"
+          f" · không được: {', '.join(info.get('ineligibleGpus') or []) or '(không)'}")
 nap = q.get("nextRefillTimestampSec")
 if nap:
-    print(f"Nạp lại hạn mức lúc: {time.strftime('%H:%M %d/%m', time.localtime(int(nap)))}")
+    con = int(nap) - time.time()
+    print(f"Nạp lại lúc:   {time.strftime('%H:%M %d/%m', time.localtime(int(nap)))}"
+          + (f" (sau {gio_phut(con / 3600)})" if con > 0 else ""))
+if h is not None:
+    print(f"Gợi ý SECS ô 04: {max(0, int(h * 3600) - 20 * 60)} (= thời gian còn lại - 20 phút để gom zip + tải về)")

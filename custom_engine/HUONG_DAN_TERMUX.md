@@ -208,10 +208,12 @@ miễn phí: 0) — nên menu chạy thêm `~/fz_han_muc.py`. Nó hỏi đúng n
 Colab cho VS Code của Google đọc:
 
 ```
-Hạn mức miễn phí còn: 1.60 đơn vị tính toán
-=> Với mức tiêu hiện tại: còn khoảng 1 giờ 30 phút      <- = 1,60 / 1,07 (T4 tiêu ~1,07/giờ)
-   Gợi ý SECS cho ô 04 (trừ 20 phút để gom zip + tải về): 4200
-Nạp lại hạn mức lúc: 08:33 25/09
+== Hạn mức GPU của tài khoản Colab ==
+Còn lại:       4.75 đơn vị  ≈  4 giờ 26 phút (theo mức đang tiêu 1.07/giờ)
+Máy đang giữ:  1 · đơn vị mua: 0.00
+GPU được dùng: T4 · không được: H100, G4, A100, L4
+Nạp lại lúc:   18:50 25/09 (sau 22 giờ 16 phút)
+Gợi ý SECS ô 04: 14774 (= thời gian còn lại - 20 phút để gom zip + tải về)
 ```
 
 Chưa giữ máy nào thì nó tính theo mức T4 ~1,07/giờ. `python ~/fz_han_muc.py --raw` in nguyên dữ
