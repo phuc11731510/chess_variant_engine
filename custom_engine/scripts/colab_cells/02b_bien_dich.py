@@ -1,3 +1,4 @@
+# Biên dịch lại, chỉ khi cần (mục 1b)
 # Mục 1b của sổ tay -- CHỈ KHI CẦN (~8-12 phút): Release chưa có binary, Colab đổi base image
 # (ô 02 báo lỗi), hoặc bạn vừa sửa mã nguồn. Cần chạy ô 02 trước (để có mã nguồn).
 !bash {E}/scripts/colab_setup.sh 2>&1 | tail -4

@@ -1,3 +1,4 @@
+# Huấn luyện đời sau (mục 5)
 # Mục 5 của sổ tay: huấn luyện đời sau, warm-start từ .pt đời hiện tại. Sửa tham số dưới đây.
 # Cửa sổ trượt nhiều đời: DATA = "/content/games_gen0.zip,/content/games_gen1.zip"
 # (các zip cũ phải có trên máy: colab upload ... từ Termux).

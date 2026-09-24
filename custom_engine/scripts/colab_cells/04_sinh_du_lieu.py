@@ -1,3 +1,4 @@
+# Sinh dữ liệu (mục 3)
 # Mục 3 của sổ tay: sinh dữ liệu huấn luyện. Sửa tham số ngay dưới đây.
 # Cấu hình mặc định đã đo là tốt nhất trên T4: --fixed-batch 16, --parallel 4, không --batch-aggregate.
 # --max-seconds dừng MỀM: ván đang chạy vẫn chơi nốt (vượt giờ ~2-3 phút).

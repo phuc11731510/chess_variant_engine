@@ -1,5 +1,6 @@
+# Cấu hình: GEN_CURRENT và đường dẫn
 # ==================== CẤU HÌNH ĐỜI MẠNG HIỆN TẠI ====================
-# Ô này được GHÉP VÀO ĐẦU mọi ô khi chạy bằng lệnh `o` (xem HUONG_DAN_TERMUX.md),
+# Ô này được GHÉP VÀO ĐẦU mọi ô khi chạy (menu fz hoặc lệnh o, xem HUONG_DAN_TERMUX.md),
 # nên chỉ cần sửa GEN_CURRENT ở đây mỗi khi chuyển đời.
 GEN_CURRENT = 0  # <--- Thay đổi số này (0, 1, 2,...) khi chuyển đời
 # ====================================================================
