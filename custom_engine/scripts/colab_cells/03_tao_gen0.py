@@ -6,6 +6,4 @@
 !cd {E}/python && python make_seed.py --channels 144 --blocks 12 --se-ratio 8 \
     --out /content/gen0.onnx
 !ls -la /content/gen0.*
-print("Tai ve dien thoai (chay trong Termux):")
-print("  colab download -s fz /content/gen0.onnx ~/storage/downloads/FairyZero/gen0.onnx")
-print("  colab download -s fz /content/gen0.pt   ~/storage/downloads/FairyZero/gen0.pt")
+print("Tai ve dien thoai: menu fz -> d -> /content/gen0.onnx (roi /content/gen0.pt)")

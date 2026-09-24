@@ -1,45 +1,26 @@
-# Xem tiến độ việc chạy nền
-# Tự nhận việc nào đang chạy (selfplay / train / arena) và hiện log của việc đó.
-# Không còn việc nào chạy -> hiện log mới sửa gần nhất. Menu fz, mục "l", chạy ô này mỗi vài giây.
-LOG = "tu_dong"   # hoặc "selfplay" / "train" / "arena" để xem cố định một log
+# Tình trạng ô chạy nền gần nhất
+# fz: nhanh
+# In ô chạy nền gần nhất (menu ghi ở /content/fz_log/dang_chay) còn chạy hay đã xong, và
+# SO_DONG dòng cuối log của nó. Xem log TRỰC TIẾP thì dùng menu fz, mục "l".
 SO_DONG = 15
 
 import glob, os, subprocess, time
 
-def sh(c):
-    return subprocess.run(c, shell=True, capture_output=True, text=True).stdout.strip()
+D = "/content/fz_log"
+try:
+    o, pid = open(f"{D}/dang_chay").read().split()
+except (FileNotFoundError, ValueError):
+    o = pid = None
 
-# Tiến trình đang chạy ([c]/[t] để pgrep không tự bắt chính dòng lệnh này).
-ps = sh("pgrep -af '[c]ustom_engine|[t]rain\\.py'")
-if "--selfplay" in ps:
-    dang_chay = "selfplay"
-elif "--arena" in ps:
-    dang_chay = "arena"
-elif "train.py" in ps:
-    dang_chay = "train"
+if o is None:
+    print("(chưa có ô nào chạy nền trên máy này)")
 else:
-    dang_chay = None
-
-if LOG != "tu_dong":
-    ten = LOG
-elif dang_chay:
-    ten = dang_chay
-else:
-    logs = glob.glob("/content/selfplay.log") + glob.glob("/content/train.log") + glob.glob("/content/arena.log")
-    ten = os.path.basename(max(logs, key=os.path.getmtime))[:-4] if logs else None
-
-if dang_chay:
-    print(f"[DANG CHAY: {dang_chay}]  {time.strftime('%H:%M:%S')}")
-else:
-    print(f"[KHONG con tien trinh -- xong hoac loi]  {time.strftime('%H:%M:%S')}")
-
-if ten is None:
-    print("(chưa có log nào trong /content)")
-else:
-    f = f"/content/{ten}.log"
-    phut = (time.time() - os.path.getmtime(f)) / 60 if os.path.exists(f) else 0
-    print(f"--- {f}  (ghi lần cuối {phut:.0f} phút trước) ---")
-    print(sh(f"tail -n {SO_DONG} {f}"))
-    if ten == "selfplay":
-        print(f"[so tep van] {len(glob.glob(OUT_GAMES_DIR + '/*'))}")
-print("[GPU] " + sh("nvidia-smi --query-gpu=name,utilization.gpu,memory.used --format=csv,noheader"))
+    log = f"{D}/{o}.log"
+    trang_thai = "DANG CHAY" if os.path.exists(f"/proc/{pid}") else "DA XONG"
+    phut = (time.time() - os.path.getmtime(log)) / 60 if os.path.exists(log) else 0
+    print(f"[{trang_thai}: ô {o}]  {time.strftime('%H:%M:%S')}  (log ghi lần cuối {phut:.0f} phút trước)")
+    print(subprocess.run(f"tail -n {SO_DONG} {log}", shell=True, capture_output=True, text=True).stdout)
+if os.path.isdir(OUT_GAMES_DIR):
+    print(f"[so tep van gen{GEN_CURRENT}] {len(glob.glob(OUT_GAMES_DIR + '/*'))}")
+print("[GPU] " + subprocess.run("nvidia-smi --query-gpu=name,utilization.gpu,memory.used --format=csv,noheader",
+                                shell=True, capture_output=True, text=True).stdout.strip())

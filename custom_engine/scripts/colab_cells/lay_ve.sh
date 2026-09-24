@@ -36,12 +36,15 @@ curl -fsSL -o ~/fz_menu.sh "$URL/menu.sh" && echo "[tai]        ~/fz_menu.sh"
 
 # Thay hai dong cu (neu co) trong ~/.bashrc.
 #   fz            : mo menu.
-#   o 04 [05 ...] : chay o 04 (roi 05 ...) tren may Colab, sau khi ghep o cau hinh 00 vao dau;
-#                   sed bo BOM va \r ma trinh sua tep tren dien thoai co the them.
+#   o 04 [05 ...] : chay o 04 (roi 05 ...) nhu khi chon trong menu, khong hien menu.
 touch ~/.bashrc
 sed -i '/^o() /d; /^fz() /d' ~/.bashrc
 cat >> ~/.bashrc <<'EOF'
 fz() { bash ~/fz_menu.sh; }
-o() { local d=~/storage/downloads/FairyZero/o_lenh i; for i in "$@"; do echo "====== o $i ======"; cat "$d"/00_cau_hinh.py "$d"/"$i"_*.py | sed 's/^\xEF\xBB\xBF//; s/\r$//' | colab exec -s "${S:-fz}"; done; }
+o() { bash ~/fz_menu.sh "$@"; }
 EOF
+
+# Xem log truc tiep can ssh + khoa ca nhan (colab ssh dua khoa len may Colab).
+command -v ssh >/dev/null || pkg install -y openssh
+[ -f ~/.ssh/id_ed25519 ] || ssh-keygen -t ed25519 -N "" -q -f ~/.ssh/id_ed25519
 echo "[xong] chay: source ~/.bashrc   roi go:  fz"

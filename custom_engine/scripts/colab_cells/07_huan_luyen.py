@@ -11,15 +11,7 @@ cmd = f"""python {E}/python/train.py \
     --channels 144 --blocks 12 \
     --out {NEXT_ONNX}"""
 
-CHAY_NEN = True   # False = chờ đến khi xong như ô sổ tay (10-40 phút)
-
 print(cmd)
-if CHAY_NEN:
-    !nohup {cmd} > /content/train.log 2>&1 &
-    print('[da chay nen] xem: menu fz -> l (log truc tiep) hoac o 05')
-else:
-    !{cmd}
-    !ls -la {NEXT_ONNX} {NEXT_PT}
-print("Xong thi tai ve dien thoai (chay trong Termux):")
-print(f"  colab download -s fz {NEXT_ONNX} ~/storage/downloads/FairyZero/gen{GEN_NEXT}.onnx")
-print(f"  colab download -s fz {NEXT_PT} ~/storage/downloads/FairyZero/gen{GEN_NEXT}.pt")
+!{cmd}
+!ls -la {NEXT_ONNX} {NEXT_PT}
+print(f"Tai ve dien thoai: menu fz -> d -> {NEXT_ONNX} (roi {NEXT_PT})")
