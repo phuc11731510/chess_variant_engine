@@ -613,9 +613,11 @@ một đời với selfplay 4,3 giờ.
 
 ## 10. Giữ Termux sống khi tắt màn hình
 
-Engine chạy trên Colab nên không phụ thuộc điện thoại. Nhưng Colab CLI có tiến trình **giữ máy khỏi bị
-thu hồi vì "idle"**; chưa rõ nó chạy ở điện thoại hay ở máy Colab. Để an toàn, suốt lúc
-selfplay/train hãy giữ Termux sống:
+Engine chạy trên Colab nên không phụ thuộc điện thoại. Nhưng tiến trình **giữ máy khỏi bị thu hồi vì
+"idle"** chạy **trên điện thoại**: `colab new` (menu `m` / `c`) khởi động nó chạy nền (`colab
+keep-alive`), cứ 60 giây báo Colab một lần, tự dừng sau 24 giờ hoặc khi máy bị trả. Termux bị Android
+giết thì tiến trình đó chết theo và máy Colab có thể bị thu hồi vì idle. Nên suốt lúc selfplay/train
+hãy giữ Termux sống:
 
 - `termux-wake-lock` (hoặc kéo thanh thông báo Termux → **Acquire wakelock**).
 - **Cài đặt → Ứng dụng → Termux → Pin → Không hạn chế**. Trên Samsung còn phải bỏ Termux khỏi
@@ -625,6 +627,37 @@ selfplay/train hãy giữ Termux sống:
 Termux lỡ bị giết: mở lại, `colab sessions` xem máy còn không. Còn thì menu `l` xem tiếp; mất rồi thì dữ
 liệu trên máy đó mất theo — máy hay chết thì selfplay theo lượt ngắn hơn (`SECS = 7200`) và tải zip
 về sau mỗi lượt.
+
+### 10.1. Rớt mạng một lúc (vd 30 giây)
+
+Không sao — ô đang chạy **trên máy Colab** (tiến trình riêng, xem mục 6.1), không cần điện thoại nối
+mạng. Từng phần:
+
+| Phần | Rớt mạng thì |
+|---|---|
+| Ô chạy nền (04, 06, 07…) | Chạy tiếp bình thường, log vẫn ghi trên Colab |
+| Giữ máy (keep-alive, 60 giây/lần) | Lỗi mạng chỉ bị bỏ qua và thử lại lần sau; 30 giây = lỡ tối đa một lần. Chỉ dừng khi Colab trả lỗi 4xx hai lần liền (hết hạn đăng nhập) |
+| Xem log trực tiếp | ssh tự phát hiện đường truyền chết sau ~60 giây (`ServerAliveInterval`); mạng về kịp thì xem tiếp như không có gì. Đứt hẳn: menu in `[mất kết nối … nối lại sau 5 giây]`, tự nối lại (tới 10 phút), in 20 dòng log cuối rồi xem tiếp. **Chuỗi `04 06` không bị dứt** — nối lại xong, 04 kết thúc thì 06 vẫn chạy. Ctrl+C lúc này = về menu |
+| Khởi động ô (`colab exec`) | `Connection was lost` → tự thử lại 3 lần (mục 13) |
+| Tải về (`d`, ô 06 tự tải) | Đứt giữa chừng → bỏ phần dở, tự tải lại (3 lần). Vẫn lỗi: `l` tải bù / `d` |
+| Ô nhanh (01, 05, 09) | Lỗi thì chạy lại |
+
+Rớt mạng **lâu** (hàng giờ) thì ô vẫn chạy, nhưng Colab có thể thu hồi máy vì không nhận được
+keep-alive — càng lâu càng rủi ro; máy mất thì `/content` mất theo.
+
+### 10.2. Cài trên một điện thoại khác
+
+Làm lại từ mục 2 tới mục 5 trên máy mới (cài gói, `termux-setup-storage`, đăng nhập, `lay_ve.sh`).
+Mỗi điện thoại giữ **riêng** đăng nhập, danh sách máy (`sessions.json`) và tài khoản phụ (`~/.fz_tk`).
+Cần biết:
+
+- Cảnh báo "hai cửa sổ cùng tài khoản" chỉ thấy các cửa sổ **trên cùng một điện thoại**. Dùng cùng
+  một tài khoản Google trên hai điện thoại thì điện thoại kia thấy máy của điện thoại này là `?` ở
+  menu `t` (không có tên), không xem log / chạy ô trên đó được. Nên: **mỗi điện thoại một tài khoản
+  Google khác nhau**.
+- Keep-alive (mục 10) chạy trên điện thoại đã xin máy (`m`) — giữ Termux sống ở **điện thoại đó**.
+- Ô lệnh bạn đã sửa (vd `SECS` ở ô 04, `GEN_CURRENT` ở ô 00) không tự sang máy mới: chép thư mục
+  `Download/FairyZero/o_lenh` sang, hoặc sửa lại.
 
 ---
 
