@@ -31,6 +31,39 @@ log_truc_tiep() {
   done
 }
 
+# Doi tai khoan Colab. Dang nhap = ~/.config/colab-cli/token.json (+ sessions.json: cac phien
+# cua tai khoan do). Cat moi tai khoan vao ~/.config/colab-cli/luu/<ten>/ de doi qua lai.
+CFG=$HOME/.config/colab-cli
+LUU=$CFG/luu
+doi_tai_khoan() {
+  local x ten i ds
+  echo "== Đổi tài khoản Colab =="
+  colab sessions
+  read -rp "Trả máy '$S' của tài khoản hiện tại trước? (co = trả, Enter = không): " x
+  [ "$x" = co ] && colab stop -s "$S"
+  if [ -f "$CFG/token.json" ]; then
+    read -rp "Cất tài khoản hiện tại để lần sau quay lại? Gõ tên (vd A), Enter = không cất: " ten
+    if [ -n "$ten" ]; then
+      mkdir -p "$LUU/$ten"
+      cp "$CFG/token.json" "$LUU/$ten/"
+      [ -f "$CFG/sessions.json" ] && cp "$CFG/sessions.json" "$LUU/$ten/"
+      echo "[đã cất] $ten"
+    fi
+  fi
+  mapfile -t ds < <(find "$LUU" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+  echo " 0   Đăng nhập tài khoản MỚI (mở link, chọn tài khoản trong trình duyệt)"
+  for i in "${!ds[@]}"; do printf " %-3s Dùng lại tài khoản đã cất: %s
+" $((i + 1)) "$(basename "${ds[$i]}")"; done
+  read -rp "Chọn (Enter = huỷ, giữ tài khoản hiện tại): " i
+  [ -z "$i" ] && return
+  rm -f "$CFG/token.json" "$CFG/sessions.json"
+  if [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ]; then
+    cp "${ds[$((i - 1))]}"/*.json "$CFG/"
+    echo "[đã chuyển] $(basename "${ds[$((i - 1))]}")"
+  fi
+  colab sessions      # chua co token -> CLI in link dang nhap o day
+}
+
 while true; do
   clear
   gen=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^GEN_CURRENT *= *\([0-9]*\).*/\1/p')
@@ -55,6 +88,7 @@ while true; do
   echo " d    Tải tệp Colab -> điện thoại"
   echo " u    Tải tệp điện thoại -> Colab"
   echo " t    Trả máy (XOÁ /content)"
+  echo " a    Đổi tài khoản Colab"
   echo " q    Thoát"
   echo "--------------------------------------"
   echo " Nhiều ô liền nhau: gõ cách nhau, vd: 01 02"
@@ -66,6 +100,7 @@ while true; do
   m|M) colab new -s "$S" --gpu T4; colab status -s "$S"; dung; continue ;;
   k|K) colab sessions; colab status -s "$S"; dung; continue ;;
   l|L) log_truc_tiep; continue ;;
+  a|A) doi_tai_khoan; dung; continue ;;
   h|H) colab usage; dung; continue ;;
   t|T)
     read -rp "Trả máy '$S'? Mọi tệp trên Colab (/content) sẽ MẤT. Gõ 'co' để trả: " x
