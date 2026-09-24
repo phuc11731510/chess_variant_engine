@@ -4,6 +4,7 @@
 # va them hai lenh vao ~/.bashrc:  fz (mo menu)  va  o <so> [<so> ...] (chay o thang).
 #   bash lay_ve.sh        # chi tai o nao CHUA co (khong ghi de o ban da sua)
 #   bash lay_ve.sh -f     # tai lai TAT CA o, GHI DE o ban da sua
+#   bash lay_ve.sh 05 07  # tai lai RIENG o 05 va 07 (ghi de hai o do), giu nguyen cac o khac
 set -euo pipefail
 
 URL=https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/custom_engine/scripts/colab_cells
@@ -16,9 +17,15 @@ if [ ! -d "$HOME/storage/downloads" ]; then
   exit 1
 fi
 mkdir -p "$DIR"
+# Co tai lai o $c khong: -f = moi o; danh sach so = chi cac o do.
+ghi_de() {
+  local a
+  for a in "$@"; do [ "$a" = -f ] || [ "$a" = "${c%%_*}" ] && return 0; done
+  return 1
+}
 for c in $CELLS; do
   f=$DIR/$c.py
-  if [ -f "$f" ] && [ "${1:-}" != "-f" ]; then
+  if [ -f "$f" ] && ! ghi_de "$@"; then
     echo "[giu nguyen] $f"
   else
     curl -fsSL -o "$f" "$URL/$c.py" && echo "[tai]        $f"

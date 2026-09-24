@@ -20,6 +20,6 @@ CHAY_NEN = True
 print(cmd)
 if CHAY_NEN:
     !nohup {cmd} > /content/selfplay.log 2>&1 &
-    print("[da chay nen] xem: o 05")
+    print("[da chay nen] xem: menu fz -> l (log truc tiep) hoac o 05")
 else:
     !{cmd}
