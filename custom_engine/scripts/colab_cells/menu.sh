@@ -43,7 +43,7 @@ MAY=$HOME/fz_may.py
 # dang co o khac chay nen (khi do khong khoi dong, tru khi $3 = ep).
 khoi_dong() {
   local b m
-  [ -f "$MAY" ] || { echo "[!] Thiếu $MAY -- chạy: bash ~/lay_ve.sh"; return 1; }
+  [ -f "$MAY" ] || { echo "[!] Thiếu $MAY -- cập nhật: bash ~/lay_ve.sh (lay_ve.sh cũ thì tải lại nó trước, xem HUONG_DAN_TERMUX.md mục 5)"; return 1; }
   b=$(ghep "$2" | base64 -w0)
   m=$(base64 -w0 "$MAY")
   colab exec -s "$S" <<EOF
@@ -64,7 +64,7 @@ xem() {
 }
 
 # Chay o tep $1: nhanh thi chay thang; con lai thi chay nen + xem log.
-# Tra ve khac 0 neu nguoi dung Ctrl+C / huy (de dung chuoi nhieu o).
+# Tra ve 0 = o ket thuc; 1 = Ctrl+C khi dang xem (o VAN chay nen); 2 = khong khoi dong / huy.
 chay_o() {
   local f=$1 id out pid ban x
   id=$(basename "$f"); id=${id%%_*}
@@ -78,12 +78,12 @@ chay_o() {
   ban=$(sed -n 's/^FZ_BAN=//p' <<<"$out")
   if [ -n "$ban" ]; then
     read -rp "Ô $ban vẫn đang chạy nền. Vẫn chạy thêm ô $id song song? (co = chạy): " x
-    [ "$x" = co ] || return 1
+    [ "$x" = co ] || return 2
     out=$(khoi_dong "$id" "$f" ep)
   fi
   pid=$(sed -n 's/^FZ_PID=//p' <<<"$out")
-  if [ -z "$pid" ]; then echo "$out"; echo "[!] Không khởi động được ô $id"; return 1; fi
-  xem "$id" "$pid"
+  if [ -z "$pid" ]; then echo "$out"; echo "[!] Không khởi động được ô $id"; return 2; fi
+  xem "$id" "$pid" || return 1
 }
 
 # Muc l: xem tiep log o chay nen gan nhat.
@@ -215,10 +215,12 @@ chay_cac_o() {
   for id in "$@"; do
     f=$(ls "$D"/"$id"_*.py 2>/dev/null | head -1)
     if [ -z "$f" ]; then echo "[!] Không có ô $id"; continue; fi
-    if ! chay_o "$f"; then
-      echo; echo "[dừng -- ô chạy nền vẫn tiếp tục; xem lại: fz -> l]"
-      return 1
-    fi
+    chay_o "$f"
+    case $? in
+      0) ;;
+      1) echo; echo "[về -- ô $id vẫn chạy nền; xem lại: fz -> l]"; return 1 ;;
+      *) echo; echo "[dừng -- các ô sau không chạy]"; return 1 ;;
+    esac
   done
 }
 
