@@ -101,7 +101,7 @@ dung() { echo; read -rp "--- Enter để về menu ---" _; }
 
 # ssh toi may Colab cua phien $S (khong can ~/.ssh/config).
 ssh_colab() {
-  ssh -o ProxyCommand="HOME=$TKH $(type -P colab) ssh --proxy-mode -s $S" \
+  ssh -o ProxyCommand="env HOME=$TKH $(type -P colab) ssh --proxy-mode -s $S" \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
       "root@colab-$S" "$@"
 }
