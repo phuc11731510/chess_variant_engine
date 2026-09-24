@@ -2,6 +2,8 @@
 # menu.sh -- menu FairyZero tren Termux: chon o lenh bang so, chay tren may Colab.
 # Mo bang lenh `fz` (lay_ve.sh them vao ~/.bashrc). O lenh: Download/FairyZero/o_lenh.
 # `bash menu.sh 04 05` (lenh `o 04 05`): chay thang cac o do theo cung cach, khong hien menu.
+# `fz @B` / `o @B 04`: dung tai khoan Colab B. Nhieu tai khoan CUNG LUC = moi cua so Termux mot
+# tai khoan (xem tai_khoan() -- muc a).
 #
 # Cach chay mot o:
 #   - O co dong "# fz: nhanh" (01, 05, 09): gui thang cho `colab exec`, ket qua hien ngay.
@@ -13,6 +15,32 @@ D=$HOME/storage/downloads/FairyZero/o_lenh
 TAI=$HOME/storage/downloads/FairyZero
 S=${S:-fz}
 LOGD=/content/fz_log
+
+# Tai khoan Colab. Colab CLI lay moi thu (token.json, sessions.json, ~/.ssh) tu ~ = $HOME, nen
+# moi tai khoan phu co mot HOME rieng cho CLI: ~/.fz_tk/<ten>/ (.config/colab-cli rieng, .ssh
+# tro ve ~/.ssh). Tai khoan chinh (TK rong) = ~ nhu cu. Chi lenh colab (va python dung
+# colab_cli) chay voi HOME do -- con lai cua menu van dung ~ that.
+TKG=$HOME/.fz_tk
+dat_tk() {
+  TK=$1
+  if [ -z "$TK" ]; then TKH=$HOME; return; fi
+  TKH=$TKG/$TK
+  mkdir -p "$TKH/.config/colab-cli"
+  [ -e "$TKH/.ssh" ] || ln -s "$HOME/.ssh" "$TKH/.ssh"
+  [ -e "$HOME/.colab-cli-oauth-config.json" ] && [ ! -e "$TKH/.colab-cli-oauth-config.json" ] &&
+    ln -s "$HOME/.colab-cli-oauth-config.json" "$TKH/.colab-cli-oauth-config.json"
+  return 0
+}
+ten_tk() { echo "${1:-chính}"; }
+tk_hop_le() { [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]] && [ "$1" != chinh ]; }
+TK=
+if [[ "${1:-}" == @* ]]; then
+  TK=${1#@}; shift
+  tk_hop_le "$TK" || { echo "[!] Tên tài khoản chỉ gồm chữ, số, _ và - (vd: fz @B)"; exit 1; }
+fi
+dat_tk "$TK"
+colab() { HOME=$TKH command colab "$@"; }
+py_colab() { HOME=$TKH python "$@"; }
 
 # Ctrl+C: dung lenh dang chay (ssh xem log), KHONG thoat menu. Handler (khong phai bo qua)
 # de tien trinh con van nhan Ctrl+C binh thuong.
@@ -30,7 +58,7 @@ dung() { echo; read -rp "--- Enter để về menu ---" _; }
 
 # ssh toi may Colab cua phien $S (khong can ~/.ssh/config).
 ssh_colab() {
-  ssh -o ProxyCommand="$(command -v colab) ssh --proxy-mode -s $S" \
+  ssh -o ProxyCommand="HOME=$TKH $(type -P colab) ssh --proxy-mode -s $S" \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
       "root@colab-$S" "$@"
 }
@@ -96,36 +124,71 @@ log_truc_tiep() {
   dung
 }
 
-# Doi tai khoan Colab. Dang nhap = ~/.config/colab-cli/token.json (+ sessions.json: cac phien
-# cua tai khoan do). Cat moi tai khoan vao ~/.config/colab-cli/luu/<ten>/ de doi qua lai.
-CFG=$HOME/.config/colab-cli
-LUU=$CFG/luu
-doi_tai_khoan() {
-  local x ten i ds
-  echo "== Đổi tài khoản Colab =="
-  colab sessions
-  read -rp "Trả máy '$S' của tài khoản hiện tại trước? (co = trả, Enter = không): " x
-  [ "$x" = co ] && colab stop -s "$S"
-  if [ -f "$CFG/token.json" ]; then
-    read -rp "Cất tài khoản hiện tại để lần sau quay lại? Gõ tên (vd A), Enter = không cất: " ten
-    if [ -n "$ten" ]; then
-      mkdir -p "$LUU/$ten"
-      cp "$CFG/token.json" "$LUU/$ten/"
-      [ -f "$CFG/sessions.json" ] && cp "$CFG/sessions.json" "$LUU/$ten/"
-      echo "[đã cất] $ten"
-    fi
-  fi
-  mapfile -t ds < <(find "$LUU" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
-  echo " 0   Đăng nhập tài khoản MỚI (mở link, chọn tài khoản trong trình duyệt)"
-  for i in "${!ds[@]}"; do printf " %-3s Dùng lại tài khoản đã cất: %s\n" $((i + 1)) "$(basename "${ds[$i]}")"; done
-  read -rp "Chọn (Enter = huỷ, giữ tài khoản hiện tại): " i
-  [ -z "$i" ] && return
-  rm -f "$CFG/token.json" "$CFG/sessions.json"
-  if [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ]; then
-    cp "${ds[$((i - 1))]}"/*.json "$CFG/"
-    echo "[đã chuyển] $(basename "${ds[$((i - 1))]}")"
-  fi
-  colab sessions      # chua co token -> CLI in link dang nhap o day
+# Muc a: cac tai khoan Colab. Tai khoan chinh = ~/.config/colab-cli, tai khoan phu <ten> =
+# ~/.fz_tk/<ten>/.config/colab-cli (dang nhap rieng, may rieng, han muc rieng). Chon so = cua so
+# nay dung tai khoan do; cac cua so Termux khac khong bi anh huong.
+tk_dang_nhap() { [ -f "$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME")/.config/colab-cli/token.json" ]; }
+tai_khoan() {
+  local ds i x ten cu
+  # Tai khoan da "cat" theo cach cu (~/.config/colab-cli/luu/<ten>) -> tai khoan phu cung ten.
+  for x in "$HOME/.config/colab-cli/luu"/*/; do
+    [ -f "$x/token.json" ] || continue
+    ten=$(basename "$x")
+    tk_hop_le "$ten" && [ ! -e "$TKG/$ten" ] || continue
+    mkdir -p "$TKG/$ten/.config/colab-cli" && cp "$x"/*.json "$TKG/$ten/.config/colab-cli/"
+  done
+  while true; do
+    ds=("")
+    for x in "$TKG"/*/; do [ -d "$x" ] && ds+=("$(basename "$x")"); done
+    clear
+    echo "== Tài khoản Colab =="
+    for i in "${!ds[@]}"; do
+      printf " %2d  %-12s %-16s %s\n" $((i + 1)) "$(ten_tk "${ds[$i]}")" \
+        "$(tk_dang_nhap "${ds[$i]}" && echo "đã đăng nhập" || echo "CHƯA đăng nhập")" \
+        "$([ "${ds[$i]}" = "$TK" ] && echo "<- cửa sổ này")"
+    done
+    echo "---"
+    echo " Số = cửa sổ này dùng tài khoản đó (cửa sổ khác không đổi)"
+    echo " n  = thêm tài khoản · x = đăng xuất / xoá tài khoản · Enter = về menu"
+    echo " Dùng CÙNG LÚC: mở thêm cửa sổ Termux (vuốt từ mép trái -> NEW SESSION), gõ: fz @<tên>"
+    read -rp "Chọn: " x || return
+    case "$x" in
+    "") return ;;
+    n|N)
+      read -rp "Tên tài khoản mới (chữ/số, vd B): " ten
+      tk_hop_le "$ten" || { echo "[!] Tên không hợp lệ"; dung; continue; }
+      [ -e "$TKG/$ten" ] && { echo "[!] Đã có tài khoản $ten"; dung; continue; }
+      dat_tk "$ten"
+      echo "[cửa sổ này dùng tài khoản $ten] Mở link dưới đây, chọn ĐÚNG tài khoản Google muốn thêm:"
+      colab sessions      # chua co token -> CLI in link dang nhap o day
+      dung; return ;;
+    x|X)
+      read -rp "Số tài khoản cần đăng xuất: " i
+      [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ] || continue
+      ten=${ds[$((i - 1))]}; cu=$TK
+      dat_tk "$ten"
+      if tk_dang_nhap "$ten"; then
+        echo "Máy tài khoản $(ten_tk "$ten") đang giữ (đăng xuất rồi vẫn tính hạn mức tới khi Colab thu hồi):"
+        colab sessions
+        read -rp "Trả máy '$S' của tài khoản này trước? (co = trả, Enter = không): " x
+        [ "$x" = co ] && colab stop -s "$S"
+      fi
+      read -rp "Đăng xuất $(ten_tk "$ten")$([ -n "$ten" ] && echo " và xoá khỏi danh sách")? Gõ 'co': " x
+      if [ "$x" = co ]; then
+        if [ -n "$ten" ]; then rm -rf "${TKG:?}/$ten"; [ "$cu" = "$ten" ] && cu=
+        else rm -f "$HOME/.config/colab-cli/token.json" "$HOME/.config/colab-cli/sessions.json"; fi
+        echo "[đã đăng xuất] $(ten_tk "$ten")"
+      fi
+      dat_tk "$cu"; dung ;;
+    *)
+      [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#ds[@]} ] || continue
+      dat_tk "${ds[$((x - 1))]}"
+      echo "[cửa sổ này dùng tài khoản $(ten_tk "$TK")]"
+      tk_dang_nhap "$TK" || echo "Chưa đăng nhập -- mở link dưới đây:"
+      colab sessions
+      dung; return ;;
+    esac
+  done
 }
 
 # Muc h: han muc mien phi con lai + so du, may dang giu, GPU duoc dung (~/fz_han_muc.py).
@@ -133,7 +196,7 @@ han_muc() {
   local may
   # Loai may cua phien $S, tu dong "... | Hardware: T4 | ..." cua colab status (CPU / T4 / ...).
   may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
-  if [ -f ~/fz_han_muc.py ]; then python ~/fz_han_muc.py --may "$may"; else echo "[!] Thiếu ~/fz_han_muc.py -- chạy: bash ~/lay_ve.sh"; colab usage; fi
+  if [ -f ~/fz_han_muc.py ]; then py_colab ~/fz_han_muc.py --may "$may"; else echo "[!] Thiếu ~/fz_han_muc.py -- chạy: bash ~/lay_ve.sh"; colab usage; fi
 }
 
 # Kich thuoc de doc (1.2M, 340K).
@@ -255,7 +318,7 @@ tra_may() {
   while true; do
     mapfile -t ds < <(colab sessions 2>/dev/null | grep '^\[')
     clear
-    echo "== Trả máy (tài khoản Colab hiện tại) =="
+    echo "== Trả máy (tài khoản $(ten_tk "$TK")) =="
     if [ ${#ds[@]} -eq 0 ]; then echo "  (không giữ máy nào)"; return; fi
     for i in "${!ds[@]}"; do
       dong=${ds[$i]}
@@ -285,7 +348,7 @@ tra_may() {
         colab stop -s "$ten"
       else
         echo "[colab] Trả máy không tên $ep..."
-        python - "$ep" <<'EOF'
+        py_colab - "$ep" <<'EOF'
 import sys
 from colab_cli.common import state
 state.client.unassign(sys.argv[1])
@@ -318,7 +381,7 @@ while true; do
   clear
   gen=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^GEN_CURRENT *= *\([0-9]*\).*/\1/p')
   echo "======== FairyZero trên Colab ========"
-  echo " Phiên: $S   ·   Đời hiện tại: ${gen:-?}"
+  echo " Tài khoản: $(ten_tk "$TK")   ·   Phiên: $S   ·   Đời: ${gen:-?}"
   echo " Ô lệnh: Download/FairyZero/o_lenh"
   echo "--------------------------------------"
   files=()
@@ -339,7 +402,7 @@ while true; do
   echo " d    Duyệt tệp Colab, tải về điện thoại"
   echo " u    Duyệt tệp điện thoại, tải lên Colab"
   echo " t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)"
-  echo " a    Đổi tài khoản Colab"
+  echo " a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)"
   echo " q    Thoát"
   echo "--------------------------------------"
   echo " Nhiều ô liền nhau: gõ cách nhau, vd: 01 02"
@@ -358,7 +421,7 @@ while true; do
   k|K) colab sessions; colab status -s "$S"; dung; continue ;;
   l|L) log_truc_tiep; continue ;;
   h|H) han_muc; dung; continue ;;
-  a|A) doi_tai_khoan; dung; continue ;;
+  a|A) tai_khoan; continue ;;
   t|T) tra_may; continue ;;
   d|D) duyet_colab; continue ;;
   u|U) duyet_dt; continue ;;
