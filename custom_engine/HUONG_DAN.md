@@ -723,7 +723,7 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--visits N` | 200 | Số playout MCTS mỗi nước trong lúc tự chơi. Cao → nước đi chất lượng hơn (dữ liệu tốt hơn) nhưng chậm. Đời đầu để 200, đời sau tăng 400/800. |
 | `--parallel K` | 1 | Số ván chạy **song song** cùng lúc. Đặt ≈ số nhân CPU để tận dụng hết máy → sinh nhanh hơn nhiều. |
 | `--threads-per-game T` | 1 | Số luồng MCTS dùng cho **mỗi** ván. Thường để 1 và tăng `--parallel` thay vì cái này. |
-| `--max-moves N` | 200 | Trần số nước mỗi ván; tới hạn thì xử hòa để khỏi kẹt ván dài vô tận. |
+| `--max-moves N` | 200 | Trần số **ply** (nửa nước: mỗi nước của một bên tính 1; 400 ply = 200 nước đầy đủ) mỗi ván; tới hạn thì xử hòa để khỏi kẹt ván dài vô tận. |
 | `--temp-cutoff N` | 30 | Trong N nước đầu, chọn nước **lấy mẫu theo số visit** (ngẫu nhiên có trọng số) để dữ liệu đa dạng; sau đó đi nước tốt nhất. |
 | `--backend-threads N` | 1 | Số luồng tính mạng nơ-ron trên CPU (dùng khi `--provider cpu`). |
 | `--provider cpu\|cuda` | cpu | Thiết bị chạy mạng: CPU (Windows) hoặc GPU (Colab). |
@@ -858,7 +858,7 @@ nó dùng các cờ thiết bị/độ sâu/tìm kiếm dưới đây, nhưng **
 | `--model-b FILE` | — | Mạng `.onnx` thứ hai (thường là đời cũ để so). |
 | `--games N` | 100 | Số ván đấu (chia đôi mỗi bên cầm Trắng/Đen cho công bằng). |
 | `--visits N` | 200 | Độ sâu MCTS mỗi nước khi đấu. |
-| `--max-moves N` | 200 | Trần số nước mỗi ván (chạm trần ⇒ tính hòa). |
+| `--max-moves N` | 200 | Trần số **ply** (nửa nước) mỗi ván (chạm trần ⇒ tính hòa). |
 | `--temp-cutoff N` | 30 | Số nước đầu lấy mẫu theo visit (để hai ván không giống hệt nhau); đấu nghiêm ngặt có thể đặt nhỏ (vd 6) hoặc 0 để hai mạng đánh "tốt nhất" hoàn toàn. |
 | `--provider cpu\|cuda\|dml` | cpu | Thiết bị suy luận. `cuda` cho Colab (bản `-Duse_cuda`); `dml` cho GPU Windows — kể cả NVIDIA (bản `-Duse_dml`). |
 | `--backend-threads N` | 1 | Số luồng intra-op cho ONNX khi `cpu`/`dml` (nên đặt = số nhân, vd 4). |
