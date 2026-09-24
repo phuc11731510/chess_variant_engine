@@ -46,7 +46,8 @@ Có hai cách dùng:
  colab stop -s fz                    ──────────▶   trả máy (xoá sạch /content)
 ```
 
-- **Mỗi ô của sổ tay là một tệp** trong `~/fz/` trên điện thoại (`02_khoi_dong.py`,
+- **Mỗi ô của sổ tay là một tệp** trong thư mục chung **`Download/FairyZero/o_lenh/`** của điện thoại
+  — mở, đọc, sửa bằng **MT Manager** (hay trình quản lý tệp bất kỳ) — (`02_khoi_dong.py`,
   `04_sinh_du_lieu.py`, …), viết đúng cú pháp ô Colab (`!lệnh`, `%cd`, biến Python).
 - Lệnh **`o <số>`** gửi ô đó lên máy Colab và chạy. Nó **ghép ô cấu hình `00_cau_hinh.py` vào đầu**,
   nên mọi ô đều biết `GEN_CURRENT`, `E`, `CURRENT_ONNX`, … — giống sổ tay chạy ô cấu hình trước.
@@ -111,7 +112,7 @@ mkdir -p ~/storage/downloads/FairyZero
 dữ liệu và mạng tải về, mở được bằng trình quản lý tệp, chép sang máy tính được.
 
 > Thư mục home của Termux (`~`, tức `/data/data/com.termux/files/home`) là bộ nhớ **riêng** của
-> Termux: trình quản lý tệp không thấy. Các ô lệnh để ở `~/fz` là đủ vì chỉ Termux cần đọc.
+> Termux: trình quản lý tệp không thấy. Vì vậy các ô lệnh và dữ liệu đều để ở `Download/FairyZero/`.
 
 ---
 
@@ -165,23 +166,27 @@ giờ đến một ngày, hoặc Colab Pro. GPU khác: `--gpu L4` / `A100` / `H1
 
 ```bash
 cd ~
-curl -LO https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/custom_engine/scripts/colab_cells/lay_ve.sh
+curl -fLO https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/custom_engine/scripts/colab_cells/lay_ve.sh
 bash lay_ve.sh
 source ~/.bashrc
 ```
 
+(`-f`: đường link lỗi thì `curl` báo lỗi, thay vì lưu trang `404: Not Found` vào tệp.)
+
 `lay_ve.sh` làm hai việc:
 
-1. Tải 11 ô về `~/fz/`. Ô nào **đã có thì giữ nguyên** (không ghi đè ô bạn đã sửa). Muốn tải lại
-   bản mới nhất, ghi đè hết: `bash lay_ve.sh -f`.
-2. Thêm vào `~/.bashrc` một dòng định nghĩa lệnh `o` (chỉ một lần):
+1. Tải 11 ô về **`Download/FairyZero/o_lenh/`** (trong Termux: `~/storage/downloads/FairyZero/o_lenh`).
+   Ô nào **đã có thì giữ nguyên** (không ghi đè ô bạn đã sửa). Muốn tải lại bản mới nhất, ghi đè
+   hết: `bash lay_ve.sh -f`.
+2. Ghi vào `~/.bashrc` một dòng định nghĩa lệnh `o` (chạy lại thì thay dòng cũ, không nhân đôi):
 
    ```bash
-   o() { cat ~/fz/00_cau_hinh.py ~/fz/"$1"_*.py | colab exec -s "${S:-fz}"; }
+   o() { d=~/storage/downloads/FairyZero/o_lenh; cat "$d"/00_cau_hinh.py "$d"/"$1"_*.py | sed 's/^\xEF\xBB\xBF//; s/\r$//' | colab exec -s "${S:-fz}"; }
    ```
 
-   Tức là `o 04` = ghép `00_cau_hinh.py` + `04_sinh_du_lieu.py` rồi gửi cho máy Colab chạy. Không
-   có gì ẩn — muốn thì gõ thẳng vế phải thay cho `o`.
+   Tức là `o 04` = ghép `00_cau_hinh.py` + `04_sinh_du_lieu.py` rồi gửi cho máy Colab chạy. `sed`
+   chỉ bỏ ký tự BOM và `\r` mà trình sửa tệp trên điện thoại có thể thêm vào (sẽ làm Python báo lỗi).
+   Không có gì ẩn — muốn thì gõ thẳng vế phải thay cho `o`.
 
 Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 
@@ -203,13 +208,21 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 
 ## 6. Xem, sửa, chạy một ô
 
-```bash
-cat ~/fz/04_sinh_du_lieu.py      # XEM ô sẽ chạy gì
-nano ~/fz/04_sinh_du_lieu.py     # SỬA (lưu: Ctrl+O, Enter; thoát: Ctrl+X)
-o 04                             # CHẠY trên máy Colab
-```
+1. **Xem / sửa** bằng **MT Manager**: vào bộ nhớ trong → `Download` → `FairyZero` → `o_lenh` →
+   chạm `04_sinh_du_lieu.py` → mở bằng trình sửa văn bản của MT Manager → sửa → **Lưu**.
+2. **Chạy** trong Termux:
 
-Trong nano trên điện thoại: phím Ctrl nằm ở hàng phím phụ phía trên bàn phím của Termux.
+   ```bash
+   o 04
+   ```
+
+`o` đọc tệp **ngay lúc chạy**, nên sửa xong, lưu xong là `o` dùng bản mới — không cần tải lại gì.
+
+Sửa trong Termux cũng được: `nano ~/storage/downloads/FairyZero/o_lenh/04_sinh_du_lieu.py`
+(lưu: Ctrl+O, Enter; thoát: Ctrl+X).
+
+Lưu ý khi sửa: ô là mã Python — giữ nguyên thụt lề (dấu cách đầu dòng) của các dòng trong `if`/`for`,
+và giữ dấu ngoặc kép `"""` bao quanh lệnh.
 
 Ví dụ sửa siêu tham số sinh dữ liệu — mở `04_sinh_du_lieu.py`, đổi `SECS = 15480` thành
 `SECS = 3600` (1 giờ) và `--visits 800` thành `--visits 400` ngay trong lệnh:
@@ -253,7 +266,7 @@ Ví dụ đời 0 → đời 1. Trước khi bắt đầu:
 
 ```bash
 termux-wake-lock                 # mục 10
-nano ~/fz/00_cau_hinh.py         # GEN_CURRENT = 0
+# MT Manager: Download/FairyZero/o_lenh/00_cau_hinh.py -> GEN_CURRENT = 0
 colab new -s fz --gpu T4         # mục 4 (bỏ qua nếu đã có phiên fz T4)
 ```
 
@@ -267,7 +280,7 @@ Phải thấy `Tesla T4, 15360 MiB`. Không thấy → máy CPU, xem mục 4.
 
 ### Ô 02 — khởi động · ~2-3 phút
 
-Mở xem trước (`cat ~/fz/02_khoi_dong.py`). Cuối ô có:
+Mở xem trước bằng MT Manager (`02_khoi_dong.py`). Cuối ô có:
 
 ```python
 TAI_ONNX = True     # tải gen{GEN_CURRENT}.onnx từ GitHub Release v3.0.0
@@ -405,7 +418,7 @@ colab ls -s fz /content
 
 ## 9. Sang đời tiếp theo
 
-1. `nano ~/fz/00_cau_hinh.py` → `GEN_CURRENT = 1`.
+1. MT Manager: `00_cau_hinh.py` → `GEN_CURRENT = 1`, lưu.
 2. `colab new -s fz --gpu T4` (nếu đã trả máy), `o 01`, `o 02`.
 3. Mạng đời 1: có trên Release thì ô 02 tự tải; không thì `TAI_… = False` và `colab upload` từ
    `Download/FairyZero/`.
@@ -498,7 +511,11 @@ Muốn chắc chắn dùng mạng trên Release thì dùng cách A.
 **`o: command not found`** — chưa `source ~/.bashrc` sau khi chạy `lay_ve.sh`, hoặc mở Termux
 mới trước khi `.bashrc` được sửa. Chạy `source ~/.bashrc`.
 
-**`cat: /…/fz/04_*.py: No such file`** — sai số ô, hoặc chưa `bash lay_ve.sh`. Xem: `ls ~/fz`.
+**`cat: …/o_lenh/04_*.py: No such file`** — sai số ô, hoặc chưa `bash lay_ve.sh`, hoặc đổi tên tệp
+(tên phải bắt đầu bằng `<số>_`). Xem: `ls ~/storage/downloads/FairyZero/o_lenh`.
+
+**`SyntaxError` / `IndentationError` sau khi sửa ô** — lỡ xoá dấu cách thụt lề, dấu ngoặc hay dấu
+`\` cuối dòng của lệnh. So với bản gốc: `bash lay_ve.sh -f` tải lại (ghi đè) — sao lưu ô đã sửa trước.
 
 **`NameError: name 'E' is not defined`** — chạy ô bằng `colab exec -f` thay vì `o`, nên thiếu ô
 cấu hình. Dùng `o <số>`.
