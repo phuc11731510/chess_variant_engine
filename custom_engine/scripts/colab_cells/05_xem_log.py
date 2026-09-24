@@ -16,7 +16,11 @@ if o is None:
     print("(chưa có ô nào chạy nền trên máy này)")
 else:
     log = f"{D}/{o}.log"
-    trang_thai = "DANG CHAY" if os.path.exists(f"/proc/{pid}") else "DA XONG"
+    try:  # zombie (Z) = đã thoát, chưa được thu dọn -> coi là xong
+        song = open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[0] != "Z"
+    except (FileNotFoundError, IndexError):
+        song = False
+    trang_thai = "DANG CHAY" if song else "DA XONG"
     phut = (time.time() - os.path.getmtime(log)) / 60 if os.path.exists(log) else 0
     print(f"[{trang_thai}: ô {o}]  {time.strftime('%H:%M:%S')}  (log ghi lần cuối {phut:.0f} phút trước)")
     print(subprocess.run(f"tail -n {SO_DONG} {log}", shell=True, capture_output=True, text=True).stdout)

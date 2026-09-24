@@ -41,13 +41,21 @@ khoi_dong() {
   local b
   b=$(ghep "$2" | base64 -w0)
   colab exec -s "$S" <<EOF
-import base64, os, subprocess, time
+import base64, os, subprocess, threading, time
 ID, EP, D = "$1", "${3:-}" == "ep", "$LOGD"
 os.makedirs(D, exist_ok=True)
+
+def song(pid):
+    # Con chay = co trong /proc va KHONG phai zombie (Z: da thoat, chua duoc cha thu don).
+    try:
+        return open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[0] != "Z"
+    except (FileNotFoundError, IndexError):
+        return False
+
 ban = None
 try:
     cu, pid_cu = open(f"{D}/dang_chay").read().split()
-    if os.path.exists(f"/proc/{pid_cu}") and not EP:
+    if song(pid_cu) and not EP:
         ban = cu
 except (FileNotFoundError, ValueError):
     pass
@@ -64,6 +72,9 @@ else:
         pr = subprocess.Popen(["bash", "-c", lenh], stdout=f, stderr=subprocess.STDOUT,
                               stdin=subprocess.DEVNULL, start_new_session=True,
                               env=dict(os.environ, PYTHONUNBUFFERED="1"))
+    # Kernel la cha cua o va song suot phien: thu don o ngay khi o thoat, neu khong o thanh
+    # zombie -- "con chay" mai (tail --pid khong dung, menu tuong o con chay).
+    threading.Thread(target=pr.wait, daemon=True).start()
     open(f"{D}/dang_chay", "w").write(f"{ID} {pr.pid}\n")
     print(f"FZ_PID={pr.pid}")
 EOF
@@ -72,7 +83,10 @@ EOF
 # Xem log o $1 (pid $2) truc tiep den khi o xong. Tra ve 0 = o da xong, khac 0 = Ctrl+C.
 xem() {
   echo "== Log trực tiếp ô $1 · Ctrl+C để về menu (ô vẫn chạy tiếp) =="
-  ssh_colab "tail -n +1 -F --pid=$2 $LOGD/$1.log 2>/dev/null"
+  # O da xong (hoac zombie) thi in log roi thoi: tail --pid coi zombie la con song, se cho mai.
+  ssh_colab "t=\$(cut -d')' -f2 /proc/$2/stat 2>/dev/null | awk '{print \$1}');
+    if [ -n \"\$t\" ] && [ \"\$t\" != Z ]; then tail -n +1 -F --pid=$2 $LOGD/$1.log 2>/dev/null;
+    else cat $LOGD/$1.log 2>/dev/null; fi"
 }
 
 # Chay o tep $1: nhanh thi chay thang; con lai thi chay nen + xem log.
