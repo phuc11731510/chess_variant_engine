@@ -37,6 +37,19 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             }
             *out = static_cast<int>(x);
         };
+        auto u64_value = [&](uint64_t* out, uint64_t lo, uint64_t hi) {   // past 32-bit long
+            const char* v = value();
+            if (!v) return;
+            errno = 0;
+            char* end = nullptr;
+            const unsigned long long x = std::strtoull(v, &end, 10);
+            if (end == v || *end != '\0' || *v == '-' || *v == '+' || errno == ERANGE || x < lo || x > hi) {
+                error(a + " " + v + ": expected an integer in [" + std::to_string(lo) + ", " +
+                      std::to_string(hi) + "]");
+                return;
+            }
+            *out = static_cast<uint64_t>(x);
+        };
         auto real_value = [&](auto* out, double lo, double hi) {
             const char* v = value();
             if (!v) return;
@@ -90,6 +103,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         }
         // --- self-play / arena / play / bench parameters ---
         else if (a == "--games")              { int_value(&o.sp_games, 0, kBig); o.games_given = true; }
+        else if (a == "--zobrist-seed")       u64_value(&o.zobrist_seed, 1000000000ULL, 9999999999ULL);
         else if (a == "--visits")             int_value(&o.sp_visits, 1, kBig);
         else if (a == "--parallel")           int_value(&o.sp_parallel, 1, 4096);
         else if (a == "--threads-per-game")   int_value(&o.sp_threads_per_game, 1, 256);

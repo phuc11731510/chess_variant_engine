@@ -314,7 +314,7 @@ public:
         explicit Comp(CountingBackend* b) : b_(b) {}
         size_t UsedBatchSize() const override { return n_; }
         AddInputResult AddInput(const lczero::EvalPosition& pos, lczero::EvalResultPtr r) override {
-            slots_.push_back({pos.history->Last().Hash(), pos.legal_moves.size(), r});
+            slots_.push_back({fztest::DetKey(pos.history->Last()), pos.legal_moves.size(), r});
             ++n_;
             return ENQUEUED_FOR_EVAL;
         }
@@ -478,7 +478,7 @@ void TestBatching() {
                     for (int i = 0; i < n; ++i) {
                         lczero::EvalResult want;
                         want.p.resize(legal[which[i]].size());
-                        fztest::DetFill(positions[which[i]]->Last().Hash(), legal[which[i]].size(),
+                        fztest::DetFill(fztest::DetKey(positions[which[i]]->Last()), legal[which[i]].size(),
                                         want.AsPtr());
                         bool ok = res[i].q == want.q && res[i].d == want.d;
                         for (size_t m = 0; m < want.p.size(); ++m) ok = ok && res[i].p[m] == want.p[m];
@@ -525,9 +525,9 @@ void TestRawRootEval() {
                 // Expected: DetBackend's evaluation of the root, computed here.
                 const auto& h = tree->GetPositionHistory();
                 const lczero::MoveList legal = h.Last().GetBoard().GenerateLegalMoves();
-                const fztest::DetEval e = fztest::DetValue(h.Last().Hash());
+                const fztest::DetEval e = fztest::DetValue(fztest::DetKey(h.Last()));
                 std::vector<float> prior(legal.size());
-                fztest::DetPolicy(h.Last().Hash(), legal.size(), prior.data());
+                fztest::DetPolicy(fztest::DetKey(h.Last()), legal.size(), prior.data());
                 double kld = 0.0;
                 for (size_t i = 0; i < legal.size(); ++i) {
                     const float pi = rec.probabilities[lczero::MoveToNNIndex(legal[i], 0)];

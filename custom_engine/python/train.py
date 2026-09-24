@@ -12,6 +12,7 @@ import argparse
 import os
 import random
 import sys
+import time
 
 import numpy as np
 import torch
@@ -21,7 +22,8 @@ from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet, ExportNet, NUM_PLANES, POLICY_SIZE  # noqa: E402
-from dataset import FairyDataset, list_games, split_games  # noqa: E402
+from dataset import FairyDataset, game_mtimes, list_games, split_games  # noqa: E402
+from run_seed import resolve_seed  # noqa: E402
 
 
 def policy_loss(logits, pi):
@@ -174,7 +176,9 @@ def main():
     ap.add_argument("--momentum", type=float, default=0.9, help="momentum for --optimizer sgd")
     ap.add_argument("--policy-weight", type=float, default=1.0, help="policy-loss weight")
     ap.add_argument("--grad-clip", type=float, default=0.0, help="clip grad-norm (0 = off)")
-    ap.add_argument("--seed", type=int, default=0, help="RNG seed (reproducibility)")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="seed of the run: shuffling, down-sampling, the validation split "
+                         "(default: random for every run, printed; pass it back to repeat a run)")
     ap.add_argument("--warmup-steps", type=int, default=0, help="linear LR warmup over N optimizer steps")
     ap.add_argument("--lr-values", default="", help="step LR schedule values, comma-separated (overrides --lr)")
     ap.add_argument("--lr-boundaries", default="", help="step LR schedule boundaries, comma-separated")
@@ -185,13 +189,13 @@ def main():
     ap.add_argument("--max-steps", type=int, default=0, help="stop after N optimizer steps (0 = use --epochs)")
     ap.add_argument("--max-records", type=int, default=0, help="cap #records loaded (0 = all)")
     ap.add_argument("--val-frac", type=float, default=0.04,
-                    help="hold out this fraction of the GAMES (whole games, drawn at random with "
-                         "--seed from every generation in --data) as a validation set, and print "
-                         "its losses before training, after each epoch and for the exported "
-                         "model (0 = off)")
+                    help="hold out this fraction of the GAMES -- the newest by modification time, "
+                         "i.e. the latest self-play -- as a validation set, and print its losses "
+                         "before training, after each epoch and for the exported model (0 = off)")
     ap.add_argument("--report-every", type=int, default=0, help="print running loss every N steps (0 = per-epoch)")
     ap.add_argument("--save-every", type=int, default=0, help="export an ONNX checkpoint every N steps (0 = only final)")
     args = ap.parse_args()
+    args.seed = resolve_seed(args.seed, "train")
     if args.threads > 0:
         torch.set_num_threads(args.threads)
 
@@ -217,7 +221,8 @@ def main():
     if not 0.0 <= args.val_frac < 1.0:
         sys.exit(f"--val-frac must be in [0, 1), got {args.val_frac}")
     games = list_games(args.data)
-    train_games, val_games = split_games(games, args.val_frac, args.seed)
+    mtimes = game_mtimes(games) if args.val_frac > 0 else [0.0] * len(games)
+    train_games, val_games = split_games(games, args.val_frac, mtimes)
     if args.val_frac > 0 and not val_games:
         print(f"[val] {len(games)} game(s) are too few for --val-frac {args.val_frac}: "
               "no validation set")
@@ -225,7 +230,7 @@ def main():
                       cache=not args.no_cache, diff_focus=args.diff_focus,
                       df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min,
                       sparse=args.sparse_cache, max_records=args.max_records,
-                      games=train_games, label="train" if val_games else "")
+                      games=train_games, label="train" if val_games else "", seed=args.seed)
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
                     num_workers=workers, pin_memory=pin,
                     persistent_workers=(workers > 0))
@@ -247,6 +252,11 @@ def main():
         val_loaders = (eval_loader(Subset(ds, train_part)), eval_loader(ds_val))
         print(f"[val] {len(val_games)} of {len(games)} games held out ({len(ds_val)} positions), "
               f"compared with {len(train_part)} training positions")
+        stamp = dict(zip(games, mtimes))
+        day = lambda t: time.strftime("%Y-%m-%d %H:%M", time.localtime(t))
+        print(f"[val] validation games modified {day(min(stamp[g] for g in val_games))} .. "
+              f"{day(max(stamp[g] for g in val_games))}; training games up to "
+              f"{day(max(stamp[g] for g in train_games))}")
 
     def report(what, model):
         if val_loaders is None:

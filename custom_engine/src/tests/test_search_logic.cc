@@ -94,6 +94,14 @@ void TestSearchTargetPerspective() {
     for (const auto& c : cases) {
         fztest::DetBackend backend(/*runs_on_cpu=*/true, /*batch=*/8, /*immediate_mod=*/0);
         fztest::TestSearchOptions opts;
+        // Optimistic first-play urgency at the root: every root move is tried
+        // once before any is tried again, so the search finds the win whatever
+        // prior the deterministic net gives it. With lc0's default (untried
+        // moves valued well below the parent) a move given ~0.1% is never tried
+        // in 400 playouts -- which fake net that is must not decide a test of
+        // the record's signs.
+        opts.Set("fpu-strategy-at-root", "absolute");
+        opts.Set("fpu-value-at-root", "1");
         auto tree = std::make_unique<NodeTree>();
         tree->ResetToPosition(c.fen, {});
         const lczero::Move win = fztest::ParseLegalMove(tree->GetPositionHistory(), c.win);
@@ -146,7 +154,7 @@ void TestSearchTargetPerspective() {
             lczero::FillSearchTargets(tree->GetCurrentHead(), tree->GetPositionHistory(),
                                       backend.get(), rec);
             const float net_q =
-                fztest::DetValue(tree->GetPositionHistory().Last().Hash()).q;
+                fztest::DetValue(fztest::DetKey(tree->GetPositionHistory().Last())).q;
             std::cout << "  1 playout, " << (tree->IsBlackToMove() ? "Black" : "White")
                       << " to move: net q=" << net_q << " orig_q=" << rec.orig_q
                       << " root_q=" << rec.root_q << std::endl;
@@ -254,7 +262,7 @@ void CheckSubtree(const Node* node, lczero::PositionHistory* hist, InvariantRepo
         return;
     }
     // The node's own evaluation, exactly as the deterministic backend gave it.
-    const fztest::DetEval own = fztest::DetValue(hist->Last().Hash());
+    const fztest::DetEval own = fztest::DetValue(fztest::DetKey(hist->Last()));
     uint64_t child_n = 0;
     double wl_sum = -static_cast<double>(own.q);  // stored from the mover's view
     double d_sum = own.d;
@@ -467,7 +475,7 @@ void TestConcurrentAddInput(const std::string& weights_path) {
     const auto pos = DistinctPositions(64);
     std::vector<ExpectedEval> det(pos.size());
     for (size_t i = 0; i < pos.size(); ++i) {
-        const uint64_t key = pos[i].history->Last().Hash();
+        const uint64_t key = fztest::DetKey(pos[i].history->Last());
         const auto e = fztest::DetValue(key);
         det[i].q = e.q;
         det[i].d = e.d;

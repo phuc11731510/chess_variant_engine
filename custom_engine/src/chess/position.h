@@ -137,7 +137,12 @@ class Thread;
 
 class Position {
 public:
-  static void init();
+  // Zobrist keys from `seed` in [1e9, 1e10 - 1], or from a random seed when 0
+  // (new keys every run); returns the seed used. See position.cpp.
+  static uint64_t init(uint64_t seed = 0);
+  static uint64_t random_zobrist_seed();
+  static uint64_t zobrist_seed();
+  static int zobrist_cuckoo_max_kicks();   // longest cuckoo insertion (tests)
 
   Position() = default;
   Position(const Position&) = delete;

@@ -20,6 +20,7 @@ import torch
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet  # noqa: E402
 from train import export_onnx, verify_onnx  # noqa: E402
+from run_seed import resolve_seed  # noqa: E402
 
 
 def main():
@@ -29,8 +30,10 @@ def main():
     ap.add_argument("--blocks", type=int, default=10)
     ap.add_argument("--se-ratio", type=int, default=8,
                     help="SE block squeeze ratio (must match train.py --se-ratio for warm-start)")
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=None,
+                    help="seed of the starting weights (default: random for every run, printed)")
     args = ap.parse_args()
+    args.seed = resolve_seed(args.seed, "make_seed")
 
     # Create the output directory if it doesn't exist yet (e.g. a fresh checkout
     # has no models/ dir), so torch.save / ONNX export don't fail.

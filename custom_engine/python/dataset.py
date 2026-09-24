@@ -8,6 +8,7 @@ are cached in RAM (fast epochs); for large-scale training use a streaming reader
 import glob
 import os
 import random
+import time
 import zipfile
 
 import numpy as np
@@ -105,9 +106,26 @@ def list_games(data):
     return games
 
 
-def split_games(games, val_frac, seed=0):
-    """Hold out round(val_frac * #games) WHOLE games, drawn at random (seeded) from
-    all of them whatever their generation, as a validation set.
+def game_mtimes(games):
+    """Modification time (seconds) of every game of list_games: the file's, or the
+    one a .zip keeps for the member (2 s resolution). Renaming a file keeps it."""
+    out, stamps = [], {}
+    for path, member in games:
+        if member is None:
+            out.append(os.path.getmtime(path))
+            continue
+        if path not in stamps:
+            with zipfile.ZipFile(path) as zf:
+                stamps[path] = {i.filename: time.mktime(i.date_time + (0, 0, -1)) for i in zf.infolist()}
+        out.append(stamps[path][member])
+    return out
+
+
+def split_games(games, val_frac, mtimes):
+    """Hold out the round(val_frac * #games) NEWEST games (by modification time,
+    ties by load order) as a validation set: the latest self-play, which the
+    net being warm-started from never trained on (older games in the window it
+    did). No shuffling here; the training games are shuffled by the DataLoader.
 
     Whole games, not positions: the positions of one game share its result z and
     look alike, so with a game on both sides a net that memorized it would look
@@ -118,7 +136,8 @@ def split_games(games, val_frac, seed=0):
         return list(games), []
     if n_val >= len(games):
         raise ValueError(f"--val-frac {val_frac} would hold out all {len(games)} games")
-    held = set(random.Random(seed).sample(range(len(games)), n_val))
+    order = sorted(range(len(games)), key=lambda i: (mtimes[i], i))
+    held = set(order[len(games) - n_val:])
     return ([g for i, g in enumerate(games) if i not in held],
             [g for i, g in enumerate(games) if i in held])
 
