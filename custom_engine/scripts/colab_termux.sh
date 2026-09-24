@@ -38,12 +38,11 @@ check_gpu() {
 case "${1:-}" in
 start)
   if colab sessions 2>/dev/null | grep -qw -- "$S"; then
-    echo "[fz] phien '$S' DA TON TAI (co the la VM CPU cu). Kiem: bash $0 gpu"
-    echo "[fz] muon xin lai tu dau: bash $0 stop  roi  bash $0 start"
-    exit 1
+    echo "[fz] phien '$S' da ton tai -- dung lai may nay (neu chi co CPU se tra may, chay lai start)."
+  else
+    colab new -s "$S" --gpu "$GPU"
+    colab status -s "$S" || true
   fi
-  colab new -s "$S" --gpu "$GPU"
-  colab status -s "$S" || true
   if ! check_gpu; then
     echo "[fz] LOI: VM KHONG co GPU (chi CPU). Tra VM de khoi ton quota."
     echo "[fz] Nguyen nhan hay gap: het quota GPU mien phi hom nay, hoac lenh 'colab new' thieu --gpu."
@@ -111,6 +110,6 @@ stop)
   colab stop -s "$S"
   ;;
 *)
-  sed -n '2,15p' "$0"; exit 1
+  sed -n '2,14p' "$0"; exit 1
   ;;
 esac

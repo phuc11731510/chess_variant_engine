@@ -179,7 +179,7 @@ Các lý do khác có thể khiến không có GPU:
 
 | Hiện tượng | Nguyên nhân | Cách xử lý |
 |---|---|---|
-| `start` báo `phien 'fz' DA TON TAI` | Còn phiên `fz` cũ (có thể là máy CPU từ lần trước) | `bash colab_termux.sh gpu` để xem; nếu là CPU: `stop` rồi `start` lại |
+| `start` báo `phien 'fz' da ton tai` rồi `VM KHONG co GPU` | Còn phiên `fz` cũ là máy CPU | Script đã tự trả máy đó; chạy lại `start` để xin máy T4 mới (phiên `fz` cũ có GPU thì `start` dùng lại luôn) |
 | `colab new --gpu T4` báo lỗi hết tài nguyên / quota | Tài khoản miễn phí đã dùng hết GPU trong ngày | Đợi vài giờ đến một ngày; hoặc Colab Pro |
 | Lỡ `colab new` tay không `--gpu` | Mặc định là CPU | `colab stop -s <tên>` rồi xin lại có `--gpu T4` |
 | Có nhiều phiên cùng lúc | `colab exec` không `-s` chỉ tự chọn khi có đúng 1 phiên | Luôn dùng `-s fz` (script đã làm) |
