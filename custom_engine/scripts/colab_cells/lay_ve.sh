@@ -31,8 +31,9 @@ for c in $CELLS; do
     curl -fsSL -o "$f" "$URL/$c.py" && echo "[tai]        $f"
   fi
 done
-# Menu khong phai thu ban sua -> luon lay ban moi.
+# Menu + phan chay tren may Colab khong phai thu ban sua -> luon lay ban moi.
 curl -fsSL -o ~/fz_menu.sh "$URL/menu.sh" && echo "[tai]        ~/fz_menu.sh"
+curl -fsSL -o ~/fz_may.py "$URL/fz_may.py" && echo "[tai]        ~/fz_may.py"
 
 # Thay hai dong cu (neu co) trong ~/.bashrc.
 #   fz            : mo menu.

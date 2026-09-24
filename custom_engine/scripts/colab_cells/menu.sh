@@ -6,7 +6,7 @@
 # Cach chay mot o:
 #   - O co dong "# fz: nhanh" (01, 05, 09): gui thang cho `colab exec`, ket qua hien ngay.
 #   - O con lai: `colab exec` chi KHOI DONG o do chay nen tren may Colab (IPython rieng, log o
-#     /content/fz_log/<o>.log) roi tra ve ngay; menu xem log truc tiep qua `ssh ... tail -F`.
+#     /content/fz_log/<o>.log) roi tra ve ngay; menu xem log truc tiep qua ssh (fz_may.py).
 #     Ctrl+C chi dong phan xem (ssh), o van chay tiep. Kernel cua colab exec khong bi giu, nen
 #     menu khong bao gio phai cho o chay nen.
 D=$HOME/storage/downloads/FairyZero/o_lenh
@@ -35,58 +35,32 @@ ssh_colab() {
       "root@colab-$S" "$@"
 }
 
+# Phan chay tren may Colab (khoi dong o, trang thai, theo doi log): ~/fz_may.py, gui len
+# /content/fz_log/fz_may.py moi lan khoi dong o. Doc tep do de biet chinh xac no lam gi.
+MAY=$HOME/fz_may.py
+
 # Khoi dong o $1 (so o) tu tep $2 chay nen tren Colab. In "FZ_PID=<pid>", hoac "FZ_BAN=<o>" neu
 # dang co o khac chay nen (khi do khong khoi dong, tru khi $3 = ep).
 khoi_dong() {
-  local b
+  local b m
+  [ -f "$MAY" ] || { echo "[!] Thiếu $MAY -- chạy: bash ~/lay_ve.sh"; return 1; }
   b=$(ghep "$2" | base64 -w0)
+  m=$(base64 -w0 "$MAY")
   colab exec -s "$S" <<EOF
-import base64, os, subprocess, threading, time
-ID, EP, D = "$1", "${3:-}" == "ep", "$LOGD"
-os.makedirs(D, exist_ok=True)
-
-def song(pid):
-    # Con chay = co trong /proc va KHONG phai zombie (Z: da thoat, chua duoc cha thu don).
-    try:
-        return open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[0] != "Z"
-    except (FileNotFoundError, IndexError):
-        return False
-
-ban = None
-try:
-    cu, pid_cu = open(f"{D}/dang_chay").read().split()
-    if song(pid_cu) and not EP:
-        ban = cu
-except (FileNotFoundError, ValueError):
-    pass
-if ban:
-    print(f"FZ_BAN={ban}")
-else:
-    p, log = f"{D}/{ID}.ipy", f"{D}/{ID}.log"
-    open(p, "w").write(base64.b64decode("$b").decode())
-    with open(log, "w") as f:
-        f.write(f"[fz] o {ID} bat dau {time.strftime('%H:%M:%S')}\n")
-        f.flush()
-        lenh = (f"cd /content && stdbuf -oL -eL python3 -m IPython --no-banner --colors=NoColor {p}; "
-                f"rc=\$?; echo \"[fz] o {ID} xong \$(date +%H:%M:%S), ma thoat \$rc\"")
-        pr = subprocess.Popen(["bash", "-c", lenh], stdout=f, stderr=subprocess.STDOUT,
-                              stdin=subprocess.DEVNULL, start_new_session=True,
-                              env=dict(os.environ, PYTHONUNBUFFERED="1"))
-    # Kernel la cha cua o va song suot phien: thu don o ngay khi o thoat, neu khong o thanh
-    # zombie -- "con chay" mai (tail --pid khong dung, menu tuong o con chay).
-    threading.Thread(target=pr.wait, daemon=True).start()
-    open(f"{D}/dang_chay", "w").write(f"{ID} {pr.pid}\n")
-    print(f"FZ_PID={pr.pid}")
+import base64, os
+os.makedirs("$LOGD", exist_ok=True)
+open("$LOGD/fz_may.py", "w").write(base64.b64decode("$m").decode())
+g = {"__name__": "fz_may"}
+exec(open("$LOGD/fz_may.py").read(), g)
+g["khoi_dong"]("$1", "$b", ep=("${3:-}" == "ep"))
 EOF
 }
 
-# Xem log o $1 (pid $2) truc tiep den khi o xong. Tra ve 0 = o da xong, khac 0 = Ctrl+C.
+# Xem log o $1 (pid $2) tu dau va theo tiep den khi o ket thuc (fz_may.py theo_doi).
+# Tra ve 0 = o da ket thuc, khac 0 = Ctrl+C (o van chay tiep).
 xem() {
   echo "== Log trực tiếp ô $1 · Ctrl+C để về menu (ô vẫn chạy tiếp) =="
-  # O da xong (hoac zombie) thi in log roi thoi: tail --pid coi zombie la con song, se cho mai.
-  ssh_colab "t=\$(cut -d')' -f2 /proc/$2/stat 2>/dev/null | awk '{print \$1}');
-    if [ -n \"\$t\" ] && [ \"\$t\" != Z ]; then tail -n +1 -F --pid=$2 $LOGD/$1.log 2>/dev/null;
-    else cat $LOGD/$1.log 2>/dev/null; fi"
+  ssh_colab "python3 $LOGD/fz_may.py theo_doi $1 $2"
 }
 
 # Chay o tep $1: nhanh thi chay thang; con lai thi chay nen + xem log.
