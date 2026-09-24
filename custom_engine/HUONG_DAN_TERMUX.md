@@ -236,7 +236,8 @@ source ~/.bashrc
    **Xoá một tệp ô** trong `o_lenh` thì ô đó biến khỏi menu và không chạy được nữa — menu đọc thẳng
    các tệp này mỗi lần. Lấy lại: `bash lay_ve.sh` (chỉ tải ô còn thiếu). Riêng `00_cau_hinh.py` mà
    mất thì **mọi ô** đều hỏng (chúng cần biến của nó).
-2. Tải menu về `~/fz_menu.sh` (luôn lấy bản mới — đây không phải thứ bạn sửa).
+2. Tải menu về `~/fz_menu.sh` và phần chạy trên máy Colab về `~/fz_may.py` (luôn lấy bản mới —
+   đây không phải thứ bạn sửa).
 3. Thêm hai lệnh vào `~/.bashrc` (chạy lại thì thay dòng cũ, không nhân đôi): **`fz`** mở menu, và
    **`o`** — cách gõ tắt không qua menu (mục 6).
 
@@ -332,9 +333,23 @@ quen gõ lệnh.
    thành `/content/fz_log/<ô>.ipy`, chạy nó **nền** bằng IPython riêng (hiểu `!lệnh`, `%cd` như ô
    sổ tay), mọi chữ in ra ghi vào `/content/fz_log/<ô>.log`, và ghi "ô nào đang chạy" vào
    `/content/fz_log/dang_chay`.
-4. **Xem:** menu mở `ssh` tới máy Colab và chạy `tail -F` log đó: mỗi dòng hiện **ngay lúc in**,
-   từ đầu log. Ô chạy xong thì log in `[fz] o 04 xong …, ma thoat 0` và màn hình tự dừng.
-   **Ctrl+C** đóng `ssh` (và `tail` trên Colab tắt theo) — **ô không bị ảnh hưởng**.
+4. **Xem:** menu mở `ssh` tới máy Colab và chạy `fz_may.py theo_doi`: in log từ đầu rồi in tiếp
+   mỗi dòng **ngay lúc ô in ra**. Ô kết thúc thì log in `[fz] o 04 xong …, ma thoat 0` và màn hình
+   tự dừng. **Ctrl+C** đóng `ssh`; `theo_doi` trên Colab thấy đầu bên kia đã đóng và tự thoát —
+   **ô không bị ảnh hưởng**.
+
+**Ô xong hay chưa — xác định thế nào.** Toàn bộ phần chạy trên máy Colab nằm trong một tệp đọc được:
+`~/fz_may.py` (menu gửi lên `/content/fz_log/fz_may.py` mỗi lần khởi động ô). Hàm `trang_thai` của
+nó cho mỗi ô một trong ba trạng thái, không đoán theo thời gian hay nội dung log:
+
+| Trạng thái | Khi nào |
+|---|---|
+| **xong** (kèm mã thoát) | có tệp `/content/fz_log/<ô>.rc`. Vỏ `bash` bọc ngoài ô ghi mã thoát vào đó **ngay khi IPython chạy ô kết thúc** (ghi qua tệp tạm rồi đổi tên, nên không bao giờ đọc phải tệp ghi dở) |
+| **chạy** | chưa có `.rc`, **và** số PID của ô còn sống (không phải zombie), **và** dòng lệnh của PID đó có `fz_log/<ô>.ipy` — nếu Linux đã cấp lại số PID đó cho tiến trình khác thì dòng lệnh không khớp, không bị nhầm |
+| **bị dừng** | không có `.rc` và tiến trình không còn: bị ô 09 dừng, hoặc máy giết giữa chừng |
+
+Ô 05 và 09 cũng dùng đúng hàm đó. Ô 09 chỉ giết khi trạng thái là **chạy** (đã khớp dòng lệnh), nên
+không bao giờ giết nhầm tiến trình lạ.
 
 Vì sao hai đường (`colab exec` để khởi động, `ssh` để xem)? Máy Colab chỉ có **một kernel**, chạy mỗi
 lần một khối mã; Ctrl+C trên `colab exec` **không** dừng được khối đang chạy trên kernel (đã thử),
@@ -445,7 +460,8 @@ chạy), có thể thoát Termux; xem lại: menu `l`.
 ### Theo dõi: `l` (trực tiếp) và ô 05 (tóm tắt)
 
 - Menu **`l`**: mở lại log trực tiếp của ô chạy nền gần nhất, từ đầu log; Ctrl+C để về.
-- Ô **`05`**: tóm tắt nhanh — **`[DANG CHAY: ô 04]`** hoặc **`[DA XONG: ô 04]`**, 15 dòng log cuối,
+- Ô **`05`**: tóm tắt nhanh — **`[DANG CHAY: ô 04]`**, **`[DA XONG, ma thoat 0: ô 04]`** hoặc
+  **`[BI DUNG giua chung: ô 04]`**, 15 dòng log cuối,
   số tệp ván, mức dùng GPU. Nhiều dòng hơn: sửa `SO_DONG` trong ô.
 
 Khi selfplay xong, cuối log có khối `--- Throughput ---` — so cấu hình bằng `NN eval/giay`, đừng bằng
