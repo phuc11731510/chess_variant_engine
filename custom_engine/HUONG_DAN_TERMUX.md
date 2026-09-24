@@ -202,8 +202,10 @@ colab new -s fz --gpu T4
 giờ đến một ngày, hoặc Colab Pro. GPU khác: `--gpu L4` / `A100` / `H100` (cần Pro / đơn vị tính toán).
 
 **Còn bao lâu nữa bị ngắt?** Menu **`h`**. `colab usage` chỉ in số dư đơn vị **mua** (tài khoản
-miễn phí: 0) — nên menu chạy thêm `~/fz_han_muc.py`, đọc đúng API mà trang web và tiện ích Colab cho
-VS Code của Google dùng (`colab.pa.googleapis.com/v1/user-info`, trường `freeCcuQuotaInfo`):
+miễn phí: 0) — nên menu chạy thêm `~/fz_han_muc.py`. Nó hỏi đúng nơi `colab usage` hỏi
+(`/tun/m/ccu-info`) nhưng đọc **nguyên** câu trả lời: Colab CLI chỉ lấy 3 trường và bỏ trường
+`freeCcuQuotaInfo` (hạn mức miễn phí còn lại, đơn vị phần nghìn; giờ nạp lại) — trường mà tiện ích
+Colab cho VS Code của Google đọc:
 
 ```
 Hạn mức miễn phí còn: 1.60 đơn vị tính toán
