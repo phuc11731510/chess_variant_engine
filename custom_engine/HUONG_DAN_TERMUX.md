@@ -714,6 +714,15 @@ hoặc máy không có GPU.
 
 **`colab: command not found`** — chạy lại mục 2.4.
 
+**`RuntimeError: Connection was lost.`** (khung Traceback của `colab exec`) — không mở được kết nối
+tới kernel Colab (mạng chập chờn), lỗi ngay ở bước đầu, mã của ô CHƯA chạy. Menu tự thử lại 3 lần,
+cách 5 giây. Vẫn lỗi: kiểm mạng, `fz` → `k` xem máy còn không, rồi chạy lại ô. Ô nhanh (01, 05, 09)
+không tự thử lại — chạy lại tay.
+
+**`lay_ve.sh` tải về ô vẫn là bản cũ** — trước đây `raw.githubusercontent.com` lưu đệm ~5 phút sau
+mỗi lần cập nhật. Giờ `lay_ve.sh` tải theo mã commit mới nhất (dòng cuối in `ban <mã>`); vẫn cũ thì
+chạy lại sau vài phút (GitHub API giới hạn 60 lần/giờ, quá thì quay về cách cũ).
+
 **Đăng nhập hết hạn / lỗi quyền** — chạy `colab sessions` để nó in lại link đăng nhập, làm lại mục 3.
 
 **`$'\r': command not found`** — tệp mang xuống dòng kiểu Windows: `sed -i 's/\r$//' <tệp>`.
