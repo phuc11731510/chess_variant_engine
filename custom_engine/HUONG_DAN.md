@@ -77,7 +77,8 @@ python python\make_seed.py --out models\seed.onnx
 **Các núm khởi tạo mạng (chỉ `make_seed.py`):** mạng `FairyNet` có đúng **3 núm KIẾN TRÚC** —
 `--channels` (độ rộng, mặc định 128) · `--blocks` (độ sâu, 10) · `--se-ratio` (nén SE block, 8). Cả ba
 **phải khớp y hệt giữa seed ↔ MỌI đời `train.py`**, nếu khác thì không nạp được trọng số cũ (vỡ warm-start).
-Ngoài ra `--seed` (mặc định 0) chỉ để **tái lập** kết quả ngẫu nhiên, **không** phải kiến trúc.
+Ngoài ra `--seed` chỉ để **tái lập** kết quả ngẫu nhiên, **không** phải kiến trúc: mặc định mỗi lần chạy
+tự rút một seed 10 chữ số (dòng `[make_seed] seed …` trong log); truyền lại số đó để ra đúng mạng cũ.
 `--dropout` **không** thuộc nhóm này — nó là loại "hàm" (không sinh tham số, tắt khi chơi), nên an toàn
 warm-start và không cần đặt ở seed. Đó là **toàn bộ** núm khởi tạo; phần còn lại của mạng (value head,
 policy head, số plane đầu vào…) **cố định cứng** trong `model.py`.
@@ -733,6 +734,7 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--noise-alpha F` | 0.3 | Độ "tù" của nhiễu Dirichlet: lớn → nhiễu trải đều các nước; nhỏ → dồn vào ít nước. |
 | `--policy-temp F` | 1.0 | Làm "mềm" gợi ý mạng khi tự chơi (xem `policy-softmax-temp` ở D.1). |
 | `--cpuct F` | auto(1.745) | Hệ số thăm dò MCTS khi tự chơi (xem `cpuct` ở D.1). |
+| `--zobrist-seed N` | ngẫu nhiên | Seed 10 chữ số (10^9 … 10^10−1) của **khoá Zobrist** ("dấu vân tay" thế cờ dùng cho lặp thế và cache mạng). Mặc định mỗi lần chạy chương trình một seed mới, rút từ nguồn ngẫu nhiên của hệ điều hành, in ở dòng đầu log: `Zobrist seed … (random for this run; --zobrist-seed … repeats it)`. Chỉ ảnh hưởng dấu vân tay, **không** ảnh hưởng nước đi, nhiễu hay nhiệt độ. Có ở mọi chế độ (self-play, arena, UCI, test). |
 | `--start-fen FEN\|FILE` | startpos | Thế cờ bắt đầu mỗi ván; truyền một tệp để xoay vòng nhiều thế (đa dạng khai cuộc; một FEN mỗi dòng, `#` là chú thích). Mỗi FEN được **kiểm trước ván đầu**: đủ trường `N+N` (thiếu thì FSF chơi 1+1), bàn 10×10, đúng một Hoàng gia mỗi bên, bên không tới lượt không bị chiếu, quyền nhập thành ra đúng như viết (xem A.4). Sai là dừng và báo số dòng. |
 | `--resign-threshold F` | tắt | Tự xin thua khi điểm tốt nhất `best_q ≤ F` để bỏ ván thua rõ (nhanh hơn). Bật bằng vd `-0.90`; mặc định tắt = đánh tới cùng. |
 | `--resign-consecutive N` | 3 | Cần N **lượt liên tiếp** dưới ngưỡng mới xin thua (tránh thua nhầm vì một nước tụt điểm). |
@@ -823,13 +825,13 @@ backend_opts tương ứng (xem `onnx_backend.cc`) sau khi đã xác minh.
 | `--optimizer adamw\|sgd\|nadam` | adamw | Thuật toán tối ưu. `adamw` (mặc định) bền, chạy ngon với LR hằng; `sgd`+momentum = recipe chuẩn lc0 (mạnh nhất nhưng cần lịch LR đúng); `nadam` = Adam + Nesterov. |
 | `--momentum M` | 0.9 | Quán tính cho `--optimizer sgd` (bật luôn Nesterov). Chỉ dùng khi chọn sgd. |
 | `--grad-clip G` | 0 (tắt) | Cắt độ lớn (norm) của gradient xuống ≤ G để tránh "nổ" gradient làm train phân kỳ. 0 = tắt. |
-| `--seed S` | 0 | Hạt giống ngẫu nhiên để chạy lại cho ra kết quả y hệt (tái lập thí nghiệm). |
+| `--seed S` | ngẫu nhiên | Seed của lần train: thứ tự xáo trộn thế cờ, down-sampling, chọn ván kiểm định. Mặc định **mỗi lần chạy một seed 10 chữ số mới** (10^9 … 10^10−1), rút từ bộ sinh số ngẫu nhiên an toàn của hệ điều hành (`secrets`), in ở log: `[train] seed … (random for this run; --seed … repeats it)`. Truyền lại số đó để train lại y hệt từng trọng số (trên CPU; GPU có thể lệch rất nhỏ). |
 | `--warmup-steps N` | 0 | Tăng LR tuyến tính từ 0 lên trong N bước đầu cho ổn định, rồi mới theo lịch. |
 | `--lr-values a,b` + `--lr-boundaries i` | — | **Lịch LR bậc thang** kiểu lc0: đặt LR theo từng chặng bước (ghi đè `--lr`). Vd values `0.02,0.002,0.0005` + boundaries `100000,130000`. |
 | `--accum-steps K` | 1 | **Tích lũy gradient** K lô nhỏ rồi mới cập nhật một lần → batch hiệu dụng = batch × K, mà bộ nhớ chỉ tốn bằng một lô. Cứu cánh cho GPU nhỏ (Colab). |
 | `--max-steps N` | 0 | Dừng sau N bước tối ưu (thay cho hoặc cùng với `--epochs`). 0 = chỉ theo epochs. Dừng trước khi SWA lấy mẫu nào thì xuất trọng số đã học như hiện có (trước 2026-09-24 xuất nhầm **trọng số ban đầu chưa học**). |
 | `--max-records N` | 0 | Chỉ nạp tối đa N thế cờ (chạy thử nhanh / hạn chế RAM). 0 = nạp tất cả. |
-| `--val-frac F` | 0.04 | **Tập kiểm định:** giữ riêng tỉ lệ F số **ván** (nguyên ván: mọi thế cờ của ván đó; mỗi tệp `game_*.gz` hay mỗi ván trong `.zip` là một ván), chọn **ngẫu nhiên** theo `--seed` trong mọi đời của `--data`, không đem train. In `[val]` 4 lần với `--epochs 2`: trọng số ban đầu, sau epoch 1, sau epoch 2, mạng xuất ra (sau SWA). Mỗi dòng có 2 cặp số: `train:` (một phần tập train, cùng số thế cờ với tập kiểm định) và `validation:`; cả hai tính như nhau (trọng số cố định, trung bình loss trên từng thế cờ). `validation` cao hơn `train` nhiều và ngày càng xa = mạng học thuộc ván. Ít ván quá (F × số ván làm tròn ra 0) thì bỏ qua và báo. 0 = tắt. |
+| `--val-frac F` | 0.04 | **Tập kiểm định:** giữ riêng tỉ lệ F số **ván** (nguyên ván: mọi thế cờ của ván đó; mỗi tệp `game_*.gz` hay mỗi ván trong `.zip` là một ván), chọn là các ván có **thời gian sửa (date modified) mới nhất** — tức self-play mới nhất, mạng đời trước chưa học — không đem train (đổi tên tệp bằng Explorer không đổi thời gian này; `.zip` giữ thời gian của từng tệp). Log in `[val] validation games modified … ; training games up to …` để kiểm là ván đời mới nhất. In `[val]` 4 lần với `--epochs 2`: trọng số ban đầu, sau epoch 1, sau epoch 2, mạng xuất ra (sau SWA). Mỗi dòng có 2 cặp số: `train:` (một phần tập train, cùng số thế cờ với tập kiểm định) và `validation:`; cả hai tính như nhau (trọng số cố định, trung bình loss trên từng thế cờ). `validation` cao hơn `train` nhiều và ngày càng xa = mạng học thuộc ván. Ít ván quá (F × số ván làm tròn ra 0) thì bỏ qua và báo. 0 = tắt. |
 | `--report-every N` | 0 | In loss mỗi N bước để theo dõi tiến độ trong epoch. 0 = chỉ báo cáo theo từng epoch. |
 | `--save-every N` | 0 | Lưu checkpoint `.pt` mỗi N bước (đề phòng mất điện/đứt Colab). 0 = chỉ lưu khi xong. |
 | `--se-ratio R` | 8 | Mức nén của SE block trong mạng (xem giải thích ở mục B câu hỏi se-ratio). **CHỈ đổi khi train từ đầu** — đổi giữa chừng sẽ không nạp được trọng số cũ. |

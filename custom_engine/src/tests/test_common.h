@@ -135,9 +135,11 @@ public:
 // Deterministic backend for the STRICT search tests (test_search_logic.cc,
 // test_history.cc).
 //
-// Every evaluation is a pure function of the position key (Fairy-Stockfish
-// Zobrist key of history->Last()), so a test can recompute exactly what the
-// search was told about any node and check the tree's bookkeeping against it.
+// Every evaluation is a pure function of the position (DetKey of
+// history->Last()), so a test can recompute exactly what the search was told
+// about any node and check the tree's bookkeeping against it. DetKey, not the
+// Zobrist key: those are drawn anew every run, and a "net" that changed with
+// them made the strict tests pass or fail by the seed.
 // Unlike MockBackend it:
 //   * returns NON-uniform priors and non-zero values, so sign and ordering
 //     mistakes are visible instead of cancelling out;
@@ -157,6 +159,25 @@ inline uint64_t Mix64(uint64_t x) {  // splitmix64 finalizer
     x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
     x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
     return x ^ (x >> 31);
+}
+
+// A position's identity that does not depend on the run's Zobrist seed: the
+// fields Hash() covers (pieces, side to move, castling rooks, e.p. squares,
+// checks left) mixed with fixed constants. Tests only; not fast.
+inline uint64_t DetKey(const lczero::Position& pos) {
+    const Stockfish::Position& p = pos.GetBoard().GetRawPosition();
+    uint64_t h = Mix64(0xD1B54A32D192ED03ULL + uint64_t(p.side_to_move()));
+    for (Stockfish::Bitboard b = p.pieces(); b;) {
+        const Stockfish::Square s = Stockfish::pop_lsb(b);
+        h = Mix64(h ^ (uint64_t(s) << 16 | uint64_t(p.piece_on(s))));
+    }
+    for (Stockfish::CastlingRights cr : {Stockfish::WHITE_OO, Stockfish::WHITE_OOO,
+                                         Stockfish::BLACK_OO, Stockfish::BLACK_OOO})
+        h = Mix64(h ^ (p.can_castle(cr) ? 0x10000ULL + uint64_t(p.castling_rook_square(cr)) : 7ULL));
+    for (Stockfish::Bitboard b = p.ep_squares(); b;)
+        h = Mix64(h ^ (0x20000ULL + uint64_t(Stockfish::pop_lsb(b))));
+    return Mix64(h ^ (uint64_t(p.checks_remaining(Stockfish::WHITE)) << 8 |
+                      uint64_t(p.checks_remaining(Stockfish::BLACK))));
 }
 
 struct DetEval { float q; float d; };
@@ -196,7 +217,7 @@ public:
     }
     AddInputResult AddInput(const lczero::EvalPosition& pos,
                             lczero::EvalResultPtr result) override {
-        const uint64_t key = pos.history->Last().Hash();
+        const uint64_t key = DetKey(pos.history->Last());
         const size_t n = pos.legal_moves.size();
         if (immediate_mod_ > 0 && Mix64(key ^ 0x5bd1e995ULL) % immediate_mod_ == 0) {
             DetFill(key, n, result);

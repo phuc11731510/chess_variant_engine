@@ -736,6 +736,59 @@ void run_board_tests() {
                      "rook square in the key, FEN round-trip, record squares)\n" << std::endl;
     }
 
+    // TEST 9: the Zobrist keys come from a seed -- random for every run, in
+    // [1e9, 1e10 - 1], repeatable with --zobrist-seed -- and every seed builds the
+    // cuckoo (upcoming-repetition) tables with a wide margin.
+    {
+        std::cout << "TEST 9: Zobrist seed..." << std::endl;
+        int bad = 0;
+        auto fail = [&](const std::string& what) { ++bad; std::cerr << "[FAIL] " << what << std::endl; };
+        constexpr uint64_t lo = 1000000000ULL, hi = 9999999999ULL;
+        const uint64_t run_seed = Position::zobrist_seed();
+        if (run_seed < lo || run_seed > hi) fail("this run's seed " + std::to_string(run_seed) + " out of range");
+
+        // Draws: in range, all different, every leading digit about 1/9 of the time.
+        std::set<uint64_t> seen;
+        int lead[10] = {};
+        for (int i = 0; i < 1800; ++i) {
+            const uint64_t s = Position::random_zobrist_seed();
+            if (s < lo || s > hi) fail("random seed " + std::to_string(s) + " out of range");
+            seen.insert(s);
+            ++lead[s / lo % 10];
+        }
+        if (seen.size() != 1800) fail("1800 random seeds gave only " + std::to_string(seen.size()) + " values");
+        for (int d = 1; d <= 9; ++d)   // expected 200 each, standard deviation ~13
+            if (lead[d] < 140 || lead[d] > 260)
+                fail("leading digit " + std::to_string(d) + " drawn " + std::to_string(lead[d]) + " times of 1800");
+
+        // Same seed, same keys; another seed, other keys.
+        auto start_key = [] { return lczero::ChessBoard().Hash(); };
+        const uint64_t a = 1234567890ULL, b = 9876543210ULL;
+        if (Position::init(a) != a || Position::zobrist_seed() != a) fail("init(1234567890) used another seed");
+        const uint64_t ka = start_key();
+        Position::init(b);
+        const uint64_t kb = start_key();
+        Position::init(a);
+        if (start_key() != ka || ka == kb) fail("the start position's key does not follow the seed");
+
+        // Random seeds: the cuckoo insertions settle far below the bound.
+        int worst = 0;
+        for (int i = 0; i < 100; ++i) {
+            const uint64_t s = Position::random_zobrist_seed();
+            if (Position::init(s) != s) fail("seed " + std::to_string(s) + " was replaced");
+            worst = std::max(worst, Position::zobrist_cuckoo_max_kicks());
+        }
+        if (worst > 200) fail("a cuckoo insertion needed " + std::to_string(worst) + " moves");
+        Position::init(run_seed);   // back to this run's keys (endgame tables were built with them)
+
+        if (bad) {
+            std::cerr << "[FAIL] TEST 9: " << bad << " failure(s)" << std::endl;
+            std::exit(1);
+        }
+        std::cout << "[PASS] TEST 9 passed! (seed " << run_seed << "; 1800 draws in range; same seed = same "
+                     "keys; 100 random seeds, longest cuckoo insertion " << worst << " moves)\n" << std::endl;
+    }
+
     std::cout << "========================================" << std::endl;
     std::cout << "ALL CHESSBOARD BRIDGE TESTS PASSED!" << std::endl;
     std::cout << "========================================\n" << std::endl;

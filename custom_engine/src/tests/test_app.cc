@@ -89,6 +89,12 @@ void TestParseCli() {
         EXPECT(s.sp_search_opts.size() == 2 && s.sp_search_opts[1].first == "cpuct" &&
                    s.sp_search_opts[1].second == "2.5",
                "--search-opt pairs");
+        // --zobrist-seed takes the 10-digit seeds the engine prints (past a 32-bit long).
+        const auto z = Parse({"--selfplay", "--zobrist-seed", "9999999999"});
+        EXPECT(z.errors.empty() && z.zobrist_seed == 9999999999ULL, "--zobrist-seed 9999999999");
+        EXPECT(Parse({"--selfplay", "--zobrist-seed", "1000000000"}).zobrist_seed == 1000000000ULL &&
+                   Parse({"--selfplay"}).zobrist_seed == 0,
+               "--zobrist-seed 1000000000, and 0 (random) without the flag");
     }
     // Every one of these must be an error, not a default.
     for (const auto& args : std::vector<std::vector<std::string>>{
@@ -112,6 +118,11 @@ void TestParseCli() {
              {"--selfplay", "--provider", "gpu"},
              {"--selfplay", "800"},                      // stray word
              {"--selfplay", "--weights"},
+             {"--selfplay", "--zobrist-seed", "999999999"},     // 9 digits
+             {"--selfplay", "--zobrist-seed", "10000000000"},   // 11 digits
+             {"--selfplay", "--zobrist-seed", "-1234567890"},
+             {"--selfplay", "--zobrist-seed", "12345678901234567890123"},
+             {"--selfplay", "--zobrist-seed", "12345x7890"},
          }) {
         const auto o = Parse(args);
         EXPECT(!o.errors.empty(), "'" << Join(args) << "' was accepted");

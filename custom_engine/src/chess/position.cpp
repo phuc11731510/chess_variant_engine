@@ -19,7 +19,9 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef> // For offsetof()
+#include <chrono>
 #include <cstring> // For std::memset, std::memcmp
+#include <random>
 #include <iomanip>
 #include <sstream>
 
@@ -164,49 +166,92 @@ Move cuckooMove[8192];
 #endif
 
 
-/// Position::init() initializes at startup the various arrays used to compute hash keys
+namespace {
 
-void Position::init() {
+// SplitMix64 (Steele, Lea, Flood 2014): a 64-bit counter through a strong
+// bijective mixer. Spreads a seed over xoshiro's 256-bit state, and draws seeds.
+uint64_t splitmix64(uint64_t& x) {
+  uint64_t z = (x += 0x9E3779B97F4A7C15ULL);
+  z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+  z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+  return z ^ (z >> 31);
+}
 
-  PRNG rng(1070372);
+// xoshiro256** (Blackman, Vigna 2018), seeded through SplitMix64 as its authors
+// recommend: 256-bit state, period 2^256 - 1, passes BigCrush and PractRand.
+// Zobrist keys are only ever XORed together, so a generator whose outputs are
+// linear over GF(2) in its state (Mersenne Twister, plain xorshift) could leave
+// small sets of keys XOR-dependent -- positions a few pieces apart with the same
+// key. This output function (multiply, rotate, multiply) is not linear.
+class ZobristRng {
+  uint64_t s[4];
+  static uint64_t rotl(uint64_t x, int k) { return (x << k) | (x >> (64 - k)); }
+public:
+  explicit ZobristRng(uint64_t seed) { for (uint64_t& w : s) w = splitmix64(seed); }
+  // Never 0: a zero key would leave its feature out of the hash.
+  Key key() {
+    uint64_t r;
+    do {
+        r = rotl(s[1] * 5, 7) * 9;
+        const uint64_t t = s[1] << 17;
+        s[2] ^= s[0]; s[3] ^= s[1]; s[1] ^= s[2]; s[0] ^= s[3];
+        s[2] ^= t; s[3] = rotl(s[3], 45);
+    } while (!r);
+    return r;
+  }
+};
+
+// The seeds: the ten-digit numbers.
+constexpr uint64_t ZobristSeedMin = 1000000000ULL, ZobristSeedMax = 9999999999ULL;
+// A cuckoo insertion needs a handful of moves (the table is 29% full); one that
+// has not settled after this many is in a cycle and never would.
+constexpr int CuckooMaxKicks = 10000;
+uint64_t zobristSeed = 0;
+int cuckooMaxKicks = 0;   // longest insertion into the current cuckoo tables
+
+// Fills every Zobrist table from `seed`, then the cuckoo tables. False when a
+// cuckoo insertion does not settle (the tables are then unusable).
+bool init_keys(uint64_t seed) {
+
+  ZobristRng rng(seed);
 
   for (Color c : {WHITE, BLACK})
       for (PieceType pt = PAWN; pt <= KING; ++pt)
           for (Square s = SQ_A1; s <= SQ_MAX; ++s)
-              Zobrist::psq[make_piece(c, pt)][s] = rng.rand<Key>();
+              Zobrist::psq[make_piece(c, pt)][s] = rng.key();
 
   for (Square s = SQ_A1; s <= SQ_MAX; ++s)
-      Zobrist::enpassant[s] = rng.rand<Key>();
+      Zobrist::enpassant[s] = rng.key();
 
   for (int cr = NO_CASTLING; cr <= ANY_CASTLING; ++cr)
-      Zobrist::castling[cr] = rng.rand<Key>();
+      Zobrist::castling[cr] = rng.key();
 
-  Zobrist::side = rng.rand<Key>();
-  Zobrist::noPawns = rng.rand<Key>();
+  Zobrist::side = rng.key();
+  Zobrist::noPawns = rng.key();
 
   for (Color c : {WHITE, BLACK})
       for (int n = 0; n < CHECKS_NB; ++n)
-          Zobrist::checks[c][n] = rng.rand<Key>();
+          Zobrist::checks[c][n] = rng.key();
 
   for (Color c : {WHITE, BLACK})
       for (PieceType pt = PAWN; pt <= KING; ++pt)
           for (int n = 0; n < SQUARE_NB; ++n)
-              Zobrist::inHand[make_piece(c, pt)][n] = rng.rand<Key>();
+              Zobrist::inHand[make_piece(c, pt)][n] = rng.key();
 
   for (Square s = SQ_A1; s <= SQ_MAX; ++s)
-      Zobrist::wall[s] = rng.rand<Key>();
+      Zobrist::wall[s] = rng.key();
 
   for (int i = NO_EG_EVAL; i < EG_EVAL_NB; ++i)
-      Zobrist::endgame[i] = rng.rand<Key>();
+      Zobrist::endgame[i] = rng.key();
 
-  // Drawn last so that every key above keeps its value.
   for (int i = 0; i < 4; ++i)
       for (Square s = SQ_A1; s <= SQ_MAX; ++s)
-          Zobrist::castlingRook[i][s] = rng.rand<Key>();
+          Zobrist::castlingRook[i][s] = rng.key();
 
   // Prepare the cuckoo tables
   std::memset(cuckoo, 0, sizeof(cuckoo));
   std::memset(cuckooMove, 0, sizeof(cuckooMove));
+  cuckooMaxKicks = 0;
   [[maybe_unused]] int count = 0;
   for (Color c : {WHITE, BLACK})
       for (PieceSet ps = CHESS_PIECES & ~piece_set(PAWN); ps;)
@@ -219,12 +264,17 @@ void Position::init() {
                   Move move = make_move(s1, s2);
                   Key key = Zobrist::psq[pc][s1] ^ Zobrist::psq[pc][s2] ^ Zobrist::side;
                   int i = H1(key);
-                  while (true)
+                  for (int kicks = 0; ; ++kicks)
                   {
                       std::swap(cuckoo[i], key);
                       std::swap(cuckooMove[i], move);
                       if (move == MOVE_NONE) // Arrived at empty slot?
+                      {
+                          cuckooMaxKicks = std::max(cuckooMaxKicks, kicks);
                           break;
+                      }
+                      if (kicks == CuckooMaxKicks)
+                          return false;
                       i = (i == H1(key)) ? H2(key) : H1(key); // Push victim to alternative slot
                   }
                   count++;
@@ -235,7 +285,54 @@ void Position::init() {
 #else
   assert(count == 3668);
 #endif
+  return true;
 }
+
+} // namespace
+
+
+/// Position::init() initializes at startup the various arrays used to compute
+/// hash keys, from `seed` (in [1e9, 1e10 - 1]) or, when it is 0, from a seed
+/// drawn at random: a new set of keys for every run of the program. It returns
+/// the seed used, which --zobrist-seed takes to repeat a run. The keys only
+/// live in this process (nothing stores or exchanges them), so runs with
+/// different keys never meet. In the rare case where a seed's cuckoo table does
+/// not settle -- measured: 1 seed in 20,000, whose insertion loop (unbounded in
+/// Fairy-Stockfish) would have hung the program at startup; every other seed
+/// settled within 25 moves -- the next seed is used instead, so every seed
+/// still stands for one well-defined set of keys.
+
+uint64_t Position::init(uint64_t seed) {
+
+  if (!seed)
+      seed = random_zobrist_seed();
+  while (!init_keys(seed))
+      seed = seed == ZobristSeedMax ? ZobristSeedMin : seed + 1;
+  zobristSeed = seed;
+  return seed;
+}
+
+
+/// Position::random_zobrist_seed() draws a seed uniformly in [1e9, 1e10 - 1]
+/// from the operating system's entropy (std::random_device: RtlGenRandom on
+/// Windows, getrandom / /dev/urandom on Linux), mixed with the clock in case a
+/// platform's random_device is weak. Rejection keeps the draw unbiased.
+
+uint64_t Position::random_zobrist_seed() {
+
+  std::random_device rd;
+  uint64_t x = (uint64_t(rd()) << 32) ^ uint64_t(rd())
+             ^ uint64_t(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+  constexpr uint64_t span = ZobristSeedMax - ZobristSeedMin + 1;
+  constexpr uint64_t limit = UINT64_MAX - UINT64_MAX % span;
+  uint64_t r;
+  do r = splitmix64(x); while (r >= limit);
+  return ZobristSeedMin + r % span;
+}
+
+uint64_t Position::zobrist_seed() { return zobristSeed; }
+
+int Position::zobrist_cuckoo_max_kicks() { return cuckooMaxKicks; }
 
 Key Position::material_key(EndgameEval e) const {
 #ifdef LCZERO_MCTS

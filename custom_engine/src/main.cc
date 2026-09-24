@@ -78,7 +78,15 @@ int main(int argc, char* argv[]) {
     Tune::init();
     PSQT::init(variants.find(Options["UCI_Variant"])->second);
     Bitboards::init();
-    Position::init();
+    // Zobrist keys: new ones every run unless --zobrist-seed repeats a run's.
+    const uint64_t zobrist_seed = Position::init(o.zobrist_seed);
+    std::cout << "Zobrist seed " << zobrist_seed
+              << (!o.zobrist_seed ? " (random for this run; --zobrist-seed " + std::to_string(zobrist_seed) +
+                                        " repeats it)"
+                  : zobrist_seed == o.zobrist_seed ? " (--zobrist-seed)"
+                  : " (--zobrist-seed " + std::to_string(o.zobrist_seed) +
+                        " gives no valid repetition table; its successor is used)")
+              << std::endl;
     Bitbases::init();
     Endgames::init();
     Threads.set(size_t(Options["Threads"]));
