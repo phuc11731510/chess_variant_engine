@@ -276,7 +276,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 | 03 | `03_tao_gen0.py` | 2 | tạo mạng đời 0 mới (ghi đè gen0) |
 | 04 | `04_sinh_du_lieu.py` | 3 | sinh dữ liệu |
 | 05 | `05_xem_log.py` | — | tình trạng ô chạy nền gần nhất: còn chạy hay xong, log cuối |
-| 06 | `06_dong_goi.py` | 4 | gom ván thành zip |
+| 06 | `06_dong_goi.py` | 4 | gom ván thành zip, tự tải zip về điện thoại |
 | 07 | `07_huan_luyen.py` | 5 | huấn luyện đời sau |
 | 08 | `08_arena.py` | 6 | arena |
 | 09 | `09_dung_viec_nen.py` | — | dừng ngay ô đang chạy nền |
@@ -336,7 +336,7 @@ Các mục chữ của menu:
 | `l` | Log trực tiếp ô chạy nền gần nhất (từ đầu), Ctrl+C để về menu | `ssh … tail -F` |
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
 | `h` | **Hạn mức GPU miễn phí còn lại** (≈ bao nhiêu giờ T4), giờ nạp lại, gợi ý `SECS` cho ô 04 | `colab usage` + `~/fz_han_muc.py` (mục 4) |
-| `d` | **Duyệt thư mục trên Colab** (bắt đầu ở `/content`): gõ số để vào thư mục / tải tệp về `Download/FairyZero/`, `0` lên thư mục cha, `/đường/dẫn` để nhảy tới, `q` về menu | `ssh … find` + `colab download` |
+| `d` | **Duyệt thư mục trên Colab** (bắt đầu ở `/content`): gõ số để vào thư mục / tải tệp về `Download/FairyZero/`, `0` lên thư mục cha, `/đường/dẫn` để nhảy tới, `q` về menu. Trùng tên → `ten (2).duoi` như Explorer, không ghi đè; tải vào tệp tạm, đủ kích thước mới đặt tên (hai cửa sổ tải cùng lúc không hỏng tệp) | `ssh … find` + `ssh … cat` (lỗi thì `colab download`) |
 | `u` | **Duyệt thư mục trên điện thoại** (bắt đầu ở `Download/FairyZero`, `0` lên được tới `~/storage/shared` = bộ nhớ trong): số = vào thư mục / tải tệp lên `/content/` (giữ tên); `.` = hiện/ẩn tệp ẩn; `c` = trình chọn tệp của Android (cần Termux:API) | `find` + `colab upload` |
 | `t` | **Trả máy — liệt kê MỌI máy** đang giữ trên tài khoản (cả máy không có tên ở điện thoại này: tạo từ web / thiết bị khác), chọn một hay nhiều số, `a` = tất cả; hỏi lại, gõ `co` | `colab stop -s <tên>`; máy không tên: `unassign` |
 | `a` | Tài khoản Colab: thêm, chọn tài khoản cho cửa sổ này, đăng xuất. Nhiều tài khoản cùng lúc: mỗi cửa sổ Termux một `fz @<tên>` | mục 3.1 |
@@ -514,11 +514,17 @@ Lỡ sai tham số, muốn dừng ngay: ô **`09`** (dừng ô chạy nền gầ
 
 ### Ô 06 — đóng gói · vài phút
 
-Đợi ô 04 chạy xong (log in `[fz] o 04 xong …`; hoặc ô 05 báo `DA XONG`), rồi:
+**Cách tiện nhất: gõ `04 06` ngay từ đầu.** Menu chạy 04, xem log tới khi 04 xong, tự chạy 06: gom
+ván thành `games_gen0.zip` rồi **tự tải zip về** `Download/FairyZero/`. Đã có tệp cùng tên thì lưu
+`games_gen0 (2).zip`, `(3)`… như Windows Explorer, không ghi đè. Ctrl+C lúc đang xem 04 thì dừng
+chuỗi; 06 không chạy.
 
-Menu `fz` → chọn **`06`** (gõ tắt: `o 06`).
+Chạy riêng: đợi ô 04 chạy xong (log in `[fz] o 04 xong …`; hoặc ô 05 báo `DA XONG`), rồi menu `fz` →
+**`06`** (gõ tắt: `o 06`). Zip tự tải về khi 06 xong (cần xem 06 tới cuối; Ctrl+C giữa chừng thì
+tải tay: menu **`d`** → `games_gen0.zip`).
 
-Rồi tải về điện thoại: menu **`d`** → gõ `/content/games_gen0.zip` → tệp về `Download/FairyZero/`.
+Gom vào tệp tạm rồi mới thay zip, nên gom lỗi thì zip cũ trên Colab vẫn nguyên, không tải gì. Ô nào
+in dòng `FZ_TAI_VE=<đường dẫn>` thì menu tải tệp đó về khi ô xong — tự thêm vào ô của bạn được.
 
 Đây là bản gốc dữ liệu của bạn — giữ cẩn thận.
 
