@@ -183,6 +183,11 @@ colab new -s fz --gpu T4
 
 ⚠ **Thiếu `--gpu T4` thì Colab cấp máy CPU** (mặc định). `fz` là tên phiên; mọi lệnh sau dùng `-s fz`.
 
+**Chỉ thử nghiệm (chưa sinh dữ liệu thật)?** Xin máy CPU để giữ hạn mức T4: menu **`c`**. Trên máy
+CPU chạy được ô 01, 02, 03, 05, 06, 09, duyệt / tải tệp, log trực tiếp; ô 04, 07, 08 dùng GPU
+(`--provider cuda`, `--amp`) sẽ lỗi. Muốn chuyển sang T4: `t` (trả máy — mất `/content`) rồi `m`.
+Menu `h` cho biết máy đang giữ tiêu bao nhiêu đơn vị/giờ.
+
 Kiểm tra:
 
 ```bash
@@ -291,6 +296,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     09   Dừng NGAY ô đang chạy nền
    --------------------------------------
     m    Xin máy T4
+    c    Xin máy CPU (thử nghiệm, không tốn hạn mức T4)
     l    Log trực tiếp ô đang chạy nền
     k    Xem máy đang giữ
     h    Hạn mức GPU (colab usage)
@@ -316,6 +322,7 @@ Các mục chữ của menu:
 | Chọn | Việc | Tương đương lệnh |
 |---|---|---|
 | `m` | Xin máy T4 | `colab new -s fz --gpu T4` |
+| `c` | Xin máy **CPU** — để thử menu / ô mà không tốn hạn mức T4 (ô 04, 07, 08 cần GPU sẽ lỗi) | `colab new -s fz` |
 | `l` | Log trực tiếp ô chạy nền gần nhất (từ đầu), Ctrl+C để về menu | `ssh … tail -F` |
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
 | `h` | **Hạn mức GPU miễn phí còn lại** (≈ bao nhiêu giờ T4), giờ nạp lại, gợi ý `SECS` cho ô 04 | `colab usage` + `~/fz_han_muc.py` (mục 4) |

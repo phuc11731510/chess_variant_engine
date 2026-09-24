@@ -242,6 +242,7 @@ while true; do
   [ ${#files[@]} -eq 0 ] && echo " (chưa có ô nào -- chạy: bash ~/lay_ve.sh)"
   echo "--------------------------------------"
   echo " m    Xin máy T4"
+  echo " c    Xin máy CPU (thử nghiệm, không tốn hạn mức T4)"
   echo " l    Log trực tiếp ô đang chạy nền"
   echo " k    Xem máy đang giữ"
   echo " h    Hạn mức GPU còn lại"
@@ -258,6 +259,12 @@ while true; do
   case "${chon[0]}" in
   q|Q) exit 0 ;;
   m|M) colab new -s "$S" --gpu T4; colab status -s "$S"; dung; continue ;;
+  c|C)
+    # Khong --gpu = may CPU. O dung GPU (04, 07, 08: --provider cuda / --amp) se loi tren may nay.
+    colab new -s "$S"; colab status -s "$S"
+    echo; echo "[máy CPU] Hợp để thử menu, ô 01/02/03/05/06, tải lên/về. Ô 04/07/08 cần T4."
+    echo "          Đổi sang T4: t (trả máy) rồi m."
+    dung; continue ;;
   k|K) colab sessions; colab status -s "$S"; dung; continue ;;
   l|L) log_truc_tiep; continue ;;
   h|H) han_muc; dung; continue ;;
