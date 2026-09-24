@@ -12,7 +12,7 @@ Hỏi hai nơi, bằng thông tin đăng nhập sẵn có của Colab CLI (~/.co
      chỉ đọc 3 trường rồi bỏ phần còn lại, ở đây đọc NGUYÊN câu trả lời.
   2. GET colab.pa.googleapis.com/v1/user-info?get_ccu_consumption_info=true -- nơi tiện ích VS Code
      hỏi; có thể trả 403 vì token Colab CLI cấp cho ứng dụng đăng nhập khác (của gcloud).
-  python ~/fz_han_muc.py          # in tóm tắt
+  python ~/fz_han_muc.py [--may T4|CPU]   # in tóm tắt (--may: loại máy đang giữ, menu tự truyền)
   python ~/fz_han_muc.py --raw    # in nguyên câu trả lời của cả hai nơi (để kiểm)
 """
 import json
@@ -73,22 +73,32 @@ if not co_han_muc:
 
 ten, info = co_han_muc[0]
 rate = float(info.get("consumptionRateHourly") or 0)
+so_may = int(info.get("assignmentsCount") or 0)
+# Loai may cua phien (menu truyen vao tu `colab status`: T4 / CPU / ...); rong = khong biet.
+may = sys.argv[sys.argv.index("--may") + 1] if "--may" in sys.argv[:-1] else ""
 q = info["freeCcuQuotaInfo"]
 tok = q.get("remainingTokens")
 print("== Hạn mức GPU của tài khoản Colab ==")
+# Hạn mức này là của GPU (tính theo đơn vị tính toán); máy CPU miễn phí không tiêu vào nó.
+if so_may == 0:
+    print("Máy đang giữ:  không có")
+elif may.upper() == "CPU" or (rate == 0 and not may):
+    print(f"Máy đang giữ:  {may or 'CPU?'} ({so_may} máy) -- không tiêu hạn mức GPU (đang tiêu {rate:.2f}/giờ)")
+else:
+    print(f"Máy đang giữ:  {may or '?'} ({so_may} máy) -- đang tiêu {rate:.2f} đơn vị/giờ")
+dung_gpu = rate > 0 and may.upper() != "CPU"
+h = None
 if tok is None:
     print("Có freeCcuQuotaInfo nhưng không có remainingTokens (tài khoản còn đơn vị mua?).")
-    h = None
 else:
     ccu = int(tok) / 1000
-    if rate > 0:
+    if dung_gpu:
         h = ccu / rate
-        print(f"Còn lại:       {ccu:.2f} đơn vị  ≈  {gio_phut(h)} (theo mức đang tiêu {rate:.2f}/giờ)")
+        print(f"GPU còn lại:   {ccu:.2f} đơn vị  ≈  {gio_phut(h)} với máy đang giữ ({rate:.2f}/giờ)")
     else:
         h = ccu / T4_UOC_TINH
-        print(f"Còn lại:       {ccu:.2f} đơn vị  ≈  {gio_phut(h)} nếu xin T4 (~{T4_UOC_TINH}/giờ; chưa giữ máy nào)")
-print(f"Máy đang giữ:  {info.get('assignmentsCount', '?')} · đơn vị mua: "
-      f"{float(info.get('currentBalance') or info.get('paidComputeUnitsBalance') or 0):.2f}")
+        print(f"GPU còn lại:   {ccu:.2f} đơn vị  ≈  {gio_phut(h)} nếu dùng T4 (~{T4_UOC_TINH}/giờ)")
+print(f"Đơn vị mua:    {float(info.get('currentBalance') or info.get('paidComputeUnitsBalance') or 0):.2f}")
 if info.get("eligibleGpus") is not None:
     print(f"GPU được dùng: {', '.join(info.get('eligibleGpus') or []) or '(không)'}"
           f" · không được: {', '.join(info.get('ineligibleGpus') or []) or '(không)'}")
@@ -98,4 +108,5 @@ if nap:
     print(f"Nạp lại lúc:   {time.strftime('%H:%M %d/%m', time.localtime(int(nap)))}"
           + (f" (sau {gio_phut(con / 3600)})" if con > 0 else ""))
 if h is not None:
-    print(f"Gợi ý SECS ô 04: {max(0, int(h * 3600) - 20 * 60)} (= thời gian còn lại - 20 phút để gom zip + tải về)")
+    print(f"Gợi ý SECS ô 04 (trên T4): {max(0, int(h * 3600) - 20 * 60)}"
+          f" (= thời gian GPU còn lại - 20 phút để gom zip + tải về)")

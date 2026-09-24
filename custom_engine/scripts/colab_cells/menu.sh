@@ -130,7 +130,10 @@ doi_tai_khoan() {
 
 # Muc h: han muc mien phi con lai + so du, may dang giu, GPU duoc dung (~/fz_han_muc.py).
 han_muc() {
-  if [ -f ~/fz_han_muc.py ]; then python ~/fz_han_muc.py; else echo "[!] Thiếu ~/fz_han_muc.py -- chạy: bash ~/lay_ve.sh"; colab usage; fi
+  local may
+  # Loai may cua phien $S, tu dong "... | Hardware: T4 | ..." cua colab status (CPU / T4 / ...).
+  may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
+  if [ -f ~/fz_han_muc.py ]; then python ~/fz_han_muc.py --may "$may"; else echo "[!] Thiếu ~/fz_han_muc.py -- chạy: bash ~/lay_ve.sh"; colab usage; fi
 }
 
 # Kich thuoc de doc (1.2M, 340K).
@@ -168,7 +171,11 @@ duyet_colab() {
           dir=${dir%/}/$ten
         else
           echo "Tải về: ${dir%/}/$ten  ->  Download/FairyZero/$ten ($(kich_thuoc "$kt"))"
-          colab download -s "$S" "${dir%/}/$ten" "$TAI/$ten" && echo "[xong] Download/FairyZero/$ten"
+          if colab download -s "$S" "${dir%/}/$ten" "$TAI/$ten"; then
+            echo "[xong] Download/FairyZero/$ten"
+            # Bao cho Android: tep hien ngay trong Files / trinh chon tep.
+            command -v termux-media-scan >/dev/null && termux-media-scan "$TAI/$ten" >/dev/null 2>&1
+          fi
           dung
         fi ;;
     esac
@@ -192,7 +199,10 @@ tai_len() {
     fi
     tam=$TAI/.dang_chon_$$
     rm -f "$tam"
-    echo "Chọn tệp trong cửa sổ vừa mở..."
+    # Trinh chon tep cua Android (Files by Google) doc danh muc tep cua Android (MediaStore);
+    # tep Termux tu ghi ra (vd colab download) chua co trong do -> an. Bao cho Android truoc.
+    command -v termux-media-scan >/dev/null && termux-media-scan -r "$HOME/storage/downloads" >/dev/null 2>&1
+    echo "Chọn tệp trong cửa sổ vừa mở... (không thấy tệp: ☰ -> bộ nhớ trong để duyệt thẳng thư mục)"
     termux-storage-get "$tam"
     for i in $(seq 120); do [ -s "$tam" ] && break; sleep 1; done   # cho toi 2 phut
     [ -s "$tam" ] || { echo "[!] Không nhận được tệp (huỷ chọn, hoặc tệp rỗng)"; rm -f "$tam"; return; }
