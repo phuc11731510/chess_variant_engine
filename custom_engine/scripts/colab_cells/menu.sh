@@ -186,9 +186,11 @@ duyet_colab() {
 # Manager -- thay moi tep, giu ten), bat dau o Download/FairyZero; hoac c = trinh chon tep cua
 # Android (termux-storage-get: chi tra noi dung, khong tra ten -> phai hoi ten).
 duyet_dt() {
-  local dir=$TAI x loai kt ten muc
+  local dir=$TAI x loai kt ten muc an=1 loc
   while true; do
-    mapfile -t muc < <(cd "$dir" 2>/dev/null && find -L . -mindepth 1 -maxdepth 1 -not -name '.*' \
+    # an=1: giau ten bat dau bang dau cham (.thumbnails, .nomedia ...); phim "." bat/tat.
+    loc=(); [ $an = 1 ] && loc=(-not -name '.*')
+    mapfile -t muc < <(cd "$dir" 2>/dev/null && find -L . -mindepth 1 -maxdepth 1 "${loc[@]}" \
                          -printf '%y\t%s\t%f\n' 2>/dev/null | LC_ALL=C sort -t$'\t' -k1,1 -k3,3)
     clear
     echo "== Tải lên Colab (/content) · điện thoại: ${dir/#$HOME/\~} =="
@@ -200,12 +202,14 @@ duyet_dt() {
     done
     [ ${#muc[@]} -eq 0 ] && echo "      (trống, hoặc không đọc được)"
     echo "---"
-    echo " Số = vào thư mục / tải tệp lên · 0 = lên · c = trình chọn tệp Android · q = về menu"
-    echo " (~/storage/shared = bộ nhớ trong, ~/storage/downloads = Download)"
+    echo " Số = vào thư mục / tải tệp lên · 0 = lên · . = $([ $an = 1 ] && echo hiện || echo ẩn) tệp ẩn · c = trình chọn tệp Android · q = về menu"
+    echo " (~/storage/shared = bộ nhớ trong. Thiếu tệp so với MT Manager: cấp cho Termux quyền"
+    echo "  \"Quản lý tất cả các tệp\" -- xem HUONG_DAN_TERMUX.md mục 13)"
     read -rp "Chọn: " x || return
     case "$x" in
       q|Q|"") return ;;
       c|C) chon_android; dung ;;
+      .) an=$((1 - an)) ;;
       0) dir=$(dirname "$dir") ;;
       *)
         [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#muc[@]} ] || continue
@@ -241,6 +245,56 @@ chon_android() {
   read -rp "Tên tệp trên Colab (vd gen1.onnx): " ten
   [ -n "$ten" ] && colab upload -s "$S" "$tam" "/content/$ten" && echo "[xong] /content/$ten"
   rm -f "$tam"
+}
+
+# Muc t: liet ke MOI may dang giu tren tai khoan (colab sessions), chon may de tra. May co ten
+# -> colab stop -s <ten>; may "?" (khong co ten tren dien thoai nay: tao tu web / thiet bi khac)
+# -> goi thang client.unassign(endpoint) -- dung ham colab stop goi ben trong.
+tra_may() {
+  local ds dong i x chon ten ep hw
+  while true; do
+    mapfile -t ds < <(colab sessions 2>/dev/null | grep '^\[')
+    clear
+    echo "== Trả máy (tài khoản Colab hiện tại) =="
+    if [ ${#ds[@]} -eq 0 ]; then echo "  (không giữ máy nào)"; return; fi
+    for i in "${!ds[@]}"; do
+      dong=${ds[$i]}
+      ten=${dong%%]*}; ten=${ten#[}
+      ep=${dong#*] }; ep=${ep%% *}
+      hw=$(sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' <<<"$dong")
+      if [ "$ten" = "?" ]; then printf " %2d   %-4s  %-5s %s   (không có tên ở máy này)\n" $((i + 1)) "?" "$hw" "$ep"
+      else printf " %2d   %-4s  %-5s %s\n" $((i + 1)) "$ten" "$hw" "$ep"; fi
+    done
+    echo "---"
+    echo " Số (nhiều số cách nhau) = trả các máy đó · a = trả TẤT CẢ · Enter = về menu"
+    read -rp "Chọn: " -a chon || return
+    [ ${#chon[@]} -eq 0 ] && return
+    if [ "${chon[0]}" = a ] || [ "${chon[0]}" = A ]; then chon=($(seq ${#ds[@]})); fi
+    local hop=()
+    for x in "${chon[@]}"; do
+      [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#ds[@]} ] && hop+=("$x")
+    done
+    [ ${#hop[@]} -eq 0 ] && continue
+    read -rp "Trả ${#hop[@]} máy (${hop[*]})? Mọi tệp /content trên đó sẽ MẤT. Gõ 'co' để trả: " x
+    [ "$x" = co ] || continue
+    for x in "${hop[@]}"; do
+      dong=${ds[$((x - 1))]}
+      ten=${dong%%]*}; ten=${ten#[}
+      ep=${dong#*] }; ep=${ep%% *}
+      if [ "$ten" != "?" ]; then
+        colab stop -s "$ten"
+      else
+        echo "[colab] Trả máy không tên $ep..."
+        python - "$ep" <<'EOF'
+import sys
+from colab_cli.common import state
+state.client.unassign(sys.argv[1])
+print("[colab] Session terminated.")
+EOF
+      fi
+    done
+    dung
+  done
 }
 
 # Chay lan luot cac o $@; dung chuoi khi nguoi dung Ctrl+C / huy.
@@ -284,7 +338,7 @@ while true; do
   echo " h    Hạn mức còn lại (máy đang giữ + T4)"
   echo " d    Duyệt tệp Colab, tải về điện thoại"
   echo " u    Duyệt tệp điện thoại, tải lên Colab"
-  echo " t    Trả máy (XOÁ /content)"
+  echo " t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)"
   echo " a    Đổi tài khoản Colab"
   echo " q    Thoát"
   echo "--------------------------------------"
@@ -305,10 +359,7 @@ while true; do
   l|L) log_truc_tiep; continue ;;
   h|H) han_muc; dung; continue ;;
   a|A) doi_tai_khoan; dung; continue ;;
-  t|T)
-    read -rp "Trả máy '$S'? Mọi tệp trên Colab (/content) sẽ MẤT. Gõ 'co' để trả: " x
-    [ "$x" = co ] && colab stop -s "$S"
-    dung; continue ;;
+  t|T) tra_may; continue ;;
   d|D) duyet_colab; continue ;;
   u|U) duyet_dt; continue ;;
   esac

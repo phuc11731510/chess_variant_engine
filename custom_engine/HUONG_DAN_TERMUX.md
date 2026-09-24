@@ -309,7 +309,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     h    Hạn mức GPU (colab usage)
     d    Tải tệp Colab -> điện thoại
     u    Duyệt tệp điện thoại, tải lên Colab
-    t    Trả máy (XOÁ /content)
+    t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)
     a    Đổi tài khoản Colab
     q    Thoát
    --------------------------------------
@@ -334,8 +334,8 @@ Các mục chữ của menu:
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
 | `h` | **Hạn mức GPU miễn phí còn lại** (≈ bao nhiêu giờ T4), giờ nạp lại, gợi ý `SECS` cho ô 04 | `colab usage` + `~/fz_han_muc.py` (mục 4) |
 | `d` | **Duyệt thư mục trên Colab** (bắt đầu ở `/content`): gõ số để vào thư mục / tải tệp về `Download/FairyZero/`, `0` lên thư mục cha, `/đường/dẫn` để nhảy tới, `q` về menu | `ssh … find` + `colab download` |
-| `u` | **Duyệt thư mục trên điện thoại** (bắt đầu ở `Download/FairyZero`, `0` lên được tới `~/storage/shared` = bộ nhớ trong): số = vào thư mục / tải tệp lên `/content/` (giữ tên); `c` = trình chọn tệp của Android (cần Termux:API) | `find` + `colab upload` |
-| `t` | Trả máy — hỏi lại, phải gõ `co` | `colab stop -s fz` |
+| `u` | **Duyệt thư mục trên điện thoại** (bắt đầu ở `Download/FairyZero`, `0` lên được tới `~/storage/shared` = bộ nhớ trong): số = vào thư mục / tải tệp lên `/content/` (giữ tên); `.` = hiện/ẩn tệp ẩn; `c` = trình chọn tệp của Android (cần Termux:API) | `find` + `colab upload` |
+| `t` | **Trả máy — liệt kê MỌI máy** đang giữ trên tài khoản (cả máy không có tên ở điện thoại này: tạo từ web / thiết bị khác), chọn một hay nhiều số, `a` = tất cả; hỏi lại, gõ `co` | `colab stop -s <tên>`; máy không tên: `unassign` |
 | `a` | Đổi tài khoản Colab (trả máy, cất token, đăng nhập mới / dùng lại tài khoản đã cất) | mục 3.1 |
 
 **Vì sao duyệt trong menu thấy mọi tệp mà trình chọn của Android thì không?** Menu đọc thẳng thư mục
@@ -661,6 +661,15 @@ Muốn chắc chắn dùng mạng trên Release thì dùng cách A.
 ## 13. Sự cố thường gặp
 
 **Nhận máy CPU thay vì T4** → mục 4.
+
+**Menu `u` thiếu tệp so với MT Manager (nhất là ở bộ nhớ trong)** — Android 11 trở lên: quyền bộ nhớ
+thường của Termux chỉ cho thấy thư mục, ảnh/video/nhạc, và tệp Termux tự tạo; tệp khác do ứng dụng
+khác tạo (pdf, apk, zip của trình duyệt…) bị Android giấu. MT Manager thấy hết vì có quyền **Quản lý
+tất cả các tệp**. Cấp quyền đó cho Termux: **Cài đặt → Ứng dụng → Termux → Quyền → Tệp và phương
+tiện → Cho phép quản lý tất cả các tệp** (hoặc Cài đặt → Ứng dụng → Quyền truy cập đặc biệt → Quyền
+truy cập tất cả các tệp → Termux), rồi mở lại menu. Không thấy Termux trong danh sách đó thì bản
+Termux quá cũ, cập nhật từ cùng nguồn (GitHub/F-Droid). Riêng `Android/data`, `Android/obb` thì
+Android chặn cả khi có quyền này. Tệp tên bắt đầu bằng dấu chấm: gõ `.` trong menu `u`.
 
 **`[!] Thiếu …/fz_may.py`** — `~/lay_ve.sh` trên máy là bản cũ (trước 24/09, chưa biết tự cập nhật
 và chưa biết tệp `fz_may.py`). Tải lại nó một lần; từ đó nó tự cập nhật:
