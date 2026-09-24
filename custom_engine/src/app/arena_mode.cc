@@ -53,6 +53,7 @@
 #include "app/backend_factory.h"
 #include "app/search_support.h"
 #include "app/uci_coords.h"
+#include "app/search_opts.h"
 
 using namespace Stockfish;
 
@@ -98,11 +99,24 @@ int run_arena(const EngineOptions& o) {
             parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_cpuct);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bopts);
+        // --search-opt applies to BOTH nets (arena used to ignore it silently).
+        std::string err;
+        for (const auto& kv : o.sp_search_opts) {
+            err = ApplySearchOptChecked(parser.GetMutableDefaultsOptions(), kv.first, kv.second);
+            if (!err.empty()) break;
+        }
+        return err;
     };
 
     lczero::OptionsParser pa, pb;
-    build_opts(pa, model_a);
+    const std::string opt_error = build_opts(pa, model_a);
     build_opts(pb, model_b);
+    if (!opt_error.empty()) {
+        std::cerr << "[arena] " << opt_error << std::endl;
+        return 1;
+    }
+    for (const auto& kv : o.sp_search_opts)
+        std::cout << "[arena] search-opt " << kv.first << "=" << kv.second << " (both nets)" << std::endl;
     const lczero::OptionsDict& opts_a = pa.GetOptionsDict();
     const lczero::OptionsDict& opts_b = pb.GetOptionsDict();
 

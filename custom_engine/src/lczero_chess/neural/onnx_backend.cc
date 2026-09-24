@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <iostream>
 #include <algorithm>
+#include <limits>
 #if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
 #define FZ_X86_SIMD 1
 #include <immintrin.h>
@@ -22,97 +23,109 @@
 
 namespace lczero {
 
+// ---- Output post-processing -------------------------------------------------
+//
+// Softmax over the legal moves' logits. It used to exponentiate with the
+// approximation (1 + x/1024)^1024, whose error grows with the distance from the
+// best move: -2% at x = -5, -5% at x = -10, -18% at x = -20. The priors of the
+// weaker moves were therefore lower than the ones the network was trained to
+// output (PyTorch uses the exact softmax). The gen-0/gen-1 nets are too flat for
+// it to matter (their legal logits span ~1), a sharp policy is not. The version
+// below is the Cephes expf (range reduction + degree-5 polynomial, a few ulp),
+// at about the same cost. The padding lanes of the last vector are masked to 0;
+// before, they were -100 and summed in, which only stayed harmless while the
+// best logit was well above -100.
 #if FZ_X86_SIMD
-// AVX2 exp approximation helper function compiled with AVX2 and FMA
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((target("avx2,fma")))
 #endif
-inline __m256 avx2_exp_approx(__m256 x) {
-    // Clamp to prevent negative base when squaring
-    __m256 x_clamped = _mm256_max_ps(x, _mm256_set1_ps(-80.0f));
-    
-    // (1 + x/1024)^1024
-    __m256 y = _mm256_fmadd_ps(x_clamped, _mm256_set1_ps(1.0f / 1024.0f), _mm256_set1_ps(1.0f));
-    
-    // 10 squarings to compute power of 1024
-    y = _mm256_mul_ps(y, y); // 2nd power
-    y = _mm256_mul_ps(y, y); // 4th
-    y = _mm256_mul_ps(y, y); // 8th
-    y = _mm256_mul_ps(y, y); // 16th
-    y = _mm256_mul_ps(y, y); // 32nd
-    y = _mm256_mul_ps(y, y); // 64th
-    y = _mm256_mul_ps(y, y); // 128th
-    y = _mm256_mul_ps(y, y); // 256th
-    y = _mm256_mul_ps(y, y); // 512th
-    y = _mm256_mul_ps(y, y); // 1024th
-    
-    return y;
+static inline __m256 Exp256(__m256 x) {
+    // Operand order matters: max/min return their SECOND operand when one is
+    // NaN, so a NaN logit stays NaN (and the caller reports it) instead of
+    // turning into a tiny probability. Below -87.3 exp() is denormal: those
+    // lanes give 2^-126, i.e. nothing next to the best move's 1.
+    x = _mm256_max_ps(_mm256_set1_ps(-87.3f), x);
+    x = _mm256_min_ps(_mm256_set1_ps(88.3f), x);
+    const __m256 k = _mm256_round_ps(_mm256_mul_ps(x, _mm256_set1_ps(1.44269504088896341f)),
+                                     _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+    __m256 r = _mm256_fnmadd_ps(k, _mm256_set1_ps(0.693359375f), x);   // x - k*ln2, in two
+    r = _mm256_fnmadd_ps(k, _mm256_set1_ps(-2.12194440e-4f), r);        // parts (Cody-Waite)
+    __m256 p = _mm256_set1_ps(1.9875691500e-4f);
+    p = _mm256_fmadd_ps(p, r, _mm256_set1_ps(1.3981999507e-3f));
+    p = _mm256_fmadd_ps(p, r, _mm256_set1_ps(8.3334519073e-3f));
+    p = _mm256_fmadd_ps(p, r, _mm256_set1_ps(4.1665795894e-2f));
+    p = _mm256_fmadd_ps(p, r, _mm256_set1_ps(1.6666665459e-1f));
+    p = _mm256_fmadd_ps(p, r, _mm256_set1_ps(5.0000001201e-1f));
+    p = _mm256_fmadd_ps(p, _mm256_mul_ps(r, r), r);
+    p = _mm256_add_ps(p, _mm256_set1_ps(1.0f));
+    const __m256i e = _mm256_slli_epi32(
+        _mm256_add_epi32(_mm256_cvtps_epi32(k), _mm256_set1_epi32(127)), 23);  // 2^k
+    return _mm256_mul_ps(p, _mm256_castsi256_ps(e));
 }
 
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((target("avx2,fma")))
 #endif
-inline void avx2_softmax(float* legal_logits, size_t num_legal, float softmax_temp, float max_logit, float* out_p, size_t max_out_size) {
-    size_t num_legal_rounded = (num_legal + 7) & ~7;
-    for (size_t i = num_legal; i < num_legal_rounded; ++i) {
-        legal_logits[i] = -100.0f;
+static float SoftmaxLegalAvx2(float* logits, size_t n, float inv_temp, float max_logit,
+                              float* out_p, size_t max_out) {
+    const __m256 vmax = _mm256_set1_ps(max_logit);
+    const __m256 vinv = _mm256_set1_ps(inv_temp);
+    const size_t full = n & ~size_t{7};
+    __m256 vsum = _mm256_setzero_ps();
+    for (size_t i = 0; i < full; i += 8) {
+        const __m256 e = Exp256(_mm256_mul_ps(_mm256_sub_ps(_mm256_load_ps(logits + i), vmax), vinv));
+        _mm256_store_ps(logits + i, e);
+        vsum = _mm256_add_ps(vsum, e);
     }
-    
-    float temp = std::max(1e-3f, softmax_temp);
-    float inv_temp = 1.0f / temp;
-    
-    __m256 max_val_vec = _mm256_set1_ps(max_logit);
-    __m256 inv_temp_vec = _mm256_set1_ps(inv_temp);
-    __m256 sum_vec = _mm256_setzero_ps();
-    
-    for (size_t i = 0; i < num_legal_rounded; i += 8) {
-        __m256 val = _mm256_load_ps(&legal_logits[i]);
-        __m256 diff = _mm256_sub_ps(val, max_val_vec);
-        __m256 scaled = _mm256_mul_ps(diff, inv_temp_vec);
-        __m256 res_exp = avx2_exp_approx(scaled);
-        _mm256_store_ps(&legal_logits[i], res_exp);
-        sum_vec = _mm256_add_ps(sum_vec, res_exp);
+    if (full < n) {  // last partial vector: zero the lanes past n
+        const int rem = static_cast<int>(n - full);
+        const __m256 keep = _mm256_castsi256_ps(_mm256_cmpgt_epi32(
+            _mm256_set1_epi32(rem), _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7)));
+        const __m256 x = _mm256_mul_ps(_mm256_sub_ps(_mm256_load_ps(logits + full), vmax), vinv);
+        const __m256 e = _mm256_and_ps(Exp256(x), keep);
+        _mm256_store_ps(logits + full, e);
+        vsum = _mm256_add_ps(vsum, e);
     }
-    
-    alignas(32) float sum_arr[8];
-    _mm256_store_ps(sum_arr, sum_vec);
-    float sum = 0.0f;
-    for (int i = 0; i < 8; ++i) {
-        sum += sum_arr[i];
-    }
-    
-    float inv_sum = 1.0f / (sum > 0.0f ? sum : 1.0f);
-    __m256 inv_sum_vec = _mm256_set1_ps(inv_sum);
-    
-    for (size_t i = 0; i < num_legal_rounded; i += 8) {
-        __m256 val = _mm256_load_ps(&legal_logits[i]);
-        __m256 normalized = _mm256_mul_ps(val, inv_sum_vec);
-        _mm256_store_ps(&legal_logits[i], normalized);
-    }
-    
-    for (size_t i = 0; i < num_legal && i < max_out_size; ++i) {
-        out_p[i] = legal_logits[i];
-    }
-}
-#else  // !FZ_X86_SIMD : portable scalar softmax (ARM/Android). Output processing is
-       // ~0% of runtime, so the scalar path costs nothing measurable. Same semantics
-       // as the AVX2 version: subtract max, exp/temp, normalize, write to out_p.
-inline void avx2_softmax(float* legal_logits, size_t num_legal, float softmax_temp,
-                         float max_logit, float* out_p, size_t max_out_size) {
-    const float temp = std::max(1e-3f, softmax_temp);
-    const float inv_temp = 1.0f / temp;
-    float sum = 0.0f;
-    for (size_t i = 0; i < num_legal; ++i) {
-        const float e = std::exp((legal_logits[i] - max_logit) * inv_temp);
-        legal_logits[i] = e;
-        sum += e;
-    }
-    const float inv_sum = 1.0f / (sum > 0.0f ? sum : 1.0f);
-    for (size_t i = 0; i < num_legal && i < max_out_size; ++i) {
-        out_p[i] = legal_logits[i] * inv_sum;
-    }
+    alignas(32) float lanes[8];
+    _mm256_store_ps(lanes, vsum);
+    const float sum = ((lanes[0] + lanes[1]) + (lanes[2] + lanes[3])) +
+                      ((lanes[4] + lanes[5]) + (lanes[6] + lanes[7]));
+    const float inv_sum = 1.0f / sum;
+    const size_t out_n = std::min(n, max_out);
+    for (size_t i = 0; i < out_n; ++i) out_p[i] = logits[i] * inv_sum;
+    return sum;
 }
 #endif  // FZ_X86_SIMD
+
+float SoftmaxLegal(float* logits, size_t n, float temp, float max_logit, float* out_p,
+                   size_t max_out) {
+    const float inv_temp = 1.0f / std::max(1e-3f, temp);
+#if FZ_X86_SIMD
+    return SoftmaxLegalAvx2(logits, n, inv_temp, max_logit, out_p, max_out);
+#else  // ARM/Android: output processing is ~0% of the run time, scalar is fine.
+    float sum = 0.0f;
+    for (size_t i = 0; i < n; ++i) {
+        logits[i] = std::exp((logits[i] - max_logit) * inv_temp);
+        sum += logits[i];
+    }
+    const float inv_sum = 1.0f / sum;
+    const size_t out_n = std::min(n, max_out);
+    for (size_t i = 0; i < out_n; ++i) out_p[i] = logits[i] * inv_sum;
+    return sum;
+#endif
+}
+
+bool IsWdlDistribution(const float* v) {
+    // Written so that NaN fails every test.
+    for (int i = 0; i < 3; ++i)
+        if (!(v[i] >= -1e-4f && v[i] <= 1.0f + 1e-4f)) return false;
+    return std::fabs(v[0] + v[1] + v[2] - 1.0f) <= 1e-3f;
+}
+
+size_t OnnxBufferSlots(bool fixed_batch, size_t fixed_batch_size) {
+    if (!fixed_batch || fixed_batch_size == 0) return MaxBatchSize;
+    return (MaxBatchSize + fixed_batch_size - 1) / fixed_batch_size * fixed_batch_size;
+}
 
 // Helper function to split strings
 static std::vector<std::string> split_options(const std::string& s, char delimiter) {
@@ -138,9 +151,17 @@ OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_
       // throw "Maximum batch size exceeded" as soon as the search gathered more
       // than one session-batch worth of leaves.
       capacity_(MaxBatchSize),
-      input_buffer_(new float[capacity_ * InputBufferUnitSize]),
-      policy_output_buffer_(new float[capacity_ * PolicyOutputSize]),
-      value_output_buffer_(new float[capacity_ * ValueOutputSize]),
+      // With a fixed batch f the last Run() covers slots up to the next multiple
+      // of f. Sizing the buffers to capacity_ alone let that Run() write past
+      // their end when f does not divide MaxBatchSize and more than
+      // floor(64/f)*f inputs were queued (e.g. --fixed-batch 24 or 48 with
+      // --batch-aggregate, whose shared computation fills up to 64): the padding
+      // memset, ORT's input read and its policy/value writes all overran the
+      // heap blocks.
+      slots_(OnnxBufferSlots(fixed_batch, fixed_batch_size)),
+      input_buffer_(new float[slots_ * InputBufferUnitSize]),
+      policy_output_buffer_(new float[slots_ * PolicyOutputSize]),
+      value_output_buffer_(new float[slots_ * ValueOutputSize]),
       results_(capacity_),
       position_moves_(capacity_),
       softmax_temp_(softmax_temp), fixed_batch_(fixed_batch),
@@ -303,41 +324,50 @@ void OnnxComputation::ComputeBlocking() {
     
     // 4. Fill results and execute Softmax for legal moves
     for (size_t b = 0; b < enqueued; ++b) {
-        float* raw_policy = policy_output_buffer_.get() + b * PolicyOutputSize;
-        float* raw_value = value_output_buffer_.get() + b * ValueOutputSize;
+        const float* raw_policy = policy_output_buffer_.get() + b * PolicyOutputSize;
+        const float* raw_value = value_output_buffer_.get() + b * ValueOutputSize;
         EvalResultPtr res = results_[b];
-        
-        // 4.1. Extract WDL value (win, draw, loss probabilities)
-        float win = raw_value[0];
-        float draw = raw_value[1];
-        float loss = raw_value[2];
-        
-        if (res.q) *res.q = win - loss; // Q value in [-1.0, 1.0]
-        if (res.d) *res.d = draw;       // Draw probability in [0.0, 1.0]
-        if (res.m) *res.m = 50.0f;      // Fallback moves left value
-        
-        // 4.2. Extract Policy probabilities
-        size_t num_legal = std::min(position_moves_[b].size(), static_cast<size_t>(384));
+
+        // 4.1. WDL value. The graph must end with a softmax (python/train.py's
+        // ExportNet does); raw logits here would give a meaningless q = W - L,
+        // and a NaN would spread through the tree, both without any error.
+        if (!IsWdlDistribution(raw_value)) {
+            std::ostringstream msg;
+            msg << "ONNX Backend: the network's value output is not a W/D/L probability "
+                   "distribution (got " << raw_value[0] << ", " << raw_value[1] << ", "
+                << raw_value[2] << "). The model must end with a softmax over its 3 value "
+                   "outputs, as python/train.py exports it; NaN means broken weights.";
+            std::cerr << msg.str() << std::endl;
+            throw Exception(msg.str());
+        }
+        if (res.q) *res.q = raw_value[0] - raw_value[2];
+        if (res.d) *res.d = raw_value[1];
+        if (res.m) *res.m = 50.0f;      // no moves-left head (has_mlh = false)
+
+        // 4.2. Policy: softmax over the legal moves' logits.
+        const size_t num_legal = std::min(position_moves_[b].size(), static_cast<size_t>(384));
         if (num_legal > 0 && !res.p.empty()) {
             alignas(64) float legal_logits[384];
-            float max_logit = -1e9f;
-            
-            // Map legal moves to ONNX output indices and fetch logits
+            float max_logit = -std::numeric_limits<float>::infinity();
             for (size_t i = 0; i < num_legal; ++i) {
-                Move NN_move = position_moves_[b][i];
-                int index = MoveToNNIndex(NN_move, 0);
-                if (index >= 0 && index < 10600) {
-                    legal_logits[i] = raw_policy[index];
-                } else {
-                    legal_logits[i] = -100.0f; // An extremely low probability for safety
-                }
-                if (legal_logits[i] > max_logit) {
-                    max_logit = legal_logits[i];
-                }
+                const uint16_t index = MoveToNNIndex(position_moves_[b][i], 0);
+                // Every legal move has an index (--test-policy); an unmapped one
+                // gets probability 0 rather than an arbitrary logit.
+                const float l = index < PolicyOutputSize
+                                    ? raw_policy[index]
+                                    : -std::numeric_limits<float>::infinity();
+                legal_logits[i] = l;
+                max_logit = std::max(max_logit, l);
             }
-            
-            // Calculate Softmax using AVX2 SIMD helper
-            avx2_softmax(legal_logits, num_legal, softmax_temp_, max_logit, res.p.data(), res.p.size());
+            const float sum = SoftmaxLegal(legal_logits, num_legal, softmax_temp_, max_logit,
+                                           res.p.data(), res.p.size());
+            if (!std::isfinite(sum) || !(sum >= 1.0f)) {  // >= 1: the best move gives exp(0)
+                std::ostringstream msg;
+                msg << "ONNX Backend: the network's policy logits are not finite (NaN/inf) for a "
+                       "position with " << num_legal << " legal moves; the weights are broken.";
+                std::cerr << msg.str() << std::endl;
+                throw Exception(msg.str());
+            }
         }
     }
     
@@ -531,9 +561,13 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
                 } else if (parts[0] == "provider") {
                     provider_ = parts[1];
                 } else if (parts[0] == "fixed_batch") {
+                    // <= 0 means dynamic batch. (Kept as "fixed" on CPU/DML,
+                    // fixed_batch=0 made ComputeBlocking loop forever on
+                    // Run()s of batch 0, and a negative value wrapped around.)
                     try {
-                        fixed_batch_size_ = std::stoi(parts[1]);
-                        fixed_batch_ = true;
+                        const int n = std::stoi(parts[1]);
+                        fixed_batch_ = n > 0;
+                        fixed_batch_size_ = n > 0 ? static_cast<size_t>(n) : 0;
                     } catch (...) {}
                 } else if (parts[0] == "cuda_graph") {
                     cuda_graph_ = (parts[1] == "1" || parts[1] == "true");

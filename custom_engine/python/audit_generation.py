@@ -11,7 +11,15 @@ checks — directly on the data you will train on — that:
   * repetitions are right within every game: a repeated position carries the
     repetition plane, a first occurrence does not, and no game goes on after a
     threefold repetition (engines before data version 3 missed repetitions from
-    rule50 = 14 on; for such records this is reported, not failed).
+    rule50 = 14 on; for such records this is reported, not failed),
+  * every game is one consistent game: the side to move alternates, and every
+    record carries the same final result (seen from White) -- a record with the
+    result of another perspective or another game would train the value head on
+    the wrong sign,
+  * the played and best moves are legal moves of the policy target, and the best
+    move is the most visited one,
+  * orig_q/policy_kld are real raw evaluations (data version 4); in older data
+    the share that is a copy of best_q (root evicted from the NN cache) is shown.
 
 Also reports the result distribution (win/draw/loss from the side-to-move's
 perspective): a near 50/50 win/loss split is empirical confirmation that the
@@ -75,7 +83,10 @@ def main():
         raise SystemExit("usage: python audit_generation.py <zip|gz|dir>")
     path = sys.argv[1]
     n = 0
-    err = dict(value=0, polsum=0, nolegal=0, neg_not_m1=0, plane_empty=0, stm=0, checks=0)
+    err = dict(value=0, polsum=0, nolegal=0, neg_not_m1=0, plane_empty=0, stm=0, checks=0,
+               game_result=0, stm_alternation=0, move_idx=0, best_not_most_visited=0,
+               orig_copy_v4=0, visits=0)
+    orig_copy_legacy = 0
     resq = {}
     legal_counts = []
     bad = []
@@ -88,6 +99,27 @@ def main():
         n += 1
         if g != game:
             game, seen, past3 = g, {}, False
+            game_z, prev_stm = None, None
+        # One game, one result: z seen from White must not change within a game.
+        z_white = (r["result_q"] if r["side_to_move"] == 0 else -r["result_q"], r["result_d"])
+        if game_z is None:
+            game_z = z_white
+        elif abs(z_white[0] - game_z[0]) > 1e-6 or abs(z_white[1] - game_z[1]) > 1e-6:
+            err["game_result"] += 1
+            if len(bad) < 8: bad.append(("GAME_RESULT", n, z_white, game_z))
+        if prev_stm is not None and r["side_to_move"] == prev_stm:
+            err["stm_alternation"] += 1
+            if len(bad) < 8: bad.append(("STM_ALTERNATION", n))
+        prev_stm = r["side_to_move"]
+        if r["visits"] <= 0:
+            err["visits"] += 1
+        # orig_q/policy_kld copied from best_q (the root had left the NN cache):
+        # an engine bug from version 4 on, a known 5-8% of the records before.
+        if (r["policy_kld"] == 0.0 and r["orig_q"] == r["best_q"] and r["orig_d"] == r["best_d"]):
+            if r["version"] >= 4:
+                err["orig_copy_v4"] += 1
+            else:
+                orig_copy_legacy += 1
         pp = r["piece_planes"]
         # Position identity: pieces of the current board (planes 0-25; plane 26
         # is the repetition flag itself) + castling, e.p., checks, side to move.
@@ -127,6 +159,14 @@ def main():
                 err["polsum"] += 1
                 if len(bad) < 8: bad.append(("POLSUM", n, s))
             legal_counts.append(int(legal.size))
+            # The best and the played move are legal moves of this very target,
+            # and the best one is the most visited (pi = visit share).
+            if not (p[r["best_idx"]] >= 0.0 and p[r["played_idx"]] >= 0.0):
+                err["move_idx"] += 1
+                if len(bad) < 8: bad.append(("MOVE_IDX", n, r["best_idx"], r["played_idx"]))
+            elif p[r["best_idx"]] < float(legal.max()) - 1e-6:
+                err["best_not_most_visited"] += 1
+                if len(bad) < 8: bad.append(("BEST_NOT_MOST_VISITED", n))
         pp = r["piece_planes"]
         if not any(pp[i] != 0 for i in range(min(24, len(pp)))):
             err["plane_empty"] += 1
@@ -150,6 +190,9 @@ def main():
     print("--- errors ---")
     for k, v in err.items():
         print(f"  {k}: {v}")
+    if orig_copy_legacy:
+        print(f"--- data version < 4: orig_q/policy_kld copied from best_q in {orig_copy_legacy} "
+              f"records ({orig_copy_legacy / n:.1%}; root evicted from the NN cache; not an error) ---")
     if any(rep["legacy"].values()):
         print("--- data version < 3 (engine missed repetitions from rule50 = 14 on; not an error) ---")
         for k, v in rep["legacy"].items():

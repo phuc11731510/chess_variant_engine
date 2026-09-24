@@ -34,7 +34,11 @@ namespace lczero {
 //      fixed by the owner: every checking piece counts; before, 1 per checking
 //      move). The layout and every field's meaning are unchanged, so readers
 //      need nothing new; the number only tells the data apart.
-constexpr uint32_t kTrainingDataVersion = 3;
+//   4: orig_q/orig_d/policy_kld are always the root's real raw eval (2026-09-24).
+//      Before, when the root's NN-cache entry had been overwritten (8.5% of the
+//      gen-0 records), they were a copy of best_q/best_d and 0. Readers treat
+//      such a copy in older records as "unknown" (python/dataset.py).
+constexpr uint32_t kTrainingDataVersion = 4;
 constexpr uint32_t kInputFormat10x10 = 1;
 
 // Sentinel for "no castling right" in the castling-file fields.
@@ -76,8 +80,8 @@ struct TrainingDataV1 {
   float played_q, played_d;  // eval of the actually played move
 
   // --- Fields for diff_focus (Section 8.2.6) ---
-  float orig_q, orig_d;  // raw NN eval of root (first inference, pre-noise)
-  float policy_kld;      // KL(pi_visits || p_nn_raw); 0.0 if cache miss
+  float orig_q, orig_d;  // raw NN eval of the root (un-noised)
+  float policy_kld;      // KL(pi_visits || p_nn_raw); before v4 = 0 on a cache miss
 
   uint32_t visits;     // total root visits
   uint16_t played_idx;  // index into probabilities[] of the played move

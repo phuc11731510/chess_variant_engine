@@ -47,7 +47,7 @@ def main():
     print(f"[seed] {params:.2f}M params -> saved {ckpt}")
 
     export_onnx(net, args.out)
-    verify_onnx(args.out)
+    verify_onnx(args.out, net)
     print(f"[seed] gen-0 bootstrap ready: {args.out}")
 
 

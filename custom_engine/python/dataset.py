@@ -38,6 +38,7 @@ def wdl_from_qd(q, d):
 # Version 3 (same layout and signs) marks data from the engine that detects
 # repetitions at every rule-50 count; versions 1-2 missed most of them
 # (trainingdata_v1.h). Nothing to convert, so it is read like version 2.
+# Version 4 has an exact raw eval in every record (see orig_is_unknown below).
 FIRST_STM_SEARCH_Q_VERSION = 2
 
 
@@ -65,18 +66,41 @@ def orig_q(rec):
 def _resolve_files(data):
     """`data` may be a comma-separated list of dirs, globs, and/or .zip bundles
     (the rolling window passes several generation dirs; a .zip is an archive.py
-    transfer bundle that is read in place)."""
-    files = []
+    transfer bundle that is read in place).
+
+    Every part must match at least one file. A part that matched nothing used to
+    be skipped without a word, so a typo in one generation of the window
+    ("gen1.zip, gen2.zpi") trained on the others only."""
+    files, empty = [], []
     for part in str(data).split(","):
         part = part.strip()
         if not part:
             continue
+        found = []
         if os.path.isdir(part):
             for ext in ("*.gz", "*.bin", "*.zip"):
-                files += glob.glob(os.path.join(part, ext))
+                found += glob.glob(os.path.join(part, ext))
         else:
-            files += glob.glob(part)
+            found = glob.glob(part)
+        if not found:
+            empty.append(part)
+        files += found
+    if empty:
+        raise FileNotFoundError("no training files matched: " + ", ".join(repr(p) for p in empty))
     return sorted(set(files))
+
+
+# From data version 4 orig_q/orig_d/policy_kld are always the root's real raw
+# NN eval. Before, when the root had already fallen out of the NN cache (8.5% of
+# the gen-0 records), the engine wrote orig = best and policy_kld = 0 instead.
+FIRST_EXACT_ORIG_VERSION = 4
+
+
+def orig_is_unknown(rec):
+    """True for a pre-version-4 record whose raw-eval fields are that copy."""
+    return (rec.get("version", FIRST_EXACT_ORIG_VERSION) < FIRST_EXACT_ORIG_VERSION
+            and rec["policy_kld"] == 0.0 and rec["orig_q"] == rec["best_q"]
+            and rec["orig_d"] == rec["best_d"])
 
 
 def _diff_focus_keep(rec, slope, kld_w, pmin):
@@ -123,32 +147,67 @@ class FairyDataset(Dataset):
         dense_cache = [] if (cache and not sparse) else None
         raw_records = [] if not cache else None
 
+        # diff_focus on a record without a raw eval (orig_is_unknown): its surprise
+        # is unknown, not zero -- read as zero it was kept with the minimum
+        # probability like the dullest position. Such records are set aside and
+        # kept at the end with the AVERAGE keep rate of all the other records,
+        # which leaves the mix unbiased whatever order the files come in.
+        df_seen = [0.0, 0]
+        deferred = []
+
         def _keep(r):
+            """True / False, or None for 'decide at the end' (unknown surprise)."""
             if downsample_keep < 1.0 and rng.random() >= downsample_keep:
                 return False
-            if diff_focus and rng.random() >= _diff_focus_keep(r, df_slope, df_kld_w, df_min):
-                return False
+            if diff_focus:
+                if orig_is_unknown(r):
+                    return None
+                keep_p = _diff_focus_keep(r, df_slope, df_kld_w, df_min)
+                df_seen[0] += keep_p
+                df_seen[1] += 1
+                if rng.random() >= keep_p:
+                    return False
             return True
 
+        def _form(r):
+            if compact_cache is not None:
+                return self._compact(r)
+            if dense_cache is not None:
+                return self._build(r)
+            # cache=False keeps the raw dict (51 KB) -- far MORE RAM than the
+            # sparse cache (4.8 KB). Debug only; see train.py --no-cache.
+            return r
+
+        store = compact_cache if compact_cache is not None else (
+            dense_cache if dense_cache is not None else raw_records)
         kept = 0
         stop = False
         for f in files:
             it = iter_records_from_zip(f) if f.endswith(".zip") else iter_records(f)
             for r in it:
-                if not _keep(r):
+                k = _keep(r)
+                if k is False:
                     continue
-                if compact_cache is not None:
-                    compact_cache.append(self._compact(r))
-                elif dense_cache is not None:
-                    dense_cache.append(self._build(r))
-                else:
-                    raw_records.append(r)   # no-cache: rebuild on demand (keeps raw)
+                if k is None:
+                    deferred.append(_form(r))
+                    continue
+                store.append(_form(r))
                 kept += 1
                 if max_records and kept >= max_records:
                     stop = True
                     break
             if stop:
                 break
+        if deferred:
+            keep_p = df_seen[0] / df_seen[1] if df_seen[1] else 1.0
+            for form in deferred:
+                if max_records and kept >= max_records:
+                    break
+                if rng.random() < keep_p:
+                    store.append(form)
+                    kept += 1
+            print(f"[dataset] diff_focus: {len(deferred)} records without a raw eval (data < v4) "
+                  f"kept at the average rate {keep_p:.3f}")
         if kept == 0:
             raise ValueError("no records after down-sampling / diff_focus")
 

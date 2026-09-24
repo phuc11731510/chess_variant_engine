@@ -225,23 +225,32 @@ Gõ trước khi `go`. Cú pháp: `setoption name <Tên> value <Giá trị>`.
 > hiện tại — tiện để kiểm tra/sao chép FEN. (Phải gửi `position ...` trước.)
 
 #### Trường nhập thành trong FEN (khi tự nạp `position fen ...`)
-Biến thể này chấp nhận **hai cách viết tương đương** cho trường nhập thành — chúng cho **cùng một thế cờ**
-(đã kiểm chứng: cùng Zobrist key):
+Bên trong, Fairy-Stockfish lưu mỗi quyền nhập thành là **một cặp ô**: ô Hoàng gia + ô Xe. Chữ cái
+trong FEN chỉ là cách *viết* cặp đó. Có hai cách viết, và chúng **không** tương đương trong mọi thế cờ:
 
-| Cách viết | Ý nghĩa | Ví dụ (đủ 4 quyền) |
+| Cách viết | FSF đọc như thế nào | Ví dụ (đủ 4 quyền, thế cờ bắt đầu) |
 |---|---|---|
-| **Chuẩn `KQkq`** | gọi theo **cánh**: K/Q = cánh vua/cánh hậu (Trắng), k/q = (Đen) | `KQkq` |
-| **Chữ-cái-cột `BIbi`** (X-FEN, giống variants.ini) | gọi thẳng theo **cột xe**: `I`=cột i (cánh vua), `B`=cột b (cánh hậu); HOA=Trắng, thường=Đen | `BIbi` |
+| **Chữ-cái-cột `BIbi`** (Shredder-FEN) | lấy **đúng Xe ở cột đó**: `I` = Xe cột i, `B` = Xe cột b; HOA = Trắng, thường = Đen | `BIbi` |
+| **`KQkq`** | *dò tìm*: `K` = Xe **đầu tiên** gặp khi đi từ cột i về phía cột a; `Q` = Xe đầu tiên đi từ cột b về phía cột j | `KQkq` |
 
-Lý do tương đương: Fairy-Stockfish phiên dịch `K`/`Q` sang **cột xe** dựa trên định nghĩa biến thể
-(`castlingRookKingsideFile = i` → `K`, `castlingRookQueensideFile = b` → `Q`). Bên trong nó luôn lưu theo
-ô xe; lúc in (`d`/FEN) thì **chuẩn hóa về `KQkq`**.
-
-- **Nên dùng `KQkq`** (hoặc quyền lẻ `K`/`Q`/`k`/`q`) cho thế bình thường — gọn, dễ tương thích GUI khác.
-- Kiểu `BIbi` chỉ cần khi dựng thế **bất thường kiểu Chess960** (xe nằm cột lạ), vì nó nêu đích danh cột xe.
+- Ở **thế cờ bắt đầu** (Xe ở b và i) hai cách cho **cùng một thế cờ** (cùng Zobrist key), vì phép dò
+  tìm gặp đúng Xe b/i. FSF in FEN ra (lệnh `d`, lệnh `fen`) luôn ở dạng `KQkq`, và đọc lại cũng ra
+  đúng các Xe đó. Nên với thế cờ chuẩn, `KQkq` chỉ khác ở cách hiển thị.
+- Khi Xe **không** ở cột b/i (thế tự dựng, hay sau này xáo trộn kiểu Chess960), `KQkq` có thể sai
+  **nghĩa** mà không báo gì: ví dụ `4k5/.../R4K3R w K - 8+8 0 1` (Xe ở a1 và j1), phép dò cho `K` đi
+  từ i1 về phía a, bỏ qua j1, gặp a1 → thành quyền nhập thành **cánh Hậu** với Xe a1. Viết `J` thì
+  đúng ý (Xe j1, cánh Vua).
+- **Nên dùng chữ-cái-cột (`BIbi`)** cho mọi FEN tự viết. Nó nêu đích danh Xe nên không bao giờ nhập
+  nhằng; đây cũng là cách mọi FEN khởi đầu trong mã nguồn đang viết.
 - **Không nhập thành: `-`**.
-- ⚠️ Quyền chỉ "dính" nếu **Hoàng gia + xe đang ở ô gốc**; ghi quyền mà quân không đúng chỗ thì engine tự bỏ.
-  Cách chắc ăn: nạp xong gõ `d` để engine in lại FEN hợp lệ rồi copy dùng.
+- ⚠️ Quyền chỉ "dính" nếu **Hoàng gia + Xe đang ở ô gốc**; ghi quyền mà quân không đúng chỗ thì FSF
+  **tự bỏ, không báo**. Với self-play (`--start-fen`, sách khai cuộc) engine kiểm việc này: mỗi chữ phải
+  cho đúng quyền nó ghi (`K`/`Q` đúng cánh, chữ cột đúng Xe cột đó) và không có quyền thừa, sai là
+  dừng và báo dòng nào.
+- Nếu sau này dùng **thế cờ khởi đầu xáo trộn** kiểu Chess960: thêm `chess960 = true` vào định nghĩa
+  biến thể (`src/app/variant_setup.cc`) để FSF in FEN bằng chữ-cái-cột; viết sách khai cuộc bằng
+  chữ-cái-cột; và xem mục "Nếu sau này xáo trộn thế cờ khởi đầu" trong `LUAT_BIEN_THE.md` (khoá
+  cache mạng nơ-ron cần thêm ô Xe).
 
 > **Độ khó gợi ý:** Dễ = `Visits 80` + `Temperature 500` · Vừa = `go nodes 400` · Khó = `go nodes 5000` + `Temperature 0`.
 
@@ -346,6 +355,15 @@ vào lệnh `--selfplay` ở B.1/B.2:
 > File ván giờ được ghi vào `game_N.gz.tmp` rồi mới đổi tên thành `game_N.gz` khi ghi trọn vẹn: đĩa
 > đầy hay tiến trình bị dừng giữa chừng không còn để lại `.gz` hỏng lọt vào `archive.py`/`train.py`
 > (engine in `[TrainingDataWriter] FAILED ...` và bỏ ván đó).
+
+> **Bản ghi `version = 4` (2026-09-24):** `orig_q`/`orig_d`/`policy_kld` (đánh giá thô của mạng ở gốc,
+> chỉ `--diff-focus` dùng) giờ **luôn** là đánh giá thật. Trước đây, khi mục cache của gốc đã bị ghi đè
+> (8,6% bản ghi gen0), chúng bị chép từ `best_q` và `policy_kld = 0`, và `--diff-focus` coi những bản ghi
+> đó là "thế cờ dễ" nên loại bớt; nay `dataset.py` giữ chúng với tỉ lệ trung bình. Engine đánh giá lại gốc
+> trong các trường hợp đó (khoảng 0,2% lượt GPU). Bố cục không đổi; `train.py` đọc được mọi version 1–4,
+> và **từ chối** version lạ thay vì đọc bừa. `audit_generation.py` kiểm thêm: kết quả ván nhất quán trong
+> từng ván, lượt đi xen kẽ, nước tốt nhất / nước đã đi hợp lệ và nước tốt nhất là nước nhiều lượt thăm
+> nhất, và (từ version 4) không còn bản ghi chép `best_q`.
 
 ### B.4. Đóng gói dữ liệu thành 1 tệp `.zip` (để tải lên Drive / cho gọn)
 Hàng ngàn tệp `.gz` nhỏ tải lên Drive rất chậm. Gom thành **1 tệp** (`archive.py` chạy được trên cả
@@ -580,6 +598,12 @@ Windows của bạn không có GPU nên huấn luyện chậm; Colab có GPU mi�
 → Tất cả các cờ "thuật toán thuần" (tinh chỉnh sức cờ, độ ngẫu nhiên, resign, optimizer, lịch LR,
 regularization…) chạy **giống nhau** dù CPU hay GPU.
 
+> **Từ 2026-09-24 engine kiểm TOÀN BỘ dòng lệnh trước khi chạy.** Cờ lạ (gõ nhầm), cờ thiếu giá trị,
+> số sai định dạng hay ngoài khoảng (`--visits 8OO`, `--visits 0`, `--noise-alpha abc`, `--fixed-batch 65`),
+> hay một từ thừa → engine in `custom_engine: ...` cho từng lỗi, **không chạy gì** và thoát mã 2.
+> Trước đây những thứ này bị bỏ qua không một lời: gõ `--visit 800` là sinh dữ liệu ở 200 visits mặc
+> định, gõ `--max-move 400` là xử hoà mọi ván ở 200 ply. (`train.py` vốn đã báo lỗi cờ lạ nhờ argparse.)
+
 **Ngoại lệ duy nhất: nhóm cờ GPU** — được chấp nhận ở cả hai nhưng chỉ **"có tác dụng" trên Colab**:
 
 | Cờ | Windows (bản CPU trong bundle) | Colab (bản build GPU) |
@@ -700,12 +724,12 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--noise-alpha F` | 0.3 | Độ "tù" của nhiễu Dirichlet: lớn → nhiễu trải đều các nước; nhỏ → dồn vào ít nước. |
 | `--policy-temp F` | 1.0 | Làm "mềm" gợi ý mạng khi tự chơi (xem `policy-softmax-temp` ở D.1). |
 | `--cpuct F` | auto(1.745) | Hệ số thăm dò MCTS khi tự chơi (xem `cpuct` ở D.1). |
-| `--start-fen FEN\|FILE` | startpos | Thế cờ bắt đầu mỗi ván; truyền một tệp để xoay vòng nhiều thế (đa dạng khai cuộc). |
+| `--start-fen FEN\|FILE` | startpos | Thế cờ bắt đầu mỗi ván; truyền một tệp để xoay vòng nhiều thế (đa dạng khai cuộc; một FEN mỗi dòng, `#` là chú thích). Mỗi FEN được **kiểm trước ván đầu**: đủ trường `N+N` (thiếu thì FSF chơi 1+1), bàn 10×10, đúng một Hoàng gia mỗi bên, bên không tới lượt không bị chiếu, quyền nhập thành ra đúng như viết (xem A.4). Sai là dừng và báo số dòng. |
 | `--resign-threshold F` | tắt | Tự xin thua khi điểm tốt nhất `best_q ≤ F` để bỏ ván thua rõ (nhanh hơn). Bật bằng vd `-0.90`; mặc định tắt = đánh tới cùng. |
 | `--resign-consecutive N` | 3 | Cần N **lượt liên tiếp** dưới ngưỡng mới xin thua (tránh thua nhầm vì một nước tụt điểm). |
 | `--resign-earliest-move N` | 0 | Không cho xin thua trước nước thứ N (để không bỏ ván quá sớm). |
 | `--no-resign-frac F` | 0.10 | Tỉ lệ ván **tắt** resign, đánh tới cùng — để mạng vẫn học cách kết liễu/phòng thủ thế thua. |
-| `--search-opt name=value` (lặp) | — | Đặt **bất kỳ** search-param lc0 nào cho self-play (xem danh sách ~35 ở D.1). Lặp nhiều lần, vd `--search-opt cpuct-base=20000 --search-opt two-fold-draws=true`. |
+| `--search-opt name=value` (lặp) | — | Đặt **bất kỳ** search-param lc0 nào cho self-play (xem danh sách ~35 ở D.1). Lặp nhiều lần, vd `--search-opt cpuct-base=20000 --search-opt two-fold-draws=true`. Tên lạ, giá trị sai kiểu hay ngoài khoảng của lc0 (vd `draw-score` ∈ [-1, 1], `fpu-strategy` ∈ {reduction, absolute}, `minibatch-size`/`max-prefetch` ≤ 64) → **dừng** kèm lý do. Trước 2026-09-24 tên lạ chỉ in một dòng cảnh báo, còn giá trị hỏng âm thầm thành một mặc định cứng (`max-prefetch=x` → 32). |
 | `--search-opt max-prefetch=N` | **0** (self-play) | Số vị trí tối đa search "nạp trước vào cache" khi batch chưa đầy (lc0 mặc định 32). Prefetch chỉ đoán trước để lấp cache, **không đổi giá trị đánh giá** nên không ảnh hưởng chất lượng dữ liệu. Đo trên Colab T4 (`--parallel 4 --fixed-batch 16 --visits 800`): tắt prefetch cho **+37% playout/giây** (2.488 → 3.401), vì GPU bão hoà ở cả hai cấu hình và prefetch tốn ~27% ô batch cho phần đoán + pad. **Từ 2026-09-23 self-play mặc định 0**; đặt `max-prefetch=32` nếu muốn hành vi lc0 gốc. |
 | `--show-nps` | tắt | Hiện **NPS tổng** (cộng dồn mọi worker) trong log mỗi ván + dòng tổng kết, **cộng một khối `--- Throughput ---`** ở cuối. Mặc định TẮT. **Từ 2026-09-22 nps đếm playout MỚI** — trước đó nó cộng `root->GetN()` mỗi nước, mà giá trị này đã bao gồm cây tái sử dụng từ nước trước nên **phóng đại ~2×**; số cũ và mới KHÔNG so thẳng được. |
 | `--batch-aggregate` | tắt | **(A4 — chỉ GPU)** Gom thế cờ cần eval từ NHIỀU ván song song vào **một batch NN** chạy một lần → GPU no hơn, ít lệnh inference hơn. Mặc định TẮT. |
@@ -773,7 +797,7 @@ backend_opts tương ứng (xem `onnx_backend.cc`) sau khi đã xác minh.
 **DÙNG ĐƯỢC — cờ CLI:**
 | Cờ | Mặc định | Ý nghĩa |
 |----|----------|---------|
-| `--data X` | — | Nguồn dữ liệu: một thư mục, nhiều thư mục (ngăn bằng dấu phẩy — dùng cho cửa sổ trượt nhiều đời), hoặc một tệp `.zip` đã gói. |
+| `--data X` | — | Nguồn dữ liệu: một thư mục, nhiều thư mục (ngăn bằng dấu phẩy — dùng cho cửa sổ trượt nhiều đời), hoặc một tệp `.zip` đã gói. **Mỗi phần phải khớp ít nhất một tệp**, không thì dừng (trước 2026-09-24 phần gõ sai bị bỏ qua, nên có thể huấn luyện thiếu cả một đời mà không biết). |
 | `--epochs N` | 20 | Số vòng quét hết toàn bộ dữ liệu. Nhiều quá → dễ quá khớp; ít quá → học chưa tới. |
 | `--batch N` | 32 | Số thế cờ học mỗi bước. Trên GPU đặt lớn (512–2048) cho nhanh + ổn định; CPU để nhỏ. |
 | `--lr F` | 1e-3 | Tốc độ học (bước cập nhật trọng số) khi **không** dùng lịch LR. Cao → học nhanh nhưng dễ phân kỳ; thấp → chậm mà chắc. |
@@ -786,7 +810,7 @@ backend_opts tương ứng (xem `onnx_backend.cc`) sau khi đã xác minh.
 | `--amp` | tắt | Bật tính toán nửa độ chính xác (FP16) — nhanh hơn nhiều và tốn ít VRAM trên GPU. Chỉ có lợi trên GPU (cuda tự bật). |
 | `--value-weight F` / `--policy-weight F` | 1.0 / 1.0 | Trọng số của hai phần loss (đánh giá thế ↔ gợi ý nước). Tăng cái nào → mạng ưu tiên học giỏi phần đó. |
 | `--weight-decay F` | 1e-4 | Phạt L2 lên trọng số để chống quá khớp (giữ mạng "đơn giản"). Đây cũng là L2 của AdamW. |
-| `--swa-start-frac F` | 0.75 | Từ mốc 75% quá trình train, bật **SWA** (trung bình hóa trọng số nhiều bước cuối) → mạng tổng quát tốt và ổn định hơn. |
+| `--swa-start-frac F` | 0.75 | **SWA**: mạng xuất ra là trung bình trọng số ở cuối các epoch **bắt đầu sau** mốc F của quá trình train (20 epoch, 0.75 → epoch 16–20). `train.py` in ra `swa: averages the end of epochs a..b`. Với `--epochs 2` chỉ còn epoch 2 (tức không trung bình); `--swa-start-frac 0` trung bình mọi epoch — đây là cách gen1 đã được train, vì trước 2026-09-24 mốc bị tính sớm một epoch. |
 | `--optimizer adamw\|sgd\|nadam` | adamw | Thuật toán tối ưu. `adamw` (mặc định) bền, chạy ngon với LR hằng; `sgd`+momentum = recipe chuẩn lc0 (mạnh nhất nhưng cần lịch LR đúng); `nadam` = Adam + Nesterov. |
 | `--momentum M` | 0.9 | Quán tính cho `--optimizer sgd` (bật luôn Nesterov). Chỉ dùng khi chọn sgd. |
 | `--grad-clip G` | 0 (tắt) | Cắt độ lớn (norm) của gradient xuống ≤ G để tránh "nổ" gradient làm train phân kỳ. 0 = tắt. |
@@ -794,7 +818,7 @@ backend_opts tương ứng (xem `onnx_backend.cc`) sau khi đã xác minh.
 | `--warmup-steps N` | 0 | Tăng LR tuyến tính từ 0 lên trong N bước đầu cho ổn định, rồi mới theo lịch. |
 | `--lr-values a,b` + `--lr-boundaries i` | — | **Lịch LR bậc thang** kiểu lc0: đặt LR theo từng chặng bước (ghi đè `--lr`). Vd values `0.02,0.002,0.0005` + boundaries `100000,130000`. |
 | `--accum-steps K` | 1 | **Tích lũy gradient** K lô nhỏ rồi mới cập nhật một lần → batch hiệu dụng = batch × K, mà bộ nhớ chỉ tốn bằng một lô. Cứu cánh cho GPU nhỏ (Colab). |
-| `--max-steps N` | 0 | Dừng sau N bước tối ưu (thay cho hoặc cùng với `--epochs`). 0 = chỉ theo epochs. |
+| `--max-steps N` | 0 | Dừng sau N bước tối ưu (thay cho hoặc cùng với `--epochs`). 0 = chỉ theo epochs. Dừng trước khi SWA lấy mẫu nào thì xuất trọng số đã học như hiện có (trước 2026-09-24 xuất nhầm **trọng số ban đầu chưa học**). |
 | `--max-records N` | 0 | Chỉ nạp tối đa N thế cờ (chạy thử nhanh / hạn chế RAM). 0 = nạp tất cả. |
 | `--report-every N` | 0 | In loss mỗi N bước để theo dõi tiến độ trong epoch. 0 = chỉ báo cáo theo từng epoch. |
 | `--save-every N` | 0 | Lưu checkpoint `.pt` mỗi N bước (đề phòng mất điện/đứt Colab). 0 = chỉ lưu khi xong. |
@@ -832,6 +856,8 @@ nó dùng các cờ thiết bị/độ sâu/tìm kiếm dưới đây, nhưng **
 | `--show-nps` | tắt | In NPS (playout/giây) gộp sau mỗi ván + tổng kết, để đo tốc độ. |
 | `--arena-moves` | tắt | In **danh sách nước đi (UCI)** của mỗi ván (`moves: 1.e2e4 ...`) để bạn theo dõi/xem lại ván — vd kiểm tra mạng có thí quân bậy không. |
 
+> **`--search-opt name=value` có tác dụng trong arena** (cho cả hai mạng; trước 2026-09-24 bị bỏ qua).
+>
 > **Cờ self-play KHÔNG có tác dụng trong arena:** `--threads-per-game`, `--parallel`, `--noise-*`,
 > `--resign-*`, `--start-fen`, `--out`, `--max-seconds`... Arena đánh **tuần tự từng ván**
 > (mỗi lúc một tìm kiếm) nên không có pool worker — muốn nhanh hơn thì tăng `--backend-threads`

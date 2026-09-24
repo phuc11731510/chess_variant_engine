@@ -37,6 +37,7 @@
 #include "app/variant_setup.h"
 #include "chess/board.h"
 #include "chess/position.h"
+#include <random>
 #include "neural/backend.h"
 #include "neural/onnx_backend.h"
 #include "neural/shared_params.h"
@@ -238,19 +239,59 @@ int run_bench_nn(const EngineOptions& o) {
       catch (const std::exception& e) { std::cerr << "  khong dung duoc backend cuda_graph: " << e.what() << "\n"; }
 
       if (ref && graph) {
-        // 1) Dung: cung MOT the co, hai backend, so q/d/policy.
-        lczero::EvalResult r_ref = RunOnce(ref.get(), ep, legal.size());
-        lczero::EvalResult r_graph = RunOnce(graph.get(), ep, legal.size());
-        double max_diff = std::max(std::fabs(r_ref.q - r_graph.q), std::fabs(r_ref.d - r_graph.d));
-        for (size_t i = 0; i < legal.size(); ++i)
-          max_diff = std::max(max_diff, static_cast<double>(std::fabs(r_ref.p[i] - r_graph.p[i])));
-        std::printf("  dung : q(ref)=%.5f q(graph)=%.5f  d(ref)=%.5f d(graph)=%.5f  max|diff|=%.6f\n",
-                    r_ref.q, r_graph.q, r_ref.d, r_graph.d, max_diff);
+        // 1) Dung. ORT chup (capture) graph o mot trong nhung lan Run() dau roi
+        //    PHAT LAI (replay) no o moi lan sau; loi can bat -- replay doc lai bo dem
+        //    cu thay vi input moi -- chi lo ra o cac lan phat lai. Nen chay 12 lan,
+        //    xoay vong 6 THE CO KHAC NHAU (moi lan day du `prod` o cung mot the), va so
+        //    MOI o voi duong khong-graph. (Ban cu chi so 1 lan chay, tuc la dung lan
+        //    chup, khong kiem duoc phat lai.)
+        std::vector<std::unique_ptr<lczero::PositionHistory>> hs;
+        {
+          auto h = std::make_unique<lczero::PositionHistory>(*history);
+          std::mt19937 rng(20260924);
+          for (int k = 0; k < 6; ++k) {
+            hs.push_back(std::make_unique<lczero::PositionHistory>(*h));
+            for (int j = 0; j < 5; ++j) {
+              const lczero::MoveList lm = h->Last().GetBoard().GenerateLegalMoves();
+              if (lm.empty()) break;
+              h->Append(lm[rng() % lm.size()]);
+            }
+          }
+        }
+        std::vector<lczero::MoveList> legals;
+        std::vector<lczero::EvalResult> refs;
+        for (const auto& h : hs) {
+          legals.push_back(h->Last().GetBoard().GenerateLegalMoves());
+          const lczero::EvalPosition epk{h.get(), std::span<const lczero::Move>(
+                                                      legals.back().data(), legals.back().size())};
+          refs.push_back(RunOnce(ref.get(), epk, legals.back().size()));
+        }
+        double max_diff = 0.0;
+        for (int run = 0; run < 12; ++run) {
+          const size_t k = static_cast<size_t>(run) % hs.size();
+          const lczero::EvalPosition epk{hs[k].get(), std::span<const lczero::Move>(
+                                                          legals[k].data(), legals[k].size())};
+          std::vector<lczero::EvalResult> res(prod);
+          auto comp = graph->CreateComputation();
+          for (auto& r : res) {
+            r.p.resize(legals[k].size());
+            comp->AddInput(epk, r.AsPtr());
+          }
+          comp->ComputeBlocking();
+          for (const auto& r : res) {
+            max_diff = std::max({max_diff, static_cast<double>(std::fabs(r.q - refs[k].q)),
+                                 static_cast<double>(std::fabs(r.d - refs[k].d))});
+            for (size_t i = 0; i < legals[k].size(); ++i)
+              max_diff = std::max(max_diff, static_cast<double>(std::fabs(r.p[i] - refs[k].p[i])));
+          }
+        }
+        std::printf("  dung : 12 lan Run x %d o, 6 the co khac nhau: max|graph - khong graph| = %.6f\n",
+                    prod, max_diff);
         if (max_diff > 1e-3) {
           std::cout << "  [FAIL] cuda_graph LECH ket qua qua nguong -- KHONG dung cho selfplay/arena "
                         "cho den khi dieu tra ro nguyen nhan.\n";
         } else {
-          std::cout << "  [OK] cuda_graph khop duong khong-graph (trong sai so lam tron).\n";
+          std::cout << "  [OK] cuda_graph khop duong khong-graph o moi lan phat lai (trong sai so lam tron).\n";
         }
 
         // 2) Toc do: dung lai measure() cua vong quet chinh, cung batch=prod.

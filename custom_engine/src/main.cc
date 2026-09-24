@@ -60,6 +60,14 @@ using namespace Stockfish;
 
 int main(int argc, char* argv[]) {
     EngineOptions o = parse_cli(argc, argv);
+    if (!o.errors.empty()) {
+        // Refuse to run on a command line that was not fully understood: a
+        // skipped flag means running with a value the user did not ask for.
+        for (const auto& e : o.errors) std::cerr << "custom_engine: " << e << "\n";
+        std::cerr << "Nothing was run. See custom_engine/HUONG_DAN.md (section D) for the flags."
+                  << std::endl;
+        return 2;
+    }
 
     std::cout << engine_info() << " (Custom Variant Engine)" << std::endl;
 
@@ -77,6 +85,7 @@ int main(int argc, char* argv[]) {
     Search::clear(); // After threads are up
     Eval::NNUE::init();
 
+    int rc = 0;
     if (o.test_ep_mode) {
         run_ep_tests();
     } else if (o.test_board_mode) {
@@ -90,7 +99,7 @@ int main(int argc, char* argv[]) {
     } else if (o.test_selfplay_mode) {
         run_selfplay_tests(o.weights_file);
     } else if (o.emit_roundtrip_mode) {
-        run_roundtrip_emit(o.rt_prefix);
+        run_roundtrip_emit(o.rt_prefix, o.weights_given ? o.weights_file : std::string());
     } else if (o.test_perft_mode) {
         run_perft_tests();
     } else if (o.test_bits_mode) {
@@ -113,23 +122,24 @@ int main(int argc, char* argv[]) {
         run_rules_oracle_audit(o.sp_games, o.sp_max_moves);
     } else if (o.test_history_mode) {
         run_history_tests();
+    } else if (o.test_neural_mode) {
+        run_neural_tests(o.weights_file);
+    } else if (o.test_cli_mode) {
+        run_cli_tests();
     } else if (o.uci_nn_mode) {
         run_uci_nn(o.weights_file, o.sp_provider, o.sp_fixed_batch);
     } else if (o.play_mode) {
         run_play(o.weights_file, o.sp_provider, o.sp_fixed_batch, o.sp_visits, o.play_human_white);
     } else if (o.arena_mode) {
-        int rc = run_arena(o);
-        if (rc != 0) return rc;
+        rc = run_arena(o);
     } else if (o.test_mcts_mode) {
         run_mcts_tests(o.weights_file);
     } else if (o.bench_cpu_mode) {
-        return run_bench_cpu(o);
+        rc = run_bench_cpu(o);
     } else if (o.bench_nn_mode) {
-        int rc = run_bench_nn(o);
-        if (rc != 0) return rc;
+        rc = run_bench_nn(o);
     } else if (o.selfplay_mode) {
-        int rc = run_selfplay(o);
-        if (rc != 0) return rc;
+        rc = run_selfplay(o);
     } else {
         // No classical-engine fallback. This binary is built with -DLCZERO_MCTS,
         // which deliberately stops maintaining psq / materialKey / pawnKey /
@@ -152,20 +162,17 @@ int main(int argc, char* argv[]) {
                "  self-tests:    --test-adapter --test-bits --test-board --test-encoder\n"
                "                 --test-ep --test-extract --test-mcts --test-nn\n"
                "                 --test-perft --test-policy --test-rules --test-selfplay\n"
-               "                 --test-trainingdata --test-uci --test-history\n"
+               "                 --test-trainingdata --test-uci --test-history --test-cli\n"
+               "                 --test-neural [--weights <net.onnx>]\n"
                "                 --test-search-logic [--weights <net.onnx>]\n"
                "                   (see src/tests/README.md)\n\n"
                "See custom_engine/HUONG_DAN.md for the full flag reference.\n";
-        Threads.set(0);
-        variants.clear_all();
-        pieceMap.clear_all();
-        delete XBoard::stateMachine;
-        return 2;
+        rc = 2;
     }
 
     Threads.set(0);
     variants.clear_all();
     pieceMap.clear_all();
     delete XBoard::stateMachine;
-    return 0;
+    return rc;
 }

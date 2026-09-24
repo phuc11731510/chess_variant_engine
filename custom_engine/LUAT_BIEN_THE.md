@@ -68,3 +68,29 @@ Thế cờ đầu:
     ô gốc **hoặc bị ăn tại ô gốc**.
 12. **Không có luật hoà do thiếu quân.** Kể cả Hoàng gia đối Hoàng gia vẫn thua được vì hết nước
     (Hoàng gia đen a10, Hoàng gia trắng c8, Đen tới lượt → Đen hết nước → Đen thua).
+
+## Viết quyền nhập thành trong FEN
+
+Bên trong, mỗi quyền nhập thành là một cặp ô (ô Hoàng gia, ô Xe). Trong FEN nên viết bằng **chữ cái
+cột của Xe** (Shredder-FEN): thế cờ bắt đầu là `BIbi` (Xe cột b và cột i; HOA = Trắng). FSF cũng hiểu
+`KQkq`, nhưng bằng cách **dò tìm**: `K` = Xe đầu tiên gặp khi đi từ cột i về phía cột a, `Q` = Xe đầu
+tiên đi từ cột b về phía cột j. Ở thế cờ bắt đầu hai cách cho cùng một thế cờ (FSF in FEN ra ở dạng
+`KQkq`); khi Xe không ở b/i thì `KQkq` có thể ra quyền khác (ví dụ Xe ở a1 và j1, `K` thành nhập thành
+**cánh Hậu** với Xe a1). `CheckStartFen` (`src/app/variant_setup.cc`) từ chối mọi FEN khởi đầu mà một chữ
+nhập thành không ra đúng quyền nó ghi.
+
+### Nếu sau này xáo trộn thế cờ khởi đầu (kiểu Chess960)
+
+Luật nhập thành của FSF đã tổng quát (Hoàng gia luôn tới cột h/d, Xe đứng cạnh phía trong; phép kiểm
+"Xe đang che đường chiếu" của Chess960 luôn được áp). Những việc cần làm:
+
+1. Thêm `chess960 = true` vào định nghĩa biến thể (`setup_custom_variant`): FSF sẽ in FEN bằng chữ cột
+   và dùng quy ước Chess960 ở mọi chỗ.
+2. Viết sách khai cuộc bằng chữ cột; chạy self-play với `--start-fen <tệp sách>` (mỗi dòng được kiểm).
+3. **Khoá Zobrist chỉ chứa 4 bit quyền nhập thành, không chứa ô Xe.** Trong một ván thì không sao (ô Xe
+   cố định từ đầu ván), nhưng hai ván từ hai thế khởi đầu khác nhau có thể tới cùng một bàn cờ, cùng 4 bit,
+   mà Xe nhập thành khác nhau: cache mạng nơ-ron (dùng chung cho mọi ván) sẽ trả đánh giá của thế này
+   cho thế kia. Khi đó cần đưa ô Xe nhập thành vào khoá (Zobrist theo ô Xe, hoặc vào khoá cache).
+4. Đầu vào mạng (plane nhập thành đánh dấu ô Xe), bản ghi (lưu cột Xe) và chỉ số policy của nước nhập
+   thành (Hoàng gia → ô Xe) đều theo ô nên không cần đổi; nhưng mạng đã học trên thế cờ cố định chưa từng
+   thấy hình nhập thành khác, nên nên huấn luyện lại hoặc trộn dữ liệu mới từ sớm.

@@ -39,6 +39,23 @@ struct OnnxEvalCounters {
 OnnxEvalCounters OnnxGetEvalCounters();
 void OnnxResetEvalCounters();
 
+// Output post-processing, exposed for --test-neural.
+//
+// SoftmaxLegal: out_p[i] = exp((logits[i] - max_logit) / temp) / sum, for
+// i < n (n <= 384). `logits` is scratch (overwritten) and must be 32-byte
+// aligned with room for n rounded up to 8. `max_logit` is max(logits[0..n)).
+// Returns the sum of the exponentials (>= 1 for finite input; not finite when
+// the net produced NaN/inf). Accurate to a few float ulps on x86 (AVX2) and ARM.
+float SoftmaxLegal(float* logits, size_t n, float temp, float max_logit, float* out_p,
+                   size_t max_out);
+// True when a value-head row is a WDL distribution (finite, each in [0,1], sum
+// 1 within 1e-3), i.e. the net ends with a softmax like python/train.py exports.
+bool IsWdlDistribution(const float* wdl);
+
+// Buffer slots an OnnxComputation needs: MaxBatchSize inputs, rounded up to a
+// multiple of the fixed batch so the last, zero-padded Run() stays inside.
+size_t OnnxBufferSlots(bool fixed_batch, size_t fixed_batch_size);
+
 class OnnxComputation : public BackendComputation {
  public:
   OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size);
@@ -63,17 +80,14 @@ class OnnxComputation : public BackendComputation {
   // which must get its own slot; ComputeBlocking runs after they all finished.
   std::atomic<size_t> enqueued_{0};
   
-  // Buffers sized to the batch this computation will ACTUALLY run, not to
-  // MaxBatchSize. They used to be fixed-size arrays of MaxBatchSize, which made
-  // every OnnxComputation ~8.5 MB at MaxBatchSize 64 and ~34 MB at 256 -- and a
-  // fresh one is built for EVERY Run(), so that allocation landed on every NN
-  // call regardless of how small the real batch was. Measured on a Colab T4 it
-  // showed up as a flat ~3.6 ms per Run once the redundant ctor memset was gone.
-  // With a CUDA fixed-batch profile of 16 the real need is 1.4 MB, not 34 MB.
-  const size_t capacity_;                  // slots this computation can hold
-  std::unique_ptr<float[]> input_buffer_;         // capacity_ * InputBufferUnitSize
-  std::unique_ptr<float[]> policy_output_buffer_; // capacity_ * PolicyOutputSize
-  std::unique_ptr<float[]> value_output_buffer_;  // capacity_ * ValueOutputSize
+  // Heap buffers, not fixed arrays: a fresh OnnxComputation is built for EVERY
+  // Run(), and zero-filled arrays of MaxBatchSize cost a flat ~3.6 ms per Run on
+  // a Colab T4 (see the ctor). Nothing is memset; every byte ORT reads is written.
+  const size_t capacity_;  // inputs AddInput accepts (MaxBatchSize)
+  const size_t slots_;     // buffer slots, >= capacity_ (OnnxBufferSlots)
+  std::unique_ptr<float[]> input_buffer_;         // slots_ * InputBufferUnitSize
+  std::unique_ptr<float[]> policy_output_buffer_; // slots_ * PolicyOutputSize
+  std::unique_ptr<float[]> value_output_buffer_;  // slots_ * ValueOutputSize
 
   std::vector<EvalResultPtr> results_;
   std::vector<StaticVector<Move, 384>> position_moves_;

@@ -40,9 +40,21 @@ RECORD_SIZE = _STRUCT.size
 assert RECORD_SIZE == 45940, f"record size {RECORD_SIZE} != 45940 (layout drift!)"
 
 
+# Record versions this reader understands (src/lczero_chess/trainingdata/
+# trainingdata_v1.h keeps the history; the layout has never changed). Anything
+# else is refused: a future version may change what a field means, and a record
+# that parses by size alone would then be read wrong without any error.
+KNOWN_VERSIONS = (1, 2, 3, 4)
+INPUT_FORMAT_10X10 = 1
+
+
 def unpack_record(buf):
     """Unpack a 45940-byte record into a dict."""
     v = _STRUCT.unpack(buf)
+    if v[0] not in KNOWN_VERSIONS or v[1] != INPUT_FORMAT_10X10:
+        raise ValueError(f"record version {v[0]} / input format {v[1]} is not one this reader "
+                         f"knows (versions {KNOWN_VERSIONS}, format {INPUT_FORMAT_10X10}); "
+                         "update python/trainingdata_reader.py together with the engine")
     i = 0
     r = {}
     r["version"] = v[i]; i += 1
