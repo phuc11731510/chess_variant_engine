@@ -133,6 +133,42 @@ Enter the authorization code:
 
 Thông tin đăng nhập được lưu lại; các lần sau không hỏi nữa.
 
+### 3.1. Đổi sang tài khoản Google khác (vd tài khoản này sắp hết quota GPU)
+
+Colab CLI không có lệnh `logout` riêng. "Đăng xuất" = xoá tệp chứa thông tin đăng nhập; lần gọi
+tiếp theo nó không thấy thì hỏi đăng nhập lại (mục 3) — lúc đó chọn tài khoản khác.
+
+1. **Trả hết máy của tài khoản cũ trước** (sau khi đổi tài khoản thì không điều khiển chúng được nữa):
+
+   ```bash
+   colab sessions
+   colab stop -s fz
+   ```
+
+2. Xem các tệp đăng nhập đang có:
+
+   ```bash
+   ls -la ~/.config/colab-cli ~/.config/gcloud ~/.colab-cli-oauth-config.json 2>/dev/null
+   ```
+
+   Theo tài liệu Colab CLI: `~/.config/colab-cli/` chứa `sessions.json` (phiên + token) và
+   `settings.json`; cách đăng nhập mặc định là `adc` (Application Default Credentials của Google),
+   thường lưu ở `~/.config/gcloud/application_default_credentials.json`.
+
+3. Xoá thông tin đăng nhập:
+
+   ```bash
+   rm -f ~/.config/gcloud/application_default_credentials.json
+   rm -f ~/.config/colab-cli/sessions.json
+   ```
+
+4. Đăng nhập tài khoản mới: menu `fz` → `m` (hoặc `colab sessions`) → nó in link đăng nhập →
+   làm như mục 3, **chọn tài khoản khác** trong trình duyệt.
+
+Nếu sau bước 3 lệnh vẫn chạy mà không hỏi đăng nhập (vẫn là tài khoản cũ), thì token nằm ở chỗ
+khác: xem `colab --help` / `colab auth --help`, hoặc tìm tệp:
+`find ~ -name "*.json" -path "*colab*" -o -name "*credentials*" 2>/dev/null`.
+
 ---
 
 ## 4. Xin máy T4 (không phải CPU)
@@ -161,6 +197,12 @@ colab new -s fz --gpu T4
 `colab new --gpu T4` báo lỗi hết tài nguyên = tài khoản miễn phí đã dùng hết GPU trong ngày; đợi vài
 giờ đến một ngày, hoặc Colab Pro. GPU khác: `--gpu L4` / `A100` / `H100` (cần Pro / đơn vị tính toán).
 
+**Còn bao lâu nữa bị ngắt?** Menu `h` (= `colab usage`) in mức dùng và số dư đơn vị tính toán của
+tài khoản. Tài liệu Colab CLI không nói nó có in con số "thời gian chạy có thể kéo dài tối đa … giờ"
+như trang web hay không — chạy thử một lần xem. Nếu có, đặt `SECS` trong ô 04 = thời gian đó
+**trừ ~20 phút** (selfplay vượt giờ 2-3 phút, cộng ô 06 gom zip và tải về) để kịp lấy dữ liệu trước
+khi máy bị ngắt.
+
 ---
 
 ## 5. Lấy các ô lệnh về điện thoại
@@ -177,8 +219,13 @@ source ~/.bashrc
 `lay_ve.sh` làm ba việc:
 
 1. Tải 11 ô về **`Download/FairyZero/o_lenh/`** (trong Termux: `~/storage/downloads/FairyZero/o_lenh`).
-   Ô nào **đã có thì giữ nguyên** (không ghi đè ô bạn đã sửa). Muốn tải lại bản mới nhất, ghi đè
-   hết: `bash lay_ve.sh -f`.
+   Ô nào **đã có thì giữ nguyên** (không ghi đè ô bạn đã sửa). Muốn lấy bản mới nhất:
+   - riêng vài ô (ghi đè đúng các ô đó): `bash lay_ve.sh 05 07`;
+   - tất cả (ghi đè mọi ô đã sửa): `bash lay_ve.sh -f`.
+
+   **Xoá một tệp ô** trong `o_lenh` thì ô đó biến khỏi menu và không chạy được nữa — menu đọc thẳng
+   các tệp này mỗi lần. Lấy lại: `bash lay_ve.sh` (chỉ tải ô còn thiếu). Riêng `00_cau_hinh.py` mà
+   mất thì **mọi ô** đều hỏng (chúng cần biến của nó).
 2. Tải menu về `~/fz_menu.sh` (luôn lấy bản mới — đây không phải thứ bạn sửa).
 3. Thêm hai lệnh vào `~/.bashrc` (chạy lại thì thay dòng cũ, không nhân đôi): **`fz`** mở menu, và
    **`o`** — cách gõ tắt không qua menu (mục 6).
@@ -226,7 +273,9 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     09   Dừng NGAY việc chạy nền
    --------------------------------------
     m    Xin máy T4
+    l    Log trực tiếp (việc đang chạy)
     k    Xem máy đang giữ
+    h    Hạn mức GPU còn lại (colab usage)
     d    Tải tệp Colab -> điện thoại
     u    Tải tệp điện thoại -> Colab
     t    Trả máy (XOÁ /content)
@@ -248,7 +297,9 @@ Các mục chữ của menu:
 | Chọn | Việc | Tương đương lệnh |
 |---|---|---|
 | `m` | Xin máy T4 | `colab new -s fz --gpu T4` |
+| `l` | Log trực tiếp việc đang chạy, làm mới mỗi 5 giây, phím bất kỳ để thoát | ô 05 lặp lại |
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
+| `h` | Mức dùng / số dư đơn vị tính toán của tài khoản | `colab usage` |
 | `d` | Hỏi đường dẫn trên Colab (vd `/content/games_gen0.zip`), tải về `Download/FairyZero/` | `colab download` |
 | `u` | Liệt kê tệp trong `Download/FairyZero/`, chọn số → tải lên `/content/` | `colab upload` |
 | `t` | Trả máy — hỏi lại, phải gõ `co` | `colab stop -s fz` |
@@ -364,12 +415,18 @@ In lệnh đầy đủ rồi `[da chay nen] xem: o 05` (tức ô 05 trong menu).
 
 Menu `fz` → chọn **`05`** (gõ tắt: `o 05`).
 
-In 15 dòng log cuối, số tệp ván, mức dùng GPU, và **`[DANG CHAY]`** hoặc
-**`[KHONG con tien trinh -- xong hoac loi]`**. Khi xong, cuối log có khối `--- Throughput ---` —
-so cấu hình bằng `NN eval/giay`, đừng bằng `Van/gio`.
+Ô 05 **tự nhận việc nào đang chạy** trên máy Colab (xem danh sách tiến trình: có `--selfplay` →
+log selfplay; `--arena` → log arena; `train.py` → log train) và in: **`[DANG CHAY: …]`** hoặc
+**`[KHONG con tien trinh -- xong hoac loi]`**, 15 dòng log cuối, số tệp ván (khi là selfplay), mức
+dùng GPU. Không còn việc nào chạy thì hiện log **mới ghi gần nhất**. Muốn xem cố định một log: sửa
+`LOG = "train"` (hoặc `"selfplay"`, `"arena"`); nhiều dòng hơn: sửa `SO_DONG`.
 
-Xem log train / arena: sửa `LOG = "train"` (hoặc `"arena"`) trong `05_xem_log.py`; nhiều dòng hơn:
-sửa `SO_DONG`.
+Khi xong, cuối log có khối `--- Throughput ---` — so cấu hình bằng `NN eval/giay`, đừng bằng `Van/gio`.
+
+**Log trực tiếp ngay trong menu:** chọn **`l`**. Menu chạy ô 05 lặp lại, xoá màn hình và in lại mỗi
+5 giây; **nhấn phím bất kỳ** để về menu. Việc trên Colab không bị ảnh hưởng (chỉ việc xem dừng).
+Đổi nhịp làm mới: `CHO=10 fz`. Mỗi lần làm mới là một lệnh `colab exec` (mất vài giây qua mạng), nên
+nhịp thực tế chậm hơn con số một chút.
 
 Lỡ sai tham số, muốn dừng ngay: `o 09`.
 
@@ -394,7 +451,7 @@ trong `07_huan_luyen.py` nếu muốn (`--epochs`, `--lr`, `DATA`, …), rồi:
 
 Menu `fz` → chọn **`07`** (gõ tắt: `o 07`).
 
-Theo dõi: `LOG = "train"` trong ô 05, rồi `o 05`. Xong thì tải mạng mới về (ô 07 in sẵn lệnh):
+Theo dõi: menu `l` (tự nhận là train). Xong thì tải mạng mới về (ô 07 in sẵn lệnh):
 
 ```bash
 colab download -s fz /content/gen1.onnx ~/storage/downloads/FairyZero/gen1.onnx
@@ -405,7 +462,7 @@ colab download -s fz /content/gen1.pt   ~/storage/downloads/FairyZero/gen1.pt
 
 Menu `fz` → chọn **`08`** (gõ tắt: `o 08`).
 
-Theo dõi: `LOG = "arena"` trong ô 05. 48 ván vẫn sai số lớn (hàng trăm Elo); phát hiện chênh
+Theo dõi: menu `l`. 48 ván vẫn sai số lớn (hàng trăm Elo); phát hiện chênh
 ~50 Elo cần 400-1000 ván — sửa `--games`, `--visits` trong ô.
 
 ### Trả máy

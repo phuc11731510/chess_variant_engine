@@ -15,6 +15,22 @@ tieu_de() { doc "$1" | sed -n '1s/^# *//p'; }
 
 dung() { echo; read -rp "--- Enter để về menu ---" _; }
 
+# Log truc tiep: chay o 05 (tu nhan viec dang chay) lap lai, xoa man hinh moi lan,
+# cho toi CHO giay; nhan phim bat ky de ve menu. Viec tren Colab khong bi anh huong.
+CHO=${CHO:-5}
+log_truc_tiep() {
+  local f out k
+  f=$(ls "$D"/05_*.py 2>/dev/null | head -1)
+  [ -z "$f" ] && { echo "[!] Không có ô 05 trong o_lenh"; dung; return; }
+  while true; do
+    out=$(chay "$f" 2>&1)
+    clear
+    echo "== Log trực tiếp · làm mới mỗi ${CHO} giây · nhấn phím bất kỳ để về menu =="
+    echo "$out"
+    if read -rsn1 -t "$CHO" k; then return; fi
+  done
+}
+
 while true; do
   clear
   gen=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^GEN_CURRENT *= *\([0-9]*\).*/\1/p')
@@ -33,7 +49,9 @@ while true; do
   [ ${#files[@]} -eq 0 ] && echo " (chưa có ô nào -- chạy: bash ~/lay_ve.sh)"
   echo "--------------------------------------"
   echo " m    Xin máy T4"
+  echo " l    Log trực tiếp (việc đang chạy)"
   echo " k    Xem máy đang giữ"
+  echo " h    Hạn mức GPU còn lại (colab usage)"
   echo " d    Tải tệp Colab -> điện thoại"
   echo " u    Tải tệp điện thoại -> Colab"
   echo " t    Trả máy (XOÁ /content)"
@@ -47,6 +65,8 @@ while true; do
   q|Q) exit 0 ;;
   m|M) colab new -s "$S" --gpu T4; colab status -s "$S"; dung; continue ;;
   k|K) colab sessions; colab status -s "$S"; dung; continue ;;
+  l|L) log_truc_tiep; continue ;;
+  h|H) colab usage; dung; continue ;;
   t|T)
     read -rp "Trả máy '$S'? Mọi tệp trên Colab (/content) sẽ MẤT. Gõ 'co' để trả: " x
     [ "$x" = co ] && colab stop -s "$S"

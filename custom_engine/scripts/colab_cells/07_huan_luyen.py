@@ -16,7 +16,7 @@ CHAY_NEN = True   # False = chờ đến khi xong như ô sổ tay (10-40 phút)
 print(cmd)
 if CHAY_NEN:
     !nohup {cmd} > /content/train.log 2>&1 &
-    print('[da chay nen] xem: sua LOG = "train" trong o 05, roi: o 05')
+    print('[da chay nen] xem: menu fz -> l (log truc tiep) hoac o 05')
 else:
     !{cmd}
     !ls -la {NEXT_ONNX} {NEXT_PT}
