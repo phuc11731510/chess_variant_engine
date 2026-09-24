@@ -233,9 +233,14 @@ trong FEN chỉ là cách *viết* cặp đó. Có hai cách viết, và chúng 
 | **Chữ-cái-cột `BIbi`** (Shredder-FEN) | lấy **đúng Xe ở cột đó**: `I` = Xe cột i, `B` = Xe cột b; HOA = Trắng, thường = Đen | `BIbi` |
 | **`KQkq`** | *dò tìm*: `K` = Xe **đầu tiên** gặp khi đi từ cột i về phía cột a; `Q` = Xe đầu tiên đi từ cột b về phía cột j | `KQkq` |
 
+Nhập thành được trên **mọi hàng** (từ 2026-09-24): Hoàng gia và Xe chưa đi, đứng cùng một hàng, nhập
+thành trên chính hàng đó (Hoàng gia tới cột h/d, Xe tới cột g/e). Vì vậy mỗi chữ (cả `K`/`Q` lẫn chữ
+cột) đều tìm Xe **trên hàng của Hoàng gia bên đó**: `…/1R3K2R1/10 w BI` = Hoàng gia f2, Xe b2 và i2.
+
 - Ở **thế cờ bắt đầu** (Xe ở b và i) hai cách cho **cùng một thế cờ** (cùng Zobrist key), vì phép dò
-  tìm gặp đúng Xe b/i. FSF in FEN ra (lệnh `d`, lệnh `fen`) luôn ở dạng `KQkq`, và đọc lại cũng ra
-  đúng các Xe đó. Nên với thế cờ chuẩn, `KQkq` chỉ khác ở cách hiển thị.
+  tìm gặp đúng Xe b/i. FSF in FEN ra (lệnh `d`, lệnh `fen`) ở dạng `K`/`Q` **khi đọc lại ra đúng Xe
+  đó**, còn không thì in chữ cột (ví dụ Xe a1 và b1, quyền với Xe a1 được in là `A`, vì `Q` sẽ gặp b1).
+  Nên FEN do engine in ra luôn đọc lại đúng như cũ.
 - Khi Xe **không** ở cột b/i (thế tự dựng, hay sau này xáo trộn kiểu Chess960), `KQkq` có thể sai
   **nghĩa** mà không báo gì: ví dụ `4k5/.../R4K3R w K - 8+8 0 1` (Xe ở a1 và j1), phép dò cho `K` đi
   từ i1 về phía a, bỏ qua j1, gặp a1 → thành quyền nhập thành **cánh Hậu** với Xe a1. Viết `J` thì
@@ -247,10 +252,9 @@ trong FEN chỉ là cách *viết* cặp đó. Có hai cách viết, và chúng 
   **tự bỏ, không báo**. Với self-play (`--start-fen`, sách khai cuộc) engine kiểm việc này: mỗi chữ phải
   cho đúng quyền nó ghi (`K`/`Q` đúng cánh, chữ cột đúng Xe cột đó) và không có quyền thừa, sai là
   dừng và báo dòng nào.
-- Nếu sau này dùng **thế cờ khởi đầu xáo trộn** kiểu Chess960: thêm `chess960 = true` vào định nghĩa
-  biến thể (`src/app/variant_setup.cc`) để FSF in FEN bằng chữ-cái-cột; viết sách khai cuộc bằng
-  chữ-cái-cột; và xem mục "Nếu sau này xáo trộn thế cờ khởi đầu" trong `LUAT_BIEN_THE.md` (khoá
-  cache mạng nơ-ron cần thêm ô Xe).
+- Nếu sau này dùng **thế cờ khởi đầu xáo trộn** kiểu Chess960: viết sách khai cuộc bằng chữ-cái-cột và
+  xem mục "Nếu sau này xáo trộn thế cờ khởi đầu" trong `LUAT_BIEN_THE.md` (phần engine đã sẵn sàng:
+  nhập thành mọi hàng, khoá Zobrist có ô Xe, bản ghi lưu ô Xe).
 
 > **Độ khó gợi ý:** Dễ = `Visits 80` + `Temperature 500` · Vừa = `go nodes 400` · Khó = `go nodes 5000` + `Temperature 0`.
 
@@ -364,6 +368,11 @@ vào lệnh `--selfplay` ở B.1/B.2:
 > và **từ chối** version lạ thay vì đọc bừa. `audit_generation.py` kiểm thêm: kết quả ván nhất quán trong
 > từng ván, lượt đi xen kẽ, nước tốt nhất / nước đã đi hợp lệ và nước tốt nhất là nước nhiều lượt thăm
 > nhất, và (từ version 4) không còn bản ghi chép `best_q`.
+
+> **Bản ghi `version = 5` (2026-09-24):** vì nhập thành được trên mọi hàng, 4 byte nhập thành giờ lưu
+> **ô** của Xe (hàng × 10 + cột, theo góc nhìn bên tới lượt như mọi plane; 255 = hết quyền) thay vì chỉ
+> cột. Bố cục không đổi. `train.py` đọc được version 1–5: với bản ghi cũ (Xe luôn ở hàng đầu của mỗi
+> bên) nó tự đổi cột thành ô, nên plane mạng dựng ra y hệt trước; trộn dữ liệu cũ và mới vẫn đúng.
 
 ### B.4. Đóng gói dữ liệu thành 1 tệp `.zip` (để tải lên Drive / cho gọn)
 Hàng ngàn tệp `.gz` nhỏ tải lên Drive rất chậm. Gom thành **1 tệp** (`archive.py` chạy được trên cả
@@ -820,10 +829,11 @@ backend_opts tương ứng (xem `onnx_backend.cc`) sau khi đã xác minh.
 | `--accum-steps K` | 1 | **Tích lũy gradient** K lô nhỏ rồi mới cập nhật một lần → batch hiệu dụng = batch × K, mà bộ nhớ chỉ tốn bằng một lô. Cứu cánh cho GPU nhỏ (Colab). |
 | `--max-steps N` | 0 | Dừng sau N bước tối ưu (thay cho hoặc cùng với `--epochs`). 0 = chỉ theo epochs. Dừng trước khi SWA lấy mẫu nào thì xuất trọng số đã học như hiện có (trước 2026-09-24 xuất nhầm **trọng số ban đầu chưa học**). |
 | `--max-records N` | 0 | Chỉ nạp tối đa N thế cờ (chạy thử nhanh / hạn chế RAM). 0 = nạp tất cả. |
+| `--val-frac F` | 0.04 | **Tập kiểm định:** giữ riêng tỉ lệ F số **ván** (nguyên ván: mọi thế cờ của ván đó; mỗi tệp `game_*.gz` hay mỗi ván trong `.zip` là một ván), chọn **ngẫu nhiên** theo `--seed` trong mọi đời của `--data`, không đem train. In `[val]` 4 lần với `--epochs 2`: trọng số ban đầu, sau epoch 1, sau epoch 2, mạng xuất ra (sau SWA). Mỗi dòng có 2 cặp số: `train:` (một phần tập train, cùng số thế cờ với tập kiểm định) và `validation:`; cả hai tính như nhau (trọng số cố định, trung bình loss trên từng thế cờ). `validation` cao hơn `train` nhiều và ngày càng xa = mạng học thuộc ván. Ít ván quá (F × số ván làm tròn ra 0) thì bỏ qua và báo. 0 = tắt. |
 | `--report-every N` | 0 | In loss mỗi N bước để theo dõi tiến độ trong epoch. 0 = chỉ báo cáo theo từng epoch. |
 | `--save-every N` | 0 | Lưu checkpoint `.pt` mỗi N bước (đề phòng mất điện/đứt Colab). 0 = chỉ lưu khi xong. |
 | `--se-ratio R` | 8 | Mức nén của SE block trong mạng (xem giải thích ở mục B câu hỏi se-ratio). **CHỈ đổi khi train từ đầu** — đổi giữa chừng sẽ không nạp được trọng số cũ. |
-| `--dropout R` | 0 | Tỉ lệ dropout ở value head để chống quá khớp khi dữ liệu ít. 0 = tắt (giống lc0); bật vd 0.1 nếu thấy `train_loss ≪ val_loss`. An toàn warm-start. |
+| `--dropout R` | 0 | Tỉ lệ dropout ở value head để chống quá khớp khi dữ liệu ít. 0 = tắt (giống lc0); bật vd 0.1 nếu dòng `[val]` cho thấy `validation` value cao hơn hẳn `train` (xem `--val-frac`). An toàn warm-start. |
 | `--diff-focus` (+ `--df-slope/--df-kld-w/--df-min`) | tắt | Ưu tiên học các thế cờ "khó" (mạng đoán sai nhiều) thay vì học đều; các cờ `--df-*` tinh chỉnh cường độ. |
 | `--workers N` / `--pin-memory` | auto | Tăng tốc khâu **nạp dữ liệu** (nhiều tiến trình đọc + dựng plane song song; ghim bộ nhớ để chuyển lên GPU nhanh hơn). **Mặc định tự bật trên GPU** (`workers = số nhân CPU`, `pin_memory` bật) vì khi đó GPU hay phải chờ CPU dựng plane; trên CPU mặc định `workers=0` (tránh Windows pickle cache vào từng tiến trình). Truyền tay để ghi đè. |
 | `--sparse-cache` / `--dense-cache` | sparse | Cách lưu cache dữ liệu: `sparse` tốn ít RAM (chống tràn bộ nhớ trên Colab); `dense` nhanh hơn nhưng ngốn RAM. |

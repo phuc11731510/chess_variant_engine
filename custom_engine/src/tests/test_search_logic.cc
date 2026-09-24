@@ -804,10 +804,10 @@ void TestSelfPlayRecordsReplay() {
                   r.rule50_count == want.rule50_count && r.side_to_move == want.side_to_move &&
                   r.checks_remaining_us == want.checks_remaining_us &&
                   r.checks_remaining_them == want.checks_remaining_them &&
-                  r.castling_us_ooo_file == want.castling_us_ooo_file &&
-                  r.castling_us_oo_file == want.castling_us_oo_file &&
-                  r.castling_them_ooo_file == want.castling_them_ooo_file &&
-                  r.castling_them_oo_file == want.castling_them_oo_file,
+                  r.castling_us_ooo_sq == want.castling_us_ooo_sq &&
+                  r.castling_us_oo_sq == want.castling_us_oo_sq &&
+                  r.castling_them_ooo_sq == want.castling_them_ooo_sq &&
+                  r.castling_them_oo_sq == want.castling_them_oo_sq,
                   i, "planes/scalars differ from the replayed position");
             check(r.version == lczero::kTrainingDataVersion && r.input_format == lczero::kInputFormat10x10,
                   i, "version / input_format");

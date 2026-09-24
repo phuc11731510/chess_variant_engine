@@ -33,7 +33,11 @@ Thế cờ đầu:
 - **Phong cấp:** Tốt hoặc Sergeant tới hàng 8–10 (Đen: 3–1) **bắt buộc** phong thành một trong
   `b m n r v y`.
 - **Nhập thành:** Hoàng gia f1 + Xe i1 → Hoàng gia h1, Xe g1; Hoàng gia f1 + Xe b1 → Hoàng gia d1,
-  Xe e1. Đen tương tự ở hàng 10.
+  Xe e1. Đen tương tự ở hàng 10. Tổng quát (cho thế cờ xáo trộn, từ 2026-09-24): Hoàng gia và một Xe
+  **chưa từng đi**, đứng **cùng một hàng bất kỳ** (không chỉ hàng 1/10), ở cột bất kỳ; Xe bên phải
+  Hoàng gia (theo cột) là cánh Vua: Hoàng gia tới cột **h**, Xe tới cột **g**; Xe bên trái là cánh Hậu:
+  Hoàng gia tới cột **d**, Xe tới cột **e**; cả hai **giữ nguyên hàng** đang đứng. Ví dụ Hoàng gia f2 +
+  Xe i2 → Hoàng gia h2, Xe g2.
 - **Đếm chiếu:** mỗi quân đang chiếu Hoàng gia đối phương sau một nước tính 1 lần chiếu. Đủ **8** thì
   thắng ngay.
 - **Hết nước đi = thua** (dù bị chiếu hay không).
@@ -65,32 +69,46 @@ Thế cờ đầu:
     hai Hoàng gia không bao giờ đứng cách nhau một nước Mã (hay một nước Vua).
 11. **Nhập thành:** cần g1, h1 trống (cánh i) hoặc c1, d1, e1 trống (cánh b). Không nhập thành khi đang
     bị chiếu, không đi qua hay đứng vào ô bị tấn công. Mất quyền khi Hoàng gia đi, hoặc khi Xe đó rời
-    ô gốc **hoặc bị ăn tại ô gốc**.
+    ô gốc **hoặc bị ăn tại ô gốc**. Tổng quát: mọi ô mà Hoàng gia hoặc Xe đi qua hay đáp xuống (trên
+    hàng của chúng) phải trống, trừ chính hai quân đó; ô đích của Hoàng gia xét **sau khi Xe đã rời ô**
+    (Xe đang che đường chiếu tới ô đó thì không được nhập thành).
 12. **Không có luật hoà do thiếu quân.** Kể cả Hoàng gia đối Hoàng gia vẫn thua được vì hết nước
     (Hoàng gia đen a10, Hoàng gia trắng c8, Đen tới lượt → Đen hết nước → Đen thua).
+13. **Nhập thành ngoài hàng 1** (thế xáo trộn, 2026-09-24): khi Xe rời ô, đường chéo đi qua ô đó có thể
+    mở ra cho quân phía sau → **chiếu mở, tính 1 lần chiếu**. Ví dụ Tượng trắng j1, Xe i2, Hoàng gia
+    f2, Hoàng gia đen d7: nhập thành f2→h2 (Xe i2→g2) mở đường j1–d7, Đen bị chiếu. FSF gốc bỏ qua phép
+    kiểm này khi `castlingRank = 1` (ở hàng 1 không thể xảy ra); dự án luôn kiểm (`Position::gives_check`).
+14. **Hoàng gia có thể đáp xuống đúng ô Xe đang đứng** (Hoàng gia e3 + Xe h3 → Hoàng gia h3, Xe g3) và
+    Xe có thể đáp xuống ô Hoàng gia vừa rời (Hoàng gia e3 + Xe a3 → Hoàng gia d3, Xe e3). Nếu Hoàng gia
+    đã đứng sẵn ở cột đích (h hoặc d) thì nó không di chuyển, chỉ Xe đi; nước này được ghi là Hoàng gia →
+    ô Xe (ví dụ `h2j2`), không phải `h2h2`.
 
 ## Viết quyền nhập thành trong FEN
 
 Bên trong, mỗi quyền nhập thành là một cặp ô (ô Hoàng gia, ô Xe). Trong FEN nên viết bằng **chữ cái
-cột của Xe** (Shredder-FEN): thế cờ bắt đầu là `BIbi` (Xe cột b và cột i; HOA = Trắng). FSF cũng hiểu
+cột của Xe** (Shredder-FEN): thế cờ bắt đầu là `BIbi` (Xe cột b và cột i; HOA = Trắng). Mỗi chữ tìm Xe
+trên **hàng của Hoàng gia bên đó** (nhập thành được trên mọi hàng). FSF cũng hiểu
 `KQkq`, nhưng bằng cách **dò tìm**: `K` = Xe đầu tiên gặp khi đi từ cột i về phía cột a, `Q` = Xe đầu
 tiên đi từ cột b về phía cột j. Ở thế cờ bắt đầu hai cách cho cùng một thế cờ (FSF in FEN ra ở dạng
 `KQkq`); khi Xe không ở b/i thì `KQkq` có thể ra quyền khác (ví dụ Xe ở a1 và j1, `K` thành nhập thành
 **cánh Hậu** với Xe a1). `CheckStartFen` (`src/app/variant_setup.cc`) từ chối mọi FEN khởi đầu mà một chữ
-nhập thành không ra đúng quyền nó ghi.
+nhập thành không ra đúng quyền nó ghi. Khi in FEN, engine chỉ in `K`/`Q` nếu đọc lại ra đúng Xe đó, còn
+không thì in chữ cột, nên FEN in ra luôn đọc lại đúng.
 
 ### Nếu sau này xáo trộn thế cờ khởi đầu (kiểu Chess960)
 
-Luật nhập thành của FSF đã tổng quát (Hoàng gia luôn tới cột h/d, Xe đứng cạnh phía trong; phép kiểm
-"Xe đang che đường chiếu" của Chess960 luôn được áp). Những việc cần làm:
+Phần engine đã sẵn sàng (2026-09-24):
 
-1. Thêm `chess960 = true` vào định nghĩa biến thể (`setup_custom_variant`): FSF sẽ in FEN bằng chữ cột
-   và dùng quy ước Chess960 ở mọi chỗ.
-2. Viết sách khai cuộc bằng chữ cột; chạy self-play với `--start-fen <tệp sách>` (mỗi dòng được kiểm).
-3. **Khoá Zobrist chỉ chứa 4 bit quyền nhập thành, không chứa ô Xe.** Trong một ván thì không sao (ô Xe
-   cố định từ đầu ván), nhưng hai ván từ hai thế khởi đầu khác nhau có thể tới cùng một bàn cờ, cùng 4 bit,
-   mà Xe nhập thành khác nhau: cache mạng nơ-ron (dùng chung cho mọi ván) sẽ trả đánh giá của thế này
-   cho thế kia. Khi đó cần đưa ô Xe nhập thành vào khoá (Zobrist theo ô Xe, hoặc vào khoá cache).
-4. Đầu vào mạng (plane nhập thành đánh dấu ô Xe), bản ghi (lưu cột Xe) và chỉ số policy của nước nhập
-   thành (Hoàng gia → ô Xe) đều theo ô nên không cần đổi; nhưng mạng đã học trên thế cờ cố định chưa từng
-   thấy hình nhập thành khác, nên nên huấn luyện lại hoặc trộn dữ liệu mới từ sớm.
+- Nhập thành trên mọi hàng, cột bất kỳ (tuỳ chọn `castlingAnyRank` thêm vào bản FSF của dự án); phép
+  kiểm "Xe đang che đường chiếu" của Chess960 luôn được áp; chiếu mở khi Xe rời ô luôn được xét.
+- **Khoá Zobrist chứa ô (hàng và cột) của Xe của từng quyền nhập thành**, nên hai ván từ hai thế khởi
+  đầu khác nhau tới cùng một bàn cờ, cùng quyền nhưng khác Xe, sẽ có khoá khác nhau (lặp thế và cache
+  mạng nơ-ron không lẫn). Chỉ tốn công khi quyền nhập thành thay đổi, không ảnh hưởng tốc độ tìm kiếm.
+- FEN in ra đọc lại đúng Xe (`K`/`Q` hay chữ cột, xem trên); không cần `chess960 = true`.
+- Đầu vào mạng đánh dấu ô Xe; bản ghi lưu **ô** Xe (version 5); chỉ số policy của nước nhập thành là
+  Hoàng gia → ô Xe. Tất cả theo ô nên đúng với mọi hàng.
+
+Còn phải làm khi dùng thật: viết sách khai cuộc bằng chữ cột, chạy self-play với `--start-fen <tệp
+sách>` (mỗi dòng được kiểm); mạng đã học trên thế cờ cố định chưa từng thấy hình nhập thành khác nên
+cần huấn luyện lại hoặc trộn dữ liệu mới từ sớm; GUI (Flutter/Android) chưa được kiểm với nhập thành
+ngoài hàng 1.

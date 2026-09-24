@@ -9,6 +9,10 @@ records, and checks what they write (not just that they finish):
      --swa-start-frac 0 averages both epochs.
   4. --data with a part that matches no file is an error (it used to be skipped).
   5. The exported .pt and .onnx agree (verify_onnx parity inside train.py).
+  6. Validation split (--val-frac): whole games drawn at random over every
+     generation (also games inside a .zip), one policy and one value number
+     per evaluation that do not depend on the batch size, printed before
+     training, after each epoch and for the exported model.
 
 Run:  python test_train_pipeline.py        (~1 minute on a CPU)
 """
@@ -73,6 +77,79 @@ def same_weights(a, b):
     return sa.keys() == sb.keys() and all(torch.equal(sa[k], sb[k]) for k in keys)
 
 
+def test_validation(tmp, base, seed_pt, net_args):
+    import re
+    import dataset as D
+    import train as T
+    from torch.utils.data import DataLoader
+    from model import FairyNet
+
+    # 3 generations x 20 games x 8 positions (a rolling window of 60 games).
+    gens = []
+    for g in range(3):
+        d = os.path.join(tmp, "games", f"gen{g}")
+        os.makedirs(d)
+        for k in range(20):
+            write_games(os.path.join(d, f"game_{k}.gz"), 8, seed=100 * g + k)
+        gens.append(d)
+    data = ",".join(gens)
+    games = D.list_games(data)
+    check(len(games) == 60 and all(m is None for _, m in games), "60 games, one per .gz file")
+
+    train_g, val_g = D.split_games(games, 0.04, seed=0)
+    check(len(val_g) == 2 and len(train_g) == 58, f"4% of 60 games = 2 held out (got {len(val_g)})")
+    check(not set(train_g) & set(val_g) and sorted(train_g + val_g) == sorted(games),
+          "every game on exactly one side")
+    check(D.split_games(games, 0.04, seed=0) == (train_g, val_g), "same --seed, same games held out")
+    picks = {tuple(D.split_games(games, 0.2, seed=s)[1]) for s in range(20)}
+    gens_hit = {os.path.basename(os.path.dirname(p)) for pick in picks for p, _ in pick}
+    check(len(picks) > 15 and gens_hit == {"gen0", "gen1", "gen2"},
+          f"random over all generations ({len(picks)} different picks, from {sorted(gens_hit)})")
+    check(D.split_games(games, 0.0)[1] == [] and D.split_games(games[:10], 0.04)[1] == [],
+          "--val-frac 0, or too few games: nothing held out")
+
+    # Games inside a .zip bundle are split one by one, like files.
+    bundle = os.path.join(tmp, "window.zip")
+    rc, _ = run([os.path.join(HERE, "archive.py"), "pack", os.path.join(tmp, "games"), "--out", bundle], tmp)
+    zgames = D.list_games(bundle)
+    ztrain, zval = D.split_games(zgames, 0.04, seed=0)
+    dsv = D.FairyDataset(bundle, games=zval, label="validation")
+    dst = D.FairyDataset(bundle, games=ztrain, label="train")
+    check(rc == 0 and len(zgames) == 60 and len(dsv) == 2 * 8 and len(dst) == 58 * 8,
+          f"a .zip is split by the games inside it ({len(zgames)} games, {len(dsv)} + {len(dst)} positions)")
+
+    # One number per set: the mean over positions, whatever the batch size.
+    torch.manual_seed(0)
+    net = FairyNet(channels=8, blocks=1, se_ratio=8)
+    a = T.evaluate(net, DataLoader(dst, batch_size=7), "cpu")
+    b = T.evaluate(net, DataLoader(dst, batch_size=len(dst)), "cpu")
+    x, pi, val = next(iter(DataLoader(dst, batch_size=len(dst))))
+    net.eval()
+    with torch.no_grad():
+        pl, vl = net(x)
+        per_pos_p = -(pi.clamp(min=0) * torch.log_softmax(pl.masked_fill(pi < 0, float("-inf")), 1)
+                      .masked_fill(pi < 0, 0.0)).sum(1)
+        per_pos_v = -(val * torch.log_softmax(vl, 1)).sum(1)
+    check(abs(a[0] - b[0]) < 1e-5 and abs(a[1] - b[1]) < 1e-5 and
+          abs(a[0] - per_pos_p.mean().item()) < 1e-5 and abs(a[1] - per_pos_v.mean().item()) < 1e-5,
+          f"evaluate() = mean of the per-position losses, batch 7 or {len(dst)} "
+          f"(policy {a[0]:.5f} / {b[0]:.5f}, value {a[1]:.5f} / {b[1]:.5f})")
+
+    # train.py end to end: 4 reports (start, epoch 1, epoch 2, exported model).
+    args = list(base)
+    args[args.index("--data") + 1] = data
+    rc, out = run(args + ["--epochs", "2", "--out", os.path.join(tmp, "v.onnx")], tmp)
+    lines = [l for l in out.splitlines() if "[val] " in l and "validation: policy=" in l]
+    whats = [re.search(r"\[val\] (.+?)\s+train:", l).group(1).strip() for l in lines]
+    nums_ok = all(len(re.findall(r"=\d+\.\d{4}", l)) == 4 for l in lines)
+    check(rc == 0 and "[val] 2 of 60 games held out (16 positions), compared with 16 training positions" in out,
+          "train.py holds out 2 of the 60 games")
+    check(whats == ["start weights", "epoch 1", "epoch 2", "exported model"] and nums_ok,
+          f"--epochs 2 prints 4 validation lines with 4 numbers each (got {whats})")
+    rc, out = run(args + ["--epochs", "1", "--val-frac", "0", "--out", os.path.join(tmp, "w.onnx")], tmp)
+    check(rc == 0 and "[val]" not in out, "--val-frac 0: no validation")
+
+
 def main():
     net_args = ["--channels", "8", "--blocks", "1", "--se-ratio", "8"]
     with tempfile.TemporaryDirectory() as tmp:
@@ -114,6 +191,12 @@ def main():
                               "--out", os.path.join(tmp, "d.onnx")], tmp)
         check(rc != 0 and "no training files matched" in out and "gen9.zip" in out,
               "a missing generation stops the training")
+        check("too few for --val-frac" in run(base + ["--epochs", "1", "--out", os.path.join(tmp, "e.onnx")],
+                                              tmp)[1],
+              "one game: no validation set, and it says so")
+
+        print("\n[6] validation split")
+        test_validation(tmp, base, seed_pt, net_args)
 
     print("\n" + "=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")

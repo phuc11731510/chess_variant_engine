@@ -123,8 +123,8 @@ def main():
         pp = r["piece_planes"]
         # Position identity: pieces of the current board (planes 0-25; plane 26
         # is the repetition flag itself) + castling, e.p., checks, side to move.
-        key = (tuple(pp[:52]), r["castling_us_ooo_file"], r["castling_us_oo_file"],
-               r["castling_them_ooo_file"], r["castling_them_oo_file"], tuple(r["ep_mask"]),
+        key = (tuple(pp[:52]), r["castling_us_ooo_sq"], r["castling_us_oo_sq"],
+               r["castling_them_ooo_sq"], r["castling_them_oo_sq"], tuple(r["ep_mask"]),
                r["checks_remaining_us"], r["checks_remaining_them"], r["side_to_move"])
         count = seen.get(key, 0)
         seen[key] = count + 1

@@ -7,7 +7,7 @@ THE 3 CONVENTIONS THIS MUST MATCH (locked by the T5 round-trip test):
   1. policy index = MoveToNNIndex (probabilities[10600]).
   2. value order  = [Win, Draw, Loss] from side-to-move (q = win - loss).
   3. input planes = [226, 10, 10]; piece-plane bit s = rank*12 + file (Stockfish
-     12-stride). Aux planes rebuilt from scalars; castling: us->rank0, them->rank9.
+     12-stride). Aux planes rebuilt from scalars; castling: the rook's square.
 """
 
 import gzip
@@ -21,7 +21,10 @@ POLICY_SIZE = 10600
 HISTORY_PLANES = 216          # 27 planes/ply * 8 ply
 NUM_PLANES = 226
 AUX_BASE = 216
-NO_CASTLING_FILE = 0xFF
+NO_CASTLING_SQ = 0xFF
+# The four castling fields, in record (and aux-plane 0-3) order.
+CASTLING_KEYS = ("castling_us_ooo_sq", "castling_us_oo_sq",
+                 "castling_them_ooo_sq", "castling_them_oo_sq")
 BOARD = 10
 
 # Little-endian, packed (matches #pragma pack(1)). Field order == the C++ struct.
@@ -29,7 +32,7 @@ _FMT = ("<"
         "II"                       # version, input_format
         f"{POLICY_SIZE}f"          # probabilities[10600]
         f"{HISTORY_PLANES * 2}Q"   # piece_planes[216][2]  (lo,hi per plane)
-        "5B"                       # rule50, 4x castling-file
+        "5B"                       # rule50, 4x castling rook square
         "2Q"                       # ep_mask[2]
         "3B"                       # checks_us, checks_them, side_to_move
         "11f"                      # result_q/d, root_q/d, best_q/d, played_q/d, orig_q/d, policy_kld
@@ -44,7 +47,11 @@ assert RECORD_SIZE == 45940, f"record size {RECORD_SIZE} != 45940 (layout drift!
 # trainingdata_v1.h keeps the history; the layout has never changed). Anything
 # else is refused: a future version may change what a field means, and a record
 # that parses by size alone would then be read wrong without any error.
-KNOWN_VERSIONS = (1, 2, 3, 4)
+KNOWN_VERSIONS = (1, 2, 3, 4, 5)
+# From version 5 the castling bytes are the rook's square (rank*10 + file,
+# canonical frame); before, the rook was always on its side's first rank and
+# the byte was its file. unpack_record() turns an old file into that square.
+FIRST_CASTLING_SQUARE_VERSION = 5
 INPUT_FORMAT_10X10 = 1
 
 
@@ -62,10 +69,17 @@ def unpack_record(buf):
     r["probabilities"] = np.array(v[i:i + POLICY_SIZE], dtype=np.float32); i += POLICY_SIZE
     r["piece_planes"] = v[i:i + HISTORY_PLANES * 2]; i += HISTORY_PLANES * 2
     r["rule50_count"] = v[i]; i += 1
-    r["castling_us_ooo_file"] = v[i]; i += 1
-    r["castling_us_oo_file"] = v[i]; i += 1
-    r["castling_them_ooo_file"] = v[i]; i += 1
-    r["castling_them_oo_file"] = v[i]; i += 1
+    old_castling = r["version"] < FIRST_CASTLING_SQUARE_VERSION
+    for k, key in enumerate(CASTLING_KEYS):
+        c = v[i]; i += 1
+        if c != NO_CASTLING_SQ:
+            if old_castling:            # a file: us on rank 0, them on rank 9
+                if c >= BOARD:
+                    raise ValueError(f"castling file {c} in a version-{r['version']} record")
+                c += 0 if k < 2 else (BOARD - 1) * BOARD
+            elif c >= BOARD * BOARD:
+                raise ValueError(f"castling square {c} in a version-{r['version']} record")
+        r[key] = c
     r["ep_mask"] = (v[i], v[i + 1]); i += 2
     r["checks_remaining_us"] = v[i]; i += 1
     r["checks_remaining_them"] = v[i]; i += 1
@@ -121,13 +135,12 @@ def reconstruct_planes(rec):
     planes[:HISTORY_PLANES] = _unpack_block(pp)                      # 216 history planes
     # aux 4: en passant plane (bitboard mask).
     planes[AUX_BASE + 4] = _unpack_block(np.asarray(rec["ep_mask"], dtype=np.uint64))
-    # aux 0..3: castling rook squares. us -> bottom rank 0, them -> top rank 9.
-    files = [rec["castling_us_ooo_file"], rec["castling_us_oo_file"],
-             rec["castling_them_ooo_file"], rec["castling_them_oo_file"]]
-    ranks = [0, 0, BOARD - 1, BOARD - 1]
-    for k in range(4):
-        if files[k] != NO_CASTLING_FILE:
-            planes[AUX_BASE + k, ranks[k], files[k]] = 1.0
+    # aux 0..3: one bit on the square of each castling right's rook (canonical
+    # frame, like the pieces), for us ooo / us oo / them ooo / them oo.
+    for k, key in enumerate(CASTLING_KEYS):
+        s = rec[key]
+        if s != NO_CASTLING_SQ:
+            planes[AUX_BASE + k, s // BOARD, s % BOARD] = 1.0
     # aux 5: rule50 normalized; aux 6: unused (zeros); aux 7: board-edge (all ones).
     planes[AUX_BASE + 5, :, :] = rec["rule50_count"] / 100.0
     planes[AUX_BASE + 7, :, :] = 1.0
@@ -180,14 +193,43 @@ def iter_records_from_zip(zip_path):
     used to exhaust Colab's RAM at load time before a single training step ran."""
     with zipfile.ZipFile(zip_path) as zf:
         for name in zf.namelist():
-            if name.endswith("/"):
+            if is_game_member(name):
+                yield from _iter_member(zf, name, zip_path)
+
+
+def is_game_member(name):
+    """A game inside a .zip bundle (archive.py packs one .gz per game)."""
+    return name.endswith(".gz") or name.endswith(".bin")
+
+
+def _iter_member(zf, name, zip_path):
+    with zf.open(name) as raw:
+        if name.endswith(".gz"):
+            with gzip.GzipFile(fileobj=raw) as f:
+                yield from _iter_stream(f, f"{zip_path}:{name}")
+        else:
+            yield from _iter_stream(raw, f"{zip_path}:{name}")
+
+
+def iter_games(games):
+    """Stream the records of `games`, one at a time, in the given order. A game is
+    (path, None) for a .gz/.bin file -- self-play writes one game per file -- or
+    (zip_path, member) for a game inside a .zip bundle (dataset.list_games).
+    Consecutive games of one bundle share one open ZipFile."""
+    zf, zpath = None, None
+    try:
+        for path, member in games:
+            if member is None:
+                yield from iter_records(path)
                 continue
-            with zf.open(name) as raw:
-                if name.endswith(".gz"):
-                    with gzip.GzipFile(fileobj=raw) as f:
-                        yield from _iter_stream(f, f"{zip_path}:{name}")
-                elif name.endswith(".bin"):
-                    yield from _iter_stream(raw, f"{zip_path}:{name}")
+            if path != zpath:
+                if zf is not None:
+                    zf.close()
+                zf, zpath = zipfile.ZipFile(path), path
+            yield from _iter_member(zf, member, path)
+    finally:
+        if zf is not None:
+            zf.close()
 
 
 def read_records_from_zip(zip_path):

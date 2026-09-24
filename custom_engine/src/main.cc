@@ -119,7 +119,7 @@ int main(int argc, char* argv[]) {
     } else if (o.test_search_logic_mode) {
         run_search_logic_tests(o.weights_file);
     } else if (o.audit_rules_mode) {
-        run_rules_oracle_audit(o.sp_games, o.sp_max_moves);
+        run_rules_oracle_audit(o.games_given ? o.sp_games : 0, o.sp_max_moves);
     } else if (o.test_history_mode) {
         run_history_tests();
     } else if (o.test_neural_mode) {

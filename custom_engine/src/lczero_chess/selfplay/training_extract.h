@@ -45,8 +45,8 @@ void AssignResult(TrainingDataV1& rec, GameResult abs_result, bool black_to_move
 //   - piece_planes[216][2] : the 216 history piece planes as 128-bit masks.
 //   - ep_mask[2]           : the en-passant plane mask.
 //   - scalar aux           : rule50_count, checks_remaining_us/them, side_to_move,
-//                            and castling_*_file (rook file index, 0xFF if none).
-// All planes/files are in the canonical (side-to-move) frame, matching what the
+//                            and castling_*_sq (rook square rank*10+file, 0xFF if none).
+// All planes/squares are in the canonical (side-to-move) frame, matching what the
 // NN sees at inference. The scalar aux is stored raw; the Python reader rebuilds
 // the normalized aux planes (rule50/checks/board-edge) and the castling planes.
 void EncodePlanesIntoRecord(const PositionHistory& history, TrainingDataV1& rec);

@@ -8,13 +8,14 @@ are cached in RAM (fast epochs); for large-scale training use a streaming reader
 import glob
 import os
 import random
+import zipfile
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from trainingdata_reader import (iter_records, iter_records_from_zip,
-                                 reconstruct_planes, POLICY_SIZE)
+from trainingdata_reader import (is_game_member, iter_games, reconstruct_planes,
+                                 POLICY_SIZE)
 
 
 def wdl_from_qd(q, d):
@@ -90,6 +91,38 @@ def _resolve_files(data):
     return sorted(set(files))
 
 
+def list_games(data):
+    """Every game in `data` (see _resolve_files), in load order: (path, None) for
+    a .gz/.bin file -- self-play writes one game per file -- and (zip, member) for
+    each game inside a .zip bundle, in the bundle's order."""
+    games = []
+    for f in _resolve_files(data):
+        if f.endswith(".zip"):
+            with zipfile.ZipFile(f) as zf:
+                games += [(f, name) for name in zf.namelist() if is_game_member(name)]
+        else:
+            games.append((f, None))
+    return games
+
+
+def split_games(games, val_frac, seed=0):
+    """Hold out round(val_frac * #games) WHOLE games, drawn at random (seeded) from
+    all of them whatever their generation, as a validation set.
+
+    Whole games, not positions: the positions of one game share its result z and
+    look alike, so with a game on both sides a net that memorized it would look
+    good on validation too. Returns (train_games, val_games), each in load order;
+    val_games is empty when val_frac * #games rounds to 0."""
+    n_val = int(round(val_frac * len(games))) if val_frac > 0 else 0
+    if n_val <= 0:
+        return list(games), []
+    if n_val >= len(games):
+        raise ValueError(f"--val-frac {val_frac} would hold out all {len(games)} games")
+    held = set(random.Random(seed).sample(range(len(games)), n_val))
+    return ([g for i, g in enumerate(games) if i not in held],
+            [g for i, g in enumerate(games) if i in held])
+
+
 # From data version 4 orig_q/orig_d/policy_kld are always the root's real raw
 # NN eval. Before, when the root had already fallen out of the NN cache (8.5% of
 # the gen-0 records), the engine wrote orig = best and policy_kld = 0 instead.
@@ -125,11 +158,13 @@ class FairyDataset(Dataset):
 
     def __init__(self, data, q_ratio=0.2, downsample_keep=1.0, cache=True, seed=0,
                  diff_focus=False, df_slope=1.0, df_kld_w=0.5, df_min=0.2, sparse=True,
-                 max_records=0):
+                 max_records=0, games=None, label=""):
+        """`games` (from list_games / split_games) loads only those games; by
+        default every game in `data`. `label` names the set in the log line."""
         rng = random.Random(seed)
-        files = _resolve_files(data)
-        if not files:
-            raise FileNotFoundError(f"no training files matched: {data}")
+        games = list_games(data) if games is None else list(games)
+        if not games:
+            raise FileNotFoundError(f"no training games in: {data}")
 
         self.q_ratio = q_ratio   # set before _compact/_build (they call self._value)
         self.cache = cache
@@ -181,23 +216,19 @@ class FairyDataset(Dataset):
         store = compact_cache if compact_cache is not None else (
             dense_cache if dense_cache is not None else raw_records)
         kept = 0
-        stop = False
-        for f in files:
-            it = iter_records_from_zip(f) if f.endswith(".zip") else iter_records(f)
-            for r in it:
-                k = _keep(r)
-                if k is False:
-                    continue
-                if k is None:
-                    deferred.append(_form(r))
-                    continue
-                store.append(_form(r))
-                kept += 1
-                if max_records and kept >= max_records:
-                    stop = True
-                    break
-            if stop:
+        records = iter_games(games)
+        for r in records:
+            k = _keep(r)
+            if k is False:
+                continue
+            if k is None:
+                deferred.append(_form(r))
+                continue
+            store.append(_form(r))
+            kept += 1
+            if max_records and kept >= max_records:
                 break
+        records.close()                        # closes an open .zip at once
         if deferred:
             keep_p = df_seen[0] / df_seen[1] if df_seen[1] else 1.0
             for form in deferred:
@@ -213,7 +244,8 @@ class FairyDataset(Dataset):
 
         self._cached = compact_cache if compact_cache is not None else dense_cache
         self._records = raw_records
-        print(f"[dataset] {len(files)} files -> {kept} records "
+        self.num_games = len(games)
+        print(f"[dataset] {label + ': ' if label else ''}{len(games)} games -> {kept} records "
               f"(q_ratio={q_ratio}, downsample={downsample_keep}, cached={cache}, "
               f"sparse={sparse and cache})")
 
@@ -241,10 +273,10 @@ class FairyDataset(Dataset):
         return {
             "piece_planes": np.asarray(r["piece_planes"], dtype=np.uint64),
             "ep_mask": np.asarray(r["ep_mask"], dtype=np.uint64),
-            "castling_us_ooo_file": r["castling_us_ooo_file"],
-            "castling_us_oo_file": r["castling_us_oo_file"],
-            "castling_them_ooo_file": r["castling_them_ooo_file"],
-            "castling_them_oo_file": r["castling_them_oo_file"],
+            "castling_us_ooo_sq": r["castling_us_ooo_sq"],
+            "castling_us_oo_sq": r["castling_us_oo_sq"],
+            "castling_them_ooo_sq": r["castling_them_ooo_sq"],
+            "castling_them_oo_sq": r["castling_them_oo_sq"],
             "rule50_count": r["rule50_count"],
             "checks_remaining_us": r["checks_remaining_us"],
             "checks_remaining_them": r["checks_remaining_them"],

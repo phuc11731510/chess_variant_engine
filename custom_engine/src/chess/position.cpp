@@ -46,6 +46,12 @@ namespace Zobrist {
   // e.p. rights (false repetitions, shared NN-cache entries).
   Key enpassant[SQUARE_NB];
   Key castling[CASTLING_RIGHT_NB];
+  // The rook of each castling right (WHITE_OO, WHITE_OOO, BLACK_OO, BLACK_OOO)
+  // by its square: castling[] alone only says WHICH rights are left, so with
+  // shuffled starts two games could reach the same board with the same rights
+  // held by different rooks -- different legal moves, same key (repetitions,
+  // NN cache). See Position::castling_key().
+  Key castlingRook[4][SQUARE_NB];
   Key side, noPawns;
   Key inHand[PIECE_NB][SQUARE_NB];
   Key checks[COLOR_NB][CHECKS_NB];
@@ -192,6 +198,11 @@ void Position::init() {
 
   for (int i = NO_EG_EVAL; i < EG_EVAL_NB; ++i)
       Zobrist::endgame[i] = rng.rand<Key>();
+
+  // Drawn last so that every key above keeps its value.
+  for (int i = 0; i < 4; ++i)
+      for (Square s = SQ_A1; s <= SQ_MAX; ++s)
+          Zobrist::castlingRook[i][s] = rng.rand<Key>();
 
   // Prepare the cuckoo tables
   std::memset(cuckoo, 0, sizeof(cuckoo));
@@ -393,17 +404,15 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
       {
           Square rsq;
           Color c = islower(token) ? BLACK : WHITE;
+          const Rank crank = castling_setup_rank(c);
 
           token = char(toupper(token));
 
-          if (castling_enabled() && token == 'K')
-              for (rsq = make_square(var->castlingRookKingsideFile, castling_rank(c)); (!(castling_rook_pieces(c) & type_of(piece_on(rsq))) || color_of(piece_on(rsq)) != c) && file_of(rsq) > FILE_A; --rsq) {}
-
-          else if (castling_enabled() && token == 'Q')
-              for (rsq = make_square(var->castlingRookQueensideFile, castling_rank(c)); (!(castling_rook_pieces(c) & type_of(piece_on(rsq))) || color_of(piece_on(rsq)) != c) && file_of(rsq) < max_file(); ++rsq) {}
+          if (castling_enabled() && (token == 'K' || token == 'Q'))
+              rsq = castling_rook_by_letter(c, token == 'K', crank);
 
           else if (token >= 'A' && token <= 'A' + max_file())
-              rsq = make_square(File(token - 'A'), castling_rank(c));
+              rsq = make_square(File(token - 'A'), crank);
 
           else
               continue;
@@ -411,12 +420,12 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
           // Determine castling "king" position
           if (castling_enabled() && st->castlingKingSquare[c] == SQ_NONE)
           {
-              Bitboard castlingKings = pieces(c, castling_king_piece(c)) & rank_bb(castling_rank(c));
+              Bitboard castlingKings = pieces(c, castling_king_piece(c)) & rank_bb(crank);
               // Ambiguity resolution for 960 variants with more than one "king"
               // e.g., EAH means that an e-file king can castle with a- and h-file rooks
               st->castlingKingSquare[c] =  isChess960 && piece_on(rsq) == make_piece(c, castling_king_piece(c)) ? rsq
                                          : castlingKings && (!more_than_one(castlingKings) || isChess960) ? lsb(castlingKings)
-                                         : make_square(castling_king_file(), castling_rank(c));
+                                         : make_square(castling_king_file(), crank);
               // Skip invalid castling rights
               if (!(castlingKings & st->castlingKingSquare[c]))
                   st->castlingKingSquare[c] = SQ_NONE;
@@ -594,11 +603,63 @@ void Position::set_castling_right(Color c, Square rfrom) {
   castlingRightsMask[rfrom] |= cr;
   castlingRookSquare[cr] = rfrom;
 
-  Square kto = make_square(cr & KING_SIDE ? castling_kingside_file() : castling_queenside_file(), castling_rank(c));
+  // King and rook land on the castling files of their own rank.
+  Square kto = make_square(cr & KING_SIDE ? castling_kingside_file() : castling_queenside_file(), rank_of(kfrom));
   Square rto = kto + (cr & KING_SIDE ? WEST : EAST);
 
   castlingPath[cr] =   (between_bb(rfrom, rto) | between_bb(kfrom, kto))
                     & ~(kfrom | rfrom);
+}
+
+
+/// Position::castling_setup_rank() is the rank on which the castling pieces of
+/// colour c stand when a FEN is read: the variant's castlingRank or, with
+/// castlingAnyRank, the rank of c's castling king when it has exactly one.
+
+Rank Position::castling_setup_rank(Color c) const {
+
+  if (var->castlingAnyRank)
+  {
+      const Bitboard kings = pieces(c, castling_king_piece(c));
+      if (kings && !more_than_one(kings))
+          return rank_of(lsb(kings));
+  }
+  return castling_rank(c);
+}
+
+
+/// Position::castling_rook_by_letter() is the rook the FEN letter K (kingSide)
+/// or Q stands for on rank r: the first castling rook of c from the variant's
+/// kingside (queenside) rook file towards the a-file (the last file). When
+/// there is none, the square it stops on holds no such rook, and the right is
+/// not set. fen() writes K/Q only where this gives back the right's own rook.
+
+Square Position::castling_rook_by_letter(Color c, bool kingSide, Rank r) const {
+
+  auto is_rook = [&](Square s) { return (castling_rook_pieces(c) & type_of(piece_on(s))) && color_of(piece_on(s)) == c; };
+  Square rsq;
+  if (kingSide)
+      for (rsq = make_square(var->castlingRookKingsideFile, r); !is_rook(rsq) && file_of(rsq) > FILE_A; --rsq) {}
+  else
+      for (rsq = make_square(var->castlingRookQueensideFile, r); !is_rook(rsq) && file_of(rsq) < max_file(); ++rsq) {}
+  return rsq;
+}
+
+
+/// Position::castling_key() is the Zobrist key of the castling rights cr:
+/// which rights are left, and the square of each one's rook. The castling
+/// king needs no key of its own: while a right is left, the king has not moved,
+/// and the board (which has one castling king per side here) shows its square.
+/// Only called when rights change (a king or rook leaves its square, or a rook
+/// is taken on it) and in set_state(), so the loop costs nothing in the search.
+
+inline Key Position::castling_key(int cr) const {
+
+  Key k = Zobrist::castling[cr];
+  for (int i = 0; i < 4; ++i)
+      if (cr & (1 << i))
+          k ^= Zobrist::castlingRook[i][castlingRookSquare[1 << i]];
+  return k;
 }
 
 
@@ -685,7 +746,7 @@ void Position::set_state(StateInfo* si) const {
   if (sideToMove == BLACK)
       si->key ^= Zobrist::side;
 
-  si->key ^= Zobrist::castling[si->castlingRights];
+  si->key ^= castling_key(si->castlingRights);
 
   for (Color c : {WHITE, BLACK})
       for (PieceType pt = PAWN; pt <= KING; ++pt)
@@ -806,14 +867,24 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
   ss << (sideToMove == WHITE ? " w " : " b ");
 
   // Disambiguation for chess960 "king" square
-  if (chess960 && can_castle(WHITE_CASTLING) && popcount(pieces(WHITE, castling_king_piece(WHITE)) & rank_bb(castling_rank(WHITE))) > 1)
+  if (chess960 && can_castle(WHITE_CASTLING) && popcount(pieces(WHITE, castling_king_piece(WHITE)) & rank_bb(castling_setup_rank(WHITE))) > 1)
       ss << char('A' + castling_king_square(WHITE));
 
+  // K/Q only where reading it back finds this very rook (X-FEN), else the
+  // rook's file: with shuffled rooks a K/Q could name another rook, or none.
+  auto castling_char = [&](CastlingRights cr, char letter) {
+      const Color c = cr & WHITE_CASTLING ? WHITE : BLACK;
+      const Square rsq = castling_rook_square(cr);
+      const char ch = !chess960 && castling_rook_by_letter(c, cr & KING_SIDE, castling_setup_rank(c)) == rsq
+                    ? letter : char('A' + file_of(rsq));
+      return c == WHITE ? ch : char(tolower(ch));
+  };
+
   if (can_castle(WHITE_OO))
-      ss << (chess960 ? char('A' + file_of(castling_rook_square(WHITE_OO ))) : 'K');
+      ss << castling_char(WHITE_OO, 'K');
 
   if (can_castle(WHITE_OOO))
-      ss << (chess960 ? char('A' + file_of(castling_rook_square(WHITE_OOO))) : 'Q');
+      ss << castling_char(WHITE_OOO, 'Q');
 
   if (gating() && gates(WHITE) && (!seirawan_gating() || count_in_hand(WHITE, ALL_PIECES) > 0 || captures_to_hand()))
       for (File f = FILE_A; f <= max_file(); ++f)
@@ -825,14 +896,14 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
               ss << char('A' + f);
 
   // Disambiguation for chess960 "king" square
-  if (chess960 && can_castle(BLACK_CASTLING) && popcount(pieces(BLACK, castling_king_piece(BLACK)) & rank_bb(castling_rank(BLACK))) > 1)
+  if (chess960 && can_castle(BLACK_CASTLING) && popcount(pieces(BLACK, castling_king_piece(BLACK)) & rank_bb(castling_setup_rank(BLACK))) > 1)
       ss << char('a' + castling_king_square(BLACK));
 
   if (can_castle(BLACK_OO))
-      ss << (chess960 ? char('a' + file_of(castling_rook_square(BLACK_OO ))) : 'k');
+      ss << castling_char(BLACK_OO, 'K');
 
   if (can_castle(BLACK_OOO))
-      ss << (chess960 ? char('a' + file_of(castling_rook_square(BLACK_OOO))) : 'q');
+      ss << castling_char(BLACK_OOO, 'Q');
 
   if (gating() && gates(BLACK) && (!seirawan_gating() || count_in_hand(BLACK, ALL_PIECES) > 0 || captures_to_hand()))
       for (File f = FILE_A; f <= max_file(); ++f)
@@ -1167,7 +1238,7 @@ bool Position::legal(Move m) const {
       {
           // After castling, the rook and king final positions are the same in
           // Chess960 as they would be in standard chess.
-          kto = make_square(to > from ? castling_kingside_file() : castling_queenside_file(), castling_rank(us));
+          kto = make_square(to > from ? castling_kingside_file() : castling_queenside_file(), rank_of(from));
           Direction step = kto > from ? EAST : WEST;
           Square rto = kto - (to > from ? EAST : WEST);
           // Pseudo-royal king
@@ -1273,7 +1344,7 @@ bool Position::legal(Move m) const {
   {
       // After castling, the rook and king final positions are the same in
       // Chess960 as they would be in standard chess.
-      to = make_square(to > from ? castling_kingside_file() : castling_queenside_file(), castling_rank(us));
+      to = make_square(to > from ? castling_kingside_file() : castling_queenside_file(), rank_of(from));
       Direction step = to > from ? WEST : EAST;
 
       // Will the gate be blocked by king or rook?
@@ -1568,12 +1639,15 @@ bool Position::gives_check(Move m) const {
       // Castling is encoded as 'king captures the rook'
       Square kfrom = from;
       Square rfrom = to;
-      Square kto = make_square(rfrom > kfrom ? castling_kingside_file() : castling_queenside_file(), castling_rank(sideToMove));
+      Square kto = make_square(rfrom > kfrom ? castling_kingside_file() : castling_queenside_file(), rank_of(kfrom));
       Square rto = kto + (rfrom > kfrom ? WEST : EAST);
 
-      // Is there a discovered check?
-      if (   castling_rank(WHITE) > RANK_1
-          && ((blockers_for_king(~sideToMove) & rfrom) || (non_sliding_riders() & pieces(sideToMove)))
+      // Is there a discovered check by the rook leaving rfrom? (The king leaving
+      // kfrom is covered above.) Fairy-Stockfish only looked when castlingRank >
+      // 1, since a line through a first-rank square can only be opened from
+      // below the board; with castling on any rank a slider behind the rook can
+      // give check. It costs one bit test unless the rook is a blocker.
+      if (   ((blockers_for_king(~sideToMove) & rfrom) || (non_sliding_riders() & pieces(sideToMove)))
           && attackers_to(square<KING>(~sideToMove), (pieces() ^ kfrom ^ rfrom) | rto | kto, sideToMove))
           return true;
 
@@ -1763,7 +1837,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
   // Update castling rights if needed
   if (type_of(m) != DROP && !is_pass(m) && st->castlingRights && (castlingRightsMask[from] | castlingRightsMask[to]))
   {
-      k ^= Zobrist::castling[st->castlingRights];
+      k ^= castling_key(st->castlingRights);
       st->castlingRights &= ~(castlingRightsMask[from] | castlingRightsMask[to]);
 
       // Remove castling rights from opponent on the same side if oppositeCastling
@@ -1772,7 +1846,7 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
         bool kingSide = to > from;
         st->castlingRights &= ~(~us & (kingSide ? KING_SIDE : QUEEN_SIDE));
       }
-      k ^= Zobrist::castling[st->castlingRights];
+      k ^= castling_key(st->castlingRights);
   }
 
   // Flip enclosed pieces
@@ -2177,9 +2251,9 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           // Update castling rights if needed
           if (st->castlingRights && castlingRightsMask[bsq])
           {
-             k ^= Zobrist::castling[st->castlingRights];
+             k ^= castling_key(st->castlingRights);
              st->castlingRights &= ~castlingRightsMask[bsq];
-             k ^= Zobrist::castling[st->castlingRights];
+             k ^= castling_key(st->castlingRights);
           }
 
           // Make a wall square where the piece was
@@ -2429,7 +2503,7 @@ void Position::do_castling(Color us, Square from, Square& to, Square& rfrom, Squ
 
   bool kingSide = to > from;
   rfrom = to; // Castling is encoded as "king captures friendly rook"
-  to = make_square(kingSide ? castling_kingside_file() : castling_queenside_file(), castling_rank(us));
+  to = make_square(kingSide ? castling_kingside_file() : castling_queenside_file(), rank_of(from));
   rto = to + (kingSide ? WEST : EAST);
 
   Piece castlingKingPiece = piece_on(Do ? from : to);

@@ -195,13 +195,16 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
     // Python reconstruction is checked over the whole range of every aux field
     // (Black to move, castling rights lost one by one, a Sergeant's two e.p.
     // squares, rule50 > 0, checks < 8) and over set repetition planes in several
-    // history plies -- not just three hand-picked boards.
+    // history plies -- not just three hand-picked boards. The last two starts
+    // castle off the first rank (castlingAnyRank): rook squares on ranks 2-9.
     {
         std::mt19937_64 rng(0x5EED0DA7AULL);
         const char* fens[] = {
             lczero::ChessBoard::kStartposFen,
             "1r3k2r1/2p4p2/10/4n5/10/10/5B4/10/2P4P2/1R3K2R1 w BIbi - 8+8 0 1",
             "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 8+8 0 1",
+            "10/1r3k2r1/10/10/10/10/10/10/1R3K2R1/10 w BIbi - 8+8 0 1",
+            "10/10/10/10/1r3k3r/10/10/R3K2R2/10/10 b AHbj - 8+8 0 1",
         };
         for (const char* fen : fens) {
             for (int game = 0; game < 4; ++game) {
@@ -210,7 +213,7 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
                 for (int ply = 0; ply < 60; ++ply) {
                     const lczero::MoveList lm = h->Last().GenerateLegalMoves();
                     if (lm.empty() || h->ComputeGameResult() != lczero::GameResult::UNDECIDED) break;
-                    if (ply % 7 == 3) emit(*h);
+                    if (ply % 7 == 3 || (ply == 0 && game == 0)) emit(*h);
                     h->Append(lm[static_cast<size_t>(rng() % lm.size())]);
                 }
             }

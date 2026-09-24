@@ -193,12 +193,15 @@ void EncodePlanesIntoRecord(const PositionHistory& history,
   rec.checks_remaining_them = static_cast<uint8_t>(
       std::clamp(static_cast<int>(pos.checks_remaining(them)), 0, 255));
 
-  // Castling: store the rook FILE (0-9) for each right, 0xFF if no right.
-  // The vertical flip used for the canonical frame preserves file, so the file
-  // of the actual rook square equals the file in the canonical frame.
-  auto castle_file = [&](Stockfish::CastlingRights cr) -> uint8_t {
-    if (!pos.can_castle(cr)) return kNoCastlingFile;
-    return static_cast<uint8_t>(Stockfish::file_of(pos.castling_rook_square(cr)));
+  // Castling: the rook's SQUARE in the canonical frame (rank * 10 + file, ranks
+  // flipped when Black is to move, as in the NN input), 0xFF if no right. The
+  // rook may start on any rank (castlingAnyRank), so its file alone is not enough.
+  const bool flip = us == Stockfish::BLACK;
+  auto castle_sq = [&](Stockfish::CastlingRights cr) -> uint8_t {
+    if (!pos.can_castle(cr)) return kNoCastlingSquare;
+    const Stockfish::Square s = pos.castling_rook_square(cr);
+    const int rank = static_cast<int>(Stockfish::rank_of(s));
+    return static_cast<uint8_t>((flip ? 9 - rank : rank) * 10 + static_cast<int>(Stockfish::file_of(s)));
   };
   const Stockfish::CastlingRights us_ooo =
       (us == Stockfish::WHITE) ? Stockfish::WHITE_OOO : Stockfish::BLACK_OOO;
@@ -208,10 +211,10 @@ void EncodePlanesIntoRecord(const PositionHistory& history,
       (us == Stockfish::WHITE) ? Stockfish::BLACK_OOO : Stockfish::WHITE_OOO;
   const Stockfish::CastlingRights them_oo =
       (us == Stockfish::WHITE) ? Stockfish::BLACK_OO : Stockfish::WHITE_OO;
-  rec.castling_us_ooo_file = castle_file(us_ooo);
-  rec.castling_us_oo_file = castle_file(us_oo);
-  rec.castling_them_ooo_file = castle_file(them_ooo);
-  rec.castling_them_oo_file = castle_file(them_oo);
+  rec.castling_us_ooo_sq = castle_sq(us_ooo);
+  rec.castling_us_oo_sq = castle_sq(us_oo);
+  rec.castling_them_ooo_sq = castle_sq(them_ooo);
+  rec.castling_them_oo_sq = castle_sq(them_oo);
 }
 
 }  // namespace lczero

@@ -78,6 +78,10 @@ struct Variant {
   File castlingKingsideFile = FILE_G;
   File castlingQueensideFile = FILE_C;
   Rank castlingRank = RANK_1;
+  // Castling on any rank: the castling king and its rook may start on any rank
+  // (both on the same one) instead of castlingRank only, and they land on the
+  // castling files of that rank. See Position::castling_setup_rank().
+  bool castlingAnyRank = false;
   File castlingKingFile = FILE_E;
   PieceType castlingKingPiece[COLOR_NB] = {KING, KING};
   File castlingRookKingsideFile = FILE_MAX; // only has to match if rook is not in corner in non-960 variants

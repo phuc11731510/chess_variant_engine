@@ -40,10 +40,16 @@
 //      alternative); a Pawn pushing straight onto it does not capture.
 //   Promotion: a P or S ending on ranks 8-10 must promote to B, M, N, R, V or
 //      Y. This includes captures and en-passant captures.
-//   Castling: king f1 + rook i1 -> king h1, rook g1 (g1, h1 empty); king f1 +
-//      rook b1 -> king d1, rook e1 (c1, d1, e1 empty). Not out of, through or
-//      into check. Rights are lost when the king moves, or when that rook moves
-//      or is captured on its square.
+//   Castling: a king and a rook of the same colour that have not moved and
+//      stand on the same rank -- ANY rank (a shuffled start may put them on
+//      rank 2), any files. Kingside (rook on the king's right): king to the
+//      h-file, rook to the g-file of that rank; queenside: king to d, rook to e.
+//      Every square either piece crosses or lands on is empty but for the two
+//      of them. The king is not in check, crosses no attacked square and does
+//      not land in check. Rights are lost when the king moves, or when that
+//      rook moves or is captured on its square. In the FEN a right is the
+//      rook's file letter (K/Q = the rook on the i/b-file), on the king's rank.
+//      Start standard: king f1, rooks b1 and i1.
 //   Checks: after each move, every piece of the mover that attacks the
 //      opponent's king counts one check (a single check 1, a double check 2).
 //      8 checks win immediately, before any other rule.
@@ -86,11 +92,18 @@ const int kDabbaba[4][2] = {{0, 2}, {2, 0}, {0, -2}, {-2, 0}};
 const int kOrth[4][2] = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}};
 const int kDiag[4][2] = {{1, 1}, {1, -1}, {-1, -1}, {-1, 1}};
 const int8_t kPromos[6] = {B_, M_, N_, R_, V_, Y_};
+// Castling landing files, from the rule text: kingside royal h, rook g;
+// queenside royal d, rook e. [0 = kingside, 1 = queenside]. The engine takes
+// them from the variant definition (castlingKingsideFile / QueensideFile, the
+// rook next to the royal piece on the inside); run_rules_oracle_audit checks
+// first that the definition still says this.
+constexpr int kCastleKingFile[2] = {7, 3};
+constexpr int kCastleRookFile[2] = {6, 4};
 
 struct OState {
     int8_t b[100];
     int stm = kW;
-    bool castle[2][2] = {{false, false}, {false, false}};  // [colour][0 = rook i, 1 = rook b]
+    int8_t crook[2][2] = {{-1, -1}, {-1, -1}};  // [colour][0 kingside, 1 queenside]: rook square, -1 = no right
     int ep_mid = -1, ep_victim = -1;   // passed square / square of the double-stepper
     bool ep_two = false;               // Fairy-Stockfish also marks the victim square (Sergeant)
     int checks[2] = {8, 8};
@@ -279,19 +292,26 @@ void gen_pseudo(const OState& st, std::vector<OMove>& out) {
             }
         }
     }
-    // Castling (the attack conditions here; "not into check" by the legality filter).
-    const int br = us == kW ? 0 : 9;
-    const int ksq = sq_of(5, br);
-    if (st.b[ksq] == mk(us, K_) && !attacked(st, ksq, them)) {
-        if (st.castle[us][0] && st.b[sq_of(8, br)] == mk(us, R_) &&
-            !st.b[sq_of(6, br)] && !st.b[sq_of(7, br)] &&
-            !attacked(st, sq_of(6, br), them) && !attacked(st, sq_of(7, br), them))
-            add(ksq, sq_of(8, br), 0, KN_CASTLE, false);
-        if (st.castle[us][1] && st.b[sq_of(1, br)] == mk(us, R_) &&
-            !st.b[sq_of(2, br)] && !st.b[sq_of(3, br)] && !st.b[sq_of(4, br)] &&
-            !attacked(st, sq_of(4, br), them) && !attacked(st, sq_of(3, br), them))
-            add(ksq, sq_of(1, br), 0, KN_CASTLE, false);
-    }
+    // Castling. Here: the empty squares, not in check, no attacked square
+    // crossed; "not into check" is the legality filter's (it sees the rook on
+    // its new square, so a rook that was shielding the target square counts).
+    const int ksq = find_king(st, us);
+    if (ksq >= 0 && !attacked(st, ksq, them))
+        for (int side = 0; side < 2; ++side) {
+            const int rsq = st.crook[us][side];
+            if (rsq < 0 || st.b[rsq] != mk(us, R_) || rk(rsq) != rk(ksq)) continue;
+            const int r = rk(ksq);
+            const int kto = sq_of(kCastleKingFile[side], r), rto = sq_of(kCastleRookFile[side], r);
+            bool ok = true;
+            for (const auto& span : {std::make_pair(ksq, kto), std::make_pair(rsq, rto)})
+                for (int f = std::min(fl(span.first), fl(span.second)); f <= std::max(fl(span.first), fl(span.second)); ++f) {
+                    const int s = sq_of(f, r);
+                    if (s != ksq && s != rsq && st.b[s]) ok = false;
+                }
+            for (int f = std::min(fl(ksq), fl(kto)) + 1; ok && f < std::max(fl(ksq), fl(kto)); ++f)
+                if (attacked(st, sq_of(f, r), them)) ok = false;
+            if (ok) add(ksq, rsq, 0, KN_CASTLE, false);
+        }
 }
 
 // Plays m (assumed pseudo-legal). Counts the checks it gives: one per checking
@@ -308,22 +328,20 @@ OState apply(const OState& st, const OMove& m, bool* gives_check = nullptr, int*
         const bool kside = fl(m.to) > fl(m.from);
         n.b[m.from] = 0;
         n.b[m.to] = 0;
-        n.b[sq_of(kside ? 7 : 3, br)] = mk(us, K_);
-        n.b[sq_of(kside ? 6 : 4, br)] = mk(us, R_);
-        n.castle[us][0] = n.castle[us][1] = false;
+        n.b[sq_of(kCastleKingFile[kside ? 0 : 1], br)] = mk(us, K_);
+        n.b[sq_of(kCastleRookFile[kside ? 0 : 1], br)] = mk(us, R_);
+        n.crook[us][0] = n.crook[us][1] = -1;
         n.rule50 = st.rule50 + 1;
     } else {
         bool capture = st.b[m.to] != 0;
         if (m.kind == KN_EP) { n.b[st.ep_victim] = 0; capture = true; }
         n.b[m.to] = m.promo ? mk(us, m.promo) : pc;
         n.b[m.from] = 0;
-        if (t == K_) n.castle[us][0] = n.castle[us][1] = false;
-        for (int s : {int(m.from), int(m.to)})
-            for (int c = 0; c < 2; ++c) {
-                const int cbr = c == kW ? 0 : 9;
-                if (s == sq_of(8, cbr)) n.castle[c][0] = false;
-                if (s == sq_of(1, cbr)) n.castle[c][1] = false;
-            }
+        if (t == K_) n.crook[us][0] = n.crook[us][1] = -1;
+        for (int s : {int(m.from), int(m.to)})   // the rook moves, or is taken
+            for (int c = 0; c < 2; ++c)
+                for (int side = 0; side < 2; ++side)
+                    if (n.crook[c][side] == s) n.crook[c][side] = -1;
         if (m.dbl) {
             n.ep_mid = (m.from + m.to) / 2;
             n.ep_victim = m.to;
@@ -359,7 +377,8 @@ void gen_legal(const OState& st, std::vector<OMove>& out) {
 std::string rep_key(const OState& st) {
     std::string k(reinterpret_cast<const char*>(st.b), 100);
     k += char(st.stm);
-    k += char(st.castle[0][0] | (st.castle[0][1] << 1) | (st.castle[1][0] << 2) | (st.castle[1][1] << 3));
+    for (int c = 0; c < 2; ++c)
+        for (int side = 0; side < 2; ++side) k += char(st.crook[c][side] + 1);
     k += char(st.ep_mid + 1);
     k += char(st.ep_victim + 1);
     k += char(st.checks[0]);
@@ -436,10 +455,10 @@ void planes_of(const std::vector<OState>& hist, const std::vector<int>& reps, fl
     }
     auto set = [&](int p, int s) { dense[(216 + p) * 100 + canon(s)] = 1.0f; };
     auto fill = [&](int p, float v) { std::fill(dense + (216 + p) * 100, dense + (217 + p) * 100, v); };
-    if (cur.castle[us][1])   set(0, sq_of(1, us == kW ? 0 : 9));
-    if (cur.castle[us][0])   set(1, sq_of(8, us == kW ? 0 : 9));
-    if (cur.castle[them][1]) set(2, sq_of(1, them == kW ? 0 : 9));
-    if (cur.castle[them][0]) set(3, sq_of(8, them == kW ? 0 : 9));
+    if (cur.crook[us][1] >= 0)   set(0, cur.crook[us][1]);
+    if (cur.crook[us][0] >= 0)   set(1, cur.crook[us][0]);
+    if (cur.crook[them][1] >= 0) set(2, cur.crook[them][1]);
+    if (cur.crook[them][0] >= 0) set(3, cur.crook[them][0]);
     if (cur.ep_mid >= 0) {
         set(4, cur.ep_mid);
         if (cur.ep_two) set(4, cur.ep_victim);
@@ -474,11 +493,14 @@ bool parse_fen(const std::string& fen, OState& st) {
         ++f;
     }
     st.stm = side == "b" ? kB : kW;
-    for (char c : castling) {
-        if (c == 'K' || c == 'I') st.castle[kW][0] = true;
-        if (c == 'Q' || c == 'B') st.castle[kW][1] = true;
-        if (c == 'k' || c == 'i') st.castle[kB][0] = true;
-        if (c == 'q' || c == 'b') st.castle[kB][1] = true;
+    for (char c : castling) {   // the rook's file, on the king's rank
+        const int color = std::isupper(static_cast<unsigned char>(c)) ? kW : kB;
+        const char up = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        const int f = up == 'K' ? 8 : up == 'Q' ? 1 : (up >= 'A' && up <= 'J') ? up - 'A' : -1;
+        const int ks = find_king(st, color);
+        if (f < 0 || ks < 0 || f == fl(ks)) continue;
+        const int rsq = sq_of(f, rk(ks));
+        if (st.b[rsq] == mk(color, R_)) st.crook[color][f > fl(ks) ? 0 : 1] = int8_t(rsq);
     }
     std::vector<int> eps;
     for (size_t i = 0; i + 1 < ep.size();) {
@@ -545,7 +567,7 @@ orc::OMove to_oracle(Move m) {
 struct Observed {
     int8_t b[100];
     int stm;
-    bool castle[2][2];
+    int crook[2][2];       // castling rook squares, -1 = no right
     std::vector<int> ep;   // sorted oracle squares
     int checks[2];
     int rule50;
@@ -558,10 +580,10 @@ Observed observe(const Position& p) {
         o.b[s] = pc == NO_PIECE ? 0 : orc::mk(color_of(pc) == WHITE ? orc::kW : orc::kB, fsf_type(type_of(pc)));
     }
     o.stm = p.side_to_move() == WHITE ? orc::kW : orc::kB;
-    o.castle[orc::kW][0] = p.can_castle(WHITE_OO);
-    o.castle[orc::kW][1] = p.can_castle(WHITE_OOO);
-    o.castle[orc::kB][0] = p.can_castle(BLACK_OO);
-    o.castle[orc::kB][1] = p.can_castle(BLACK_OOO);
+    const CastlingRights crs[2][2] = {{WHITE_OO, WHITE_OOO}, {BLACK_OO, BLACK_OOO}};
+    for (int c = 0; c < 2; ++c)
+        for (int side = 0; side < 2; ++side)
+            o.crook[c][side] = p.can_castle(crs[c][side]) ? osq(p.castling_rook_square(crs[c][side])) : -1;
     for (Bitboard b = p.ep_squares(); b;) o.ep.push_back(osq(pop_lsb(b)));
     std::sort(o.ep.begin(), o.ep.end());
     o.checks[orc::kW] = int(p.checks_remaining(WHITE));
@@ -574,7 +596,8 @@ Observed expected(const orc::OState& st) {
     Observed o;
     std::memcpy(o.b, st.b, 100);
     o.stm = st.stm;
-    std::memcpy(o.castle, st.castle, sizeof(o.castle));
+    for (int c = 0; c < 2; ++c)
+        for (int side = 0; side < 2; ++side) o.crook[c][side] = st.crook[c][side];
     if (st.ep_mid >= 0) {
         o.ep.push_back(st.ep_mid);
         if (st.ep_two) o.ep.push_back(st.ep_victim);
@@ -601,8 +624,11 @@ std::string diff(const Observed& a, const Observed& e) {
     if (a.stm != e.stm) return "side to move";
     for (int c = 0; c < 2; ++c)
         for (int k = 0; k < 2; ++k)
-            if (a.castle[c][k] != e.castle[c][k])
-                return std::string("castling right ") + (c ? "black " : "white ") + (k ? "queenside" : "kingside");
+            if (a.crook[c][k] != e.crook[c][k]) {
+                auto name = [](int s) { return s < 0 ? std::string("none") : "rook " + orc::sqname(s); };
+                return std::string("castling right ") + (c ? "black " : "white ") + (k ? "queenside" : "kingside") +
+                       ": engine " + name(a.crook[c][k]) + ", rules " + name(e.crook[c][k]);
+            }
     if (a.ep != e.ep) {
         std::string s = "e.p. squares: engine {";
         for (int q : a.ep) s += orc::sqname(q) + " ";
@@ -634,8 +660,17 @@ const char* result_name(lczero::GameResult r) {
 void run_rules_oracle_audit(int num_games, int max_plies) {
     std::cout << "\n=== AUDIT-RULES: engine vs an independent re-implementation of the rules ===" << std::endl;
     const Variant* variant = setup_custom_variant();
-    if (num_games <= 0) num_games = 100;
     if (max_plies <= 0) max_plies = 200;
+    // The oracle's castling is the rule text; the engine's comes from the variant
+    // definition. A changed definition must fail here by name, not as mismatches.
+    if (!variant->castling || !variant->castlingAnyRank ||
+        variant->castlingKingsideFile != File(orc::kCastleKingFile[0]) ||
+        variant->castlingQueensideFile != File(orc::kCastleKingFile[1])) {
+        std::cerr << "[FAIL] AUDIT-RULES: the variant's castling definition (castling, castlingAnyRank, "
+                     "castlingKingsideFile = h, castlingQueensideFile = d) is not the rule this oracle "
+                     "implements; update test_rules_oracle.cc and LUAT_BIEN_THE.md with it" << std::endl;
+        std::exit(1);
+    }
 
     // Start positions. Besides the real one, positions that make the rare rules
     // (castling, e.p. with promotion, repetitions, the rule-50 limit, mate and
@@ -663,7 +698,20 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
         {"k9/10/10/10/10/10/10/10/10/9K b - - 0+8 5 30", false},                       // White already gave 8 checks
         {"4k5/10/10/10/4N5/10/10/10/10/K3R5 w - - 2+8 0 1", false},                  // Ne6-d8/f8: double check = the last 2 checks
         {"4k5/10/10/10/4N5/10/10/10/10/K3R5 w - - 5+8 0 1", false},                  // double checks mid-count
+        // Castling off the first rank (shuffled starts). Rank 2: the i2 rook going
+        // to g2 opens the j1 bishop's diagonal to the black king on d7 (a
+        // discovered check that Fairy-Stockfish's gives_check never looked for with
+        // castlingRank = 1).
+        {"r9/10/10/3k6/10/10/10/10/1R3K2R1/B8B w BI - 8+8 0 1", false},
+        // White on rank 3: king e3 lands on h3 where its rook stands, or its a3
+        // rook lands on e3 where the king stood; Black on rank 6 with a j-file rook.
+        {"10/10/10/10/1r3k3r/10/10/R3K2R2/10/10 b AHbj - 8+8 0 1", false},
+        // Both sides castle on rank 6: the enemy king and rook on the same rank.
+        {"4q5/10/3p1p4/10/r1k2K2R1/10/3P1P4/10/10/4Q5 w Ia - 8+8 0 1", false},
     };
+
+    // By default 5 games from every start (the RNG is seeded: the same games each run).
+    if (num_games <= 0) num_games = 5 * static_cast<int>(starts.size());
 
     std::mt19937_64 rng(0xFA1B5EEDULL);
     uint64_t positions = 0, moves_checked = 0, planes_checked = 0, keys_checked = 0;
@@ -803,9 +851,17 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
                         cover[ost.ep_two ? "e.p. of a sergeant double step" : "e.p. of a pawn double step"]++;
                     }
                     if (om.kind == orc::KN_PROMO) cover[mover == orc::P_ ? "promotion, pawn" : "promotion, sergeant"]++;
-                    if (om.kind == orc::KN_CASTLE)
+                    if (om.kind == orc::KN_CASTLE) {
                         cover[std::string(black ? "castling black " : "castling white ") +
                               (orc::fl(om.to) > orc::fl(om.from) ? "kingside" : "queenside")]++;
+                        if (orc::rk(om.from) != (black ? 9 : 0))
+                            cover[black ? "castling black, not on rank 10" : "castling white, not on rank 1"]++;
+                        if (ogc) cover["castling giving check"]++;
+                        const int kto = orc::sq_of(orc::kCastleKingFile[orc::fl(om.to) > orc::fl(om.from) ? 0 : 1],
+                                                   orc::rk(om.from));
+                        if (kto == om.to || kto + (orc::fl(om.to) > orc::fl(om.from) ? -1 : 1) == om.from)
+                            cover["castling onto the other piece's square"]++;
+                    }
                     if (om.dbl)
                         cover[mover == orc::P_ ? "double step, pawn" :
                               orc::fl(om.from) == orc::fl(om.to) ? "double step, sergeant straight"
@@ -852,14 +908,17 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
                 std::memset(&rec, 0, sizeof(rec));
                 lczero::EncodePlanesIntoRecord(*history, rec);
                 const int us = cur.stm, them = us ^ 1;
-                auto file_or_none = [](bool right, int f) { return right ? uint8_t(f) : lczero::kNoCastlingFile; };
+                auto sq_or_none = [&](int s) {   // canonical frame: ranks flipped when Black is to move
+                    return s < 0 ? lczero::kNoCastlingSquare
+                                 : uint8_t((us == orc::kB ? 9 - orc::rk(s) : orc::rk(s)) * 10 + orc::fl(s));
+                };
                 if (rec.side_to_move != (us == orc::kB ? 1 : 0) ||
                     rec.rule50_count != std::min(cur.rule50, 255) ||
                     rec.checks_remaining_us != cur.checks[us] || rec.checks_remaining_them != cur.checks[them] ||
-                    rec.castling_us_ooo_file != file_or_none(cur.castle[us][1], 1) ||
-                    rec.castling_us_oo_file != file_or_none(cur.castle[us][0], 8) ||
-                    rec.castling_them_ooo_file != file_or_none(cur.castle[them][1], 1) ||
-                    rec.castling_them_oo_file != file_or_none(cur.castle[them][0], 8))
+                    rec.castling_us_ooo_sq != sq_or_none(cur.crook[us][1]) ||
+                    rec.castling_us_oo_sq != sq_or_none(cur.crook[us][0]) ||
+                    rec.castling_them_ooo_sq != sq_or_none(cur.crook[them][1]) ||
+                    rec.castling_them_oo_sq != sq_or_none(cur.crook[them][0]))
                     fail("training-record scalar fields differ from the rules", fen);
             }
 
@@ -903,10 +962,13 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
                 const orc::OMove& prev = oplayed[oplayed.size() - 2];
                 for (size_t i = 0; i < olegal.size(); ++i)
                     if (olegal[i].from == prev.to && olegal[i].to == prev.from && olegal[i].kind == orc::KN_NORMAL) { pick = i; break; }
-            } else if (u < 0.35) {
-                std::vector<size_t> special;
-                for (size_t i = 0; i < olegal.size(); ++i)
+            } else if (u < 0.35) {   // a special move; an e.p. capture first, as it only lasts one move
+                std::vector<size_t> special, ep;
+                for (size_t i = 0; i < olegal.size(); ++i) {
                     if (olegal[i].kind != orc::KN_NORMAL || olegal[i].dbl) special.push_back(i);
+                    if (olegal[i].kind == orc::KN_EP) ep.push_back(i);
+                }
+                if (!ep.empty()) special.swap(ep);
                 if (!special.empty()) pick = special[static_cast<size_t>(rng() % special.size())];
             } else if (u < 0.5) {   // a checking move, preferring the most checking pieces
                 int best = 0;
@@ -954,7 +1016,9 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
         "e.p. by pawn + promotion", "e.p. by sergeant, straight + promotion", "e.p. by sergeant, diagonal + promotion",
         "e.p. of a pawn double step", "e.p. of a sergeant double step",
         "promotion, pawn", "promotion, sergeant", "castling white kingside", "castling white queenside",
-        "castling black kingside", "castling black queenside", "double step, pawn",
+        "castling black kingside", "castling black queenside", "castling white, not on rank 1",
+        "castling black, not on rank 10", "castling giving check", "castling onto the other piece's square",
+        "double step, pawn",
         "double step, sergeant straight", "double step, sergeant diagonal", "move giving check",
         "move giving double check",
         "king knight-jump", "repeated position", "end: repetition draw", "end: rule-50 draw",
