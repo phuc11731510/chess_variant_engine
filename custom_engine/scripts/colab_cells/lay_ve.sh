@@ -54,7 +54,7 @@ curl -fsSL -o ~/fz_han_muc.py "$URL/fz_han_muc.py" && echo "[tai]        ~/fz_ha
 touch ~/.bashrc
 sed -i '/^o() /d; /^fz() /d' ~/.bashrc
 cat >> ~/.bashrc <<'EOF'
-fz() { bash ~/fz_menu.sh; }
+fz() { bash ~/fz_menu.sh "$@"; }
 o() { bash ~/fz_menu.sh "$@"; }
 EOF
 

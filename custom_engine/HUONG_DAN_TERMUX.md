@@ -136,42 +136,40 @@ Enter the authorization code:
 
 Thông tin đăng nhập được lưu lại; các lần sau không hỏi nữa.
 
-### 3.1. Đổi sang tài khoản Google khác (vd tài khoản này sắp hết quota GPU)
+### 3.1. Nhiều tài khoản Google (dùng cùng lúc, hoặc đổi khi một tài khoản hết quota GPU)
 
-Colab CLI không có lệnh `logout` riêng. "Đăng xuất" = xoá tệp chứa thông tin đăng nhập; lần gọi
-tiếp theo nó không thấy thì hỏi đăng nhập lại (mục 3) — lúc đó chọn tài khoản khác.
+Colab CLI lấy mọi thứ từ thư mục nhà `~`: đăng nhập (`~/.config/colab-cli/token.json`), danh sách
+máy (`sessions.json`), khoá ssh (`~/.ssh`). Nên menu cho **mỗi tài khoản phụ một thư mục nhà
+riêng cho CLI**: `~/.fz_tk/<tên>/` (`.config/colab-cli` riêng, `.ssh` trỏ về `~/.ssh`). Mỗi tài
+khoản có đăng nhập, máy, hạn mức riêng; không cần đăng xuất tài khoản này để dùng tài khoản kia.
+Tài khoản **chính** vẫn là `~/.config/colab-cli` như trước.
 
-**Cách nhanh: menu `fz` → `a` (Đổi tài khoản Colab).** Nó hỏi lần lượt:
+**Thêm tài khoản:** menu `fz` → `a` → `n` → gõ tên (vd `B`) → mở link, **chọn đúng tài khoản
+Google** trong trình duyệt (như mục 3). Cửa sổ đó chuyển sang dùng `B`.
 
-1. Trả máy `fz` của tài khoản hiện tại không (gõ `co` để trả — nên trả, sau khi đổi thì không điều
-   khiển máy đó được nữa).
-2. Cất tài khoản hiện tại không: gõ một tên (vd `A`) → token được cất vào
-   `~/.config/colab-cli/luu/A/`, lần sau chọn lại được mà không phải đăng nhập; Enter = không cất.
-3. Chọn: `0` = đăng nhập tài khoản **mới** (in link, chọn tài khoản trong trình duyệt); `1`, `2`, … =
-   dùng lại tài khoản đã cất; Enter = huỷ, giữ nguyên tài khoản hiện tại.
+**Dùng nhiều tài khoản CÙNG LÚC** — mỗi cửa sổ Termux một tài khoản:
 
-Làm tay thì như sau:
+1. Cửa sổ 1: `fz` (tài khoản chính) → `m` xin T4 → chạy ô 04…
+2. Vuốt từ mép trái Termux → **NEW SESSION** → cửa sổ 2: `fz @B` → `m` → chạy ô 04… trên máy của `B`.
+3. Qua lại giữa các cửa sổ bằng cùng thanh vuốt đó. Dòng đầu menu ghi `Tài khoản: B` để khỏi nhầm.
 
-1. **Trả hết máy của tài khoản cũ trước** (sau khi đổi tài khoản thì không điều khiển chúng được nữa):
+Chạy thẳng ô cũng được: `o @B 05`. Hai cửa sổ **cùng** một tài khoản thì dùng chung máy `fz` — đừng
+chạy ô chạy nền ở cả hai.
 
-   ```bash
-   colab sessions
-   colab stop -s fz
-   ```
+Mục `a` còn làm được:
 
-2. Xoá token đăng nhập — Colab CLI lưu nó ở **`~/.config/colab-cli/token.json`**:
+| Gõ | Việc |
+|---|---|
+| số | Cửa sổ này dùng tài khoản đó (cửa sổ khác không đổi) |
+| `n` | Thêm tài khoản mới |
+| `x` | Đăng xuất một tài khoản: hỏi trả máy `fz` của nó trước (nên trả — máy vẫn tiêu hạn mức tới khi Colab thu hồi), gõ `co` → xoá token; tài khoản phụ bị xoá khỏi danh sách |
 
-   ```bash
-   rm -f ~/.config/colab-cli/token.json ~/.config/colab-cli/sessions.json
-   ```
+Tài khoản đã "cất" bằng menu cũ (`~/.config/colab-cli/luu/<tên>/`) tự thành tài khoản phụ cùng tên
+khi mở `a`. Token hết hạn thì CLI hỏi đăng nhập lại như bình thường.
 
-   Các tệp khác trong thư mục đó (`settings.json`, `colab.log`, `history/` — lịch sử lệnh từng phiên)
-   không chứa đăng nhập, để nguyên được.
-
-3. Đăng nhập tài khoản mới: menu `fz` → `m` (hoặc `colab sessions`) → nó in link đăng nhập →
-   làm như mục 3, **chọn tài khoản khác** trong trình duyệt.
-
-Token đã cất mà hết hạn thì CLI hỏi đăng nhập lại như bình thường.
+Làm tay (không qua menu): chạy lệnh `colab` với `HOME` của tài khoản đó, vd
+`HOME=~/.fz_tk/B colab sessions`. Đăng xuất tài khoản chính = `rm -f ~/.config/colab-cli/token.json
+~/.config/colab-cli/sessions.json` (các tệp khác trong thư mục đó không chứa đăng nhập).
 
 ---
 
@@ -288,7 +286,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 
    ```
    ======== FairyZero trên Colab ========
-    Phiên: fz   ·   Đời hiện tại: 0
+    Tài khoản: chính   ·   Phiên: fz   ·   Đời: 0
     Ô lệnh: Download/FairyZero/o_lenh
    --------------------------------------
     01   Kiểm GPU (mục 0)
@@ -306,11 +304,11 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     c    Xin máy CPU (thử nghiệm, không tốn hạn mức T4)
     l    Log trực tiếp ô đang chạy nền
     k    Xem máy đang giữ
-    h    Hạn mức GPU (colab usage)
-    d    Tải tệp Colab -> điện thoại
+    h    Hạn mức còn lại (máy đang giữ + T4)
+    d    Duyệt tệp Colab, tải về điện thoại
     u    Duyệt tệp điện thoại, tải lên Colab
     t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)
-    a    Đổi tài khoản Colab
+    a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)
     q    Thoát
    --------------------------------------
     Nhiều ô liền nhau: gõ cách nhau, vd: 01 02
@@ -336,7 +334,7 @@ Các mục chữ của menu:
 | `d` | **Duyệt thư mục trên Colab** (bắt đầu ở `/content`): gõ số để vào thư mục / tải tệp về `Download/FairyZero/`, `0` lên thư mục cha, `/đường/dẫn` để nhảy tới, `q` về menu | `ssh … find` + `colab download` |
 | `u` | **Duyệt thư mục trên điện thoại** (bắt đầu ở `Download/FairyZero`, `0` lên được tới `~/storage/shared` = bộ nhớ trong): số = vào thư mục / tải tệp lên `/content/` (giữ tên); `.` = hiện/ẩn tệp ẩn; `c` = trình chọn tệp của Android (cần Termux:API) | `find` + `colab upload` |
 | `t` | **Trả máy — liệt kê MỌI máy** đang giữ trên tài khoản (cả máy không có tên ở điện thoại này: tạo từ web / thiết bị khác), chọn một hay nhiều số, `a` = tất cả; hỏi lại, gõ `co` | `colab stop -s <tên>`; máy không tên: `unassign` |
-| `a` | Đổi tài khoản Colab (trả máy, cất token, đăng nhập mới / dùng lại tài khoản đã cất) | mục 3.1 |
+| `a` | Tài khoản Colab: thêm, chọn tài khoản cho cửa sổ này, đăng xuất. Nhiều tài khoản cùng lúc: mỗi cửa sổ Termux một `fz @<tên>` | mục 3.1 |
 
 **Vì sao duyệt trong menu thấy mọi tệp mà trình chọn của Android thì không?** Menu đọc thẳng thư mục
 (lệnh `find`, như MT Manager làm) nhờ quyền bộ nhớ của Termux, nên thấy mọi tệp và biết tên. Trình
