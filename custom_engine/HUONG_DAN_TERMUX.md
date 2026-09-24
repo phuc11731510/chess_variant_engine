@@ -228,7 +228,8 @@ source ~/.bashrc
 
 (`-f`: đường link lỗi thì `curl` báo lỗi, thay vì lưu trang `404: Not Found` vào tệp.)
 
-`lay_ve.sh` làm ba việc:
+`lay_ve.sh` trước hết **tự cập nhật chính nó** (tải bản mới nhất của `lay_ve.sh`, khác thì thay
+và chạy lại bằng bản mới), rồi làm ba việc:
 
 1. Tải 11 ô về **`Download/FairyZero/o_lenh/`** (trong Termux: `~/storage/downloads/FairyZero/o_lenh`).
    Ô nào **đã có thì giữ nguyên** (không ghi đè ô bạn đã sửa). Muốn lấy bản mới nhất:
@@ -637,6 +638,10 @@ Muốn chắc chắn dùng mạng trên Release thì dùng cách A.
 ## 13. Sự cố thường gặp
 
 **Nhận máy CPU thay vì T4** → mục 4.
+
+**`[!] Thiếu …/fz_may.py`** — `~/lay_ve.sh` trên máy là bản cũ (trước 24/09, chưa biết tự cập nhật
+và chưa biết tệp `fz_may.py`). Tải lại nó một lần; từ đó nó tự cập nhật:
+`cd ~ && curl -fLO https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/custom_engine/scripts/colab_cells/lay_ve.sh && bash lay_ve.sh`
 
 **`o: command not found`** — chưa `source ~/.bashrc` sau khi chạy `lay_ve.sh`, hoặc mở Termux
 mới trước khi `.bashrc` được sửa. Chạy `source ~/.bashrc`.

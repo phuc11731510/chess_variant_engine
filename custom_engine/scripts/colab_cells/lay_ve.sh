@@ -12,6 +12,18 @@ CELLS="00_cau_hinh 01_kiem_gpu 02_khoi_dong 02b_bien_dich 03_tao_gen0 04_sinh_du
 05_xem_log 06_dong_goi 07_huan_luyen 08_arena 09_dung_viec_nen"
 DIR=$HOME/storage/downloads/FairyZero/o_lenh
 
+# Tu cap nhat: lay ban moi nhat cua CHINH tep nay truoc, roi chay lai bang ban moi -- ban cu
+# khong biet cac tep moi them sau no (vd fz_may.py).
+if [ -z "${FZ_LAY_VE_MOI:-}" ]; then
+  moi=$(mktemp)
+  if curl -fsSL -o "$moi" "$URL/lay_ve.sh" && ! cmp -s "$moi" "$0"; then
+    cp "$moi" "$0" && rm -f "$moi"
+    echo "[cap nhat]   $0 -> ban moi, chay lai"
+    FZ_LAY_VE_MOI=1 exec bash "$0" "$@"
+  fi
+  rm -f "$moi"
+fi
+
 if [ ! -d "$HOME/storage/downloads" ]; then
   echo "[loi] Termux chua co quyen bo nho: chay termux-setup-storage, chon Cho phep, roi chay lai." >&2
   exit 1
