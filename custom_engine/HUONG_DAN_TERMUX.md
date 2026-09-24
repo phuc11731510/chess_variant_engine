@@ -312,7 +312,6 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     h    Hạn mức còn lại (máy đang giữ + T4)
     d    Duyệt tệp Colab, tải về điện thoại
     u    Duyệt tệp điện thoại, tải lên Colab
-    g    Gom ván đã chép dần về điện thoại thành zip (máy Colab mất trước 06)
     t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)
     a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)
     q    Thoát
@@ -338,9 +337,8 @@ Các mục chữ của menu:
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
 | `h` | **Hạn mức GPU miễn phí còn lại** (≈ bao nhiêu giờ T4), giờ nạp lại, gợi ý `SECS` cho ô 04 | `colab usage` + `~/fz_han_muc.py` (mục 4) |
 | `d` | **Duyệt thư mục trên Colab** (bắt đầu ở `/content`): gõ số để vào thư mục / tải tệp về `Download/FairyZero/`, `0` lên thư mục cha, `/đường/dẫn` để nhảy tới, `q` về menu. Trùng tên → `ten (2).duoi` như Explorer, không ghi đè; tải vào tệp tạm, đủ kích thước mới đặt tên (hai cửa sổ tải cùng lúc không hỏng tệp) | `ssh … find` + `ssh … cat` (lỗi thì `colab download`) |
-| `g` | Gom ván đã chép dần về điện thoại (`Download/FairyZero/dong_bo/…`) thành zip, tuỳ chọn đưa lên `/content/<thư mục>.zip` cho ô 07 — dùng khi máy Colab mất trước 06 | `~/fz_archive.py pack` + `ssh … cat` |
 | `u` | **Duyệt thư mục trên điện thoại** (bắt đầu ở `Download/FairyZero`, `0` lên được tới `~/storage/shared` = bộ nhớ trong): số = vào thư mục / tải tệp lên `/content/` (giữ tên); `.` = hiện/ẩn tệp ẩn; `c` = trình chọn tệp của Android (cần Termux:API) | `find` + `colab upload` |
-| `t` | **Trả máy — liệt kê MỌI máy** đang giữ trên tài khoản (cả máy không có tên ở điện thoại này: tạo từ web / thiết bị khác), chọn một hay nhiều số, `a` = tất cả; hỏi lại, gõ `co` | `colab stop -s <tên>`; máy không tên: `unassign` |
+| `t` | `n <số>` = **nhận lại** máy `?` (còn sống nhưng mất tên trên điện thoại) làm phiên `fz` (mục 6.1). **Trả máy — liệt kê MỌI máy** đang giữ trên tài khoản (cả máy không có tên ở điện thoại này: tạo từ web / thiết bị khác), chọn một hay nhiều số, `a` = tất cả; hỏi lại, gõ `co` | `colab stop -s <tên>`; máy không tên: `unassign` |
 | `a` | Tài khoản Colab: thêm, chọn tài khoản cho cửa sổ này, đăng xuất. Nhiều tài khoản cùng lúc: mỗi cửa sổ Termux một `fz @<tên>` | mục 3.1 |
 
 **Vì sao duyệt trong menu thấy mọi tệp mà trình chọn của Android thì không?** Menu đọc thẳng thư mục
@@ -372,12 +370,16 @@ quen gõ lệnh.
    (bỏ ký tự lạ BOM, `\r` mà trình sửa tệp trên điện thoại có thể thêm vào). Nhờ vậy mỗi ô biết
    `GEN_CURRENT`, `E`, … — không có biến nào được "truyền" giữa các ô, mã của ô 00 chạy lại ở đầu
    mỗi ô.
-2. **Ô ngắn** — có dòng `# fz: nhanh` (01, 05, 09): gửi khối cho `colab exec`, máy Colab chạy nó
-   như một ô sổ tay, chữ hiện ngay về Termux. Xong là xong.
-3. **Ô còn lại:** `colab exec` chỉ chạy một đoạn khởi động ngắn (vài giây) trên máy Colab: lưu khối
-   thành `/content/fz_log/<ô>.ipy`, chạy nó **nền** bằng IPython riêng (hiểu `!lệnh`, `%cd` như ô
-   sổ tay), mọi chữ in ra ghi vào `/content/fz_log/<ô>.log`, và ghi "ô nào đang chạy" vào
-   `/content/fz_log/dang_chay`.
+2. **Mọi ô chạy qua `ssh`, không qua kernel Jupyter của máy Colab** — áp dụng cho mọi ô, kể cả ô
+   bạn tự thêm sau này, không cần đánh dấu gì. Menu gửi `fz_may.py` + khối mã qua `ssh`, máy Colab
+   chạy khối bằng IPython riêng (hiểu `!lệnh`, `%cd` như ô sổ tay).
+   - **Ô ngắn** — có dòng `# fz: nhanh` (01, 05, 09): chạy ngay, chữ hiện ngay về Termux.
+   - **Ô còn lại:** chạy **nền**: lưu khối thành `/content/fz_log/<ô>.ipy`, mọi chữ in ra ghi vào
+     `/content/fz_log/<ô>.log`, ghi "ô nào đang chạy" vào `/content/fz_log/dang_chay`.
+3. **Môi trường:** phiên `ssh` có biến môi trường khác kernel (đường dẫn tới driver GPU, `COLAB_*`…).
+   Nên **mỗi máy, lần chạy ô đầu tiên**, menu dùng `colab exec` **một lần** để chụp môi trường của
+   kernel vào `/content/fz_log/env.json` (in `[máy mới] Chụp môi trường kernel Colab…`); mọi ô sau
+   chạy với đúng môi trường đó. `ssh` hỏng thì menu quay về cách cũ (khởi động ô qua `colab exec`).
 4. **Xem:** menu mở `ssh` tới máy Colab và chạy `fz_may.py theo_doi`: in log từ đầu rồi in tiếp
    mỗi dòng **ngay lúc ô in ra**. Ô kết thúc thì log in `[fz] o 04 xong …, ma thoat 0` và màn hình
    tự dừng. **Ctrl+C** đóng `ssh`; `theo_doi` trên Colab thấy đầu bên kia đã đóng và tự thoát —
@@ -396,10 +398,18 @@ nó cho mỗi ô một trong ba trạng thái, không đoán theo thời gian ha
 Ô 05 và 09 cũng dùng đúng hàm đó. Ô 09 chỉ giết khi trạng thái là **chạy** (đã khớp dòng lệnh), nên
 không bao giờ giết nhầm tiến trình lạ.
 
-Vì sao hai đường (`colab exec` để khởi động, `ssh` để xem)? Máy Colab chỉ có **một kernel**, chạy mỗi
-lần một khối mã; Ctrl+C trên `colab exec` **không** dừng được khối đang chạy trên kernel (đã thử),
-nên nếu xem log bằng `colab exec` thì thoát ra xong mọi lệnh sau phải xếp hàng chờ. `ssh` chạy
-trong shell riêng, tách hẳn khỏi kernel.
+Vì sao tránh kernel? (1) Máy Colab chỉ có **một kernel**, chạy mỗi lần một khối; Ctrl+C trên
+`colab exec` **không** dừng được khối đang chạy (đã thử). (2) **Nguy hiểm hơn:** kernel có thể chết /
+khởi động lại trong lúc ô chạy nền vẫn chạy bình thường (ô là tiến trình riêng — log vẫn in đều).
+Lần `colab exec` sau nối vào kernel cũ → lỗi 404 → Colab CLI **xoá phiên `fz` và tắt tiến trình giữ
+máy (keep-alive)** dù máy vẫn sống → Colab thu hồi máy vì idle → **mất toàn bộ `/content`**. Chạy mọi
+ô qua `ssh` thì không còn đụng tới kernel cũ.
+
+Phòng thêm (`~/fz_nhan_may.py`, chạy trên điện thoại): trước mỗi ô chạy nền và sau `m`/`c`, menu kiểm
+phiên — keep-alive chết thì bật lại, ghi lại máy của phiên. Nếu CLI vẫn lỡ xoá phiên (vd khi chụp môi
+trường) mà máy còn sống, menu **tự nhận lại đúng máy đó** (lấy mã truy cập mới từ danh sách máy của tài
+khoản, bật lại keep-alive). Máy đã thành `?` (mất tên) mà vẫn còn: menu **`t`** → `n <số>` = nhận lại
+máy đó làm phiên `fz` — nếu phiên `fz` đang là máy khác (vd máy trống vừa xin), menu hỏi trả máy kia trước.
 
 `ssh` cần gói `openssh` và khoá cá nhân `~/.ssh/id_ed25519` — `lay_ve.sh` tự cài / tự tạo nếu thiếu.
 Menu gọi `ssh` qua `colab ssh --proxy-mode`, không cần `~/.ssh/config`.
@@ -505,19 +515,6 @@ chạy), có thể thoát Termux; xem lại: menu `l`.
 **Trước khi chạy**, menu so `SECS` với hạn mức còn lại (như mục `h`, đã trừ 20 phút cho 06). `SECS`
 lớn hơn thì cảnh báo — Colab sẽ **ngắt máy khi hết hạn mức**, `/content` mất theo, 06 không kịp chạy
 — và chỉ chạy tiếp khi gõ `co`. Menu không tự sửa `SECS`.
-
-**Chép dần ván về điện thoại.** Khi 04 khởi động, menu bật một tiến trình nền **trên điện thoại**:
-cứ 2 phút chép các ván mới xong về `Download/FairyZero/dong_bo/<tài khoản>_<ngày-giờ>/games_gen0/`
-(engine ghi ván vào `.tmp` rồi mới đổi tên, nên chỉ chép ván đã xong trọn vẹn). Máy Colab bị ngắt
-giữa chừng thì chỉ mất các ván của 2 phút cuối. Dòng đầu menu hiện `Đồng bộ ô 04: N ván đã về điện
-thoại (lượt cuối HH:MM …)`. Nó chạy tiếp cả khi bạn Ctrl+C hay thoát menu (cần Termux sống, mục 10),
-tự dừng khi 04 xong (sau một lượt chép cuối) hoặc khi không vào được máy ~15 phút. Nhật ký:
-`~/.fz_tk/dong_bo.log`. Cần ô 04 bản mới (có dòng `FZ_DONG_BO`): `bash ~/lay_ve.sh 04` rồi đặt lại
-`SECS` — ô cũ thì menu nhắc.
-
-**Máy mất trước khi kịp chạy 06** (vd hết hạn mức): xin máy mới (`m`), chạy 02, rồi menu **`g`** →
-chọn lần chạy → gom các ván đã chép thành `Download/FairyZero/games_gen0.zip` ngay trên điện thoại
-(cùng `archive.py` với ô 06) → gõ `co` để đưa lên `/content/games_gen0.zip` → chạy 07 như thường.
 
 ### Theo dõi: `l` (trực tiếp) và ô 05 (tóm tắt)
 
@@ -767,9 +764,13 @@ hoặc máy không có GPU.
 **`colab: command not found`** — chạy lại mục 2.4.
 
 **`RuntimeError: Connection was lost.`** (khung Traceback của `colab exec`) — không mở được kết nối
-tới kernel Colab (mạng chập chờn), lỗi ngay ở bước đầu, mã của ô CHƯA chạy. Menu tự thử lại 3 lần,
-cách 5 giây. Vẫn lỗi: kiểm mạng, `fz` → `k` xem máy còn không, rồi chạy lại ô. Ô nhanh (01, 05, 09)
-không tự thử lại — chạy lại tay.
+tới kernel Colab (mạng chập chờn). Giờ menu chỉ dùng `colab exec` khi chụp môi trường cho máy mới hoặc
+khi `ssh` hỏng; lúc đó nó tự thử lại 3 lần (cách 5 giây). Vẫn lỗi: kiểm mạng, `fz` → `k`, chạy lại ô.
+
+**Mất dữ liệu dù máy chưa hết hạn mức** (ô 09 không dừng được, `Session 'fz' not found`, máy mới
+tên `fz` trống trơn) — Colab CLI đã xoá phiên khi `colab exec` vào kernel cũ bị lỗi 404 (mục 6.1).
+Bản menu mới không còn gọi kernel cũ. Nếu vẫn gặp: **đừng xin máy mới vội** — mở `fz` → `t`: còn
+máy `?` thì `n <số>` để nhận lại (dữ liệu còn nguyên nếu máy chưa bị thu hồi).
 
 **`lay_ve.sh` tải về ô vẫn là bản cũ** — trước đây `raw.githubusercontent.com` lưu đệm ~5 phút sau
 mỗi lần cập nhật. Giờ `lay_ve.sh` tải theo mã commit mới nhất (dòng cuối in `ban <mã>`); vẫn cũ thì

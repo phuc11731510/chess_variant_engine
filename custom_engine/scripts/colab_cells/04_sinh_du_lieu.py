@@ -12,7 +12,4 @@ cmd = f"""bash {E}/run.sh --selfplay \
     --weights {CURRENT_ONNX} --out {OUT_GAMES_DIR}"""
 
 print(cmd)
-# Menu fz đọc dòng này: chép dần các ván đã xong về điện thoại trong lúc ô chạy
-# (Download/FairyZero/dong_bo/...) -- máy Colab bị ngắt giữa chừng cũng không mất hết ván.
-print(f"FZ_DONG_BO={OUT_GAMES_DIR}")
 !{cmd}
