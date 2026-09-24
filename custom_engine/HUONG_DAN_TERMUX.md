@@ -301,7 +301,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     k    Xem máy đang giữ
     h    Hạn mức GPU (colab usage)
     d    Tải tệp Colab -> điện thoại
-    u    Tải tệp điện thoại -> Colab
+    u    Duyệt tệp điện thoại, tải lên Colab
     t    Trả máy (XOÁ /content)
     a    Đổi tài khoản Colab
     q    Thoát
@@ -327,9 +327,14 @@ Các mục chữ của menu:
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
 | `h` | **Hạn mức GPU miễn phí còn lại** (≈ bao nhiêu giờ T4), giờ nạp lại, gợi ý `SECS` cho ô 04 | `colab usage` + `~/fz_han_muc.py` (mục 4) |
 | `d` | **Duyệt thư mục trên Colab** (bắt đầu ở `/content`): gõ số để vào thư mục / tải tệp về `Download/FairyZero/`, `0` lên thư mục cha, `/đường/dẫn` để nhảy tới, `q` về menu | `ssh … find` + `colab download` |
-| `u` | Liệt kê tệp trong `Download/FairyZero/`, chọn số → tải lên `/content/`; `c` = mở **trình chọn tệp của Android** (cần Termux:API, xem dưới) | `colab upload` |
+| `u` | **Duyệt thư mục trên điện thoại** (bắt đầu ở `Download/FairyZero`, `0` lên được tới `~/storage/shared` = bộ nhớ trong): số = vào thư mục / tải tệp lên `/content/` (giữ tên); `c` = trình chọn tệp của Android (cần Termux:API) | `find` + `colab upload` |
 | `t` | Trả máy — hỏi lại, phải gõ `co` | `colab stop -s fz` |
 | `a` | Đổi tài khoản Colab (trả máy, cất token, đăng nhập mới / dùng lại tài khoản đã cất) | mục 3.1 |
+
+**Vì sao duyệt trong menu thấy mọi tệp mà trình chọn của Android thì không?** Menu đọc thẳng thư mục
+(lệnh `find`, như MT Manager làm) nhờ quyền bộ nhớ của Termux, nên thấy mọi tệp và biết tên. Trình
+chọn `c` là của Android: nó hiện theo danh mục tệp của Android, và `termux-storage-get` chỉ trả về
+nội dung tệp, không trả tên.
 
 **Tải lên bằng trình chọn tệp của Android (`u` → `c`).** Cần app **Termux:API** (cài cùng nguồn với
 Termux — F-Droid hoặc GitHub, không trộn với bản Google Play) và gói `pkg install termux-api`.

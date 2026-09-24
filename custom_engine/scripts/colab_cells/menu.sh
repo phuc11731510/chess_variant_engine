@@ -182,39 +182,65 @@ duyet_colab() {
   done
 }
 
-# Muc u: tai tep tu dien thoai len /content. Chon trong Download/FairyZero, hoac mo trinh chon
-# tep cua Android (termux-storage-get, can app Termux:API + goi termux-api).
-tai_len() {
-  local ds i f x ten tam
-  mapfile -t ds < <(find "$TAI" -maxdepth 1 -type f | sort)
-  echo "== Tải lên Colab (/content) =="
-  for i in "${!ds[@]}"; do printf " %2d  %s  (%s)\n" $((i + 1)) "$(basename "${ds[$i]}")" "$(kich_thuoc "$(stat -c %s "${ds[$i]}")")"; done
-  [ ${#ds[@]} -eq 0 ] && echo "     (Download/FairyZero chưa có tệp nào)"
-  echo "  c  Chọn tệp khác bằng trình chọn tệp của Android"
-  read -rp "Chọn (Enter = huỷ): " x
-  if [ "$x" = c ] || [ "$x" = C ]; then
-    if ! command -v termux-storage-get >/dev/null; then
-      echo "[!] Cần app Termux:API (cùng nguồn cài với Termux: F-Droid/GitHub) và: pkg install termux-api"
-      return
-    fi
-    tam=$TAI/.dang_chon_$$
-    rm -f "$tam"
-    # Trinh chon tep cua Android (Files by Google) doc danh muc tep cua Android (MediaStore);
-    # tep Termux tu ghi ra (vd colab download) chua co trong do -> an. Bao cho Android truoc.
-    command -v termux-media-scan >/dev/null && termux-media-scan -r "$HOME/storage/downloads" >/dev/null 2>&1
-    echo "Chọn tệp trong cửa sổ vừa mở... (không thấy tệp: ☰ -> bộ nhớ trong để duyệt thẳng thư mục)"
-    termux-storage-get "$tam"
-    for i in $(seq 120); do [ -s "$tam" ] && break; sleep 1; done   # cho toi 2 phut
-    [ -s "$tam" ] || { echo "[!] Không nhận được tệp (huỷ chọn, hoặc tệp rỗng)"; rm -f "$tam"; return; }
-    sleep 1   # cho ghi xong
-    echo "Đã nhận tệp ($(kich_thuoc "$(stat -c %s "$tam")")). Android không cho biết tên gốc của tệp."
-    read -rp "Tên tệp trên Colab (vd gen1.onnx): " ten
-    [ -n "$ten" ] && colab upload -s "$S" "$tam" "/content/$ten" && echo "[xong] /content/$ten"
-    rm -f "$tam"
-  elif [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#ds[@]} ]; then
-    f=${ds[$((x - 1))]}
-    colab upload -s "$S" "$f" "/content/$(basename "$f")" && echo "[xong] /content/$(basename "$f")"
+# Muc u: tai tep tu dien thoai len /content. Duyet thang thu muc tren dien thoai (find, nhu MT
+# Manager -- thay moi tep, giu ten), bat dau o Download/FairyZero; hoac c = trinh chon tep cua
+# Android (termux-storage-get: chi tra noi dung, khong tra ten -> phai hoi ten).
+duyet_dt() {
+  local dir=$TAI x loai kt ten muc
+  while true; do
+    mapfile -t muc < <(cd "$dir" 2>/dev/null && find -L . -mindepth 1 -maxdepth 1 -not -name '.*' \
+                         -printf '%y\t%s\t%f\n' 2>/dev/null | LC_ALL=C sort -t$'\t' -k1,1 -k3,3)
+    clear
+    echo "== Tải lên Colab (/content) · điện thoại: ${dir/#$HOME/\~} =="
+    echo "  0   .. (thư mục cha)"
+    for i in "${!muc[@]}"; do
+      IFS=$'\t' read -r loai kt ten <<<"${muc[$i]}"
+      if [ "$loai" = d ]; then printf " %2d   [%s/]\n" $((i + 1)) "$ten"
+      else printf " %2d   %s  (%s)\n" $((i + 1)) "$ten" "$(kich_thuoc "$kt")"; fi
+    done
+    [ ${#muc[@]} -eq 0 ] && echo "      (trống, hoặc không đọc được)"
+    echo "---"
+    echo " Số = vào thư mục / tải tệp lên · 0 = lên · c = trình chọn tệp Android · q = về menu"
+    echo " (~/storage/shared = bộ nhớ trong, ~/storage/downloads = Download)"
+    read -rp "Chọn: " x || return
+    case "$x" in
+      q|Q|"") return ;;
+      c|C) chon_android; dung ;;
+      0) dir=$(dirname "$dir") ;;
+      *)
+        [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#muc[@]} ] || continue
+        IFS=$'\t' read -r loai kt ten <<<"${muc[$((x - 1))]}"
+        if [ "$loai" = d ]; then
+          dir=${dir%/}/$ten
+        else
+          echo "Tải lên: $ten ($(kich_thuoc "$kt"))  ->  /content/$ten"
+          colab upload -s "$S" "${dir%/}/$ten" "/content/$ten" && echo "[xong] /content/$ten"
+          dung
+        fi ;;
+    esac
+  done
+}
+
+chon_android() {
+  local tam ten i
+  if ! command -v termux-storage-get >/dev/null; then
+    echo "[!] Cần app Termux:API (cùng nguồn cài với Termux: F-Droid/GitHub) và: pkg install termux-api"
+    return
   fi
+  tam=$TAI/.dang_chon_$$
+  rm -f "$tam"
+  # Trinh chon tep cua Android (Files by Google) doc danh muc tep cua Android (MediaStore);
+  # tep Termux tu ghi ra co the chua co trong do -> an. Bao cho Android truoc.
+  command -v termux-media-scan >/dev/null && termux-media-scan -r "$HOME/storage/downloads" >/dev/null 2>&1
+  echo "Chọn tệp trong cửa sổ vừa mở... (không thấy tệp: ☰ -> bộ nhớ trong để duyệt thẳng thư mục)"
+  termux-storage-get "$tam"
+  for i in $(seq 120); do [ -s "$tam" ] && break; sleep 1; done   # cho toi 2 phut
+  [ -s "$tam" ] || { echo "[!] Không nhận được tệp (huỷ chọn, hoặc tệp rỗng)"; rm -f "$tam"; return; }
+  sleep 1   # cho ghi xong
+  echo "Đã nhận tệp ($(kich_thuoc "$(stat -c %s "$tam")")). termux-storage-get không trả về tên gốc."
+  read -rp "Tên tệp trên Colab (vd gen1.onnx): " ten
+  [ -n "$ten" ] && colab upload -s "$S" "$tam" "/content/$ten" && echo "[xong] /content/$ten"
+  rm -f "$tam"
 }
 
 # Chay lan luot cac o $@; dung chuoi khi nguoi dung Ctrl+C / huy.
@@ -257,7 +283,7 @@ while true; do
   echo " k    Xem máy đang giữ"
   echo " h    Hạn mức GPU còn lại"
   echo " d    Duyệt tệp Colab, tải về điện thoại"
-  echo " u    Tải tệp điện thoại -> Colab"
+  echo " u    Duyệt tệp điện thoại, tải lên Colab"
   echo " t    Trả máy (XOÁ /content)"
   echo " a    Đổi tài khoản Colab"
   echo " q    Thoát"
@@ -284,7 +310,7 @@ while true; do
     [ "$x" = co ] && colab stop -s "$S"
     dung; continue ;;
   d|D) duyet_colab; continue ;;
-  u|U) tai_len; dung; continue ;;
+  u|U) duyet_dt; continue ;;
   esac
 
   chay_cac_o "${chon[@]}"
