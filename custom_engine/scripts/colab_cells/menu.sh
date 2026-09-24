@@ -281,7 +281,7 @@ while true; do
   echo " c    Xin máy CPU (thử nghiệm, không tốn hạn mức T4)"
   echo " l    Log trực tiếp ô đang chạy nền"
   echo " k    Xem máy đang giữ"
-  echo " h    Hạn mức GPU còn lại"
+  echo " h    Hạn mức còn lại (máy đang giữ + T4)"
   echo " d    Duyệt tệp Colab, tải về điện thoại"
   echo " u    Duyệt tệp điện thoại, tải lên Colab"
   echo " t    Trả máy (XOÁ /content)"
