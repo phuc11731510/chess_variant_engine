@@ -69,3 +69,9 @@ upstream/
 /Walkthrough/
 /Walkthrough GUI/
 /Walkthrough rà soát/
+
+# Local only
+Sổ tay colab/
+Ghi chú.txt
+implementation_plan_GUI.md
+implementation_plan_GUI_andorid.md
