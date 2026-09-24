@@ -145,6 +145,30 @@ def dung_o():
     print(f"[da dung o {o}]")
 
 
+def dong_bo(o, pid):
+    """Cho tien trinh dong bo tren dien thoai (menu.sh dong_bo_luot). Dong 1: trang thai o; roi
+    moi thu muc FZ_DONG_BO= trong log: "D <thu muc>", va "F <ten> <kich thuoc>" cho moi van
+    game_*.gz (engine ghi .gz.tmp roi moi doi ten, nen tep .gz luon day du)."""
+    print(trang_thai(o, pid)[0])
+    try:
+        with open(f"{D}/{o}.log", errors="replace") as f:
+            ds = dict.fromkeys(l[11:].strip() for l in f if l.startswith("FZ_DONG_BO="))
+    except FileNotFoundError:
+        return
+    for d in ds:
+        print(f"D {d}")
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    if e.name.startswith("game_") and e.name.endswith(".gz") and e.is_file():
+                        print(f"F {e.name} {e.stat().st_size}")
+        except FileNotFoundError:
+            pass
+
+
+if __name__ == "__main__" and len(sys.argv) == 4 and sys.argv[1] == "dong_bo":
+    dong_bo(sys.argv[2], sys.argv[3])
+
 if __name__ == "__main__" and len(sys.argv) in (4, 5) and sys.argv[1] == "theo_doi":
     try:
         sys.exit(theo_doi(sys.argv[2], sys.argv[3], int(sys.argv[4]) if len(sys.argv) == 5 else None))

@@ -53,6 +53,8 @@ done
 curl -fsSL -o ~/fz_menu.sh "$URL/menu.sh" && echo "[tai]        ~/fz_menu.sh"
 curl -fsSL -o ~/fz_may.py "$URL/fz_may.py" && echo "[tai]        ~/fz_may.py"
 curl -fsSL -o ~/fz_han_muc.py "$URL/fz_han_muc.py" && echo "[tai]        ~/fz_han_muc.py"
+# Gom van tren dien thoai (menu g) -- cung tep python/archive.py ma o 06 dung tren Colab.
+curl -fsSL -o ~/fz_archive.py "${URL%/scripts/colab_cells}/python/archive.py" && echo "[tai]        ~/fz_archive.py"
 
 # Thay hai dong cu (neu co) trong ~/.bashrc.
 #   fz            : mo menu.

@@ -312,6 +312,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     h    Hạn mức còn lại (máy đang giữ + T4)
     d    Duyệt tệp Colab, tải về điện thoại
     u    Duyệt tệp điện thoại, tải lên Colab
+    g    Gom ván đã chép dần về điện thoại thành zip (máy Colab mất trước 06)
     t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)
     a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)
     q    Thoát
@@ -337,6 +338,7 @@ Các mục chữ của menu:
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
 | `h` | **Hạn mức GPU miễn phí còn lại** (≈ bao nhiêu giờ T4), giờ nạp lại, gợi ý `SECS` cho ô 04 | `colab usage` + `~/fz_han_muc.py` (mục 4) |
 | `d` | **Duyệt thư mục trên Colab** (bắt đầu ở `/content`): gõ số để vào thư mục / tải tệp về `Download/FairyZero/`, `0` lên thư mục cha, `/đường/dẫn` để nhảy tới, `q` về menu. Trùng tên → `ten (2).duoi` như Explorer, không ghi đè; tải vào tệp tạm, đủ kích thước mới đặt tên (hai cửa sổ tải cùng lúc không hỏng tệp) | `ssh … find` + `ssh … cat` (lỗi thì `colab download`) |
+| `g` | Gom ván đã chép dần về điện thoại (`Download/FairyZero/dong_bo/…`) thành zip, tuỳ chọn đưa lên `/content/<thư mục>.zip` cho ô 07 — dùng khi máy Colab mất trước 06 | `~/fz_archive.py pack` + `ssh … cat` |
 | `u` | **Duyệt thư mục trên điện thoại** (bắt đầu ở `Download/FairyZero`, `0` lên được tới `~/storage/shared` = bộ nhớ trong): số = vào thư mục / tải tệp lên `/content/` (giữ tên); `.` = hiện/ẩn tệp ẩn; `c` = trình chọn tệp của Android (cần Termux:API) | `find` + `colab upload` |
 | `t` | **Trả máy — liệt kê MỌI máy** đang giữ trên tài khoản (cả máy không có tên ở điện thoại này: tạo từ web / thiết bị khác), chọn một hay nhiều số, `a` = tất cả; hỏi lại, gõ `co` | `colab stop -s <tên>`; máy không tên: `unassign` |
 | `a` | Tài khoản Colab: thêm, chọn tài khoản cho cửa sổ này, đăng xuất. Nhiều tài khoản cùng lúc: mỗi cửa sổ Termux một `fz @<tên>` | mục 3.1 |
@@ -499,6 +501,23 @@ chạy), có thể thoát Termux; xem lại: menu `l`.
 
 > `--max-seconds` dừng mềm: hết giờ thì không nhận ván mới, ván đang chạy vẫn chơi nốt —
 > thường vượt 2-3 phút.
+
+**Trước khi chạy**, menu so `SECS` với hạn mức còn lại (như mục `h`, đã trừ 20 phút cho 06). `SECS`
+lớn hơn thì cảnh báo — Colab sẽ **ngắt máy khi hết hạn mức**, `/content` mất theo, 06 không kịp chạy
+— và chỉ chạy tiếp khi gõ `co`. Menu không tự sửa `SECS`.
+
+**Chép dần ván về điện thoại.** Khi 04 khởi động, menu bật một tiến trình nền **trên điện thoại**:
+cứ 2 phút chép các ván mới xong về `Download/FairyZero/dong_bo/<tài khoản>_<ngày-giờ>/games_gen0/`
+(engine ghi ván vào `.tmp` rồi mới đổi tên, nên chỉ chép ván đã xong trọn vẹn). Máy Colab bị ngắt
+giữa chừng thì chỉ mất các ván của 2 phút cuối. Dòng đầu menu hiện `Đồng bộ ô 04: N ván đã về điện
+thoại (lượt cuối HH:MM …)`. Nó chạy tiếp cả khi bạn Ctrl+C hay thoát menu (cần Termux sống, mục 10),
+tự dừng khi 04 xong (sau một lượt chép cuối) hoặc khi không vào được máy ~15 phút. Nhật ký:
+`~/.fz_tk/dong_bo.log`. Cần ô 04 bản mới (có dòng `FZ_DONG_BO`): `bash ~/lay_ve.sh 04` rồi đặt lại
+`SECS` — ô cũ thì menu nhắc.
+
+**Máy mất trước khi kịp chạy 06** (vd hết hạn mức): xin máy mới (`m`), chạy 02, rồi menu **`g`** →
+chọn lần chạy → gom các ván đã chép thành `Download/FairyZero/games_gen0.zip` ngay trên điện thoại
+(cùng `archive.py` với ô 06) → gõ `co` để đưa lên `/content/games_gen0.zip` → chạy 07 như thường.
 
 ### Theo dõi: `l` (trực tiếp) và ô 05 (tóm tắt)
 
