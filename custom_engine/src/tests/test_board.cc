@@ -584,6 +584,158 @@ void run_board_tests() {
         std::cout << "[PASS] TEST 7 passed! (Castling generation, encoding, and execution verified for White & Black)\n" << std::endl;
     }
 
+    // TEST 8: castling on any rank (castlingAnyRank: a shuffled start may put the
+    // royal piece and its rooks on rank 2), the castling rook's square in the
+    // Zobrist key, and FEN output that reads back to the same rooks.
+    {
+        std::cout << "TEST 8: Castling on any rank, rook square in the key, FEN round-trip..." << std::endl;
+        int bad = 0;
+        auto fail = [&](const std::string& what) { ++bad; std::cerr << "[FAIL] " << what << std::endl; };
+        auto moves_of = [](const lczero::ChessBoard& b) {
+            std::vector<std::string> v;
+            for (const auto& m : b.GenerateLegalMoves()) v.push_back(b.MoveToString(m));
+            return v;
+        };
+        auto has = [](const std::vector<std::string>& v, const std::string& m) {
+            return std::find(v.begin(), v.end(), m) != v.end();
+        };
+        auto play = [&](lczero::ChessBoard& b, const std::string& uci) {
+            for (const auto& m : b.GenerateLegalMoves())
+                if (b.MoveToString(m) == uci) { b.ApplyMove(m); return true; }
+            fail("move " + uci + " is not legal in " + b.GetRawPosition().fen());
+            return false;
+        };
+        auto castling_field = [](const std::string& fen) {
+            std::istringstream ss(fen);
+            std::string board, side, castling;
+            ss >> board >> side >> castling;
+            return castling;
+        };
+
+        // (a) White castles on rank 2, Black on rank 9; landing files h/g and d/e.
+        const std::string r29 = "10/1r3k2r1/10/10/10/10/10/10/1R3K2R1/10 w BIbi - 8+8 0 1";
+        {
+            lczero::ChessBoard b(r29);
+            const auto mv = moves_of(b);
+            if (!has(mv, "f2h2") || !has(mv, "f2d2")) fail("rank-2 castling f2h2 / f2d2 not generated");
+            if (play(b, "f2h2")) {
+                const Position& p = b.GetRawPosition();
+                if (p.piece_on(SQ_H2) != W_KING || p.piece_on(SQ_G2) != W_ROOK || p.piece_on(SQ_F2) || p.piece_on(SQ_I2))
+                    fail("after f2h2 the king is not on h2 with the rook on g2");
+                if (p.can_castle(WHITE_CASTLING) || !p.can_castle(BLACK_OO) || !p.can_castle(BLACK_OOO))
+                    fail("after f2h2 White keeps a right or Black lost one");
+                if (play(b, "f9d9") && (p.piece_on(SQ_D9) != B_KING || p.piece_on(SQ_E9) != B_ROOK || p.piece_on(SQ_B9)))
+                    fail("after f9d9 the black king is not on d9 with the rook on e9");
+            }
+            // K/Q name the same rooks on the king's rank.
+            lczero::ChessBoard kq("10/1r3k2r1/10/10/10/10/10/10/1R3K2R1/10 w KQkq - 8+8 0 1");
+            const Position& p = kq.GetRawPosition();
+            if (p.castling_rook_square(WHITE_OO) != SQ_I2 || p.castling_rook_square(WHITE_OOO) != SQ_B2 ||
+                p.castling_rook_square(BLACK_OO) != SQ_I9 || p.castling_rook_square(BLACK_OOO) != SQ_B9 ||
+                kq.Hash() != lczero::ChessBoard(r29).Hash())
+                fail("KQkq on ranks 2/9 does not give the rights of BIbi");
+        }
+
+        // (a2) A royal piece already on its castling file does not move: the move
+        // is written king -> rook ("h2i2"), never "h2h2", and reads back.
+        {
+            lczero::ChessBoard b("4k5/10/10/10/10/10/10/10/7K1R/10 w J - 8+8 0 1");
+            const auto mv = moves_of(b);
+            if (!has(mv, "h2j2") || has(mv, "h2h2")) fail("castling of a king on h2 must be written h2j2");
+            const lczero::Move m = b.ParseMove("h2j2");
+            if (m.is_null() || b.MoveToString(m) != "h2j2") fail("h2j2 does not read back");
+            if (play(b, "h2j2") &&
+                (b.GetRawPosition().piece_on(SQ_H2) != W_KING || b.GetRawPosition().piece_on(SQ_G2) != W_ROOK))
+                fail("after h2j2 the king is not on h2 with the rook on g2");
+        }
+
+        // (b) All the safety rules hold off rank 1: the b2 rook shields the d2
+        // target from the a2 rook, so queenside castling is illegal.
+        {
+            const auto mv = moves_of(lczero::ChessBoard("4k5/10/10/10/10/10/10/10/rR3K2R1/10 w BI - 8+8 0 1"));
+            if (has(mv, "f2d2") || !has(mv, "f2h2")) fail("rook shield on rank 2: f2d2 must be illegal, f2h2 legal");
+        }
+
+        // (c) The i2 rook going to g2 opens the j1 bishop's diagonal to d7: the
+        // castling move gives check, and it counts.
+        {
+            lczero::ChessBoard b("r9/10/10/3k6/10/10/10/10/1R3K2R1/B8B w BI - 8+8 0 1");
+            if (play(b, "f2h2") && (!b.IsUnderCheck() || b.GetRawPosition().checks_remaining(WHITE) != 7))
+                fail("discovered check by castling on rank 2 not seen (in check " +
+                     std::to_string(b.IsUnderCheck()) + ", White's checks left " +
+                     std::to_string(int(b.GetRawPosition().checks_remaining(WHITE))) + ")");
+        }
+
+        // (d) Same board, same rights mask (White queenside), different rook: the
+        // keys differ (repetitions, NN cache), and so do the legal moves.
+        {
+            lczero::ChessBoard a("4k5/10/10/10/10/10/10/10/10/RR3K4 w A - 8+8 0 1");
+            lczero::ChessBoard bb("4k5/10/10/10/10/10/10/10/10/RR3K4 w B - 8+8 0 1");
+            if (a.GetRawPosition().castling_rook_square(WHITE_OOO) != SQ_A1 ||
+                bb.GetRawPosition().castling_rook_square(WHITE_OOO) != SQ_B1)
+                fail("castling rights A / B not read as the a1 / b1 rook");
+            if (a.Hash() == bb.Hash()) fail("same key for the a1 and the b1 castling rook");
+            if (has(moves_of(a), "f1d1") || !has(moves_of(bb), "f1d1"))
+                fail("f1d1 must be legal with the b1 rook only");
+        }
+
+        // (e) fen() writes K/Q only where reading back finds the same rook, else
+        // the file; reading fen() back gives the same rights and the same key.
+        {
+            struct Case { const char* fen; const char* field; };
+            const Case cases[] = {
+                {"1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 w BIbi - 8+8 0 1", "KQkq"},
+                {"4k5/10/10/10/10/10/10/10/10/RR3K4 w A - 8+8 0 1", "A"},      // Q would be b1
+                {"4k5/10/10/10/10/10/10/10/10/RR3K4 w B - 8+8 0 1", "Q"},
+                {"10/k9/10/10/10/10/10/10/3K2R1R1/10 w G - 8+8 0 1", "G"},      // K would be i2
+                {"10/1r3k3r/10/10/10/10/10/10/10/5K4 b jb - 8+8 0 1", "jq"},    // k finds no rook on j
+                {"10/10/10/10/1r3k3r/10/10/R3K2R2/10/10 b AHbj - 8+8 0 1", "KAjq"},
+            };
+            for (const Case& c : cases) {
+                lczero::ChessBoard b(c.fen);
+                const std::string out = b.GetRawPosition().fen();
+                if (castling_field(out) != c.field)
+                    fail(std::string("fen() of ") + c.fen + " writes castling '" + castling_field(out) +
+                         "', expected '" + c.field + "'");
+                lczero::ChessBoard back(out);
+                const Position& p = b.GetRawPosition();
+                const Position& q = back.GetRawPosition();
+                for (CastlingRights cr : {WHITE_OO, WHITE_OOO, BLACK_OO, BLACK_OOO})
+                    if (p.can_castle(cr) != q.can_castle(cr) ||
+                        (p.can_castle(cr) && p.castling_rook_square(cr) != q.castling_rook_square(cr)))
+                        fail(std::string("reading back fen() of ") + c.fen + " changed a castling right");
+                if (b.Hash() != back.Hash()) fail(std::string("key changed reading back fen() of ") + c.fen);
+            }
+        }
+
+        // (f) The training record stores each rook's square in the canonical
+        // frame (ranks flipped when Black is to move).
+        {
+            for (const char* side : {"w", "b"}) {
+                lczero::PositionHistory h;
+                h.Reset(lczero::Position::FromFen(std::string("10/1r3k2r1/10/10/10/10/10/10/1R3K2R1/10 ") + side +
+                                                  " BIbi - 8+8 0 1"));
+                lczero::TrainingDataV1 rec;
+                std::memset(&rec, 0, sizeof(rec));
+                lczero::EncodePlanesIntoRecord(h, rec);
+                // Either side: our rooks b/i on our 2nd rank (11, 18), theirs on our 9th (81, 88).
+                if (rec.castling_us_ooo_sq != 11 || rec.castling_us_oo_sq != 18 ||
+                    rec.castling_them_ooo_sq != 81 || rec.castling_them_oo_sq != 88)
+                    fail(std::string("record castling squares (") + side + " to move): " +
+                         std::to_string(rec.castling_us_ooo_sq) + " " + std::to_string(rec.castling_us_oo_sq) + " " +
+                         std::to_string(rec.castling_them_ooo_sq) + " " + std::to_string(rec.castling_them_oo_sq) +
+                         ", expected 11 18 81 88");
+            }
+        }
+
+        if (bad) {
+            std::cerr << "[FAIL] TEST 8: " << bad << " failure(s)" << std::endl;
+            std::exit(1);
+        }
+        std::cout << "[PASS] TEST 8 passed! (castling on ranks 2/9, rook shield, discovered check, "
+                     "rook square in the key, FEN round-trip, record squares)\n" << std::endl;
+    }
+
     std::cout << "========================================" << std::endl;
     std::cout << "ALL CHESSBOARD BRIDGE TESTS PASSED!" << std::endl;
     std::cout << "========================================\n" << std::endl;

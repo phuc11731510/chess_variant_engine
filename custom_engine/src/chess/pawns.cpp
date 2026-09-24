@@ -292,10 +292,10 @@ Score Entry::do_king_safety(const Position& pos) {
   // If we can castle use the bonus after castling if it is bigger
 
   if (pos.can_castle(Us & KING_SIDE))
-      shelter = std::max(shelter, evaluate_shelter<Us>(pos, make_square(pos.castling_kingside_file(), pos.castling_rank(Us))), compare);
+      shelter = std::max(shelter, evaluate_shelter<Us>(pos, make_square(pos.castling_kingside_file(), rank_of(ksq))), compare);
 
   if (pos.can_castle(Us & QUEEN_SIDE))
-      shelter = std::max(shelter, evaluate_shelter<Us>(pos, make_square(pos.castling_queenside_file(), pos.castling_rank(Us))), compare);
+      shelter = std::max(shelter, evaluate_shelter<Us>(pos, make_square(pos.castling_queenside_file(), rank_of(ksq))), compare);
 
   // In endgame we like to bring our king near our closest pawn
   Bitboard pawns = pos.pieces(Us, PAWN);

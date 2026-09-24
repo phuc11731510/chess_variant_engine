@@ -10,17 +10,18 @@ Usage:
 
 import argparse
 import os
+import random
 import sys
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet, ExportNet, NUM_PLANES, POLICY_SIZE  # noqa: E402
-from dataset import FairyDataset  # noqa: E402
+from dataset import FairyDataset, list_games, split_games  # noqa: E402
 
 
 def policy_loss(logits, pi):
@@ -37,6 +38,28 @@ def policy_loss(logits, pi):
 
 def value_loss(logits, target_wdl):
     return -(target_wdl * F.log_softmax(logits, dim=1)).sum(dim=1).mean()
+
+
+def evaluate(net, loader, device, use_amp=False):
+    """(policy loss, value loss): the mean over every POSITION `loader` yields, with
+    the weights fixed (eval mode: BatchNorm uses its running statistics, no dropout,
+    no gradient). Each batch counts by its size, so the numbers do not depend on
+    the batch size: 9000 positions give the average of their 9000 losses."""
+    was_training = net.training
+    net.eval()
+    tp = tv = n = 0.0
+    with torch.no_grad(), torch.autocast(device_type=device, enabled=use_amp):
+        for x, pi, val in loader:
+            x = x.to(device, non_blocking=True)
+            pi = pi.to(device, non_blocking=True)
+            val = val.to(device, non_blocking=True)
+            p_logits, v_logits = net(x)
+            bs = x.size(0)
+            tp += policy_loss(p_logits.float(), pi).item() * bs
+            tv += value_loss(v_logits.float(), val).item() * bs
+            n += bs
+    net.train(was_training)
+    return tp / n, tv / n
 
 
 def export_onnx(net, path):
@@ -161,6 +184,11 @@ def main():
     ap.add_argument("--accum-steps", type=int, default=1, help="gradient accumulation steps (big effective batch)")
     ap.add_argument("--max-steps", type=int, default=0, help="stop after N optimizer steps (0 = use --epochs)")
     ap.add_argument("--max-records", type=int, default=0, help="cap #records loaded (0 = all)")
+    ap.add_argument("--val-frac", type=float, default=0.04,
+                    help="hold out this fraction of the GAMES (whole games, drawn at random with "
+                         "--seed from every generation in --data) as a validation set, and print "
+                         "its losses before training, after each epoch and for the exported "
+                         "model (0 = off)")
     ap.add_argument("--report-every", type=int, default=0, help="print running loss every N steps (0 = per-epoch)")
     ap.add_argument("--save-every", type=int, default=0, help="export an ONNX checkpoint every N steps (0 = only final)")
     args = ap.parse_args()
@@ -186,13 +214,47 @@ def main():
           f"workers={workers}  pin_memory={pin}")
 
     torch.manual_seed(args.seed)
+    if not 0.0 <= args.val_frac < 1.0:
+        sys.exit(f"--val-frac must be in [0, 1), got {args.val_frac}")
+    games = list_games(args.data)
+    train_games, val_games = split_games(games, args.val_frac, args.seed)
+    if args.val_frac > 0 and not val_games:
+        print(f"[val] {len(games)} game(s) are too few for --val-frac {args.val_frac}: "
+              "no validation set")
     ds = FairyDataset(args.data, q_ratio=args.q_ratio, downsample_keep=args.downsample,
                       cache=not args.no_cache, diff_focus=args.diff_focus,
                       df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min,
-                      sparse=args.sparse_cache, max_records=args.max_records)
+                      sparse=args.sparse_cache, max_records=args.max_records,
+                      games=train_games, label="train" if val_games else "")
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
                     num_workers=workers, pin_memory=pin,
                     persistent_workers=(workers > 0))
+
+    # Validation: the held-out games in full (no down-sampling / diff_focus: the
+    # natural mix), next to as many TRAINING positions drawn at random. Both are
+    # evaluated the same way (fixed weights, eval mode); the loss printed for each
+    # epoch while training is a running mean over changing weights in train mode,
+    # so only these two numbers compare: val above train = what does not carry
+    # over to unseen games (a value head memorizing games shows up there).
+    val_loaders = None
+    if val_games:
+        ds_val = FairyDataset(args.data, q_ratio=args.q_ratio, cache=not args.no_cache,
+                              sparse=args.sparse_cache, games=val_games, label="validation")
+        train_part = random.Random(args.seed + 1).sample(range(len(ds)), min(len(ds), len(ds_val)))
+        def eval_loader(d):
+            return DataLoader(d, batch_size=max(args.batch, 256), shuffle=False,
+                              num_workers=workers, pin_memory=pin, persistent_workers=(workers > 0))
+        val_loaders = (eval_loader(Subset(ds, train_part)), eval_loader(ds_val))
+        print(f"[val] {len(val_games)} of {len(games)} games held out ({len(ds_val)} positions), "
+              f"compared with {len(train_part)} training positions")
+
+    def report(what, model):
+        if val_loaders is None:
+            return
+        tp, tv = evaluate(model, val_loaders[0], device, use_amp)
+        vp, vv = evaluate(model, val_loaders[1], device, use_amp)
+        print(f"  [val] {what:<14}  train: policy={tp:.4f} value={tv:.4f}  |  "
+              f"validation: policy={vp:.4f} value={vv:.4f}", flush=True)
 
     net = FairyNet(channels=args.channels, blocks=args.blocks,
                    se_ratio=args.se_ratio, dropout=args.dropout)
@@ -235,6 +297,7 @@ def main():
 
     print(f"[train] params={sum(p.numel() for p in net.parameters())/1e6:.2f}M "
           f"swa: averages the end of epochs {swa_start}..{args.epochs}")
+    report("start weights", net)
     accum = max(1, args.accum_steps)
     global_step = 0          # counts OPTIMIZER steps (after accumulation)
     micro = 0                # counts micro-batches
@@ -284,6 +347,7 @@ def main():
             swa_net.update_parameters(net)
             swa_sched.step()
         print(f"  epoch {epoch:3d}: policy_loss={tp/n:.4f}  value_loss={tv/n:.4f}")
+        report(f"epoch {epoch}", net)
 
     if int(swa_net.n_averaged) == 0:
         # Stopped (--max-steps) before the first SWA epoch ended. The averaged
@@ -291,12 +355,14 @@ def main():
         # it -- as this used to -- wrote out the untrained starting weights.
         print("[swa] WARNING: training stopped before any SWA epoch ended; exporting the "
               "trained weights as they are (no average)")
+        report("exported model", net)
         final = net.to("cpu")
     else:
         # Recompute BN running stats for the SWA-averaged weights, then export.
         print(f"[swa] averaged {int(swa_net.n_averaged)} epoch(s); updating BatchNorm "
               "statistics on the averaged model...")
         update_bn(dl, swa_net, device=device)
+        report("exported model", swa_net.module)
         # Move back to CPU for a portable checkpoint + a CPU-graph ONNX export
         # (the dummy input in export_onnx lives on CPU).
         final = swa_net.module.to("cpu")

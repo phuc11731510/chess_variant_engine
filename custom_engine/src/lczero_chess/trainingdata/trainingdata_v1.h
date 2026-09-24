@@ -38,11 +38,16 @@ namespace lczero {
 //      Before, when the root's NN-cache entry had been overwritten (8.5% of the
 //      gen-0 records), they were a copy of best_q/best_d and 0. Readers treat
 //      such a copy in older records as "unknown" (python/dataset.py).
-constexpr uint32_t kTrainingDataVersion = 4;
+//   5: the four castling bytes hold the rook's SQUARE, not its file
+//      (2026-09-24): castling is allowed on any rank (castlingAnyRank), so the
+//      file alone no longer places the rook. Up to version 4 the rook was always
+//      on its side's first rank and the byte was its file; readers turn it into
+//      the square (us: rank 0, them: rank 9; python/trainingdata_reader.py).
+constexpr uint32_t kTrainingDataVersion = 5;
 constexpr uint32_t kInputFormat10x10 = 1;
 
-// Sentinel for "no castling right" in the castling-file fields.
-constexpr uint8_t kNoCastlingFile = 0xFF;
+// Sentinel for "no castling right" in the castling fields.
+constexpr uint8_t kNoCastlingSquare = 0xFF;
 
 constexpr int kPolicySize = 10600;     // 106 move types x 100 from-squares
 constexpr int kHistoryPlanes = 216;    // 27 planes/ply x 8 ply
@@ -60,13 +65,14 @@ struct TrainingDataV1 {
 
   // --- Scalar auxiliary planes (reconstructed by the Python reader) ---
   uint8_t rule50_count;
-  // Castling: FILE INDEX (0-9) of the participating rook, or kNoCastlingFile.
-  // Storing the file (not a boolean) supports Chess960-style rook placement.
-  // Reader sets the bit at: us-planes -> rank 0, them-planes -> rank 9.
-  uint8_t castling_us_ooo_file;
-  uint8_t castling_us_oo_file;
-  uint8_t castling_them_ooo_file;
-  uint8_t castling_them_oo_file;
+  // Castling: the SQUARE (rank * 10 + file, 0-99) of the right's rook in the
+  // canonical frame (ranks flipped when Black is to move, like every plane),
+  // or kNoCastlingSquare. The reader sets that bit in aux planes 0-3. Before
+  // version 5 this was the rook's file (see the version history).
+  uint8_t castling_us_ooo_sq;
+  uint8_t castling_us_oo_sq;
+  uint8_t castling_them_ooo_sq;
+  uint8_t castling_them_oo_sq;
   uint64_t ep_mask[2];  // en-passant plane (128-bit mask)
   uint8_t checks_remaining_us;
   uint8_t checks_remaining_them;

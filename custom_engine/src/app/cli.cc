@@ -89,7 +89,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             if (i + 1 < argc && argv[i + 1][0] != '-') o.rt_prefix = argv[++i];
         }
         // --- self-play / arena / play / bench parameters ---
-        else if (a == "--games")              int_value(&o.sp_games, 0, kBig);
+        else if (a == "--games")              { int_value(&o.sp_games, 0, kBig); o.games_given = true; }
         else if (a == "--visits")             int_value(&o.sp_visits, 1, kBig);
         else if (a == "--parallel")           int_value(&o.sp_parallel, 1, 4096);
         else if (a == "--threads-per-game")   int_value(&o.sp_threads_per_game, 1, 256);

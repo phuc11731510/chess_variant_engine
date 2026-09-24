@@ -306,7 +306,7 @@ void run_selfplay_tests(const std::string& weights_path) {
               << " | side_to_move[0]=" << (int)recs[0].side_to_move
               << " rule50[0]=" << (int)recs[0].rule50_count
               << " checks_us[0]=" << (int)recs[0].checks_remaining_us
-              << " castle_us_oo_file[0]=" << (int)recs[0].castling_us_oo_file
+              << " castle_us_oo_sq[0]=" << (int)recs[0].castling_us_oo_sq
               << std::endl;
     std::cout << "[PASS] All " << recs.size()
               << " records valid (pi=1, z assigned, planes non-empty)." << std::endl;

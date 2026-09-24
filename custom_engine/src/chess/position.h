@@ -183,6 +183,7 @@ public:
   File castling_kingside_file() const;
   File castling_queenside_file() const;
   Rank castling_rank(Color c) const;
+  Rank castling_setup_rank(Color c) const;
   File castling_king_file() const;
   PieceType castling_king_piece(Color c) const;
   PieceSet castling_rook_pieces(Color c) const;
@@ -386,6 +387,8 @@ public:
 private:
   // Initialization helpers (used while setting up a position)
   void set_castling_right(Color c, Square rfrom);
+  Square castling_rook_by_letter(Color c, bool kingSide, Rank r) const;
+  Key castling_key(int cr) const;
   void set_state(StateInfo* si) const;
   void set_check_info(StateInfo* si) const;
 

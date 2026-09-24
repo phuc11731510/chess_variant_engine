@@ -48,8 +48,8 @@ def main():
         n_planes_set = int((recon != 0).any(axis=(1, 2)).sum())
         print(f"[OK] case {i}: planes match exactly  | side_to_move={rec['side_to_move']} "
               f"rule50={rec['rule50_count']} checks=({rec['checks_remaining_us']},{rec['checks_remaining_them']}) "
-              f"castle_files=({rec['castling_us_ooo_file']},{rec['castling_us_oo_file']},"
-              f"{rec['castling_them_ooo_file']},{rec['castling_them_oo_file']}) "
+              f"castle_sqs=({rec['castling_us_ooo_sq']},{rec['castling_us_oo_sq']},"
+              f"{rec['castling_them_ooo_sq']},{rec['castling_them_oo_sq']}) "
               f"non-empty planes={n_planes_set} | sum(pi)={psum:.4f} "
               f"result_q={rec['result_q']} orig_q={rec['orig_q']:.3f} kld={rec['policy_kld']:.3f} "
               f"visits={rec['visits']}")

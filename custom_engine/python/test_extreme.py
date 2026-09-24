@@ -74,8 +74,8 @@ def make_rec(seed=0, n_legal=40, with_zeros=True):
     return dict(
         piece_planes=tuple(int(x) for x in pp),
         ep_mask=(int(r.integers(0, 2**63)), int(r.integers(0, 2**63))),
-        castling_us_ooo_file=0, castling_us_oo_file=9,
-        castling_them_ooo_file=255, castling_them_oo_file=5,
+        castling_us_ooo_sq=0, castling_us_oo_sq=19,       # a1, j2 (canonical)
+        castling_them_ooo_sq=255, castling_them_oo_sq=95,
         rule50_count=37, checks_remaining_us=6, checks_remaining_them=7,
         side_to_move=seed % 2, probabilities=pi,
         result_q=float(r.choice([-1.0, 0.0, 1.0])), result_d=0.0,
@@ -98,16 +98,16 @@ def test_struct_layout():
     pi = [-1.0] * R.POLICY_SIZE
     pi[123] = 0.25; pi[7777] = 0.75
     pp = list(range(R.HISTORY_PLANES * 2))           # 0,1,2,... distinct sentinels
-    fields = ([4, 1] + pi + pp +
-              [200, 0, 9, 255, 4,                    # rule50 + 4 castling
+    fields = ([5, 1] + pi + pp +
+              [200, 0, 19, 255, 94,                  # rule50 + 4 castling squares
                0xAAAA, 0xBBBB,                       # ep_mask
                6, 7, 1,                              # checks_us/them, side
                1.0, 0.0, 0.2, 0.1, -0.3, 0.15, 0.4, 0.05, 0.6, 0.2, 1.234,  # 11 floats
                300, 123, 7777])                      # visits, played_idx, best_idx
     rec = R.unpack_record(R._STRUCT.pack(*fields))
-    check(rec["version"] == 4 and rec["input_format"] == 1, "version/input_format")
+    check(rec["version"] == 5 and rec["input_format"] == 1, "version/input_format")
     # A version or input format the reader does not know must be refused, not read.
-    for bad_version, bad_format in ((0, 1), (5, 1), (7, 1), (4, 2)):
+    for bad_version, bad_format in ((0, 1), (6, 1), (7, 1), (5, 2)):
         try:
             R.unpack_record(R._STRUCT.pack(*([bad_version, bad_format] + fields[2:])))
             refused = False
@@ -117,8 +117,25 @@ def test_struct_layout():
     check(abs(rec["probabilities"][123] - 0.25) < 1e-6 and
           abs(rec["probabilities"][7777] - 0.75) < 1e-6, "probabilities[idx] preserved")
     check(rec["piece_planes"][0] == 0 and rec["piece_planes"][431] == 431, "piece_planes order")
-    check(rec["rule50_count"] == 200 and rec["castling_us_oo_file"] == 9 and
-          rec["castling_them_ooo_file"] == 255, "scalar aux fields")
+    check(rec["rule50_count"] == 200 and rec["castling_us_ooo_sq"] == 0 and
+          rec["castling_us_oo_sq"] == 19 and rec["castling_them_ooo_sq"] == 255 and
+          rec["castling_them_oo_sq"] == 94, "scalar aux fields (castling squares)")
+    # Up to version 4 the castling bytes were files (the rook on its first rank):
+    # read as squares, us on rank 0 and them on rank 9.
+    old = R.unpack_record(R._STRUCT.pack(*([4, 1] + fields[2:2 + R.POLICY_SIZE + len(pp)] +
+                                           [200, 1, 8, 255, 4] + fields[7 + R.POLICY_SIZE + len(pp):])))
+    check([old[k] for k in R.CASTLING_KEYS] == [1, 8, 255, 94],
+          f"version-4 castling files -> squares (got {[old[k] for k in R.CASTLING_KEYS]})")
+    # A byte that is neither a square/file nor 0xFF is refused.
+    for version, bad in ((5, 100), (5, 254), (4, 10)):
+        try:
+            R.unpack_record(R._STRUCT.pack(*([version, 1] + fields[2:2 + R.POLICY_SIZE + len(pp)] +
+                                             [200, bad, 255, 255, 255] +
+                                             fields[7 + R.POLICY_SIZE + len(pp):])))
+            refused = False
+        except ValueError:
+            refused = True
+        check(refused, f"castling byte {bad} in a version-{version} record refused")
     check(rec["ep_mask"] == (0xAAAA, 0xBBBB), "ep_mask pair")
     check(rec["checks_remaining_us"] == 6 and rec["checks_remaining_them"] == 7 and
           rec["side_to_move"] == 1, "checks + side")
@@ -269,8 +286,8 @@ def test_reconstruct_aux():
     rec = dict(
         piece_planes=tuple([0] * (R.HISTORY_PLANES * 2)),
         ep_mask=[np.uint64(0), np.uint64(0)],
-        castling_us_ooo_file=2, castling_us_oo_file=255,
-        castling_them_ooo_file=7, castling_them_oo_file=255,
+        castling_us_ooo_sq=2, castling_us_oo_sq=255,       # c1
+        castling_them_ooo_sq=97, castling_them_oo_sq=255,  # h10
         rule50_count=50, checks_remaining_us=3, checks_remaining_them=7,
     )
     ep = [np.uint64(0), np.uint64(0)]
@@ -282,11 +299,18 @@ def test_reconstruct_aux():
     check(np.allclose(pl[AB + 5], 0.5), "aux5 rule50 == 50/100")
     check(np.allclose(pl[AB + 8], 3 / 10) and np.allclose(pl[AB + 9], 7 / 10),
           "aux8/9 checks == n/10")
-    # castling: us -> rank 0, them -> rank 9; 0xFF -> nothing
-    check(pl[AB + 0, 0, 2] == 1.0 and pl[AB + 0].sum() == 1.0, "us_ooo file2 -> (rank0,file2)")
+    # castling: one bit on the rook's square; 0xFF -> nothing
+    check(pl[AB + 0, 0, 2] == 1.0 and pl[AB + 0].sum() == 1.0, "us_ooo square 2 -> (rank0,file2)")
     check(pl[AB + 1].sum() == 0.0, "us_oo == 0xFF -> empty plane")
-    check(pl[AB + 2, 9, 7] == 1.0 and pl[AB + 2].sum() == 1.0, "them_ooo file7 -> (rank9,file7)")
+    check(pl[AB + 2, 9, 7] == 1.0 and pl[AB + 2].sum() == 1.0, "them_ooo square 97 -> (rank9,file7)")
     check(pl[AB + 3].sum() == 0.0, "them_oo == 0xFF -> empty plane")
+    # castling on any rank (a shuffled start): the bit lands on that rank
+    rec.update(castling_us_ooo_sq=11, castling_us_oo_sq=18,   # b2, i2
+               castling_them_ooo_sq=81, castling_them_oo_sq=88)  # b9, i9
+    pl = R.reconstruct_planes(rec)
+    got = [tuple(np.argwhere(pl[AB + k] == 1.0).ravel()) for k in range(4)]
+    check(got == [(1, 1), (1, 8), (8, 1), (8, 8)] and all(pl[AB + k].sum() == 1.0 for k in range(4)),
+          f"castling rooks on ranks 2 / 9 -> their squares (got {got})")
     check(pl[AB + 4, 4, 6] == 1.0 and pl[AB + 4].sum() == 1.0, "ep plane decodes (rank4,file6)")
 
 
@@ -334,10 +358,10 @@ def test_archive_roundtrip():
                         for k in np.argwhere(rec["probabilities"] >= 0).ravel():
                             pi[int(k)] = float(rec["probabilities"][int(k)])
                         pp = list(rec["piece_planes"])
-                        fields = ([1, 1] + pi + pp +
-                                  [rec["rule50_count"], rec["castling_us_ooo_file"],
-                                   rec["castling_us_oo_file"], rec["castling_them_ooo_file"],
-                                   rec["castling_them_oo_file"],
+                        fields = ([5, 1] + pi + pp +
+                                  [rec["rule50_count"], rec["castling_us_ooo_sq"],
+                                   rec["castling_us_oo_sq"], rec["castling_them_ooo_sq"],
+                                   rec["castling_them_oo_sq"],
                                    rec["ep_mask"][0], rec["ep_mask"][1],
                                    rec["checks_remaining_us"], rec["checks_remaining_them"],
                                    rec["side_to_move"],

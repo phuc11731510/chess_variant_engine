@@ -85,6 +85,10 @@ void init_engine_globals() {
 //     Position::do_move, src/chess/position.cpp;
 //   * an e.p. capture that lands in the promotion zone promotes: movegen.cpp +
 //     position.cpp (commit 52439cc).
+// castlingAnyRank is an option added to this Fairy-Stockfish copy (variant.h):
+// the royal piece and a rook that have not moved castle on whatever rank they
+// share (a shuffled start may put them on rank 2), landing on h/g or d/e of
+// that rank; it also puts each rook's square into the Zobrist key.
 // `k` is the royal piece ("Hoang gia", king step + knight): Fairy-Stockfish
 // requires the royal piece to use the king slot.
 const Variant* setup_custom_variant() {
@@ -121,6 +125,7 @@ castlingKingsideFile = h
 castlingQueensideFile = d
 castlingRookKingsideFile = i
 castlingRookQueensideFile = b
+castlingAnyRank = true
 stalemateValue = loss
 checkCounting = true
 )";
@@ -195,15 +200,17 @@ std::string CheckStartFen(const std::string& fen) {
             return std::string(names[i]) + " read back as '" +
                    (got.size() > static_cast<size_t>(i) ? got[i] : "") + "', not '" + field[i] + "'";
     // Castling rights by MEANING, not spelling. Fairy-Stockfish keeps a right as
-    // a (royal square, rook square) pair and writes it back as K/Q/k/q (so the
-    // start position's "BIbi" comes back as "KQkq"). Reading, it takes a file
-    // letter literally but resolves "K" as the first rook from the i-file towards
-    // the a-file and "Q" as the first rook from the b-file towards the j-file:
-    // with the rooks elsewhere (a shuffled start) a lone "K" can become a
-    // QUEEN-side right with the a-file rook, and a right whose royal piece or
-    // rook is not on its square is dropped without a word. So: every letter must
-    // give exactly its right (K/Q on that side, a file letter with its rook on
-    // that file), and there must be no other right.
+    // a (royal square, rook square) pair and writes it back as K/Q/k/q where that
+    // reads back to the same rook, else as the rook's file (so the start
+    // position's "BIbi" comes back as "KQkq"). Castling is on any rank: every
+    // letter looks for its rook on the rank of its side's royal piece. A file
+    // letter is taken literally, but "K" is the first rook from the i-file
+    // towards the a-file and "Q" the first rook from the b-file towards the
+    // j-file: with the rooks elsewhere (a shuffled start) a lone "K" can become a
+    // QUEEN-side right with the a-file rook, and a right whose rook is not there
+    // is dropped without a word. So: every letter must give exactly its right
+    // (K/Q on that side, a file letter with its rook on that file), and there
+    // must be no other right.
     using Stockfish::CastlingRights;
     const int kept = int(pos.can_castle(Stockfish::WHITE_OO)) + int(pos.can_castle(Stockfish::WHITE_OOO)) +
                      int(pos.can_castle(Stockfish::BLACK_OO)) + int(pos.can_castle(Stockfish::BLACK_OOO));
@@ -226,8 +233,8 @@ std::string CheckStartFen(const std::string& fen) {
         }
         if (!ok)
             return std::string("castling right '") + ch + "' of '" + field[2] +
-                   "' was not set up as written (the royal piece and that rook must be on their "
-                   "squares; write the rook's file, e.g. BIbi, rather than K/Q)";
+                   "' was not set up as written (that rook must stand on the royal piece's rank; "
+                   "write the rook's file, e.g. BIbi, rather than K/Q)";
     }
     if (kept != letters)
         return "castling rights '" + field[2] + "' gave " + std::to_string(kept) + " right(s), not " +

@@ -161,7 +161,12 @@ void TestStartFen() {
                            "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w KQkq - 8+8 0 1",
                            // Shuffled rooks, written with their files: unambiguous.
                            "4k5/10/10/10/10/10/10/10/10/R4K3R w J - 8+8 0 1",
-                           "4k5/10/10/10/10/10/10/10/10/R4K3R w AJ - 8+8 0 1"}) {
+                           "4k5/10/10/10/10/10/10/10/10/R4K3R w AJ - 8+8 0 1",
+                           // Castling on any rank: the royal piece and its rooks on
+                           // ranks 2/9 (K/Q look on the royal piece's rank too), 3/6.
+                           "10/1r3k2r1/10/10/10/10/10/10/1R3K2R1/10 w BIbi - 8+8 0 1",
+                           "10/1r3k2r1/10/10/10/10/10/10/1R3K2R1/10 w KQkq - 8+8 0 1",
+                           "10/10/10/10/1r3k3r/10/10/R3K2R2/10/10 b AHbj - 8+8 0 1"}) {
         const std::string why = CheckStartFen(ok);
         EXPECT(why.empty(), "valid FEN rejected (" << why << "): " << ok);
     }
@@ -180,6 +185,7 @@ void TestStartFen() {
              Bad{"4k5/10/10/10/10/10/10/10/10/10 w - - 8+8 0 1", "no white royal"},
              Bad{"4k5/10/10/10/10/10/10/10/10/3KK5 w - - 8+8 0 1", "two white royals"},
              Bad{"4k5/10/10/10/10/10/10/10/10/4K5 w BIbi - 8+8 0 1", "castling rights without rooks"},
+             Bad{"4k5/10/10/10/10/10/10/10/5K4/8R1 w I - 8+8 0 1", "castling rook on another rank than the royal piece"},
              // Rooks on a1/j1: Fairy-Stockfish reads a lone "K" as the first rook
              // from the i-file towards a -- the a1 rook, i.e. a QUEEN-side right.
              Bad{"4k5/10/10/10/10/10/10/10/10/R4K3R w K - 8+8 0 1", "'K' turned into a queen-side right"},
