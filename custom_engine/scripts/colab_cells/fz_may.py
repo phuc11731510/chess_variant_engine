@@ -2,7 +2,8 @@
 
 menu.sh gui tep nay len /content/fz_log/fz_may.py moi lan khoi dong mot o, roi:
   - trong kernel colab exec:  khoi_dong(o, ma_b64, ep)   -> in "FZ_PID=<pid>" hoac "FZ_BAN=<o>"
-  - qua ssh:  python3 /content/fz_log/fz_may.py theo_doi <o> <pid>   -> log truc tiep
+  - qua ssh:  python3 /content/fz_log/fz_may.py theo_doi <o> <pid> [n]   -> log truc tiep
+              (n: chi in n dong cuoi roi theo tiep -- dung khi noi lai sau rot mang)
 O 05, 09 cung doc tep nay (trang_thai, dung_o).
 
 Trang thai mot o chay nen (trang_thai) -- khong doan theo thoi gian hay noi dung log:
@@ -76,14 +77,30 @@ def khoi_dong(o, ma_b64, ep=False):
     print(f"FZ_PID={pr.pid}")
 
 
-def theo_doi(o, pid):
-    """In log o tu dau va theo tiep den khi o het 'chay'. 0 = o da ket thuc, 1 = nguoi xem
-    ngat ket noi (ssh bi Ctrl+C: dau ra dong -> POLLHUP/POLLERR hoac BrokenPipe)."""
+def _n_dong_cuoi(f, n):
+    """Dua con tro tep f toi dau n dong cuoi (doc toi da 256 KB cuoi tep)."""
+    f.seek(0, 2)
+    co = f.tell()
+    f.seek(max(0, co - 256 * 1024))
+    d = f.read()
+    vt = len(d)
+    for _ in range(n + 1):             # +1: bo qua dau xuong dong cuoi tep
+        vt = d.rfind(b"\n", 0, vt)
+        if vt < 0:
+            break
+    f.seek(co - len(d) + (vt + 1 if vt >= 0 else 0))
+
+
+def theo_doi(o, pid, n=None):
+    """In log o tu dau (n: chi n dong cuoi) va theo tiep den khi o het 'chay'. 0 = o da ket
+    thuc, 1 = nguoi xem ngat ket noi (ssh bi Ctrl+C: dau ra dong -> POLLHUP/POLLERR, BrokenPipe)."""
     out = sys.stdout.buffer
     nghe = select.poll()
     nghe.register(out.fileno(), 0)  # 0: chi nhan HUP/ERR -- dau doc (ssh) da dong
     ket_thuc = False
     with open(f"{D}/{o}.log", "rb") as f:
+        if n:
+            _n_dong_cuoi(f, n)
         while True:
             d = f.read()
             if d:
@@ -128,8 +145,8 @@ def dung_o():
     print(f"[da dung o {o}]")
 
 
-if __name__ == "__main__" and len(sys.argv) == 4 and sys.argv[1] == "theo_doi":
+if __name__ == "__main__" and len(sys.argv) in (4, 5) and sys.argv[1] == "theo_doi":
     try:
-        sys.exit(theo_doi(sys.argv[2], sys.argv[3]))
+        sys.exit(theo_doi(sys.argv[2], sys.argv[3], int(sys.argv[4]) if len(sys.argv) == 5 else None))
     except KeyboardInterrupt:  # Ctrl+C toi duoc day (vd ssh -t): chi dung xem, o van chay
         sys.exit(130)

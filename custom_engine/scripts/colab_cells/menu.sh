@@ -86,8 +86,10 @@ colab() { HOME=$TKH command colab "$@"; }
 py_colab() { HOME=$TKH python "$@"; }
 
 # Ctrl+C: dung lenh dang chay (ssh xem log), KHONG thoat menu. Handler (khong phai bo qua)
-# de tien trinh con van nhan Ctrl+C binh thuong.
-trap ':' INT
+# de tien trinh con van nhan Ctrl+C binh thuong. NGAT=1: nguoi dung vua bam Ctrl+C (ssh tra 255
+# ca khi bi Ctrl+C lan khi rot mang -- xem() dua vao co nay de phan biet).
+NGAT=0
+trap 'NGAT=1' INT
 
 # Doc tep o: bo BOM va \r ma trinh sua tep tren dien thoai co the them vao.
 doc() { sed 's/^\xEF\xBB\xBF//; s/\r$//' "$@"; }
@@ -103,6 +105,7 @@ dung() { echo; read -rp "--- Enter để về menu ---" _; }
 ssh_colab() {
   ssh -o ProxyCommand="env HOME=$TKH $(type -P colab) ssh --proxy-mode -s $S" \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+      -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
       "root@colab-$S" "$@"
 }
 
@@ -129,9 +132,28 @@ EOF
 
 # Xem log o $1 (pid $2) tu dau va theo tiep den khi o ket thuc (fz_may.py theo_doi).
 # Tra ve 0 = o da ket thuc, khac 0 = Ctrl+C (o van chay tiep).
+# Rot mang: ssh tra 255 (khac Ctrl+C = 130, o xong = 0) -> tu noi lai moi 5 giay, in tiep 20
+# dong cuoi roi theo doi tiep; o tren Colab khong bi anh huong. Chuoi "04 06" vi vay khong bi dut.
 xem() {
+  local rc lan=0 them=""
   echo "== Log trực tiếp ô $1 · Ctrl+C để về menu (ô vẫn chạy tiếp) =="
-  ssh_colab "python3 $LOGD/fz_may.py theo_doi $1 $2"
+  while true; do
+    NGAT=0
+    ssh_colab "python3 $LOGD/fz_may.py theo_doi $1 $2 $them"
+    rc=$?
+    [ $NGAT = 1 ] && return 130
+    [ $rc = 255 ] || return $rc
+    lan=$((lan + 1))
+    if [ $lan -gt 120 ]; then echo "[!] Mất kết nối hơn 10 phút -- về menu (ô vẫn chạy; xem lại: l)"; return $rc; fi
+    echo
+    echo "[mất kết nối tới máy Colab -- nối lại sau 5 giây (lần $lan) · Ctrl+C = về menu, ô vẫn chạy]"
+    sleep 5 || return 130
+    [ $NGAT = 1 ] && return 130
+    # Ban fz_may.py tren may co the cu (khong biet doi so thu 3): gui ban moi truoc. O dang chay
+    # khong dung tep nay nen ghi de an toan.
+    [ -f "$MAY" ] && ssh_colab "mkdir -p $LOGD && cat > $LOGD/fz_may.py" < "$MAY" 2>/dev/null
+    them=20
+  done
 }
 
 # Chay o tep $1: nhanh thi chay thang; con lai thi chay nen + xem log.
@@ -312,12 +334,16 @@ tai_ve() {
   tam=$TAI/.dang_tai_${BASHPID}_${RANDOM}_$ten
   kt=$(ssh_colab "stat -c %s $q" 2>/dev/null)
   if [[ "$kt" =~ ^[0-9]+$ ]]; then
-    echo "Tải về: $nguon ($(kich_thuoc "$kt")) ..."
-    if command -v pv >/dev/null; then ssh_colab "cat $q" | pv -s "$kt" > "$tam"
-    else ssh_colab "cat $q" > "$tam"; fi
-    if [ "$(stat -c %s "$tam" 2>/dev/null)" != "$kt" ]; then
-      rm -f "$tam"; echo "[!] Tải dở / lỗi: $nguon (không lưu gì)"; return 1
-    fi
+    for i in 1 2 3; do
+      echo "Tải về: $nguon ($(kich_thuoc "$kt")) ..."
+      if command -v pv >/dev/null; then ssh_colab "cat $q" | pv -s "$kt" > "$tam"
+      else ssh_colab "cat $q" > "$tam"; fi
+      [ "$(stat -c %s "$tam" 2>/dev/null)" = "$kt" ] && break
+      rm -f "$tam"
+      if [ $i = 3 ]; then echo "[!] Tải dở / lỗi: $nguon (không lưu gì)"; return 1; fi
+      echo "[!] Tải dở (mất kết nối?) -- thử lại lần $((i + 1))/3 sau 5 giây... (Ctrl+C = thôi)"
+      sleep 5 || return 1
+    done
   else
     echo "Tải về: $nguon (qua colab download) ..."
     colab download -s "$S" "$nguon" "$tam" >/dev/null 2>&1 && [ -f "$tam" ] ||
