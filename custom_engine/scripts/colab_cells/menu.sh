@@ -155,6 +155,8 @@ chay_o() {
   pid=$(sed -n 's/^FZ_PID=//p' <<<"$out")
   if [ -z "$pid" ]; then echo "$out"; echo "[!] Không khởi động được ô $id"; return 2; fi
   xem "$id" "$pid" || return 1
+  tai_theo_o "$id"
+  return 0
 }
 
 # Muc l: xem tiep log o chay nen gan nhat.
@@ -272,6 +274,61 @@ han_muc() {
 # Kich thuoc de doc (1.2M, 340K).
 kich_thuoc() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || echo "${1}B"; }
 
+# Ten chua co trong Download/FairyZero cho tep $1, kieu Windows Explorer ("Giu ca hai"):
+# gen0.onnx -> "gen0 (2).onnx" -> "gen0 (3).onnx" ...; khong duoi / tep an: "ten (2)".
+ten_trong() {
+  local ten=$1 goc duoi n=2
+  [ -e "$TAI/$ten" ] || { echo "$ten"; return; }
+  if [[ "$ten" == [!.]*.* ]]; then goc=${ten%.*}; duoi=.${ten##*.}; else goc=$ten; duoi=; fi
+  while [ -e "$TAI/$goc ($n)$duoi" ]; do n=$((n + 1)); done
+  echo "$goc ($n)$duoi"
+}
+
+# Tai tep Colab $1 ve Download/FairyZero. Truyen qua ssh (cat, khong base64, khong giu ca tep
+# trong RAM -- hop zip lon); ssh loi thi dung colab download. Tai vao tep tam an, kiem du kich
+# thuoc, roi moi dat ten: tep dich luon la ban day du; trung ten -> ten_trong. Chon ten + mv
+# nam trong khoa (mkdir la nguyen tu) nen hai cua so tai cung ten cung luc khong de len nhau.
+tai_ve() {
+  local nguon=$1 ten kt tam dich i q
+  ten=${nguon##*/}
+  q=$(printf %q "$nguon")
+  mkdir -p "$TAI"
+  tam=$TAI/.dang_tai_${BASHPID}_${RANDOM}_$ten
+  kt=$(ssh_colab "stat -c %s $q" 2>/dev/null)
+  if [[ "$kt" =~ ^[0-9]+$ ]]; then
+    echo "Tải về: $nguon ($(kich_thuoc "$kt")) ..."
+    if command -v pv >/dev/null; then ssh_colab "cat $q" | pv -s "$kt" > "$tam"
+    else ssh_colab "cat $q" > "$tam"; fi
+    if [ "$(stat -c %s "$tam" 2>/dev/null)" != "$kt" ]; then
+      rm -f "$tam"; echo "[!] Tải dở / lỗi: $nguon (không lưu gì)"; return 1
+    fi
+  else
+    echo "Tải về: $nguon (qua colab download) ..."
+    colab download -s "$S" "$nguon" "$tam" >/dev/null 2>&1 && [ -f "$tam" ] ||
+      { rm -f "$tam"; echo "[!] Không tải được: $nguon (không có trên Colab?)"; return 1; }
+  fi
+  for i in $(seq 50); do mkdir "$TAI/.khoa_dat_ten" 2>/dev/null && break; sleep 0.2; done
+  dich=$(ten_trong "$ten")
+  mv "$tam" "$TAI/$dich"
+  rmdir "$TAI/.khoa_dat_ten" 2>/dev/null
+  if [ "$dich" = "$ten" ]; then echo "[xong] Download/FairyZero/$dich"
+  else echo "[xong] Download/FairyZero/$dich  (đã có '$ten' -> lưu tên mới, không ghi đè)"; fi
+  # Bao cho Android: tep hien ngay trong Files / trinh chon tep.
+  command -v termux-media-scan >/dev/null && termux-media-scan "$TAI/$dich" >/dev/null 2>&1
+  return 0
+}
+
+# Sau khi o $1 chay nen xong: tai ve moi tep o do yeu cau bang dong "FZ_TAI_VE=<duong dan>"
+# trong log (vd o 06 -> zip van). Nho vay "04 06" = sinh du lieu, gom zip, tai ve dien thoai.
+tai_theo_o() {
+  local ds f
+  mapfile -t ds < <(ssh_colab "sed -n 's/^FZ_TAI_VE=//p' $LOGD/$1.log 2>/dev/null")
+  [ ${#ds[@]} -eq 0 ] && return 0
+  echo
+  echo "== Ô $1 yêu cầu tải về điện thoại: ${#ds[@]} tệp =="
+  for f in "${ds[@]}"; do tai_ve "$f"; done
+}
+
 # Muc d: duyet thu muc tren may Colab (liet ke qua ssh), chon so de vao thu muc / tai tep ve
 # Download/FairyZero (colab download).
 duyet_colab() {
@@ -303,12 +360,7 @@ duyet_colab() {
         if [ "$loai" = d ]; then
           dir=${dir%/}/$ten
         else
-          echo "Tải về: ${dir%/}/$ten  ->  Download/FairyZero/$ten ($(kich_thuoc "$kt"))"
-          if colab download -s "$S" "${dir%/}/$ten" "$TAI/$ten"; then
-            echo "[xong] Download/FairyZero/$ten"
-            # Bao cho Android: tep hien ngay trong Files / trinh chon tep.
-            command -v termux-media-scan >/dev/null && termux-media-scan "$TAI/$ten" >/dev/null 2>&1
-          fi
+          tai_ve "${dir%/}/$ten"
           dung
         fi ;;
     esac
