@@ -137,16 +137,32 @@ xem() {
 # Chay o tep $1: nhanh thi chay thang; con lai thi chay nen + xem log.
 # Tra ve 0 = o ket thuc; 1 = Ctrl+C khi dang xem (o VAN chay nen); 2 = khong khoi dong / huy.
 chay_o() {
-  local f=$1 id out pid ban x
+  local f=$1 id out pid ban x lan
   id=$(basename "$f"); id=${id%%_*}
   echo
   echo "====== Ô $id: $(tieu_de "$f") ======"
   if doc "$f" | grep -q '^# fz: nhanh'; then
-    ghep "$f" | colab exec -s "$S"
+    ghep "$f" | colab exec -s "$S" ||
+      echo "[!] colab exec lỗi. 'Connection was lost' = mất kết nối tới kernel (mạng chập chờn) -- chạy lại ô $id."
     return 0
   fi
-  out=$(khoi_dong "$id" "$f")
+  # colab exec mo websocket toi kernel truoc khi chay ma; mang chap chon -> "Connection was lost"
+  # NGAY buoc do (ma khoi dong o chua chay) -> thu lai. Ma khoi dong luon in FZ_PID= / FZ_BAN=,
+  # khong co dong nao = chua chay duoc.
+  for lan in 1 2 3; do
+    out=$(khoi_dong "$id" "$f" 2>&1)
+    grep -q '^FZ_\(PID\|BAN\)=' <<<"$out" && break
+    [ -f "$MAY" ] && [ $lan -lt 3 ] || break
+    echo "[!] Không kết nối được kernel Colab ($(grep -o 'Connection was lost\|[A-Za-z]*Error: [^│]*' <<<"$out" | tail -1 | sed 's/ *$//'))"
+    echo "    thử lại lần $((lan + 1))/3 sau 5 giây... (Ctrl+C = thôi)"
+    sleep 5 || return 2
+  done
   ban=$(sed -n 's/^FZ_BAN=//p' <<<"$out")
+  if [ -n "$ban" ] && [ $lan -gt 1 ] && [ "$ban" = "$id" ]; then
+    # Lan truoc mat ket noi SAU khi da khoi dong o -> o dang chay chinh la o nay: xem tiep no.
+    out="FZ_PID=$(ssh_colab "cat $LOGD/dang_chay" | awk '{print $2}')"
+    ban=
+  fi
   if [ -n "$ban" ]; then
     read -rp "Ô $ban vẫn đang chạy nền. Vẫn chạy thêm ô $id song song? (co = chạy): " x
     [ "$x" = co ] || return 2

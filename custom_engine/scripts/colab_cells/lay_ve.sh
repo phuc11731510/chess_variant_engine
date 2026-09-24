@@ -7,7 +7,13 @@
 #   bash lay_ve.sh 05 07  # tai lai RIENG o 05 va 07 (ghi de hai o do), giu nguyen cac o khac
 set -euo pipefail
 
-URL=https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/custom_engine/scripts/colab_cells
+# raw.githubusercontent.com luu dem tep theo ten nhanh (main) ~5 phut: vua day ban moi len ma tai
+# ngay thi van nhan ban CU. Tai theo ma commit moi nhat cua main (hoi GitHub API) thi luon moi;
+# API loi (gioi han 60 lan/gio) thi dung main.
+REPO=phuc11731510/chess_variant_engine
+SHA=$(curl -fsSL -H 'Accept: application/vnd.github.sha' "https://api.github.com/repos/$REPO/commits/main" 2>/dev/null) || SHA=
+[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || SHA=main
+URL=https://raw.githubusercontent.com/$REPO/$SHA/custom_engine/scripts/colab_cells
 CELLS="00_cau_hinh 01_kiem_gpu 02_khoi_dong 02b_bien_dich 03_tao_gen0 04_sinh_du_lieu
 05_xem_log 06_dong_goi 07_huan_luyen 08_arena 09_dung_viec_nen"
 DIR=$HOME/storage/downloads/FairyZero/o_lenh
@@ -81,4 +87,4 @@ EOF
 else
   echo "[giu nguyen] ~/bin/termux-file-editor cua ban (khong them moc tai len Colab)"
 fi
-echo "[xong] chay: source ~/.bashrc   roi go:  fz"
+echo "[xong] ban ${SHA:0:7}. Chay: source ~/.bashrc   roi go:  fz"
