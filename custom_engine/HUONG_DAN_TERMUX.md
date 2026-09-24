@@ -213,13 +213,20 @@ miễn phí: 0) — nên menu chạy thêm `~/fz_han_muc.py`. Nó hỏi đúng n
 Colab cho VS Code của Google đọc:
 
 ```
-== Hạn mức GPU của tài khoản Colab ==
-Còn lại:       4.75 đơn vị  ≈  4 giờ 26 phút (theo mức đang tiêu 1.07/giờ)
-Máy đang giữ:  1 · đơn vị mua: 0.00
+== Hạn mức Colab của tài khoản ==
+Máy đang giữ:  T4 (1 máy) -- đang tiêu 1.070 đơn vị/giờ
+Còn lại:       4.748 đơn vị
+=> Máy T4 đang giữ chạy được thêm ≈ 4 giờ 26 phút (theo mức tiêu hiện tại)
+Đơn vị mua:    0.00
 GPU được dùng: T4 · không được: H100, G4, A100, L4
 Nạp lại lúc:   18:50 25/09 (sau 22 giờ 16 phút)
-Gợi ý SECS ô 04: 14774 (= thời gian còn lại - 20 phút để gom zip + tải về)
+Gợi ý SECS ô 04 (trên T4): 14774 (= thời gian GPU còn lại - 20 phút để gom zip + tải về)
 ```
+
+Hạn mức là **một con số chung của cả tài khoản**; mọi máy đang giữ tiêu vào nó theo mức tiêu riêng
+(T4 ~1,07/giờ, CPU rất ít). Đang giữ máy CPU thì dòng `=>` cho biết máy CPU còn chạy được bao lâu
+(thường vài chục giờ — giống "tối đa X giờ" trên trang web), kèm dòng "Nếu dùng T4" để biết còn bao
+nhiêu giờ T4.
 
 Chưa giữ máy nào thì nó tính theo mức T4 ~1,07/giờ. `python ~/fz_han_muc.py --raw` in nguyên dữ
 liệu API trả về để tự kiểm. Đây là API nội bộ của Google (không có tài liệu chính thức), có thể đổi.

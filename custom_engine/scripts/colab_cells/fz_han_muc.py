@@ -78,26 +78,29 @@ so_may = int(info.get("assignmentsCount") or 0)
 may = sys.argv[sys.argv.index("--may") + 1] if "--may" in sys.argv[:-1] else ""
 q = info["freeCcuQuotaInfo"]
 tok = q.get("remainingTokens")
-print("== Hạn mức GPU của tài khoản Colab ==")
-# Hạn mức này là của GPU (tính theo đơn vị tính toán); máy CPU miễn phí không tiêu vào nó.
+print("== Hạn mức Colab của tài khoản ==")
+# Một hạn mức chung cho cả tài khoản (đơn vị tính toán). Mọi máy đang giữ đều tiêu vào nó theo
+# consumptionRateHourly: T4 ~1,07/giờ, CPU rất ít -- nên máy CPU chạy được rất lâu (trang web Colab
+# hiện "tối đa X giờ" = hạn mức còn lại / mức tiêu hiện tại).
+ten_may = may or "?"
 if so_may == 0:
     print("Máy đang giữ:  không có")
-elif may.upper() == "CPU" or (rate == 0 and not may):
-    print(f"Máy đang giữ:  {may or 'CPU?'} ({so_may} máy) -- không tiêu hạn mức GPU (đang tiêu {rate:.2f}/giờ)")
 else:
-    print(f"Máy đang giữ:  {may or '?'} ({so_may} máy) -- đang tiêu {rate:.2f} đơn vị/giờ")
-dung_gpu = rate > 0 and may.upper() != "CPU"
-h = None
+    print(f"Máy đang giữ:  {ten_may} ({so_may} máy) -- đang tiêu {rate:.3f} đơn vị/giờ")
+h = None      # giờ T4 còn lại (cho gợi ý SECS)
 if tok is None:
     print("Có freeCcuQuotaInfo nhưng không có remainingTokens (tài khoản còn đơn vị mua?).")
 else:
     ccu = int(tok) / 1000
-    if dung_gpu:
-        h = ccu / rate
-        print(f"GPU còn lại:   {ccu:.2f} đơn vị  ≈  {gio_phut(h)} với máy đang giữ ({rate:.2f}/giờ)")
-    else:
-        h = ccu / T4_UOC_TINH
-        print(f"GPU còn lại:   {ccu:.2f} đơn vị  ≈  {gio_phut(h)} nếu dùng T4 (~{T4_UOC_TINH}/giờ)")
+    print(f"Còn lại:       {ccu:.3f} đơn vị")
+    if so_may and rate > 0:
+        print(f"=> Máy {ten_may} đang giữ chạy được thêm ≈ {gio_phut(ccu / rate)} (theo mức tiêu hiện tại)")
+    elif so_may:
+        print(f"=> Máy {ten_may} đang tiêu 0 đơn vị/giờ -- không tính được thời gian (không trừ hạn mức)")
+    la_t4 = so_may and rate > 0 and may.upper() not in ("", "CPU") and "T4" in may.upper()
+    h = ccu / rate if la_t4 else ccu / T4_UOC_TINH
+    if not la_t4:
+        print(f"   Nếu dùng T4 (~{T4_UOC_TINH}/giờ): ≈ {gio_phut(h)}")
 print(f"Đơn vị mua:    {float(info.get('currentBalance') or info.get('paidComputeUnitsBalance') or 0):.2f}")
 if info.get("eligibleGpus") is not None:
     print(f"GPU được dùng: {', '.join(info.get('eligibleGpus') or []) or '(không)'}"
