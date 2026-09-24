@@ -145,29 +145,21 @@ tiếp theo nó không thấy thì hỏi đăng nhập lại (mục 3) — lúc 
    colab stop -s fz
    ```
 
-2. Xem các tệp đăng nhập đang có:
+2. Xoá token đăng nhập — Colab CLI lưu nó ở **`~/.config/colab-cli/token.json`**:
 
    ```bash
-   ls -la ~/.config/colab-cli ~/.config/gcloud ~/.colab-cli-oauth-config.json 2>/dev/null
+   rm -f ~/.config/colab-cli/token.json ~/.config/colab-cli/sessions.json
    ```
 
-   Theo tài liệu Colab CLI: `~/.config/colab-cli/` chứa `sessions.json` (phiên + token) và
-   `settings.json`; cách đăng nhập mặc định là `adc` (Application Default Credentials của Google),
-   thường lưu ở `~/.config/gcloud/application_default_credentials.json`.
+   Các tệp khác trong thư mục đó (`settings.json`, `colab.log`, `history/` — lịch sử lệnh từng phiên)
+   không chứa đăng nhập, để nguyên được.
 
-3. Xoá thông tin đăng nhập:
-
-   ```bash
-   rm -f ~/.config/gcloud/application_default_credentials.json
-   rm -f ~/.config/colab-cli/sessions.json
-   ```
-
-4. Đăng nhập tài khoản mới: menu `fz` → `m` (hoặc `colab sessions`) → nó in link đăng nhập →
+3. Đăng nhập tài khoản mới: menu `fz` → `m` (hoặc `colab sessions`) → nó in link đăng nhập →
    làm như mục 3, **chọn tài khoản khác** trong trình duyệt.
 
-Nếu sau bước 3 lệnh vẫn chạy mà không hỏi đăng nhập (vẫn là tài khoản cũ), thì token nằm ở chỗ
-khác: xem `colab --help` / `colab auth --help`, hoặc tìm tệp:
-`find ~ -name "*.json" -path "*colab*" -o -name "*credentials*" 2>/dev/null`.
+Muốn đổi qua lại nhiều lần: cất token của từng tài khoản rồi chép vào khi cần, vd
+`cp ~/.config/colab-cli/token.json ~/token_A.json` (đang ở tài khoản A), sau này
+`cp ~/token_A.json ~/.config/colab-cli/token.json` để về lại A mà không phải đăng nhập lại.
 
 ---
 
@@ -197,11 +189,17 @@ colab new -s fz --gpu T4
 `colab new --gpu T4` báo lỗi hết tài nguyên = tài khoản miễn phí đã dùng hết GPU trong ngày; đợi vài
 giờ đến một ngày, hoặc Colab Pro. GPU khác: `--gpu L4` / `A100` / `H100` (cần Pro / đơn vị tính toán).
 
-**Còn bao lâu nữa bị ngắt?** Menu `h` (= `colab usage`) in mức dùng và số dư đơn vị tính toán của
-tài khoản. Tài liệu Colab CLI không nói nó có in con số "thời gian chạy có thể kéo dài tối đa … giờ"
-như trang web hay không — chạy thử một lần xem. Nếu có, đặt `SECS` trong ô 04 = thời gian đó
-**trừ ~20 phút** (selfplay vượt giờ 2-3 phút, cộng ô 06 gom zip và tải về) để kịp lấy dữ liệu trước
-khi máy bị ngắt.
+**Còn bao lâu nữa bị ngắt?** Colab CLI **không cho biết**. Menu `h` (= `colab usage`) chỉ in:
+
+```
+Current balance: 0.00 compute units    <- số dư đơn vị tính toán (tài khoản miễn phí: 0)
+Usage rate: 1.07/hr                    <- máy đang giữ "tốn" bao nhiêu đơn vị/giờ (T4 ≈ 1,07)
+Active assignments: 1                  <- số máy đang giữ
+```
+
+Con số "thời gian chạy có thể kéo dài tối đa … giờ" chỉ trang web Colab hiện. Muốn tận dụng quota:
+xem con số đó trên web một lần trước khi xin máy, rồi đặt `SECS` trong ô 04 = thời gian đó **trừ
+~20 phút** (selfplay vượt giờ 2-3 phút, cộng ô 06 gom zip và tải về).
 
 ---
 
