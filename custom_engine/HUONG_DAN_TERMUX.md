@@ -201,17 +201,19 @@ colab new -s fz --gpu T4
 `colab new --gpu T4` báo lỗi hết tài nguyên = tài khoản miễn phí đã dùng hết GPU trong ngày; đợi vài
 giờ đến một ngày, hoặc Colab Pro. GPU khác: `--gpu L4` / `A100` / `H100` (cần Pro / đơn vị tính toán).
 
-**Còn bao lâu nữa bị ngắt?** Colab CLI **không cho biết**. Menu `h` (= `colab usage`) chỉ in:
+**Còn bao lâu nữa bị ngắt?** Menu **`h`**. `colab usage` chỉ in số dư đơn vị **mua** (tài khoản
+miễn phí: 0) — nên menu chạy thêm `~/fz_han_muc.py`, đọc đúng API mà trang web và tiện ích Colab cho
+VS Code của Google dùng (`colab.pa.googleapis.com/v1/user-info`, trường `freeCcuQuotaInfo`):
 
 ```
-Current balance: 0.00 compute units    <- số dư đơn vị tính toán (tài khoản miễn phí: 0)
-Usage rate: 1.07/hr                    <- máy đang giữ "tốn" bao nhiêu đơn vị/giờ (T4 ≈ 1,07)
-Active assignments: 1                  <- số máy đang giữ
+Hạn mức miễn phí còn: 1.60 đơn vị tính toán
+=> Với mức tiêu hiện tại: còn khoảng 1 giờ 30 phút      <- = 1,60 / 1,07 (T4 tiêu ~1,07/giờ)
+   Gợi ý SECS cho ô 04 (trừ 20 phút để gom zip + tải về): 4200
+Nạp lại hạn mức lúc: 08:33 25/09
 ```
 
-Con số "thời gian chạy có thể kéo dài tối đa … giờ" chỉ trang web Colab hiện. Muốn tận dụng quota:
-xem con số đó trên web một lần trước khi xin máy, rồi đặt `SECS` trong ô 04 = thời gian đó **trừ
-~20 phút** (selfplay vượt giờ 2-3 phút, cộng ô 06 gom zip và tải về).
+Chưa giữ máy nào thì nó tính theo mức T4 ~1,07/giờ. `python ~/fz_han_muc.py --raw` in nguyên dữ
+liệu API trả về để tự kiểm. Đây là API nội bộ của Google (không có tài liệu chính thức), có thể đổi.
 
 ---
 
@@ -311,11 +313,25 @@ Các mục chữ của menu:
 | `m` | Xin máy T4 | `colab new -s fz --gpu T4` |
 | `l` | Log trực tiếp ô chạy nền gần nhất (từ đầu), Ctrl+C để về menu | `ssh … tail -F` |
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
-| `h` | Mức dùng / số dư đơn vị tính toán của tài khoản | `colab usage` |
-| `d` | Hỏi đường dẫn trên Colab (vd `/content/games_gen0.zip`), tải về `Download/FairyZero/` | `colab download` |
-| `u` | Liệt kê tệp trong `Download/FairyZero/`, chọn số → tải lên `/content/` | `colab upload` |
+| `h` | **Hạn mức GPU miễn phí còn lại** (≈ bao nhiêu giờ T4), giờ nạp lại, gợi ý `SECS` cho ô 04 | `colab usage` + `~/fz_han_muc.py` (mục 4) |
+| `d` | **Duyệt thư mục trên Colab** (bắt đầu ở `/content`): gõ số để vào thư mục / tải tệp về `Download/FairyZero/`, `0` lên thư mục cha, `/đường/dẫn` để nhảy tới, `q` về menu | `ssh … find` + `colab download` |
+| `u` | Liệt kê tệp trong `Download/FairyZero/`, chọn số → tải lên `/content/`; `c` = mở **trình chọn tệp của Android** (cần Termux:API, xem dưới) | `colab upload` |
 | `t` | Trả máy — hỏi lại, phải gõ `co` | `colab stop -s fz` |
 | `a` | Đổi tài khoản Colab (trả máy, cất token, đăng nhập mới / dùng lại tài khoản đã cất) | mục 3.1 |
+
+**Tải lên bằng trình chọn tệp của Android (`u` → `c`).** Cần app **Termux:API** (cài cùng nguồn với
+Termux — F-Droid hoặc GitHub, không trộn với bản Google Play) và gói `pkg install termux-api`.
+Android không cho biết tên gốc của tệp đã chọn, nên menu hỏi tên để đặt trên Colab.
+
+**Tải lên bằng "Chia sẻ" (giữ tên tệp).** Trong MT Manager / Files: chọn tệp → **Chia sẻ** →
+**Termux** → **Edit**. Termux chép tệp vào `~/downloads` rồi gọi `~/bin/termux-file-editor`;
+`lay_ve.sh` đặt ở đó một móc nhỏ hỏi "Enter = tải" rồi `colab upload` lên `/content/<tên gốc>`.
+(Nếu bạn đã có `termux-file-editor` riêng thì `lay_ve.sh` không ghi đè.)
+
+**Tải tệp về chạy thế nào mà không cần trình duyệt?** Máy Colab chạy một máy chủ Jupyter; Colab CLI
+nói chuyện với nó qua HTTPS bằng token đăng nhập của bạn. `colab download` gọi API "contents" của
+Jupyter: máy chủ đọc tệp, gửi về dạng base64 trong JSON, CLI giải mã và ghi ra tệp trên điện thoại
+(`colab upload` làm ngược lại). Trình duyệt trên web cũng chỉ gọi đúng API đó.
 
 **Lệnh `o` — gõ tắt, không qua menu.** `o 04` = chọn `04` trong menu; `o 04 05` = chọn `04 05`.
 Nó gọi đúng menu (`bash ~/fz_menu.sh 04 05`), chỉ không vẽ menu ra. Dùng menu là đủ; `o` chỉ để ai

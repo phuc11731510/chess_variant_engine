@@ -128,6 +128,87 @@ doi_tai_khoan() {
   colab sessions      # chua co token -> CLI in link dang nhap o day
 }
 
+# Muc h: colab usage + han muc mien phi con lai (~/fz_han_muc.py doc freeCcuQuotaInfo).
+han_muc() {
+  colab usage
+  echo
+  if [ -f ~/fz_han_muc.py ]; then python ~/fz_han_muc.py; else echo "[!] Thiếu ~/fz_han_muc.py -- chạy: bash ~/lay_ve.sh"; fi
+}
+
+# Kich thuoc de doc (1.2M, 340K).
+kich_thuoc() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || echo "${1}B"; }
+
+# Muc d: duyet thu muc tren may Colab (liet ke qua ssh), chon so de vao thu muc / tai tep ve
+# Download/FairyZero (colab download).
+duyet_colab() {
+  local dir=/content x i loai kt ten muc
+  while true; do
+    clear
+    echo "== Tệp trên Colab: $dir =="
+    echo "   (đang đọc thư mục...)"
+    mapfile -t muc < <(ssh_colab "cd $(printf %q "$dir") 2>/dev/null && find . -mindepth 1 -maxdepth 1 -printf '%y\t%s\t%f\n' | LC_ALL=C sort -t\$'\t' -k1,1 -k3,3")
+    clear
+    echo "== Tệp trên Colab: $dir =="
+    echo "  0   .. (thư mục cha)"
+    for i in "${!muc[@]}"; do
+      IFS=$'\t' read -r loai kt ten <<<"${muc[$i]}"
+      if [ "$loai" = d ]; then printf " %2d   [%s/]\n" $((i + 1)) "$ten"
+      else printf " %2d   %s  (%s)\n" $((i + 1)) "$ten" "$(kich_thuoc "$kt")"; fi
+    done
+    [ ${#muc[@]} -eq 0 ] && echo "      (trống, hoặc không đọc được)"
+    echo "---"
+    echo " Số = vào thư mục / tải tệp về · /đường/dẫn = nhảy tới · q = về menu"
+    read -rp "Chọn: " x || return
+    case "$x" in
+      q|Q|"") return ;;
+      /*) dir=$x ;;
+      0) [ "$dir" != / ] && dir=$(dirname "$dir") ;;
+      *)
+        [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -le ${#muc[@]} ] || continue
+        IFS=$'\t' read -r loai kt ten <<<"${muc[$((x - 1))]}"
+        if [ "$loai" = d ]; then
+          dir=${dir%/}/$ten
+        else
+          echo "Tải về: ${dir%/}/$ten  ->  Download/FairyZero/$ten ($(kich_thuoc "$kt"))"
+          colab download -s "$S" "${dir%/}/$ten" "$TAI/$ten" && echo "[xong] Download/FairyZero/$ten"
+          dung
+        fi ;;
+    esac
+  done
+}
+
+# Muc u: tai tep tu dien thoai len /content. Chon trong Download/FairyZero, hoac mo trinh chon
+# tep cua Android (termux-storage-get, can app Termux:API + goi termux-api).
+tai_len() {
+  local ds i f x ten tam
+  mapfile -t ds < <(find "$TAI" -maxdepth 1 -type f | sort)
+  echo "== Tải lên Colab (/content) =="
+  for i in "${!ds[@]}"; do printf " %2d  %s  (%s)\n" $((i + 1)) "$(basename "${ds[$i]}")" "$(kich_thuoc "$(stat -c %s "${ds[$i]}")")"; done
+  [ ${#ds[@]} -eq 0 ] && echo "     (Download/FairyZero chưa có tệp nào)"
+  echo "  c  Chọn tệp khác bằng trình chọn tệp của Android"
+  read -rp "Chọn (Enter = huỷ): " x
+  if [ "$x" = c ] || [ "$x" = C ]; then
+    if ! command -v termux-storage-get >/dev/null; then
+      echo "[!] Cần app Termux:API (cùng nguồn cài với Termux: F-Droid/GitHub) và: pkg install termux-api"
+      return
+    fi
+    tam=$TAI/.dang_chon_$$
+    rm -f "$tam"
+    echo "Chọn tệp trong cửa sổ vừa mở..."
+    termux-storage-get "$tam"
+    for i in $(seq 120); do [ -s "$tam" ] && break; sleep 1; done   # cho toi 2 phut
+    [ -s "$tam" ] || { echo "[!] Không nhận được tệp (huỷ chọn, hoặc tệp rỗng)"; rm -f "$tam"; return; }
+    sleep 1   # cho ghi xong
+    echo "Đã nhận tệp ($(kich_thuoc "$(stat -c %s "$tam")")). Android không cho biết tên gốc của tệp."
+    read -rp "Tên tệp trên Colab (vd gen1.onnx): " ten
+    [ -n "$ten" ] && colab upload -s "$S" "$tam" "/content/$ten" && echo "[xong] /content/$ten"
+    rm -f "$tam"
+  elif [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#ds[@]} ]; then
+    f=${ds[$((x - 1))]}
+    colab upload -s "$S" "$f" "/content/$(basename "$f")" && echo "[xong] /content/$(basename "$f")"
+  fi
+}
+
 # Chay lan luot cac o $@; dung chuoi khi nguoi dung Ctrl+C / huy.
 chay_cac_o() {
   local id f
@@ -163,8 +244,8 @@ while true; do
   echo " m    Xin máy T4"
   echo " l    Log trực tiếp ô đang chạy nền"
   echo " k    Xem máy đang giữ"
-  echo " h    Hạn mức GPU (colab usage)"
-  echo " d    Tải tệp Colab -> điện thoại"
+  echo " h    Hạn mức GPU còn lại"
+  echo " d    Duyệt tệp Colab, tải về điện thoại"
   echo " u    Tải tệp điện thoại -> Colab"
   echo " t    Trả máy (XOÁ /content)"
   echo " a    Đổi tài khoản Colab"
@@ -179,27 +260,14 @@ while true; do
   m|M) colab new -s "$S" --gpu T4; colab status -s "$S"; dung; continue ;;
   k|K) colab sessions; colab status -s "$S"; dung; continue ;;
   l|L) log_truc_tiep; continue ;;
-  h|H) colab usage; dung; continue ;;
+  h|H) han_muc; dung; continue ;;
   a|A) doi_tai_khoan; dung; continue ;;
   t|T)
     read -rp "Trả máy '$S'? Mọi tệp trên Colab (/content) sẽ MẤT. Gõ 'co' để trả: " x
     [ "$x" = co ] && colab stop -s "$S"
     dung; continue ;;
-  d|D)
-    echo "Ví dụ: /content/games_gen${gen:-0}.zip   /content/gen$(( ${gen:-0} + 1 )).onnx"
-    read -rp "Đường dẫn tệp trên Colab: " r
-    [ -n "$r" ] && colab download -s "$S" "$r" "$TAI/$(basename "$r")" && echo "-> Download/FairyZero/$(basename "$r")"
-    dung; continue ;;
-  u|U)
-    mapfile -t ds < <(find "$TAI" -maxdepth 1 -type f | sort)
-    [ ${#ds[@]} -eq 0 ] && { echo "Download/FairyZero chưa có tệp nào."; dung; continue; }
-    for i in "${!ds[@]}"; do printf " %2d  %s\n" $((i + 1)) "$(basename "${ds[$i]}")"; done
-    read -rp "Số thứ tự tệp: " i
-    if [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ]; then
-      f=${ds[$((i - 1))]}
-      colab upload -s "$S" "$f" "/content/$(basename "$f")"
-    fi
-    dung; continue ;;
+  d|D) duyet_colab; continue ;;
+  u|U) tai_len; dung; continue ;;
   esac
 
   chay_cac_o "${chon[@]}"
