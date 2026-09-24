@@ -1,15 +1,17 @@
 # FairyZero trên điện thoại — chạy Colab GPU từ Termux
 
-Tệp này hướng dẫn chạy **toàn bộ vòng một đời** (sinh dữ liệu → huấn luyện → arena) trên máy
-Colab **có GPU T4**, điều khiển hoàn toàn từ **Termux** trên Android, **không mở Chrome/Colab web**.
-Nó làm đúng những việc của sổ tay `FairyZero_1.ipynb`, chỉ khác cách bấm.
+Tệp này hướng dẫn chạy **một đời huấn luyện** (sinh dữ liệu → huấn luyện → arena) trên máy Colab
+**có GPU T4**, điều khiển hoàn toàn từ **Termux** trên Android, **không mở Chrome/Colab web**.
 
-Công cụ dùng: **Google Colab CLI** (`google-colab-cli`, Google phát hành 6/2026) — xin máy Colab,
-gửi lệnh, tải tệp lên/xuống, trả máy, tất cả bằng dòng lệnh. Script bọc sẵn mọi bước:
-`scripts/colab_termux.sh`.
+Công cụ: **Google Colab CLI** (`google-colab-cli`, Google phát hành 6/2026) — xin máy Colab, gửi
+lệnh, tải tệp lên/xuống, trả máy, tất cả bằng dòng lệnh.
 
-> ⚠ Script mới kiểm cú pháp, **chưa chạy thật trên điện thoại**. Lần đầu hãy chạy **từng lệnh một**
-> và đọc kết quả trước khi sang lệnh sau.
+Có hai cách dùng:
+
+| Cách | Dành cho | Tệp |
+|---|---|---|
+| **A. Ô lệnh (khuyên dùng)** | Tự chạy từng ô như sổ tay, **xem và sửa** mọi lệnh, mọi siêu tham số | `scripts/colab_cells/*.py` |
+| B. Script tự động | Chạy nhanh cả đời bằng vài lệnh, **không** sửa được tham số | `scripts/colab_termux.sh` (mục 11) |
 
 ---
 
@@ -18,38 +20,40 @@ gửi lệnh, tải tệp lên/xuống, trả máy, tất cả bằng dòng lệ
 1. [Bức tranh chung](#1-bức-tranh-chung)
 2. [Cài đặt một lần](#2-cài-đặt-một-lần)
 3. [Đăng nhập Google một lần](#3-đăng-nhập-google-một-lần)
-4. [Lấy script về điện thoại](#4-lấy-script-về-điện-thoại)
-5. [Chắc chắn máy có GPU T4, không phải CPU](#5-chắc-chắn-máy-có-gpu-t4-không-phải-cpu)
-6. [Chạy một đời, từng bước](#6-chạy-một-đời-từng-bước)
-7. [Sang đời tiếp theo](#7-sang-đời-tiếp-theo)
-8. [Giữ Termux sống khi tắt màn hình](#8-giữ-termux-sống-khi-tắt-màn-hình)
-9. [Lệnh Colab CLI dùng tay](#9-lệnh-colab-cli-dùng-tay)
-10. [Sự cố thường gặp](#10-sự-cố-thường-gặp)
+4. [Xin máy T4 (không phải CPU)](#4-xin-máy-t4-không-phải-cpu)
+5. [Lấy các ô lệnh về điện thoại](#5-lấy-các-ô-lệnh-về-điện-thoại)
+6. [Xem, sửa, chạy một ô](#6-xem-sửa-chạy-một-ô)
+7. [Một đời, từng ô](#7-một-đời-từng-ô)
+8. [Tải tệp lên / về](#8-tải-tệp-lên--về)
+9. [Sang đời tiếp theo](#9-sang-đời-tiếp-theo)
+10. [Giữ Termux sống khi tắt màn hình](#10-giữ-termux-sống-khi-tắt-màn-hình)
+11. [Cách B: script tự động](#11-cách-b-script-tự-động)
+12. [Lệnh Colab CLI dùng tay](#12-lệnh-colab-cli-dùng-tay)
+13. [Sự cố thường gặp](#13-sự-cố-thường-gặp)
 
 ---
 
 ## 1. Bức tranh chung
 
 ```
- Điện thoại (Termux)                         Máy Colab (Linux + GPU T4)
- ───────────────────                         ──────────────────────────
- bash colab_termux.sh start   ── colab new ──▶  xin VM có T4, tải engine + ONNX Runtime
- bash colab_termux.sh selfplay ─ colab exec ─▶  nohup run.sh --selfplay … &   (chạy NỀN ~4,3 giờ)
- bash colab_termux.sh status   ─ colab exec ─▶  tail log                       (xem tiến độ)
- bash colab_termux.sh fetch  ◀─ colab download ─ games_genN.zip
- bash colab_termux.sh train    ─ colab exec ─▶  nohup train.py … &             (chạy NỀN)
- bash colab_termux.sh getnet ◀─ colab download ─ gen(N+1).onnx / .pt
- bash colab_termux.sh arena    ─ colab exec ─▶  nohup run.sh --arena … &
- bash colab_termux.sh stop     ─ colab stop ──▶  trả VM (xoá sạch /content)
+ Điện thoại (Termux)                              Máy Colab (Linux + GPU T4)
+ ───────────────────                              ──────────────────────────
+ colab new -s fz --gpu T4            ──────────▶   xin máy
+ o 02   (= cat 00 + 02 | colab exec) ──────────▶   chạy ô 02 như một ô sổ tay
+ o 04                                ──────────▶   nohup run.sh --selfplay … &   (chạy NỀN)
+ o 05                                ──────────▶   tail log                       (xem tiến độ)
+ colab download … games_gen0.zip  ◀──────────────  tệp trên máy Colab
+ colab stop -s fz                    ──────────▶   trả máy (xoá sạch /content)
 ```
 
-Điểm mấu chốt: việc dài (selfplay, train, arena) được khởi chạy bằng `nohup … &` **trên máy Colab**.
-Điện thoại chỉ ra lệnh rồi thoát ngay; mất sóng hay đóng Termux thì engine trên Colab **vẫn chạy**.
-Muốn xem thì gõ `status` bất cứ lúc nào.
-
-**Vì sao không chạy thẳng tệp `.ipynb`?** `colab exec -f FairyZero_1.ipynb` có tồn tại nhưng:
-`files.download` cần trình duyệt nên sẽ lỗi; và ô sinh dữ liệu chạy ~4,3 giờ, lệnh sẽ treo cả chừng đó,
-Android giết Termux giữa chừng là hỏng.
+- **Mỗi ô của sổ tay là một tệp** trong `~/fz/` trên điện thoại (`02_khoi_dong.py`,
+  `04_sinh_du_lieu.py`, …), viết đúng cú pháp ô Colab (`!lệnh`, `%cd`, biến Python).
+- Lệnh **`o <số>`** gửi ô đó lên máy Colab và chạy. Nó **ghép ô cấu hình `00_cau_hinh.py` vào đầu**,
+  nên mọi ô đều biết `GEN_CURRENT`, `E`, `CURRENT_ONNX`, … — giống sổ tay chạy ô cấu hình trước.
+- Việc dài (selfplay, train, arena) mặc định chạy **nền** trên máy Colab (`CHAY_NEN = True`): lệnh
+  trả về ngay, mất sóng hay đóng Termux thì engine **vẫn chạy**; xem tiến độ bằng `o 05`.
+- Tải tệp giữa điện thoại và máy Colab: `colab upload` / `colab download` (thay cho `files.download`
+  của sổ tay, vốn cần trình duyệt). Các ô in sẵn lệnh tải đúng đường dẫn.
 
 ---
 
@@ -57,13 +61,13 @@ Android giết Termux giữa chừng là hỏng.
 
 ### 2.1. Termux
 
-Cài Termux từ **F-Droid** hoặc **GitHub** (bản trên Google Play đã cũ, không dùng được). Mở Termux.
+Cài Termux từ **F-Droid** hoặc **GitHub** (bản trên Google Play đã cũ). Mở Termux.
 
 ### 2.2. Gói hệ thống
 
 ```bash
 pkg update && pkg upgrade        # hỏi [Y/n] thì bấm Enter
-pkg install python python-pip clang git openssh
+pkg install python python-pip clang git openssh nano
 ```
 
 ### 2.3. Thư viện có mã máy (không tự biên dịch được trên điện thoại)
@@ -100,11 +104,14 @@ colab version
 
 ```bash
 termux-setup-storage     # Android hỏi quyền -> Cho phép
-ls ~/storage/downloads   # phải thấy thư mục Download của điện thoại
+mkdir -p ~/storage/downloads/FairyZero
 ```
 
-Script lưu mọi tệp tải về vào **`Download/FairyZero/`** trên điện thoại
-(tức `~/storage/downloads/FairyZero` trong Termux) — mở được bằng trình quản lý tệp, chép sang máy tính.
+`~/storage/downloads/FairyZero` chính là thư mục **Download/FairyZero** của điện thoại — nơi để
+dữ liệu và mạng tải về, mở được bằng trình quản lý tệp, chép sang máy tính được.
+
+> Thư mục home của Termux (`~`, tức `/data/data/com.termux/files/home`) là bộ nhớ **riêng** của
+> Termux: trình quản lý tệp không thấy. Các ô lệnh để ở `~/fz` là đủ vì chỉ Termux cần đọc.
 
 ---
 
@@ -117,301 +124,400 @@ Go to the following link in your browser: https://accounts.google.com/o/oauth2/.
 Enter the authorization code:
 ```
 
-1. Nhấn giữ link → **Sao chép**, mở bằng **bất kỳ trình duyệt nào** (chỉ lần này thôi).
+1. Nhấn giữ link → **Sao chép**, mở bằng **bất kỳ trình duyệt nào** (chỉ lần này).
 2. Chọn đúng tài khoản Google dùng Colab → **Cho phép**. Trang ghi "gcloud CLI" là bình thường
    (Colab CLI mượn ứng dụng OAuth của gcloud).
-3. Sao chép **mã** hiện ra, quay lại Termux, dán vào sau `Enter the authorization code:`, Enter.
+3. Sao chép **mã** hiện ra, dán vào Termux sau `Enter the authorization code:`, Enter.
 
 Thông tin đăng nhập được lưu lại; các lần sau không hỏi nữa.
 
-Để đăng nhập ngay mà không tốn quota GPU, dùng một máy **CPU** thử rồi trả luôn:
-
-```bash
-colab new -s thu            # KHÔNG có --gpu => máy CPU (xem mục 5)
-echo 'print(1+1)' | colab exec -s thu      # in 2
-colab stop -s thu           # NHỚ trả, nếu không nó chiếm chỗ
-```
-
 ---
 
-## 4. Lấy script về điện thoại
-
-**Cách A — tải từ GitHub** (sau khi `scripts/colab_termux.sh` đã được push lên nhánh `main`):
-
-```bash
-cd ~
-curl -LO https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/custom_engine/scripts/colab_termux.sh
-```
-
-**Cách B — chép từ máy tính:** chép `custom_engine/scripts/colab_termux.sh` vào thư mục **Download**
-của điện thoại (cáp USB, Drive, Zalo…), rồi:
-
-```bash
-cp ~/storage/downloads/colab_termux.sh ~/
-```
-
-Kiểm tra: `bash ~/colab_termux.sh` (không đối số) in ra bảng cách dùng.
-
-> Nếu chép qua Windows mà báo lỗi `$'\r': command not found` thì tệp bị đổi xuống dòng kiểu Windows,
-> sửa bằng `sed -i 's/\r$//' ~/colab_termux.sh`.
-
----
-
-## 5. Chắc chắn máy có GPU T4, không phải CPU
-
-**Đây là lý do hay gặp nhất khiến bạn nhận máy CPU:** `colab new` **không có `--gpu`** thì Colab
-cấp **máy CPU** (mặc định). Lệnh thử ở mục 3 (`colab new -s thu`) và ví dụ trong hướng dẫn cài đặt
-của Colab CLI đều là máy CPU. Muốn T4 phải xin rõ:
+## 4. Xin máy T4 (không phải CPU)
 
 ```bash
 colab new -s fz --gpu T4
 ```
 
-Script `start` đã làm việc này, **và kiểm lại ngay** bằng `nvidia-smi` trên máy vừa xin:
+⚠ **Thiếu `--gpu T4` thì Colab cấp máy CPU** (mặc định). `fz` là tên phiên; mọi lệnh sau dùng `-s fz`.
 
-```
-[fz] GPU cua VM: Tesla T4, 15360 MiB          <- đúng, đi tiếp
-```
-
-Nếu máy chỉ có CPU, script in `LOI: VM KHONG co GPU`, **tự trả máy** và dừng, không chạy tiếp.
-
-Các lý do khác có thể khiến không có GPU:
-
-| Hiện tượng | Nguyên nhân | Cách xử lý |
-|---|---|---|
-| `start` báo `phien 'fz' da ton tai` rồi `VM KHONG co GPU` | Còn phiên `fz` cũ là máy CPU | Script đã tự trả máy đó; chạy lại `start` để xin máy T4 mới (phiên `fz` cũ có GPU thì `start` dùng lại luôn) |
-| `colab new --gpu T4` báo lỗi hết tài nguyên / quota | Tài khoản miễn phí đã dùng hết GPU trong ngày | Đợi vài giờ đến một ngày; hoặc Colab Pro |
-| Lỡ `colab new` tay không `--gpu` | Mặc định là CPU | `colab stop -s <tên>` rồi xin lại có `--gpu T4` |
-| Có nhiều phiên cùng lúc | `colab exec` không `-s` chỉ tự chọn khi có đúng 1 phiên | Luôn dùng `-s fz` (script đã làm) |
-
-Kiểm bất cứ lúc nào:
+Kiểm tra:
 
 ```bash
-bash colab_termux.sh gpu      # = colab sessions + colab status -s fz + nvidia-smi trên VM
+colab sessions               # các máy đang giữ
+colab status -s fz           # phải có "Hardware: T4 ... Variant: GPU"
 ```
 
-`selfplay` và `train` cũng kiểm GPU trước khi chạy, nên không thể vô tình chạy trên CPU.
+Nếu `colab sessions` đã có sẵn phiên `fz` từ trước thì **không cần `new` nữa** — dùng luôn (kiểm
+bằng `colab status -s fz`). Phiên đó là CPU thì trả rồi xin lại:
 
-GPU khác: `GPU=L4 bash colab_termux.sh start` (L4, A100, H100, G4 cần Colab Pro / đơn vị tính toán).
+```bash
+colab stop -s fz
+colab new -s fz --gpu T4
+```
+
+`colab new --gpu T4` báo lỗi hết tài nguyên = tài khoản miễn phí đã dùng hết GPU trong ngày; đợi vài
+giờ đến một ngày, hoặc Colab Pro. GPU khác: `--gpu L4` / `A100` / `H100` (cần Pro / đơn vị tính toán).
 
 ---
 
-## 6. Chạy một đời, từng bước
-
-Ví dụ đời 0 → đời 1. Mọi lệnh gõ trong Termux, ở thư mục chứa script (`cd ~`).
-
-### Bước 0 — chọn đời
+## 5. Lấy các ô lệnh về điện thoại
 
 ```bash
-export GEN=0          # giống GEN_CURRENT = 0 trong sổ tay
-termux-wake-lock      # giữ Termux không bị ngủ (mục 8)
+cd ~
+curl -LO https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/custom_engine/scripts/colab_cells/lay_ve.sh
+bash lay_ve.sh
+source ~/.bashrc
 ```
 
-`export` chỉ sống trong phiên Termux hiện tại; mở cửa sổ Termux mới thì gõ lại.
+`lay_ve.sh` làm hai việc:
 
-### Bước 1 — `start` (mục 0, 1, 2 của sổ tay) · ~2-3 phút
+1. Tải 11 ô về `~/fz/`. Ô nào **đã có thì giữ nguyên** (không ghi đè ô bạn đã sửa). Muốn tải lại
+   bản mới nhất, ghi đè hết: `bash lay_ve.sh -f`.
+2. Thêm vào `~/.bashrc` một dòng định nghĩa lệnh `o` (chỉ một lần):
+
+   ```bash
+   o() { cat ~/fz/00_cau_hinh.py ~/fz/"$1"_*.py | colab exec -s "${S:-fz}"; }
+   ```
+
+   Tức là `o 04` = ghép `00_cau_hinh.py` + `04_sinh_du_lieu.py` rồi gửi cho máy Colab chạy. Không
+   có gì ẩn — muốn thì gõ thẳng vế phải thay cho `o`.
+
+Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
+
+| Ô | Tệp | Mục sổ tay | Việc |
+|---|---|---|---|
+| 00 | `00_cau_hinh.py` | Cấu hình | `GEN_CURRENT` và mọi đường dẫn — **tự ghép vào đầu mọi ô** |
+| 01 | `01_kiem_gpu.py` | 0 | `nvidia-smi` |
+| 02 | `02_khoi_dong.py` | 1 (+5a) | clone mã, binary từ Release, ONNX Runtime, `pip install onnx…`, tải mạng đời hiện tại từ Release |
+| 02b | `02b_bien_dich.py` | 1b | biên dịch lại (chỉ khi cần) |
+| 03 | `03_tao_gen0.py` | 2 | tạo mạng đời 0 mới (ghi đè gen0) |
+| 04 | `04_sinh_du_lieu.py` | 3 | sinh dữ liệu |
+| 05 | `05_xem_log.py` | — | xem log việc chạy nền, còn chạy hay không |
+| 06 | `06_dong_goi.py` | 4 | gom ván thành zip |
+| 07 | `07_huan_luyen.py` | 5 | huấn luyện đời sau |
+| 08 | `08_arena.py` | 6 | arena |
+| 09 | `09_dung_viec_nen.py` | — | dừng ngay việc chạy nền |
+
+---
+
+## 6. Xem, sửa, chạy một ô
 
 ```bash
-bash colab_termux.sh start
+cat ~/fz/04_sinh_du_lieu.py      # XEM ô sẽ chạy gì
+nano ~/fz/04_sinh_du_lieu.py     # SỬA (lưu: Ctrl+O, Enter; thoát: Ctrl+X)
+o 04                             # CHẠY trên máy Colab
 ```
 
-Nó làm lần lượt:
+Trong nano trên điện thoại: phím Ctrl nằm ở hàng phím phụ phía trên bàn phím của Termux.
 
-1. `colab new -s fz --gpu T4` — xin máy; **kiểm GPU** (mục 5).
-2. Clone mã nguồn nhánh `main`, tải **binary dựng sẵn** + ONNX Runtime qua `colab_quickstart.sh`.
-   Phải thấy dòng `[quick] OK -- engine chay duoc tren Colab image nay.`
-3. `pip install onnx onnxscript onnxruntime` (cho huấn luyện).
-4. Nạp mạng đời `GEN` lên `/content/genN.onnx` và `.pt`, theo thứ tự ưu tiên:
-   - có sẵn `Download/FairyZero/genN.onnx` / `.pt` trên điện thoại → **tải lên**;
-   - không có và `GEN=0` → **tạo mạng đời 0** (`make_seed.py`, 144×12 SE-8) rồi tải về điện thoại;
-   - không có và `GEN>0` → lấy từ **GitHub Release v3.0.0**.
+Ví dụ sửa siêu tham số sinh dữ liệu — mở `04_sinh_du_lieu.py`, đổi `SECS = 15480` thành
+`SECS = 3600` (1 giờ) và `--visits 800` thành `--visits 400` ngay trong lệnh:
 
-Nếu `[quick]` báo lỗi (Colab đổi image, hoặc Release chưa có binary) → xem mục 10, "biên dịch lại".
+```python
+SECS = 3600
 
-### Bước 2 — `selfplay` (mục 3) · ~4,3 giờ
+cmd = f"""bash {E}/run.sh --selfplay \
+    --games 1000 --max-seconds {SECS} \
+    --visits 400 --max-moves 400 --temp-cutoff 32 \
+    ...
+```
+
+Mỗi dòng của lệnh phải kết thúc bằng ` \` (trừ dòng cuối); đừng thêm chú thích `#` vào giữa lệnh.
+
+Mỗi ô in lệnh đầy đủ (`print(cmd)`) trước khi chạy, nên bạn luôn thấy chính xác cái gì được chạy.
+
+**Chạy nền hay chờ:** các ô 04, 07, 08 có `CHAY_NEN = True` (mặc định). Đặt `False` thì ô chạy như
+ô sổ tay — Termux chờ đến khi xong; an toàn hơn cho việc ngắn, nhưng với selfplay ~4,3 giờ thì
+Android mà tắt Termux giữa chừng là không biết kết quả.
+
+**Ô chạy một lệnh lẻ** không cần tệp:
 
 ```bash
-bash colab_termux.sh selfplay                 # mặc định --max-seconds 15480
-SECS=3600 bash colab_termux.sh selfplay       # hoặc 1 giờ
+echo '!ls -la /content' | colab exec -s fz
+echo '!nvidia-smi' | colab exec -s fz
 ```
 
-Chạy với đúng cấu hình đã đo tốt nhất trên T4: `--visits 800 --max-moves 400 --temp-cutoff 32
---parallel 4 --fixed-batch 16 --noise-alpha 0.15 --search-opt max-prefetch=0`. Log ghi vào
-`/content/selfplay.log` trên máy Colab. Lệnh trả về ngay; **có thể thoát Termux**.
+**Shell thật** trên máy Colab (gõ lệnh Linux trực tiếp, xem log chạy liên tục):
+
+```bash
+colab console -s fz
+# trong đó:  tail -f /content/selfplay.log    (Ctrl+C để dừng xem; exit để thoát)
+```
+
+---
+
+## 7. Một đời, từng ô
+
+Ví dụ đời 0 → đời 1. Trước khi bắt đầu:
+
+```bash
+termux-wake-lock                 # mục 10
+nano ~/fz/00_cau_hinh.py         # GEN_CURRENT = 0
+colab new -s fz --gpu T4         # mục 4 (bỏ qua nếu đã có phiên fz T4)
+```
+
+### Ô 01 — kiểm GPU
+
+```bash
+o 01
+```
+
+Phải thấy `Tesla T4, 15360 MiB`. Không thấy → máy CPU, xem mục 4.
+
+### Ô 02 — khởi động · ~2-3 phút
+
+Mở xem trước (`cat ~/fz/02_khoi_dong.py`). Cuối ô có:
+
+```python
+TAI_ONNX = True     # tải gen{GEN_CURRENT}.onnx từ GitHub Release v3.0.0
+TAI_PT = True       # tải gen{GEN_CURRENT}.pt   từ GitHub Release v3.0.0
+```
+
+Đặt `False` cho tệp nào bạn định **tự tải lên từ điện thoại** (mục 8) hoặc **tự tạo** (ô 03).
+
+```bash
+o 02
+```
+
+Phải thấy `[quick] OK -- engine chay duoc tren Colab image nay.` và cuối cùng danh sách
+`/content/gen0.onnx`, `/content/gen0.pt`. Nếu một tệp không có trên Release, ô in
+`[!] Release KHONG co …` và **không để lại tệp rỗng**.
+
+> Lưu ý: Release v3.0.0 hiện có `gen0.onnx` nhưng **chưa có `gen0.pt`**. Huấn luyện (ô 07) cần
+> `gen0.pt` → hoặc đưa `gen0.pt` lên Release, hoặc tải lên từ điện thoại:
+> `colab upload -s fz ~/storage/downloads/FairyZero/gen0.pt /content/gen0.pt`
+
+Cảnh báo `protobuf ... incompatible` khi `pip install` là của các gói khác của Colab, không ảnh hưởng
+FairyZero.
+
+### Ô 03 — tạo mạng đời 0 mới (tuỳ chọn)
+
+Chỉ khi muốn mạng đời 0 **mới** (seed mới). Nó ghi đè `/content/gen0.onnx` và `gen0.pt`. Có mạng
+đời 0 rồi (từ Release hay điện thoại) thì bỏ qua.
+
+```bash
+o 03
+```
+
+### Ô 04 — sinh dữ liệu · theo `SECS`
+
+Sửa tham số trong `04_sinh_du_lieu.py` nếu muốn, rồi:
+
+```bash
+o 04
+```
+
+In lệnh đầy đủ rồi `[da chay nen] xem: o 05`. Có thể thoát Termux.
 
 > `--max-seconds` dừng mềm: hết giờ thì không nhận ván mới, ván đang chạy vẫn chơi nốt —
-> thường vượt 2-3 phút. Đợi `status` báo **KHONG con tien trinh** rồi mới `fetch`.
+> thường vượt 2-3 phút.
 
-### Bước 3 — `status` (theo dõi)
+### Ô 05 — xem tiến độ
 
 ```bash
-bash colab_termux.sh status          # log selfplay
-N=40 bash colab_termux.sh status     # 40 dòng cuối thay vì 15
+o 05
 ```
 
-In: dòng log cuối, số tệp ván đã sinh, mức dùng GPU, và **DANG CHAY** hoặc **KHONG con tien trinh**.
-Khi xong, cuối log có khối `--- Throughput ---` — so cấu hình bằng `NN eval/giay`, đừng bằng `Van/gio`.
+In 15 dòng log cuối, số tệp ván, mức dùng GPU, và **`[DANG CHAY]`** hoặc
+**`[KHONG con tien trinh -- xong hoac loi]`**. Khi xong, cuối log có khối `--- Throughput ---` —
+so cấu hình bằng `NN eval/giay`, đừng bằng `Van/gio`.
 
-### Bước 4 — `fetch` (mục 4) · vài phút
+Xem log train / arena: sửa `LOG = "train"` (hoặc `"arena"`) trong `05_xem_log.py`; nhiều dòng hơn:
+sửa `SO_DONG`.
+
+Lỡ sai tham số, muốn dừng ngay: `o 09`.
+
+### Ô 06 — đóng gói · vài phút
+
+Đợi `o 05` báo **KHONG con tien trinh**, rồi:
 
 ```bash
-bash colab_termux.sh fetch
+o 06
 ```
 
-Gom hàng nghìn tệp `.gz` thành `/content/games_gen0.zip` (`archive.py pack`), rồi tải về
-`Download/FairyZero/games_gen0.zip`. Đây là **bản gốc dữ liệu** của bạn — giữ cẩn thận.
-
-### Bước 5 — `train` (mục 5) · 10-40 phút
+Ô in sẵn lệnh tải về. **Chạy lệnh đó trong Termux** (không phải trong ô):
 
 ```bash
-bash colab_termux.sh train
-bash colab_termux.sh status train     # theo dõi /content/train.log
+colab download -s fz /content/games_gen0.zip ~/storage/downloads/FairyZero/games_gen0.zip
 ```
 
-Warm-start từ `/content/gen0.pt`, xuất `/content/gen1.onnx` và `gen1.pt`
-(`--epochs 2 --batch 1024 --lr 1e-3 --amp --q-ratio 0.2 --weight-decay 1e-4 --channels 144 --blocks 12`).
+Đây là bản gốc dữ liệu của bạn — giữ cẩn thận.
 
-**Cửa sổ trượt nhiều đời** — tải các zip cũ lên trước rồi truyền `DATA` (ngăn bằng dấu phẩy):
+### Ô 07 — huấn luyện · 10-40 phút
+
+Kiểm `/content/gen0.pt` có trên máy (`echo '!ls -la /content' | colab exec -s fz`). Sửa tham số
+trong `07_huan_luyen.py` nếu muốn (`--epochs`, `--lr`, `DATA`, …), rồi:
 
 ```bash
-colab upload -s fz ~/storage/downloads/FairyZero/games_gen0.zip /content/games_gen0.zip
-DATA="/content/games_gen0.zip,/content/games_gen1.zip" bash colab_termux.sh train
+o 07
 ```
 
-### Bước 6 — `getnet` · vài giây
+Theo dõi: `LOG = "train"` trong ô 05, rồi `o 05`. Xong thì tải mạng mới về (ô 07 in sẵn lệnh):
 
 ```bash
-bash colab_termux.sh getnet
+colab download -s fz /content/gen1.onnx ~/storage/downloads/FairyZero/gen1.onnx
+colab download -s fz /content/gen1.pt   ~/storage/downloads/FairyZero/gen1.pt
 ```
 
-Tải `gen1.onnx` và `gen1.pt` về `Download/FairyZero/`. **Làm trước khi `stop`.**
-
-### Bước 7 — `arena` (mục 6) · ~30 phút
+### Ô 08 — arena · ~30 phút (tuỳ chọn)
 
 ```bash
-bash colab_termux.sh arena
-bash colab_termux.sh status arena
+o 08
 ```
 
-48 ván gen1 đấu gen0, 400 visits. Nhớ: 48 ván vẫn sai số lớn (hàng trăm Elo); muốn phát hiện
-chênh ~50 Elo cần 400-1000 ván.
+Theo dõi: `LOG = "arena"` trong ô 05. 48 ván vẫn sai số lớn (hàng trăm Elo); phát hiện chênh
+~50 Elo cần 400-1000 ván — sửa `--games`, `--visits` trong ô.
 
-### Bước 8 — `stop`
+### Trả máy
+
+Kiểm chắc trong `Download/FairyZero/` đã có `games_gen0.zip`, `gen1.onnx`, `gen1.pt`, rồi:
 
 ```bash
-bash colab_termux.sh stop
+colab stop -s fz
 termux-wake-unlock
 ```
 
-⚠ `stop` **xoá sạch `/content`**. Kiểm chắc đã có `games_gen0.zip`, `gen1.onnx`, `gen1.pt` trong
-`Download/FairyZero/` rồi mới trả máy. Không trả thì máy vẫn chiếm quota GPU của bạn.
-
-### Tóm tắt một đời
-
-```bash
-export GEN=0; termux-wake-lock
-bash colab_termux.sh start
-bash colab_termux.sh selfplay
-bash colab_termux.sh status            # lặp lại đến khi KHONG con tien trinh
-bash colab_termux.sh fetch
-bash colab_termux.sh train
-bash colab_termux.sh status train      # lặp lại đến khi xong
-bash colab_termux.sh getnet
-bash colab_termux.sh arena             # tuỳ chọn
-bash colab_termux.sh stop; termux-wake-unlock
-```
+⚠ `stop` **xoá sạch `/content`**. Không trả thì máy vẫn chiếm quota GPU của bạn.
 
 ---
 
-## 7. Sang đời tiếp theo
+## 8. Tải tệp lên / về
 
 ```bash
-export GEN=1
-bash colab_termux.sh start     # thấy gen1.onnx/.pt trong Download/FairyZero -> tự tải lên
-bash colab_termux.sh selfplay
-…
+# điện thoại -> máy Colab
+colab upload   -s fz ~/storage/downloads/FairyZero/gen1.onnx /content/gen1.onnx
+# máy Colab -> điện thoại
+colab download -s fz /content/games_gen1.zip ~/storage/downloads/FairyZero/games_gen1.zip
+# xem trên máy Colab có gì
+colab ls -s fz /content
 ```
 
-Không cần đưa mạng lên GitHub Release: `start` ưu tiên tệp có sẵn trên điện thoại. Kiến trúc
-`144 × 12` SE-8 phải giữ nguyên suốt chuỗi warm-start.
+**Nguồn mạng đời hiện tại — bạn chọn, không có gì tự động:**
 
-**Làm tiếp trên cùng máy (không `stop`):** nếu máy còn sống, chỉ cần `export GEN=1` rồi
-`selfplay` — `gen1.onnx` vẫn nằm ở `/content`. Colab miễn phí tự ngắt sau tối đa khoảng 12 giờ,
-nên một phiên thường chỉ đủ một đời với selfplay 4,3 giờ.
+| Muốn | Làm |
+|---|---|
+| Lấy từ GitHub Release | `TAI_ONNX` / `TAI_PT = True` trong ô 02 (mặc định) |
+| Lấy từ điện thoại | `TAI_… = False` trong ô 02, rồi `colab upload` như trên |
+| Tạo mới (đời 0) | `TAI_… = False` trong ô 02, rồi `o 03` |
 
 ---
 
-## 8. Giữ Termux sống khi tắt màn hình
+## 9. Sang đời tiếp theo
+
+1. `nano ~/fz/00_cau_hinh.py` → `GEN_CURRENT = 1`.
+2. `colab new -s fz --gpu T4` (nếu đã trả máy), `o 01`, `o 02`.
+3. Mạng đời 1: có trên Release thì ô 02 tự tải; không thì `TAI_… = False` và `colab upload` từ
+   `Download/FairyZero/`.
+4. `o 04` → `o 05` → `o 06` → `o 07` → …
+
+Kiến trúc `144 × 12` SE-8 phải giữ nguyên suốt chuỗi warm-start.
+
+**Cửa sổ trượt nhiều đời** (ô 07): tải các zip cũ lên trước, rồi sửa `DATA`:
+
+```bash
+colab upload -s fz ~/storage/downloads/FairyZero/games_gen0.zip /content/games_gen0.zip
+```
+```python
+DATA = "/content/games_gen0.zip,/content/games_gen1.zip"
+```
+
+Máy còn sống từ đời trước (chưa `stop`) thì chỉ cần đổi `GEN_CURRENT` rồi `o 04` — `gen1.onnx`
+vẫn nằm ở `/content`. Colab miễn phí tự ngắt sau tối đa khoảng 12 giờ, nên một phiên thường chỉ đủ
+một đời với selfplay 4,3 giờ.
+
+---
+
+## 10. Giữ Termux sống khi tắt màn hình
 
 Engine chạy trên Colab nên không phụ thuộc điện thoại. Nhưng Colab CLI có tiến trình **giữ máy khỏi bị
-thu hồi vì "idle"**; chưa rõ tiến trình đó chạy ở điện thoại hay ở máy Colab. Để an toàn, trong suốt
-lúc selfplay/train hãy giữ Termux sống:
+thu hồi vì "idle"**; chưa rõ nó chạy ở điện thoại hay ở máy Colab. Để an toàn, suốt lúc
+selfplay/train hãy giữ Termux sống:
 
 - `termux-wake-lock` (hoặc kéo thanh thông báo Termux → **Acquire wakelock**).
-- **Cài đặt → Ứng dụng → Termux → Pin → Không hạn chế** (tắt tối ưu pin). Trên Samsung còn phải bỏ
-  Termux khỏi "Ứng dụng ngủ" / "Ứng dụng ngủ sâu".
+- **Cài đặt → Ứng dụng → Termux → Pin → Không hạn chế**. Trên Samsung còn phải bỏ Termux khỏi
+  "Ứng dụng ngủ" / "Ứng dụng ngủ sâu".
 - Đừng vuốt tắt Termux khỏi danh sách đa nhiệm.
 
-Nếu Termux lỡ bị giết: mở lại, `bash colab_termux.sh gpu` xem máy còn không. Còn thì cứ `status`
-tiếp; mất rồi thì dữ liệu trên máy đó mất theo (vì vậy nên selfplay theo lượt ngắn hơn nếu máy hay chết,
-ví dụ `SECS=7200`, `fetch` sau mỗi lượt).
+Termux lỡ bị giết: mở lại, `colab sessions` xem máy còn không. Còn thì `o 05` tiếp; mất rồi thì dữ
+liệu trên máy đó mất theo — máy hay chết thì selfplay theo lượt ngắn hơn (`SECS = 7200`) và tải zip
+về sau mỗi lượt.
 
 ---
 
-## 9. Lệnh Colab CLI dùng tay
+## 11. Cách B: script tự động
 
-Script chỉ là lớp bọc; lúc cần bạn gõ thẳng:
+`scripts/colab_termux.sh` gói cả đời thành vài lệnh, **tham số cố định** (giống ô sổ tay mặc định).
+Chỉ nên dùng khi đã quen và không cần sửa gì.
+
+```bash
+curl -LO https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/custom_engine/scripts/colab_termux.sh
+export GEN=0
+bash colab_termux.sh start      # colab new --gpu T4 (hoặc dùng lại phiên fz có sẵn), kiểm GPU, ô 02, nạp mạng
+bash colab_termux.sh selfplay   # ô 04 (SECS=… để đổi thời gian)
+bash colab_termux.sh status     # ô 05 (status train / status arena)
+bash colab_termux.sh fetch      # ô 06 + colab download zip
+bash colab_termux.sh train      # ô 07 (DATA=… để cửa sổ trượt)
+bash colab_termux.sh getnet     # colab download gen{GEN+1}.onnx/.pt
+bash colab_termux.sh arena      # ô 08
+bash colab_termux.sh stop
+```
+
+**`start` chọn nguồn mạng đời `GEN` theo thứ tự** (khác ô 02!):
+
+1. Có `Download/FairyZero/genN.onnx` / `.pt` trên điện thoại → **tải lên tệp đó**.
+2. Không có, `GEN=0` → **tạo mạng đời 0 mới** rồi tải về điện thoại.
+3. Không có, `GEN>0` → tải từ Release v3.0.0.
+
+Muốn chắc chắn dùng mạng trên Release thì dùng cách A.
+
+---
+
+## 12. Lệnh Colab CLI dùng tay
 
 | Lệnh | Việc |
 |---|---|
 | `colab sessions` | Liệt kê các máy đang giữ |
 | `colab status -s fz` | Phần cứng, cấu hình máy, trạng thái |
 | `colab new -s fz --gpu T4` | Xin máy T4 (thiếu `--gpu` = CPU) |
-| `echo '!nvidia-smi' \| colab exec -s fz` | Chạy một lệnh (cú pháp ô Colab: `!lệnh`, `%cd`) |
-| `colab exec -s fz -f tep.py` | Chạy tệp Python trên máy |
-| `colab console -s fz` | **Shell thật** (tmux) trên máy Colab — xem log trực tiếp: `tail -f /content/selfplay.log` (thoát tail: Ctrl+C) |
+| `echo '!lệnh' \| colab exec -s fz` | Chạy một lệnh (cú pháp ô Colab) |
+| `colab exec -s fz -f tệp.py` | Chạy một tệp (không ghép ô cấu hình — dùng `o` nếu ô cần biến của ô 00) |
+| `colab console -s fz` | Shell thật (tmux) trên máy Colab |
 | `colab ls -s fz /content` | Liệt kê tệp trên máy |
 | `colab upload -s fz <điện thoại> <máy>` | Tải lên |
 | `colab download -s fz <máy> <điện thoại>` | Tải về |
 | `colab log -s fz -o log.md` | Lưu lịch sử các lệnh đã chạy |
 | `colab stop -s fz` | Trả máy |
 
-Biến tuỳ chỉnh của script: `GEN` (đời), `SECS` (giây selfplay), `DATA` (dữ liệu train),
-`N` (số dòng log), `GPU` (loại GPU, mặc định `T4`), `S` (tên phiên, mặc định `fz`),
-`LOCAL` (thư mục trên điện thoại, mặc định `~/storage/downloads/FairyZero`).
-
 ---
 
-## 10. Sự cố thường gặp
+## 13. Sự cố thường gặp
 
-**Nhận máy CPU thay vì T4** → mục 5.
+**Nhận máy CPU thay vì T4** → mục 4.
 
-**`[quick]` báo lỗi ở `start`** — Release chưa có binary hoặc Colab đổi image, phải biên dịch lại
-(8-12 phút). Máy vẫn giữ, làm tay:
+**`o: command not found`** — chưa `source ~/.bashrc` sau khi chạy `lay_ve.sh`, hoặc mở Termux
+mới trước khi `.bashrc` được sửa. Chạy `source ~/.bashrc`.
 
-```bash
-colab console -s fz
-# trong console:
-bash /content/chess_variant_engine/custom_engine/scripts/colab_setup.sh 2>&1 | tail -4
-bash /content/chess_variant_engine/custom_engine/scripts/colab_prebuilt.sh wrap
-exit
-# về Termux, lấy binary mới để đưa lên GitHub Release (tên đúng: custom_engine):
-colab download -s fz /content/chess_variant_engine/custom_engine/build-linux/custom_engine ~/storage/downloads/FairyZero/custom_engine
-```
+**`cat: /…/fz/04_*.py: No such file`** — sai số ô, hoặc chưa `bash lay_ve.sh`. Xem: `ls ~/fz`.
 
-Sau đó tiếp tục từ bước 4 của `start` bằng tay (tải mạng lên), hoặc `stop` rồi `start` lại sau khi đã
-đưa binary lên Release.
+**`NameError: name 'E' is not defined`** — chạy ô bằng `colab exec -f` thay vì `o`, nên thiếu ô
+cấu hình. Dùng `o <số>`.
 
-**`status` báo KHONG con tien trinh quá sớm** — engine lỗi khi khởi động. Xem cả log:
-`N=80 bash colab_termux.sh status`. Hay gặp: sai đường dẫn mạng (`/content/genN.onnx` không có —
-kiểm `GEN`), hoặc máy không có GPU.
+**Ô 02 báo `[quick]` lỗi** — Release chưa có binary hoặc Colab đổi image: `o 02b` (8-12 phút), rồi
+tải binary về theo lệnh ô in ra và đưa lên GitHub Release (tên đúng: `custom_engine`).
 
-**`colab: command not found`** — `pip install` chưa xong hoặc lỗi; chạy lại mục 2.4.
+**Ô 05 báo KHONG con tien trinh quá sớm** — engine lỗi khi khởi động. Tăng `SO_DONG = 80` trong ô 05
+rồi `o 05` để đọc lỗi. Hay gặp: thiếu mạng (`/content/genN.onnx` không có — kiểm `GEN_CURRENT`),
+hoặc máy không có GPU.
 
-**Đăng nhập hết hạn / báo lỗi quyền** — chạy lệnh bất kỳ cần máy (vd `colab sessions`) để nó in lại
-link đăng nhập, làm lại mục 3.
+**Huấn luyện báo không thấy `.pt`** — `gen{GEN_CURRENT}.pt` chưa có trên máy (Release chưa có tệp đó):
+`colab upload` từ điện thoại (mục 8).
 
-**`$'\r': command not found`** — tệp script mang xuống dòng kiểu Windows: `sed -i 's/\r$//' ~/colab_termux.sh`.
+**`colab: command not found`** — chạy lại mục 2.4.
+
+**Đăng nhập hết hạn / lỗi quyền** — chạy `colab sessions` để nó in lại link đăng nhập, làm lại mục 3.
+
+**`$'\r': command not found`** — tệp mang xuống dòng kiểu Windows: `sed -i 's/\r$//' <tệp>`.
 
 ---
 
