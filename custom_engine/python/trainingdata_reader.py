@@ -55,19 +55,39 @@ FIRST_CASTLING_SQUARE_VERSION = 5
 INPUT_FORMAT_10X10 = 1
 
 
+# unpack_record reads the two big arrays straight from the buffer (np.frombuffer)
+# and struct-unpacks only the header and the 76-byte tail. Unpacking the whole
+# record with _STRUCT built ~11000 Python numbers per record and was ~60% of a
+# training run's load time; the arrays are bit-identical (test_extreme.py 1b).
+_HEAD = struct.Struct("<II")
+_OFF_PROBS = _HEAD.size
+_OFF_PLANES = _OFF_PROBS + POLICY_SIZE * 4
+_TAIL = struct.Struct("<5B2Q3B11fI2H")    # == the tail of _FMT, from rule50 on
+_OFF_TAIL = _OFF_PLANES + HISTORY_PLANES * 2 * 8
+assert _OFF_TAIL + _TAIL.size == RECORD_SIZE, "tail layout drift"
+_U64 = np.dtype("<u8")
+_F32 = np.dtype("<f4")
+
+
 def unpack_record(buf):
-    """Unpack a 45940-byte record into a dict."""
-    v = _STRUCT.unpack(buf)
-    if v[0] not in KNOWN_VERSIONS or v[1] != INPUT_FORMAT_10X10:
-        raise ValueError(f"record version {v[0]} / input format {v[1]} is not one this reader "
-                         f"knows (versions {KNOWN_VERSIONS}, format {INPUT_FORMAT_10X10}); "
-                         "update python/trainingdata_reader.py together with the engine")
-    i = 0
+    """Unpack a 45940-byte record into a dict.
+
+    probabilities: float32[10600], a READ-ONLY view into `buf` (no copy; copy it
+    before writing). piece_planes: its own uint64[432] (lo,hi per plane), so a
+    compact cache holding it does not keep the whole 46 KB buffer alive."""
+    version, input_format = _HEAD.unpack_from(buf, 0)
+    if version not in KNOWN_VERSIONS or input_format != INPUT_FORMAT_10X10:
+        raise ValueError(f"record version {version} / input format {input_format} is not one "
+                         f"this reader knows (versions {KNOWN_VERSIONS}, format "
+                         f"{INPUT_FORMAT_10X10}); update python/trainingdata_reader.py "
+                         "together with the engine")
     r = {}
-    r["version"] = v[i]; i += 1
-    r["input_format"] = v[i]; i += 1
-    r["probabilities"] = np.array(v[i:i + POLICY_SIZE], dtype=np.float32); i += POLICY_SIZE
-    r["piece_planes"] = v[i:i + HISTORY_PLANES * 2]; i += HISTORY_PLANES * 2
+    r["version"] = version
+    r["input_format"] = input_format
+    r["probabilities"] = np.frombuffer(buf, _F32, POLICY_SIZE, _OFF_PROBS)
+    r["piece_planes"] = np.frombuffer(buf, _U64, HISTORY_PLANES * 2, _OFF_PLANES).copy()
+    v = _TAIL.unpack_from(buf, _OFF_TAIL)
+    i = 0
     r["rule50_count"] = v[i]; i += 1
     old_castling = r["version"] < FIRST_CASTLING_SQUARE_VERSION
     for k, key in enumerate(CASTLING_KEYS):

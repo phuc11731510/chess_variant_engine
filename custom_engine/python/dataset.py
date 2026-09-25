@@ -277,7 +277,8 @@ class FairyDataset(Dataset):
     def _build(self, r):
         """Dense tensors (used by sparse=False cache and by streaming)."""
         x = torch.from_numpy(reconstruct_planes(r))                       # [226,10,10] f32
-        pi = torch.from_numpy(np.ascontiguousarray(r["probabilities"], dtype=np.float32))
+        pi = torch.from_numpy(np.array(r["probabilities"], dtype=np.float32))  # own copy:
+        # the reader's array is a read-only view into the record buffer
         value = torch.from_numpy(self._value(r))                          # [3]
         return x, pi, value
 
@@ -290,7 +291,7 @@ class FairyDataset(Dataset):
         pi = r["probabilities"]
         legal = np.nonzero(pi > -0.5)[0].astype(np.uint16)
         return {
-            "piece_planes": np.asarray(r["piece_planes"], dtype=np.uint64),
+            "piece_planes": np.asarray(r["piece_planes"], dtype=np.uint64),  # no copy (reader)
             "ep_mask": np.asarray(r["ep_mask"], dtype=np.uint64),
             "castling_us_ooo_sq": r["castling_us_ooo_sq"],
             "castling_us_oo_sq": r["castling_us_oo_sq"],
