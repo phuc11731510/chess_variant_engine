@@ -313,7 +313,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 
    ```
    ======== FairyZero trên Colab ========
-    Tài khoản: chính   ·   Phiên: fz   ·   Đời: 0
+    Tài khoản: chinh   ·   Máy: fz   ·   Đời: 0
     Ô lệnh: Download/FairyZero/o_lenh
    --------------------------------------
     01   Kiểm GPU (mục 0)
@@ -327,7 +327,8 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     08   Arena đời mới đấu đời cũ (mục 6)
     09   Dừng NGAY ô đang chạy nền
    --------------------------------------
-    m    Xin máy T4
+    m    Xin máy T4 (tên 'fz')
+    p    Chọn máy / đặt tên máy mới (chạy nhiều máy cùng lúc)
     c    Xin máy CPU (thử nghiệm, không tốn hạn mức T4)
     l    Log trực tiếp ô đang chạy nền
     k    Xem máy đang giữ
@@ -353,7 +354,8 @@ Các mục chữ của menu:
 
 | Chọn | Việc | Tương đương lệnh |
 |---|---|---|
-| `m` | Xin máy T4 | `colab new -s fz --gpu T4` |
+| `m` | Xin máy T4 tên của cửa sổ này (mặc định `fz`); từ chối nếu tên đó đang là máy còn chạy | `colab new -s <tên> --gpu T4` |
+| `p` | Chọn máy / đặt tên máy mới — nhiều máy cùng lúc (mục 4.1) | `colab sessions` |
 | `c` | Xin máy **CPU** — để thử menu / ô mà không tốn hạn mức T4 (ô 04, 07, 08 cần GPU sẽ lỗi) | `colab new -s fz` |
 | `l` | Log trực tiếp ô chạy nền gần nhất (từ đầu), Ctrl+C để về menu | `ssh … tail -F` |
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
