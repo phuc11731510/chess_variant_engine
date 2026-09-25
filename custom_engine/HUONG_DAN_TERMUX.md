@@ -337,7 +337,7 @@ Các mục chữ của menu:
 | `k` | Xem máy đang giữ, có GPU gì | `colab sessions` + `colab status -s fz` |
 | `h` | **Hạn mức GPU miễn phí còn lại** (≈ bao nhiêu giờ T4), giờ nạp lại, gợi ý `SECS` cho ô 04 | `colab usage` + `~/fz_han_muc.py` (mục 4) |
 | `d` | **Duyệt thư mục trên Colab** (bắt đầu ở `/content`): gõ số để vào thư mục / tải tệp về `Download/FairyZero/`, `0` lên thư mục cha, `/đường/dẫn` để nhảy tới, `q` về menu. Trùng tên → `ten (2).duoi` như Explorer, không ghi đè; tải vào tệp tạm, đủ kích thước mới đặt tên (hai cửa sổ tải cùng lúc không hỏng tệp) | `ssh … find` + `ssh … cat` (lỗi thì `colab download`) |
-| `u` | **Duyệt thư mục trên điện thoại** (bắt đầu ở `Download/FairyZero`, `0` lên được tới `~/storage/shared` = bộ nhớ trong): số = vào thư mục / tải tệp lên `/content/` (giữ tên); `.` = hiện/ẩn tệp ẩn; `c` = trình chọn tệp của Android (cần Termux:API) | `find` + `colab upload` |
+| `u` | **Duyệt thư mục trên điện thoại** (bắt đầu ở `Download/FairyZero`, `0` lên được tới `~/storage/shared` = bộ nhớ trong): số = vào thư mục / tải tệp lên `/content/` (giữ tên); `.` = hiện/ẩn tệp ẩn; `c` = trình chọn tệp của Android (cần Termux:API). Tải qua `ssh` vào tệp tạm, đủ kích thước mới đặt tên; đứt thì tự thử lại 3 lần | `find` + `ssh … cat` |
 | `t` | `n <số>` = **nhận lại** máy `?` (còn sống nhưng mất tên trên điện thoại) làm phiên `fz` (mục 6.1). **Trả máy — liệt kê MỌI máy** đang giữ trên tài khoản (cả máy không có tên ở điện thoại này: tạo từ web / thiết bị khác), chọn một hay nhiều số, `a` = tất cả; hỏi lại, gõ `co` | `colab stop -s <tên>`; máy không tên: `unassign` |
 | `a` | Tài khoản Colab: thêm, chọn tài khoản cho cửa sổ này, đăng xuất. Nhiều tài khoản cùng lúc: mỗi cửa sổ Termux một `fz @<tên>` | mục 3.1 |
 
@@ -762,6 +762,11 @@ hoặc máy không có GPU.
 `colab upload` từ điện thoại (mục 8).
 
 **`colab: command not found`** — chạy lại mục 2.4.
+
+**Tải lên báo `SSLError … UNEXPECTED_EOF_WHILE_READING`** — lỗi của `colab upload`: nó gửi CẢ tệp
+(mã hoá base64, to thêm 1/3) trong một yêu cầu, tệp lớn (~100 MB) bị proxy Colab cắt ngang. Menu
+(`u`, `c`, chia sẻ tệp → Termux) giờ tải lên qua `ssh` — không bị giới hạn này. Tránh gõ tay
+`colab upload` cho tệp lớn.
 
 **`RuntimeError: Connection was lost.`** (khung Traceback của `colab exec`) — không mở được kết nối
 tới kernel Colab (mạng chập chờn). Giờ menu chỉ dùng `colab exec` khi chụp môi trường cho máy mới hoặc

@@ -81,9 +81,11 @@ if [[ "${1:-}" == @* ]]; then
   TK=$(tim_tk "${1#@}") || { echo "[!] Không có tài khoản '${1#@}' -- xem/thêm: fz -> a"; exit 1; }
   shift
 fi
-hoi_trung "$TK" || exit 1
+LE=                                   # `fz_menu.sh [@tk] --tai-len <tep>`: moc chia se tep
+[ "${1:-}" = --tai-len ] && LE=1
+[ -n "$LE" ] || hoi_trung "$TK" || exit 1
 dat_tk "$TK"
-ghi_cua_so
+[ -n "$LE" ] || ghi_cua_so
 colab() { HOME=$TKH command colab "$@"; }
 py_colab() { HOME=$TKH python "$@"; }
 
@@ -444,6 +446,29 @@ tai_ve() {
   return 0
 }
 
+# Tai tep dien thoai $1 len Colab $2 (mac dinh /content/<ten>). Qua ssh (cat): colab upload gui CA
+# tep base64 trong MOT yeu cau HTTP -> tep lon (~100 MB) bi proxy Colab cat ngang (SSL
+# UNEXPECTED_EOF). Ghi tep tam .dang_tai, du kich thuoc moi doi ten; dut giua chung -> thu lai 3 lan.
+tai_len() {
+  local nguon=$1 dich=${2:-/content/${1##*/}} kt q i
+  kt=$(stat -c %s "$nguon" 2>/dev/null) || { echo "[!] Không đọc được $nguon"; return 1; }
+  q=$(printf %q "$dich")
+  for i in 1 2 3; do
+    echo "Tải lên: ${nguon##*/} ($(kich_thuoc "$kt"))  ->  $dich"
+    NGAT=0
+    if command -v pv >/dev/null; then pv "$nguon"; else cat "$nguon"; fi |
+      ssh_colab "mkdir -p \"\$(dirname $q)\" && cat > $q.dang_tai && [ \"\$(stat -c %s $q.dang_tai)\" = $kt ] && mv $q.dang_tai $q"
+    [ "${PIPESTATUS[1]}" = 0 ] && { echo "[xong] $dich"; return 0; }
+    ssh_colab "rm -f $q.dang_tai" 2>/dev/null
+    [ $NGAT = 1 ] && { echo "[huỷ tải lên]"; return 1; }
+    [ $i = 3 ] && break
+    echo "[!] Tải lên dở (mất kết nối?) -- thử lại lần $((i + 1))/3 sau 5 giây... (Ctrl+C = thôi)"
+    sleep 5 || return 1
+  done
+  echo "[!] Tải lên lỗi: $dich"
+  return 1
+}
+
 # Sau khi o $1 chay nen xong: tai ve moi tep o do yeu cau bang dong "FZ_TAI_VE=<duong dan>"
 # trong log (vd o 06 -> zip van). Nho vay "04 06" = sinh du lieu, gom zip, tai ve dien thoai.
 # Moi lan chay o chi tai mot lan: tai xong ghi dong dau log (co gio bat dau) vao <o>.da_tai;
@@ -553,8 +578,7 @@ duyet_dt() {
         if [ "$loai" = d ]; then
           dir=${dir%/}/$ten
         else
-          echo "Tải lên: $ten ($(kich_thuoc "$kt"))  ->  /content/$ten"
-          colab upload -s "$S" "${dir%/}/$ten" "/content/$ten" && echo "[xong] /content/$ten"
+          tai_len "${dir%/}/$ten"
           dung
         fi ;;
     esac
@@ -579,7 +603,7 @@ chon_android() {
   sleep 1   # cho ghi xong
   echo "Đã nhận tệp ($(kich_thuoc "$(stat -c %s "$tam")")). termux-storage-get không trả về tên gốc."
   read -rp "Tên tệp trên Colab (vd gen1.onnx): " ten
-  [ -n "$ten" ] && colab upload -s "$S" "$tam" "/content/$ten" && echo "[xong] /content/$ten"
+  [ -n "$ten" ] && tai_len "$tam" "/content/$ten"
   rm -f "$tam"
 }
 
@@ -666,6 +690,7 @@ chay_cac_o() {
   done
 }
 
+if [ -n "$LE" ]; then tai_len "$2" "${3:-}"; exit; fi
 if [ $# -gt 0 ]; then chay_cac_o "$@"; exit; fi
 
 while true; do

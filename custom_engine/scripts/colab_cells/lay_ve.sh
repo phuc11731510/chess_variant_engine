@@ -77,10 +77,11 @@ if [ ! -f ~/bin/termux-file-editor ] || grep -q 'fz: tai len Colab' ~/bin/termux
   cat > ~/bin/termux-file-editor <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 # fz: tai len Colab -- tep chia se vao Termux ("Edit") duoc tai len /content cua phien Colab.
+# Tai qua menu (ssh, chiu duoc tep lon), dung tai khoan ban chon.
 f=$1; n=$(basename "$f")
-echo "Tải '$n' lên Colab (phiên ${S:-fz}): /content/$n"
-read -rp "Enter = tải, n = không: " x
-if [ "$x" != n ]; then colab upload -s "${S:-fz}" "$f" "/content/$n" && echo "[xong] /content/$n"; fi
+echo "Tải '$n' lên Colab: /content/$n"
+read -rp "Tài khoản (Enter = chính, hoặc tên tài khoản phụ; n = không tải): " x
+if [ "$x" != n ]; then bash ~/fz_menu.sh ${x:+"@$x"} --tai-len "$f"; fi
 read -rp "--- Enter để đóng ---" _
 EOF
   chmod +x ~/bin/termux-file-editor
