@@ -129,79 +129,102 @@ int run_arena(const EngineOptions& o) {
         std::exit(1);
     }
 
-    int a_wins = 0, b_wins = 0, draws = 0;
+    // --parallel N: N games at once (like self-play), sharing the two backends. One game = one
+    // search per move, so alone it feeds the GPU small batches; N concurrent games fill them
+    // (self-play --parallel 4 ~2750 nps vs sequential arena ~1600 on T4). Game g still has A as
+    // White iff g is even, so colors stay balanced (with an even game count) whatever the order
+    // games finish in. Results/printing under one mutex; totals are exact, not sampled.
+    const int workers = std::max(1, std::min(o.sp_parallel, games));
+    int a_wins = 0, b_wins = 0, draws = 0, done = 0;
     const bool show_nps = o.sp_show_nps;          // --show-nps: aggregate MCTS NPS
-    int64_t total_nodes = 0;
+    std::atomic<int64_t> total_nodes{0};
+    std::atomic<int> next_game{0};
+    std::mutex mu;
     const auto arena_start = std::chrono::steady_clock::now();
-    auto tree = std::make_unique<lczero::classic::NodeTree>();
+    if (workers > 1) std::cout << "[arena] " << workers << " games in parallel" << std::endl;
 
-    for (int g = 0; g < games; ++g) {
-        const bool a_is_white = (g % 2 == 0);            // alternate colors for fairness
-        tree->ResetToPosition(fen, {});
-        lczero::GameResult result = lczero::GameResult::UNDECIDED;
-        std::string moves_str;                           // --arena-moves: UCI move list
+    auto worker = [&]() {
+        auto tree = std::make_unique<lczero::classic::NodeTree>();
+        while (true) {
+            const int g = next_game.fetch_add(1);
+            if (g >= games) break;
+            const bool a_is_white = (g % 2 == 0);        // alternate colors for fairness
+            tree->ResetToPosition(fen, {});
+            lczero::GameResult result = lczero::GameResult::UNDECIDED;
+            std::string moves_str;                       // --arena-moves: UCI move list
+            int64_t game_nodes = 0;
 
-        for (int ply = 0; ply < max_moves; ++ply) {
-            const bool white_to_move = !tree->IsBlackToMove();
-            const bool a_to_move = (white_to_move == a_is_white);
-            lczero::Backend* backend = a_to_move ? ba.get() : bb.get();
-            const lczero::OptionsDict& sopts = a_to_move ? opts_a : opts_b;
+            for (int ply = 0; ply < max_moves; ++ply) {
+                const bool white_to_move = !tree->IsBlackToMove();
+                const bool a_to_move = (white_to_move == a_is_white);
+                lczero::Backend* backend = a_to_move ? ba.get() : bb.get();
+                const lczero::OptionsDict& sopts = a_to_move ? opts_a : opts_b;
 
-            tree->TrimTreeAtHead();  // fresh search: no stale evals from the OTHER net
-            auto responder = std::make_unique<SilentUciResponder>();
-            auto stopper = std::make_unique<NodeLimitStopper>(visits);
-            auto start = std::chrono::steady_clock::now();
-            auto search = std::make_unique<lczero::classic::Search>(
-                *tree, backend, std::move(responder), lczero::MoveList{}, start,
-                std::move(stopper), false, false, sopts, nullptr);
-            search->RunBlocking(1);
+                tree->TrimTreeAtHead();  // fresh search: no stale evals from the OTHER net
+                auto responder = std::make_unique<SilentUciResponder>();
+                auto stopper = std::make_unique<NodeLimitStopper>(visits);
+                auto start = std::chrono::steady_clock::now();
+                auto search = std::make_unique<lczero::classic::Search>(
+                    *tree, backend, std::move(responder), lczero::MoveList{}, start,
+                    std::move(stopper), false, false, sopts, nullptr);
+                search->RunBlocking(1);
 
-            lczero::classic::Node* root = tree->GetCurrentHead();
-            total_nodes += static_cast<int64_t>(root->GetN());
-            lczero::classic::EdgeAndNode best;
-            uint64_t total = 0, best_n = 0;
-            for (const auto& e : root->Edges()) {
-                total += e.GetN();
-                if (e.GetN() >= best_n) { best_n = e.GetN(); best = e; }
-            }
-            if (best.GetMove().is_null()) break;
-
-            lczero::Move played = best.GetMove();           // greedy by default
-            if (ply < temp_cutoff && total > 0) {           // temperature opening for diversity
-                const double toss = lczero::Random::Get().GetDouble(static_cast<double>(total));
-                double acc = 0.0;
+                lczero::classic::Node* root = tree->GetCurrentHead();
+                game_nodes += static_cast<int64_t>(root->GetN());
+                lczero::classic::EdgeAndNode best;
+                uint64_t total = 0, best_n = 0;
                 for (const auto& e : root->Edges()) {
-                    acc += static_cast<double>(e.GetN());
-                    if (acc > toss) { played = e.GetMove(); break; }
+                    total += e.GetN();
+                    if (e.GetN() >= best_n) { best_n = e.GetN(); best = e; }
                 }
-            }
-            if (o.arena_show_moves) {
-                if ((ply % 2) == 0) moves_str += std::to_string(ply / 2 + 1) + ".";
-                moves_str += CanonicalMoveToUci(played, !white_to_move) + " ";
-            }
-            tree->MakeMove(played);
-            result = tree->GetPositionHistory().ComputeGameResult();
-            if (result != lczero::GameResult::UNDECIDED) break;
-        }
+                if (best.GetMove().is_null()) break;
 
-        if (result == lczero::GameResult::WHITE_WON || result == lczero::GameResult::BLACK_WON) {
-            const bool white_won = (result == lczero::GameResult::WHITE_WON);
-            if (white_won == a_is_white) a_wins++; else b_wins++;
-        } else {
-            draws++;  // DRAW or cutoff (UNDECIDED)
+                lczero::Move played = best.GetMove();       // greedy by default
+                if (ply < temp_cutoff && total > 0) {       // temperature opening for diversity
+                    const double toss = lczero::Random::Get().GetDouble(static_cast<double>(total));
+                    double acc = 0.0;
+                    for (const auto& e : root->Edges()) {
+                        acc += static_cast<double>(e.GetN());
+                        if (acc > toss) { played = e.GetMove(); break; }
+                    }
+                }
+                if (o.arena_show_moves) {
+                    if ((ply % 2) == 0) moves_str += std::to_string(ply / 2 + 1) + ".";
+                    moves_str += CanonicalMoveToUci(played, !white_to_move) + " ";
+                }
+                tree->MakeMove(played);
+                result = tree->GetPositionHistory().ComputeGameResult();
+                if (result != lczero::GameResult::UNDECIDED) break;
+            }
+            total_nodes.fetch_add(game_nodes);
+
+            std::lock_guard<std::mutex> lk(mu);
+            if (result == lczero::GameResult::WHITE_WON || result == lczero::GameResult::BLACK_WON) {
+                const bool white_won = (result == lczero::GameResult::WHITE_WON);
+                if (white_won == a_is_white) a_wins++; else b_wins++;
+            } else {
+                draws++;  // DRAW or cutoff (UNDECIDED)
+            }
+            ++done;
+            std::cout << "  game " << done << "/" << games;
+            if (workers > 1) std::cout << " (#" << (g + 1) << ")";
+            std::cout << " (A plays " << (a_is_white ? "White" : "Black") << "): result="
+                      << (int)result << "   [A " << a_wins << " W / " << draws << " D / "
+                      << b_wins << " L]";
+            if (show_nps) {
+                const double secs = std::chrono::duration<double>(
+                    std::chrono::steady_clock::now() - arena_start).count();
+                const long nps = (secs > 0.0) ? std::lround(total_nodes.load() / secs) : 0;
+                std::cout << "  | " << nps << " nps (tong)";
+            }
+            std::cout << std::endl;
+            if (o.arena_show_moves) std::cout << "    moves: " << moves_str << std::endl;
         }
-        std::cout << "  game " << (g + 1) << "/" << games << " (A plays "
-                  << (a_is_white ? "White" : "Black") << "): result=" << (int)result
-                  << "   [A " << a_wins << " W / " << draws << " D / " << b_wins << " L]";
-        if (show_nps) {
-            const double secs = std::chrono::duration<double>(
-                std::chrono::steady_clock::now() - arena_start).count();
-            const long nps = (secs > 0.0) ? std::lround(total_nodes / secs) : 0;
-            std::cout << "  | " << nps << " nps (tong)";
-        }
-        std::cout << std::endl;
-        if (o.arena_show_moves) std::cout << "    moves: " << moves_str << std::endl;
-    }
+    };
+    std::vector<std::thread> pool;
+    pool.reserve(workers);
+    for (int w = 0; w < workers; ++w) pool.emplace_back(worker);
+    for (auto& t : pool) t.join();
 
     const double score_a = (a_wins + 0.5 * draws) / std::max(1, games);
     std::cout << "\n=== ARENA RESULT ===" << std::endl;
@@ -210,8 +233,8 @@ int run_arena(const EngineOptions& o) {
     if (show_nps) {
         const double secs = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - arena_start).count();
-        const long nps = (secs > 0.0) ? std::lround(total_nodes / secs) : 0;
-        std::cout << "  speed: " << nps << " nps (" << total_nodes << " playouts in "
+        const long nps = (secs > 0.0) ? std::lround(total_nodes.load() / secs) : 0;
+        std::cout << "  speed: " << nps << " nps (" << total_nodes.load() << " playouts in "
                   << secs << "s)" << std::endl;
     }
     return 0;
