@@ -533,6 +533,38 @@ def test_diff_focus_unknown_orig():
           f"(0.2 would treat them as dull positions, 1.0 as surprising ones)")
 
 
+# --------------------------------------------------------------------------- #
+# 11. packed batches rebuilt on the device == the dense __getitem__ path
+# --------------------------------------------------------------------------- #
+def test_packed_equals_dense():
+    print("\n[11] packed batch + unpack_batch == dense planes/policy (bit-exact)")
+    ds = _DS()
+    recs = []
+    for seed in range(24):
+        r = make_rec(seed=seed, n_legal=[40, 1, 0, 163][seed % 4])
+        # castling squares incl. both board corners, bit 63/64 boundary and "none"
+        sq = [0, 5, 9, 90, 99, 54, 255, 53][seed % 8]      # 54 -> bit 64, 53 -> bit 63
+        r.update(castling_us_ooo_sq=sq, castling_us_oo_sq=255 if seed % 3 else 99,
+                 castling_them_ooo_sq=[255, 90, 9][seed % 3], castling_them_oo_sq=sq,
+                 rule50_count=[0, 37, 99, 100, 255][seed % 5],
+                 checks_remaining_us=seed % 9, checks_remaining_them=(seed * 5) % 9,
+                 ep_mask=(0, 0) if seed % 2 else (2**63 + 5, 2**63 + 2**40))
+        recs.append(ds._compact(r))
+    dense = [ds._build_from_compact(c) for c in recs]
+    bx = torch.stack([d[0] for d in dense]); bp = torch.stack([d[1] for d in dense])
+    bv = torch.stack([d[2] for d in dense])
+    batch = D.collate_packed([D.pack_compact(c) for c in recs])
+    for cl in (False, True):
+        x, pi, v = D.unpack_batch(batch, "cpu", channels_last=cl)
+        check(not cl or x.is_contiguous(memory_format=torch.channels_last),
+              f"channels_last={cl}: memory format")
+        check(torch.equal(x.contiguous().view(torch.int32), bx.view(torch.int32)),
+              f"channels_last={cl}: all 226 planes bit-identical (castling, e.p., scalars)")
+        check(torch.equal(pi.contiguous().view(torch.int32), bp.view(torch.int32)),
+              f"channels_last={cl}: policy bit-identical (-1 illegal, 0 legal-unvisited, 0-163 legal)")
+        check(torch.equal(v, bv), f"channels_last={cl}: value target identical")
+
+
 def main():
     print("=" * 60)
     print("EXTREME TESTS — Python training pipeline")
@@ -548,6 +580,7 @@ def main():
     test_archive_roundtrip()
     test_audit_generation()
     test_diff_focus_unknown_orig()
+    test_packed_equals_dense()
     print("\n" + "=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")
     print("=" * 60)
