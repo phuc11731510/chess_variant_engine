@@ -4,6 +4,8 @@
 # `bash menu.sh 04 05` (lenh `o 04 05`): chay thang cac o do theo cung cach, khong hien menu.
 # `fz @B` / `o @B 04`: dung tai khoan Colab B. Nhieu tai khoan CUNG LUC = moi cua so Termux mot
 # tai khoan (xem tai_khoan() -- muc a).
+# `fz :may2` / `fz @B :may2` / `o :may2 04`: dung may ten may2 (mac dinh fz). Nhieu MAY cung luc (ca
+# cung tai khoan) = moi cua so mot ten may (xem chon_may() -- muc p).
 #
 # Cach chay mot o -- MOI o (ke ca o ban them sau nay) chay QUA SSH, khong dung kernel Jupyter
 # cua may Colab (kernel chet / khoi dong lai khong anh huong; colab exec vao kernel cu con lam
@@ -46,14 +48,15 @@ tim_tk() {
   tk_hop_le "$1" && [ -d "$TKG/$1" ] && echo "$1"
 }
 
-# Cua so nao dung tai khoan nao: moi menu dang mo ghi ~/.fz_tk/.cua_so/<pid> = "@<TK>".
-# Hai cua so cung tai khoan = dung chung may '$S' -> canh bao truoc khi chon.
+# Cua so nao dung may nao: moi menu dang mo ghi ~/.fz_tk/.cua_so/<pid> = "@<TK>:<ten may>".
+# Hai cua so cung tai khoan VA cung ten may = dung chung mot may -> canh bao truoc khi chon.
 CS=$TKG/.cua_so
-ghi_cua_so() { mkdir -p "$CS" && echo "@$TK" > "$CS/$$"; }
+ghi_cua_so() { mkdir -p "$CS" && echo "@$TK:$S" > "$CS/$$"; }
 trap 'rm -f "$CS/$$"' EXIT
-# In pid cac cua so KHAC dang dung tai khoan $1 (don tep cua cua so da dong).
+# In pid cac cua so KHAC dang dung tai khoan $1 -- ten may $2 (bo trong = may bat ky cua tai
+# khoan do). Don tep cua cua so da dong.
 cua_so_khac() {
-  local f pid
+  local f pid g
   for f in "$CS"/*; do
     [ -f "$f" ] || continue
     pid=${f##*/}
@@ -61,29 +64,37 @@ cua_so_khac() {
     if ! tr '\0' ' ' 2>/dev/null < "/proc/$pid/cmdline" | grep -q 'menu\.sh'; then
       rm -f "$f"; continue          # cua so da dong (pid co the da cap cho tien trinh khac)
     fi
-    [ "$(cat "$f" 2>/dev/null)" = "@$1" ] && echo "$pid"
+    g=$(cat "$f" 2>/dev/null)
+    if [ -n "${2:-}" ]; then [ "$g" = "@$1:$2" ] && echo "$pid"
+    else [ "${g%%:*}" = "@$1" ] && echo "$pid"; fi
   done
 }
-# Hoi truoc khi dung tai khoan $1 neu cua so khac dang dung no. 0 = dung duoc.
+# Hoi truoc khi dung may $2 cua tai khoan $1 neu cua so khac dang dung dung may do. 0 = dung duoc.
 hoi_trung() {
   local x
-  [ -z "$(cua_so_khac "$1")" ] && return 0
-  echo "[!] Tài khoản $(ten_tk "$1") đang mở ở cửa sổ Termux khác -- hai cửa sổ sẽ dùng CHUNG máy '$S'"
-  echo "    (ô chạy nền cửa sổ này có thể chồng lên cửa sổ kia)."
+  [ -z "$(cua_so_khac "$1" "$2")" ] && return 0
+  echo "[!] Máy '$2' của tài khoản $(ten_tk "$1") đang mở ở cửa sổ Termux khác -- hai cửa sổ sẽ dùng"
+  echo "    CHUNG một máy (ô chạy nền cửa sổ này có thể chồng lên cửa sổ kia). Máy khác: đặt tên khác (p)."
   read -rp "    Vẫn dùng? Gõ 'co' (Enter = không): " x
   [ "$x" = co ]
 }
-# Cua so nay chuyen sang tai khoan $1 (co hoi neu trung). 0 = da chuyen.
-chon_tk() { hoi_trung "$1" || return 1; dat_tk "$1"; ghi_cua_so; }
+# Cua so nay chuyen sang tai khoan $1 (giu ten may; co hoi neu trung). 0 = da chuyen.
+chon_tk() { hoi_trung "$1" "$S" || return 1; dat_tk "$1"; ghi_cua_so; }
 
 TK=
-if [[ "${1:-}" == @* ]]; then
-  TK=$(tim_tk "${1#@}") || { echo "[!] Không có tài khoản '${1#@}' -- xem/thêm: fz -> a"; exit 1; }
+ten_may_hop_le() { [[ "$1" =~ ^[A-Za-z0-9_-]{1,20}$ ]]; }
+while [[ "${1:-}" == @* || "${1:-}" == :* ]]; do
+  if [[ "$1" == @* ]]; then
+    TK=$(tim_tk "${1#@}") || { echo "[!] Không có tài khoản '${1#@}' -- xem/thêm: fz -> a"; exit 1; }
+  else
+    ten_may_hop_le "${1#:}" || { echo "[!] Tên máy chỉ gồm chữ, số, _ và - (vd: fz :may2)"; exit 1; }
+    S=${1#:}
+  fi
   shift
-fi
+done
 LE=                                   # `fz_menu.sh [@tk] --tai-len <tep>`: moc chia se tep
 [ "${1:-}" = --tai-len ] && LE=1
-[ -n "$LE" ] || hoi_trung "$TK" || exit 1
+[ -n "$LE" ] || hoi_trung "$TK" "$S" || exit 1
 dat_tk "$TK"
 [ -n "$LE" ] || ghi_cua_so
 colab() { HOME=$TKH command colab "$@"; }
@@ -411,6 +422,62 @@ tai_khoan() {
   done
 }
 
+# Muc p: cac may cua tai khoan nay; chon may cho cua so nay, hoac dat ten cho may sap xin (m / c).
+# Moi may mot ten; hai may cung ten thi `colab new` GHI DE phien cu (may cu thanh "?", keep-alive
+# cua no tu dung -> Colab thu hoi) -- nen m / c tu choi ten dang la mot may con chay.
+chon_may() {
+  local ds i x ten hw ghi an=0
+  mapfile -t ds < <(colab sessions 2>/dev/null | grep '^\[')
+  clear
+  echo "== Máy của tài khoản $(ten_tk "$TK") · cửa sổ này: '$S' =="
+  local co=()
+  for i in "${!ds[@]}"; do
+    ten=${ds[$i]%%]*}; ten=${ten#[}
+    [ "$ten" = "?" ] && { an=$((an + 1)); continue; }
+    co+=("$ten")
+    hw=$(sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' <<<"${ds[$i]}")
+    ghi=""
+    [ "$ten" = "$S" ] && ghi="<- cửa sổ này"
+    [ -n "$(cua_so_khac "$TK" "$ten")" ] && ghi="${ghi:+$ghi, }đang mở ở cửa sổ khác"
+    printf " %2d  %-20s %-5s %s\n" ${#co[@]} "$ten" "$hw" "$ghi"
+  done
+  [ ${#co[@]} -eq 0 ] && echo "  (chưa giữ máy nào có tên)"
+  [ $an -gt 0 ] && echo "  (+ $an máy không tên '?': nhận lại ở mục t -> n <số>)"
+  echo "---"
+  echo " Số = cửa sổ này dùng máy đó · gõ TÊN MỚI (vd may2) = cửa sổ này sẽ xin máy tên đó (rồi m / c)"
+  echo " Nhiều máy cùng lúc: mỗi cửa sổ Termux một tên -- mở thẳng: fz ${TK:+@$(ten_tk "$TK") }:<tên>"
+  echo " Mỗi máy đang giữ đều tiêu hạn mức (h). Enter = về menu"
+  read -rp "Chọn: " x || return
+  [ -z "$x" ] && return
+  if [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#co[@]} ]; then ten=${co[$((x - 1))]}
+  else
+    ten_may_hop_le "$x" || { echo "[!] Tên máy chỉ gồm chữ, số, _ và - (tối đa 20)"; dung; return; }
+    ten=$x
+  fi
+  [ "$ten" = "$S" ] && return
+  hoi_trung "$TK" "$ten" || return
+  S=$ten; ghi_cua_so
+  if printf '%s\n' "${co[@]}" | grep -qx -- "$ten"; then echo "[cửa sổ này dùng máy '$S']"
+  else echo "[cửa sổ này dùng tên '$S' -- chưa có máy: m = xin T4, c = xin CPU]"; fi
+  dung
+}
+
+# m / c: xin may ten $S. Ten dang la mot may CON CHAY -> tu choi (colab new se ghi de phien, may cu
+# bi thu hoi). 0 = xin duoc.
+duoc_xin() {
+  local rc
+  [ -f ~/fz_nhan_may.py ] || return 0
+  py_colab ~/fz_nhan_may.py con "$S" >/dev/null 2>&1; rc=$?
+  [ $rc = 1 ] && return 0
+  if [ $rc = 0 ]; then
+    echo "[!] Tên '$S' đang là một máy CÒN CHẠY. Xin nữa thì Colab CLI ghi đè phiên và máy đó bị thu hồi."
+    echo "    Máy thứ hai: p -> gõ tên mới (vd may2), rồi m / c. Đổi hẳn máy: t (trả) rồi m / c."
+    return 1
+  fi
+  read -rp "[!] Không kiểm được máy '$S' còn chạy không (mạng?). Vẫn xin? Gõ 'co': " rc
+  [ "$rc" = co ]
+}
+
 # Muc h: han muc mien phi con lai + so du, may dang giu, GPU duoc dung (~/fz_han_muc.py).
 han_muc() {
   local may
@@ -735,7 +802,7 @@ while true; do
   clear
   gen=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^GEN_CURRENT *= *\([0-9]*\).*/\1/p')
   echo "======== FairyZero trên Colab ========"
-  echo " Tài khoản: $(ten_tk "$TK")   ·   Phiên: $S   ·   Đời: ${gen:-?}"
+  echo " Tài khoản: $(ten_tk "$TK")   ·   Máy: $S   ·   Đời: ${gen:-?}"
   if [ -f "$(CHUOI)" ]; then
     { read -r x; read -r y; } < "$(CHUOI)"
     echo " Chuỗi đang chờ: ô ${x%% *} xong thì chạy $y  (l = xem rồi chạy tiếp)"
@@ -752,7 +819,8 @@ while true; do
   done
   [ ${#files[@]} -eq 0 ] && echo " (chưa có ô nào -- chạy: bash ~/lay_ve.sh)"
   echo "--------------------------------------"
-  echo " m    Xin máy T4"
+  echo " m    Xin máy T4 (tên '$S')"
+  echo " p    Chọn máy / đặt tên máy mới (chạy nhiều máy cùng lúc)"
   echo " c    Xin máy CPU (thử nghiệm, không tốn hạn mức T4)"
   echo " l    Log trực tiếp ô đang chạy nền"
   echo " k    Xem máy đang giữ"
@@ -769,9 +837,10 @@ while true; do
 
   case "${chon[0]}" in
   q|Q) exit 0 ;;
-  m|M) colab new -s "$S" --gpu T4; colab status -s "$S"; kiem_may >/dev/null; dung; continue ;;
+  m|M) duoc_xin && { colab new -s "$S" --gpu T4; colab status -s "$S"; kiem_may >/dev/null; }; dung; continue ;;
   c|C)
     # Khong --gpu = may CPU. O dung GPU (04, 07, 08: --provider cuda / --amp) se loi tren may nay.
+    duoc_xin || { dung; continue; }
     colab new -s "$S"; colab status -s "$S"; kiem_may >/dev/null
     echo; echo "[máy CPU] Hợp để thử menu, ô 01/02/03/05/06, tải lên/về. Ô 04/07/08 cần T4."
     echo "          Đổi sang T4: t (trả máy) rồi m."
@@ -781,6 +850,7 @@ while true; do
   h|H) han_muc; dung; continue ;;
   a|A) tai_khoan; continue ;;
   t|T) tra_may; continue ;;
+  p|P) chon_may; continue ;;
   d|D) duyet_colab; continue ;;
   u|U) duyet_dt; continue ;;
   esac

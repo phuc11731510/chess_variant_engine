@@ -234,6 +234,28 @@ nhiêu giờ T4.
 Chưa giữ máy nào thì nó tính theo mức T4 ~1,07/giờ. `python ~/fz_han_muc.py --raw` in nguyên dữ
 liệu API trả về để tự kiểm. Đây là API nội bộ của Google (không có tài liệu chính thức), có thể đổi.
 
+### 4.1. Nhiều máy cùng lúc (đặt tên máy)
+
+Mỗi máy có một **tên** (mặc định `fz`); mọi thứ của menu (ô chạy, log, tải lên / về, trả máy) đi
+theo tên máy của cửa sổ đó. Dòng đầu menu ghi `Máy: <tên>`.
+
+- **Mở thẳng một máy:** `fz :may2` (tài khoản chính) hoặc `fz @B :may2` (tài khoản phụ `B`);
+  chạy ô thẳng: `o :may2 04`.
+- **Trong menu:** **`p`** → danh sách máy đang giữ của tài khoản (`<- cửa sổ này` / `đang mở ở cửa sổ
+  khác`); gõ số = cửa sổ này dùng máy đó; gõ **tên mới** (vd `may2`) = cửa sổ này sẽ xin máy tên đó →
+  rồi `m` (T4) hoặc `c` (CPU).
+- **Chạy song song:** mỗi cửa sổ Termux một tên máy, vd cửa sổ 1 `fz` (máy `fz`) chạy ô 04, cửa sổ 2
+  `fz :may2` → `m` → chạy ô 04 trên máy thứ hai. Hai cửa sổ chọn **cùng** tài khoản + tên máy thì
+  menu cảnh báo như mục 3.1.
+- **Không bao giờ xin trùng tên:** `m` / `c` từ chối nếu tên đó đang là một máy còn chạy. (Colab CLI
+  không tự kiểm: `colab new` với tên đã có sẽ GHI ĐÈ phiên — máy cũ thành `?`, tiến trình giữ máy của
+  nó tự dừng, Colab thu hồi máy cũ cùng `/content`.)
+
+Lưu ý: **mỗi máy đang giữ đều tiêu hạn mức** — hai máy T4 thì hết hạn mức nhanh gấp đôi (`h` hiện
+tổng mức tiêu). Tài khoản miễn phí thường chỉ được **một** GPU cùng lúc: máy T4 thứ hai có thể bị từ
+chối (lỗi hết tài nguyên / hạn mức) — khi đó dùng tài khoản khác (mục 3.1) cho máy thứ hai. Máy CPU
+thứ hai (`c`) thường xin được, hợp để thử.
+
 ---
 
 ## 5. Lấy các ô lệnh về điện thoại
