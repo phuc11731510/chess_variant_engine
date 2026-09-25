@@ -117,6 +117,32 @@ def test_struct_layout():
     check(abs(rec["probabilities"][123] - 0.25) < 1e-6 and
           abs(rec["probabilities"][7777] - 0.75) < 1e-6, "probabilities[idx] preserved")
     check(rec["piece_planes"][0] == 0 and rec["piece_planes"][431] == 431, "piece_planes order")
+    # 1b. The fast path (np.frombuffer + a struct for the tail) must give exactly
+    # what unpacking every field with _STRUCT gives, on random full-range values.
+    g = np.random.default_rng(1)
+    rnd = ([5, 1] + [float(x) for x in g.standard_normal(R.POLICY_SIZE).astype(np.float32)] +
+           [int(x) for x in g.integers(0, 2**64, size=len(pp), dtype=np.uint64)] +
+           [int(g.integers(0, 256)), 3, 12, 255, 99,
+            int(g.integers(0, 2**64, dtype=np.uint64)), int(g.integers(0, 2**64, dtype=np.uint64)),
+            5, 8, 0] + [float(x) for x in g.standard_normal(11).astype(np.float32)] +
+           [int(g.integers(0, 2**32)), int(g.integers(0, 2**16)), int(g.integers(0, 2**16))])
+    buf = R._STRUCT.pack(*rnd)
+    fast, ref = R.unpack_record(buf), R._STRUCT.unpack(buf)
+    npl = R.POLICY_SIZE + len(pp)
+    check(fast["probabilities"].dtype == np.float32 and
+          fast["probabilities"].tobytes() == np.array(ref[2:2 + R.POLICY_SIZE], np.float32).tobytes(),
+          "fast unpack: probabilities bit-identical to the full struct")
+    check(fast["piece_planes"].dtype == np.uint64 and
+          fast["piece_planes"].tolist() == list(ref[2 + R.POLICY_SIZE:2 + npl]),
+          "fast unpack: piece_planes identical (full uint64 range)")
+    check(fast["piece_planes"].base is None, "fast unpack: piece_planes owns its memory")
+    tail = ref[2 + npl:]
+    got = ([fast["rule50_count"]] + [fast[k] for k in R.CASTLING_KEYS] + list(fast["ep_mask"]) +
+           [fast[k] for k in ("checks_remaining_us", "checks_remaining_them", "side_to_move",
+                              "result_q", "result_d", "root_q", "root_d", "best_q", "best_d",
+                              "played_q", "played_d", "orig_q", "orig_d", "policy_kld",
+                              "visits", "played_idx", "best_idx")])
+    check(got == list(tail), "fast unpack: every tail field identical")
     check(rec["rule50_count"] == 200 and rec["castling_us_ooo_sq"] == 0 and
           rec["castling_us_oo_sq"] == 19 and rec["castling_them_ooo_sq"] == 255 and
           rec["castling_them_oo_sq"] == 94, "scalar aux fields (castling squares)")
@@ -381,7 +407,7 @@ def test_archive_roundtrip():
         check(len(dir_recs) == len(zip_recs) == 16, f"record count 16 (got {len(zip_recs)})")
 
         def keyset(rs):
-            return sorted(hash((tuple(np.round(r["probabilities"], 6)), r["piece_planes"]))
+            return sorted(hash((tuple(np.round(r["probabilities"], 6)), tuple(r["piece_planes"])))
                           for r in rs)
         check(keyset(dir_recs) == keyset(zip_recs), "zip records == dir records (bit-faithful)")
 
