@@ -178,23 +178,33 @@ khoi_dong_ssh() {
 # Rot mang: ssh tra 255 (khac Ctrl+C = 130, o xong = 0) -> tu noi lai moi 5 giay, in tiep 20
 # dong cuoi roi theo doi tiep; o tren Colab khong bi anh huong. Chuoi "04 06" vi vay khong bi dut.
 # Colab chi cho MOT phien ssh moi may: ket noi cu chet ma phia Colab chua biet -> tu choi ket noi
-# moi (HTTP 429) toi khi no tu don -> cho gian dan 5, 10, ... 30 giay, bo sau 10 phut.
+# moi (HTTP 429) toi khi no tu don -> cho gian dan 5, 10, ... 30 giay; bo sau 10 phut KE TU LUC
+# BAT DAU mat ket noi. "Da noi duoc" = nhan duoc it nhat mot byte log (khong dua vao thoi gian:
+# mang co wifi ma khong ra internet thi mot lan noi THAT BAI cung co the keo dai > 1 phut).
+co_du_lieu() {  # chep stdin -> stdout, byte dau tien thi tao tep $1
+  local c
+  IFS= read -r -N 1 c || return 0
+  : > "$1"; printf '%s' "$c"; exec cat
+}
 xem() {
-  local rc lan=0 them="" cho bd=$SECONDS
+  local rc lan=0 them="" cho bd ok
+  ok=$(mktemp)
   echo "== Log trực tiếp ô $1 · Ctrl+C để về menu (ô vẫn chạy tiếp) =="
   while true; do
-    NGAT=0
-    ssh_colab "python3 $LOGD/fz_may.py theo_doi $1 $2 $them"
-    rc=$?
-    [ $NGAT = 1 ] && return 130
-    [ $rc = 255 ] || return $rc
+    NGAT=0; rm -f "$ok"
+    ssh_colab "python3 $LOGD/fz_may.py theo_doi $1 $2 $them" | co_du_lieu "$ok"
+    rc=${PIPESTATUS[0]}
+    [ $NGAT = 1 ] && { rm -f "$ok"; return 130; }
+    [ $rc = 255 ] || { rm -f "$ok"; return $rc; }
+    [ -f "$ok" ] && lan=0                          # vua xem duoc roi moi dut -> dem lai
+    [ $lan = 0 ] && bd=$SECONDS
     lan=$((lan + 1))
-    if [ $((SECONDS - bd)) -gt 600 ]; then echo "[!] Mất kết nối hơn 10 phút -- về menu (ô vẫn chạy; xem lại: l)"; return $rc; fi
+    if [ $((SECONDS - bd)) -gt 600 ]; then rm -f "$ok"; echo "[!] Mất kết nối hơn 10 phút -- về menu (ô vẫn chạy; xem lại: l)"; return $rc; fi
     cho=$((lan * 5)); [ $cho -gt 30 ] && cho=30
     echo
     echo "[mất kết nối tới máy Colab -- nối lại sau $cho giây (lần $lan) · ô trên Colab VẪN CHẠY, chỉ phần xem bị gián đoạn · Ctrl+C = về menu]"
-    sleep $cho || return 130
-    [ $NGAT = 1 ] && return 130
+    sleep $cho || { rm -f "$ok"; return 130; }
+    [ $NGAT = 1 ] && { rm -f "$ok"; return 130; }
     # Ban fz_may.py tren may co the cu (khong biet doi so thu 3): gui ban moi truoc. O dang chay
     # khong dung tep nay nen ghi de an toan.
     [ -f "$MAY" ] && ssh_colab "mkdir -p $LOGD && cat > $LOGD/fz_may.py" < "$MAY" 2>/dev/null
@@ -261,6 +271,7 @@ chay_o() {
   fi
   pid=$(sed -n 's/^FZ_PID=//p' <<<"$out")
   if [ -z "$pid" ]; then echo "$out"; echo "[!] Không khởi động được ô $id"; return 2; fi
+  FZ_O_PID=$pid
   xem "$id" "$pid" || return 1
   tai_theo_o "$id"
   return 0
@@ -268,11 +279,24 @@ chay_o() {
 
 # Muc l: xem tiep log o chay nen gan nhat.
 log_truc_tiep() {
-  local dc id pid
+  local dc id pid cho con x
   dc=$(ssh_colab "cat $LOGD/dang_chay 2>/dev/null")
   read -r id pid <<<"$dc"
   if [ -z "$id" ]; then echo "(chưa có ô nào chạy nền trên máy này)"; dung; return; fi
-  xem "$id" "$pid" && tai_theo_o "$id"
+  { read -r cho; read -r con; } < "$(CHUOI)" 2>/dev/null
+  if [ -n "$con" ] && [ "$cho" != "$id $pid" ]; then
+    rm -f "$(CHUOI)"; con=                       # chuoi cu cua o khac -- bo
+  fi
+  [ -n "$con" ] && echo "(chuỗi đang chờ: ô $id xong thì chạy $con)"
+  if xem "$id" "$pid"; then
+    tai_theo_o "$id"
+    if [ -n "$con" ]; then
+      rm -f "$(CHUOI)"
+      echo
+      read -rp "Ô $id xong. Chạy tiếp chuỗi: $con? (Enter = chạy, n = bỏ): " x
+      if [ "$x" != n ]; then chay_cac_o $con; fi
+    fi
+  fi
   dung
 }
 
@@ -676,15 +700,29 @@ EOF
 }
 
 # Chay lan luot cac o $@; dung chuoi khi nguoi dung Ctrl+C / huy.
+# Chuoi o dang cho (vd "04 06 07" ma ve menu giua 04 -- Ctrl+C hay mat ket noi lau): ~/.fz_tk/
+# .chuoi_<tai khoan>_<phien> = dong 1 "<o> <pid>" o dang chay nen, dong 2 cac o con lai. Menu l
+# xem o do toi khi xong roi hoi chay tiep phan con lai.
+CHUOI() { echo "$TKG/.chuoi_$(ten_tk "$TK")_$S"; }
 chay_cac_o() {
-  local id f
+  local id f i=0 con
+  rm -f "$(CHUOI)"
   for id in "$@"; do
+    i=$((i + 1))
     f=$(ls "$D"/"$id"_*.py 2>/dev/null | head -1)
     if [ -z "$f" ]; then echo "[!] Không có ô $id"; continue; fi
     chay_o "$f"
     case $? in
       0) ;;
-      1) echo; echo "[về -- ô $id vẫn chạy nền; xem lại: fz -> l]"; return 1 ;;
+      1) con="${*:i+1}"
+         echo
+         if [ -n "$con" ]; then
+           mkdir -p "$TKG" && printf '%s %s\n%s\n' "$id" "$FZ_O_PID" "$con" > "$(CHUOI)"
+           echo "[về -- ô $id vẫn chạy nền. Chuỗi còn: $con -- fz -> l: xem $id tới khi xong rồi chạy tiếp]"
+         else
+           echo "[về -- ô $id vẫn chạy nền; xem lại: fz -> l]"
+         fi
+         return 1 ;;
       *) echo; echo "[dừng -- các ô sau không chạy]"; return 1 ;;
     esac
   done
@@ -698,6 +736,10 @@ while true; do
   gen=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^GEN_CURRENT *= *\([0-9]*\).*/\1/p')
   echo "======== FairyZero trên Colab ========"
   echo " Tài khoản: $(ten_tk "$TK")   ·   Phiên: $S   ·   Đời: ${gen:-?}"
+  if [ -f "$(CHUOI)" ]; then
+    { read -r x; read -r y; } < "$(CHUOI)"
+    echo " Chuỗi đang chờ: ô ${x%% *} xong thì chạy $y  (l = xem rồi chạy tiếp)"
+  fi
   echo " Ô lệnh: Download/FairyZero/o_lenh"
   echo "--------------------------------------"
   files=()
