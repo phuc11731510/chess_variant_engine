@@ -175,8 +175,10 @@ khoi_dong_ssh() {
 # Tra ve 0 = o da ket thuc, khac 0 = Ctrl+C (o van chay tiep).
 # Rot mang: ssh tra 255 (khac Ctrl+C = 130, o xong = 0) -> tu noi lai moi 5 giay, in tiep 20
 # dong cuoi roi theo doi tiep; o tren Colab khong bi anh huong. Chuoi "04 06" vi vay khong bi dut.
+# Colab chi cho MOT phien ssh moi may: ket noi cu chet ma phia Colab chua biet -> tu choi ket noi
+# moi (HTTP 429) toi khi no tu don -> cho gian dan 5, 10, ... 30 giay, bo sau 10 phut.
 xem() {
-  local rc lan=0 them=""
+  local rc lan=0 them="" cho bd=$SECONDS
   echo "== Log trực tiếp ô $1 · Ctrl+C để về menu (ô vẫn chạy tiếp) =="
   while true; do
     NGAT=0
@@ -185,10 +187,11 @@ xem() {
     [ $NGAT = 1 ] && return 130
     [ $rc = 255 ] || return $rc
     lan=$((lan + 1))
-    if [ $lan -gt 120 ]; then echo "[!] Mất kết nối hơn 10 phút -- về menu (ô vẫn chạy; xem lại: l)"; return $rc; fi
+    if [ $((SECONDS - bd)) -gt 600 ]; then echo "[!] Mất kết nối hơn 10 phút -- về menu (ô vẫn chạy; xem lại: l)"; return $rc; fi
+    cho=$((lan * 5)); [ $cho -gt 30 ] && cho=30
     echo
-    echo "[mất kết nối tới máy Colab -- nối lại sau 5 giây (lần $lan) · Ctrl+C = về menu, ô vẫn chạy]"
-    sleep 5 || return 130
+    echo "[mất kết nối tới máy Colab -- nối lại sau $cho giây (lần $lan) · ô trên Colab VẪN CHẠY, chỉ phần xem bị gián đoạn · Ctrl+C = về menu]"
+    sleep $cho || return 130
     [ $NGAT = 1 ] && return 130
     # Ban fz_may.py tren may co the cu (khong biet doi so thu 3): gui ban moi truoc. O dang chay
     # khong dung tep nay nen ghi de an toan.
@@ -447,19 +450,22 @@ tai_ve() {
 # xem lai bang `l` thi khong tai lai, nhung lan chay truoc chua tai (Ctrl+C, loi ssh) thi tai bu.
 tai_theo_o() {
   local ra ds f dau da loi=0 tep
+  # Chi hoi Colab khi o tren dien thoai co FZ_TAI_VE (khoi mot lan ssh cho moi o khac).
+  tep=$(ls "$D/$1"_*.py 2>/dev/null | head -1)
+  if [ -z "$tep" ] || ! doc "$tep" | grep -q FZ_TAI_VE; then
+    if [ "$1" = 06 ]; then
+      echo; echo "[!] Ô 06 trên điện thoại là bản CŨ (không tự tải zip). Cập nhật: bash ~/lay_ve.sh 06"
+      echo "    Zip vẫn nằm trên Colab -- tải tay: fz -> d"
+    fi
+    return 0
+  fi
   ra=$(ssh_colab "printf '%s\n' \"\$(head -1 $LOGD/$1.log 2>/dev/null)\" \"\$(cat $LOGD/$1.da_tai 2>/dev/null)\"; sed -n 's/^FZ_TAI_VE=//p' $LOGD/$1.log 2>/dev/null") ||
     { echo "[!] Không đọc được log ô $1 qua ssh -- không tải về được. Thử lại: fz -> l"; return 1; }
   mapfile -t ds <<<"$ra"
   dau=${ds[0]:-}; da=${ds[1]:-}; ds=("${ds[@]:2}")   # $(..) bo dong trong cuoi -> co the thieu
   [ -z "${ds[*]}" ] && ds=()
   if [ ${#ds[@]} -eq 0 ]; then
-    tep=$(ls "$D/$1"_*.py 2>/dev/null | head -1)
-    if [ -n "$tep" ] && doc "$tep" | grep -q FZ_TAI_VE; then
-      echo; echo "[!] Ô $1 không yêu cầu tải gì (không có dòng FZ_TAI_VE trong log -- ô lỗi?)."
-    elif [ "$1" = 06 ]; then
-      echo; echo "[!] Ô 06 trên điện thoại là bản CŨ (không tự tải zip). Cập nhật: bash ~/lay_ve.sh 06"
-      echo "    Zip vẫn nằm trên Colab -- tải tay: fz -> d"
-    fi
+    echo; echo "[!] Ô $1 không yêu cầu tải gì (không có dòng FZ_TAI_VE trong log -- ô lỗi?)."
     return 0
   fi
   if [ -n "$dau" ] && [ "$da" = "$dau" ]; then
