@@ -247,6 +247,10 @@ ghi_bien() {
 hoi_tham_so() {
   local f=$1 id x g sc ra=() dong ten cau cu kv
   id=$(basename "$f"); id=${id%%_*}
+  if [ "$id" = 04 ] && ! doc "$f" | grep -q '^# fz: che_do_sinh'; then
+    echo "[!] Ô 04 trên điện thoại là bản CŨ -- chưa có chọn chế độ (hạn mức T4 / số ván / tự đặt)." >&2
+    echo "    Cập nhật: bash ~/lay_ve.sh 04  (ghi đè ô 04; tham số khác bạn đã sửa thì sửa lại)" >&2
+  fi
   if doc "$f" | grep -q '^# fz: che_do_sinh'; then
     g=$(gia_tri "$f" GAMES); sc=$(gia_tri "$f" SECS)
     {
@@ -428,9 +432,15 @@ kiem_secs() {
   [ "$secs" -le "$goi" ] && return 0
   echo "[!] SECS = $secs (≈ $((secs / 60)) phút) nhưng hạn mức chỉ còn đủ cho SECS ≈ $goi (≈ $((goi / 60)) phút,"
   echo "    đã trừ 15 phút gom zip + tải về). Colab sẽ ngắt máy khi hết hạn mức -> 06 không kịp chạy."
-  echo "    Sửa SECS ở ô 04, hoặc chạy tiếp."
-  read -rp "    Vẫn chạy với SECS = $secs? Gõ 'co' (Enter = huỷ): " x
-  [ "$x" = co ]
+  echo "  1   Dùng SECS = $goi (vừa hạn mức) -- lưu vào ô"
+  echo "  co  Vẫn chạy với SECS = $secs"
+  echo "  Enter = huỷ"
+  read -rp "  Chọn: " x
+  case "$x" in
+    1) ghi_bien "$1" SECS "$goi" && echo "[đã lưu] SECS = $goi" ;;
+    co) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 # Muc a: cac tai khoan Colab. Tai khoan chinh = ~/.config/colab-cli, tai khoan phu <ten> =
