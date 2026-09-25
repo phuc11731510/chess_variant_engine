@@ -4,6 +4,12 @@
 !bash {E}/scripts/colab_setup.sh 2>&1
 !bash {E}/scripts/colab_prebuilt.sh wrap
 print()
-print("Binary moi o:", E + "/build-linux/custom_engine")
-print(f"Tai ve dien thoai: menu fz -> d -> {E}/build-linux/custom_engine")
-print("roi dua len GitHub Release (ten dung: custom_engine) de lan sau khoi bien dich.")
+import os
+BIN = E + "/build-linux/custom_engine"
+if os.path.exists(BIN):
+    print("Binary moi o:", BIN)
+    # Menu fz tu tai binary ve Download/FairyZero; dua no len GitHub Release (ten dung:
+    # custom_engine, thay tep cu) de may Colab sau khoi bien dich (o 02 tai tu Release).
+    print(f"FZ_TAI_VE={BIN}")
+else:
+    print("[!] Bien dich loi -- khong co binary")

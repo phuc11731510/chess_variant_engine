@@ -606,8 +606,14 @@ Menu hỏi **số ván** (Enter = số đang ghi, mặc định 100; số gõ đ
 khoảng ±8 điểm phần trăm; phát hiện chênh ~50 Elo cần 400-1000 ván. Ô chạy với
 `--search-opt max-prefetch=0` như ô 04 (nhanh hơn).
 
-Arena chậm hơn sinh dữ liệu (~1600 so với ~2750 nps) là **thật**, không phải lỗi hiển thị: sinh dữ
-liệu chơi 4 ván song song (`--parallel 4`) nên GPU nhận lô đầy hơn; arena chơi từng ván một.
+Arena trước đây chậm hơn sinh dữ liệu (~1600 so với ~2750 nps) là **thật**, không phải lỗi hiển
+thị: sinh dữ liệu chơi 4 ván song song nên GPU nhận lô đầy hơn, arena chơi từng ván một. Từ
+2026-09-25 engine có **arena song song** (`--parallel 4` trong ô 08; ván thứ g vẫn cho A cầm Trắng khi
+g chẵn, nên màu vẫn cân dù các ván xong không theo thứ tự). Log in `[arena] 4 games in parallel`,
+mỗi dòng ván ghi `(#g)` = số ván gốc. Không thấy dòng đó = binary trên Release là bản cũ (vẫn chạy,
+từng ván một): chạy **02 rồi 02b** một lần — 02b biên dịch từ mã mới (~10 phút) và menu **tự tải
+binary về** `Download/FairyZero/custom_engine`; đưa tệp đó lên GitHub Release `v3.0.0` (thay tệp
+`custom_engine` cũ) để máy sau khỏi biên dịch.
 
 ### Trả máy
 

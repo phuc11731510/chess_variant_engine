@@ -62,6 +62,16 @@ void TestParseCli() {
                    o.sp_games == 400 && o.sp_visits == 200,
                "notebook arena command");
     }
+    // The arena command of the Colab cell 08 (parallel games, no prefetch).
+    {
+        const auto o = Parse({"--arena", "--model-a", "a.onnx", "--model-b", "b.onnx", "--games", "100",
+                              "--visits", "400", "--temp-cutoff", "32", "--provider", "cuda",
+                              "--fixed-batch", "16", "--max-moves", "400", "--show-nps",
+                              "--search-opt", "max-prefetch=0", "--parallel", "4"});
+        EXPECT(o.errors.empty() && o.arena_mode && o.sp_games == 100 && o.sp_parallel == 4 &&
+                   o.sp_search_opts.size() == 1,
+               "cell 08 arena command (--parallel, --search-opt)");
+    }
     // Other documented forms.
     for (const auto& args : std::vector<std::vector<std::string>>{
              {"--selfplay", "--resign-threshold", "-0.90", "--resign-consecutive", "3",
