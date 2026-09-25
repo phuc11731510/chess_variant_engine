@@ -653,7 +653,7 @@ mạng. Từng phần:
 |---|---|
 | Ô chạy nền (04, 06, 07…) | Chạy tiếp bình thường, log vẫn ghi trên Colab |
 | Giữ máy (keep-alive, 60 giây/lần) | Lỗi mạng chỉ bị bỏ qua và thử lại lần sau; 30 giây = lỡ tối đa một lần. Chỉ dừng khi Colab trả lỗi 4xx hai lần liền (hết hạn đăng nhập) |
-| Xem log trực tiếp | ssh tự phát hiện đường truyền chết sau ~60 giây (`ServerAliveInterval`); mạng về kịp thì xem tiếp như không có gì. Đứt hẳn: menu in `[mất kết nối … nối lại sau 5 giây]`, tự nối lại (tới 10 phút), in 20 dòng log cuối rồi xem tiếp. **Chuỗi `04 06` không bị dứt** — nối lại xong, 04 kết thúc thì 06 vẫn chạy. Ctrl+C lúc này = về menu |
+| Xem log trực tiếp | ssh tự phát hiện đường truyền chết sau ~60 giây (`ServerAliveInterval`). Menu in `[mất kết nối … nối lại sau N giây]` và tự nối lại, chờ giãn dần 5 → 30 giây (Colab chỉ cho một phiên ssh; phiên cũ chưa được dọn thì báo `HTTP 429`), in 20 dòng log cuối rồi xem tiếp. Chỉ bỏ cuộc khi mất kết nối **liên tục** hơn 10 phút (tính từ lúc bắt đầu mất, không phải từ lúc bắt đầu xem). **Chuỗi `04 06` không bị dứt.** Lỡ về menu giữa chuỗi (Ctrl+C / mất kết nối quá lâu): menu nhớ phần còn lại (dòng đầu menu: `Chuỗi đang chờ …`) — `l` xem ô đó tới khi xong rồi hỏi chạy tiếp (Enter = chạy, `n` = bỏ) |
 | Khởi động ô (`colab exec`) | `Connection was lost` → tự thử lại 3 lần (mục 13) |
 | Tải về (`d`, ô 06 tự tải) | Đứt giữa chừng → bỏ phần dở, tự tải lại (3 lần). Vẫn lỗi: `l` tải bù / `d` |
 | Ô nhanh (01, 05, 09) | Lỗi thì chạy lại |
