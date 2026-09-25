@@ -15,6 +15,7 @@ MOI), khong gan kernel cu (lan exec sau tu mo kernel moi), roi bat lai keep-aliv
   python ~/fz_nhan_may.py cuu <ten>      # phien bi xoa ma may (endpoint da ghi) con -> nhan lai
   python ~/fz_nhan_may.py nhan <ten> <endpoint>   # nhan may <endpoint> lam phien <ten>
   python ~/fz_nhan_may.py liet_ke        # may dang giu: endpoint, GPU, ten tren dien thoai
+  python ~/fz_nhan_may.py con <ten>      # 0 = phien <ten> co va may cua no CON chay (khong tao gi)
 Ma thoat: 0 = phien dung duoc, 1 = khong (may mat / khong co), 2 = loi mang / dang nhap.
 """
 import inspect
@@ -138,6 +139,16 @@ def cuu(ten):
     return nhan(ten, endpoint, ds)
 
 
+def con(ten):
+    s = state.store.get(ten)
+    if s is None:
+        return 1
+    ds = may_dang_giu()
+    if ds is None:
+        return 2
+    return 0 if s.endpoint in ds else 1
+
+
 def liet_ke():
     ds = may_dang_giu()
     if ds is None:
@@ -154,8 +165,8 @@ def liet_ke():
 
 if __name__ == "__main__":
     a = sys.argv[1:]
-    if len(a) == 2 and a[0] in ("kiem", "cuu"):
-        sys.exit({"kiem": kiem, "cuu": cuu}[a[0]](a[1]))
+    if len(a) == 2 and a[0] in ("kiem", "cuu", "con"):
+        sys.exit({"kiem": kiem, "cuu": cuu, "con": con}[a[0]](a[1]))
     if len(a) == 3 and a[0] == "nhan":
         sys.exit(nhan(a[1], a[2]))
     if a and a[0] == "liet_ke":
