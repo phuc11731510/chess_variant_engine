@@ -329,6 +329,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
    --------------------------------------
     m    Xin máy T4 (tên 'fz')
     p    Chọn máy / đặt tên máy mới (chạy nhiều máy cùng lúc)
+    g    Đổi đời mạng GEN_CURRENT (hiện 0): + / - / số
     c    Xin máy CPU (thử nghiệm, không tốn hạn mức T4)
     l    Log trực tiếp ô đang chạy nền
     k    Xem máy đang giữ
@@ -355,6 +356,7 @@ Các mục chữ của menu:
 | Chọn | Việc | Tương đương lệnh |
 |---|---|---|
 | `m` | Xin máy T4 tên của cửa sổ này (mặc định `fz`); từ chối nếu tên đó đang là máy còn chạy | `colab new -s <tên> --gpu T4` |
+| `g` | Đổi đời mạng `GEN_CURRENT` trong `00_cau_hinh.py`: `+` = tăng 1, `-` = giảm 1, gõ số = đặt đúng số đó (ghi thẳng vào tệp) | `sed` trên tệp ô 00 |
 | `p` | Chọn máy / đặt tên máy mới — nhiều máy cùng lúc (mục 4.1) | `colab sessions` |
 | `c` | Xin máy **CPU** — để thử menu / ô mà không tốn hạn mức T4 (ô 04, 07, 08 cần GPU sẽ lỗi) | `colab new -s fz` |
 | `l` | Log trực tiếp ô chạy nền gần nhất (từ đầu), Ctrl+C để về menu | `ssh … tail -F` |
@@ -526,9 +528,19 @@ Menu `fz` → chọn **`03`** (gõ tắt: `o 03`).
 
 ### Ô 04 — sinh dữ liệu · theo `SECS`
 
-Sửa tham số trong `04_sinh_du_lieu.py` nếu muốn, rồi:
+Sửa tham số khác trong `04_sinh_du_lieu.py` nếu muốn, rồi menu `fz` → chọn **`04`** (gõ tắt:
+`o 04`). Menu hỏi **chế độ** (số chọn được **ghi luôn vào ô** — lần sau Enter là dùng lại):
 
-Menu `fz` → chọn **`04`** (gõ tắt: `o 04`).
+| Gõ | GAMES (số ván) | SECS (giới hạn giây) |
+|---|---|---|
+| `1` | 1000 | lúc **hết hạn mức T4 − 15 phút** — tính ngay lúc ô 04 bắt đầu chạy (sau 02 trong chuỗi `02 04 06` cũng đúng) |
+| `2` | bạn gõ | 10000 |
+| `3` | bạn gõ | bạn gõ |
+| Enter | giữ số đang ghi trong ô | giữ số đang ghi trong ô |
+
+Chạy chuỗi (vd `04 06 07 08`): menu hỏi hết các câu **trước** khi chạy ô đầu, nên chuỗi không dừng
+giữa chừng chờ bạn. 15 phút chừa lại gồm: engine chơi nốt ván đang dở (~2-3 phút), ô 06 gom zip, tải
+zip về.
 
 Màn hình log hiện lệnh đầy đủ rồi log của engine chạy ra liên tục. Ctrl+C để về menu (selfplay vẫn
 chạy), có thể thoát Termux; xem lại: menu `l`.
@@ -582,15 +594,20 @@ trong `07_huan_luyen.py` nếu muốn (`--epochs`, `--lr`, `DATA`, …), rồi:
 
 Menu `fz` → chọn **`07`** (gõ tắt: `o 07`).
 
-Log huấn luyện hiện trực tiếp. Xong thì tải mạng mới về: menu **`d`** → `/content/gen1.onnx`, rồi
-lại **`d`** → `/content/gen1.pt`.
+Log huấn luyện hiện trực tiếp. Xong thì menu **tự tải `gen1.onnx` và `gen1.pt` về**
+`Download/FairyZero/` (trùng tên → `gen1 (2).onnx`, không ghi đè). Xem ô 07 tới cuối; Ctrl+C giữa
+chừng thì `l` tải bù.
 
 ### Ô 08 — arena · ~30 phút (tuỳ chọn)
 
 Menu `fz` → chọn **`08`** (gõ tắt: `o 08`).
 
-48 ván vẫn sai số lớn (hàng trăm Elo); phát hiện chênh
-~50 Elo cần 400-1000 ván — sửa `--games`, `--visits` trong ô.
+Menu hỏi **số ván** (Enter = số đang ghi, mặc định 100; số gõ được ghi vào ô). 100 ván: sai số
+khoảng ±8 điểm phần trăm; phát hiện chênh ~50 Elo cần 400-1000 ván. Ô chạy với
+`--search-opt max-prefetch=0` như ô 04 (nhanh hơn).
+
+Arena chậm hơn sinh dữ liệu (~1600 so với ~2750 nps) là **thật**, không phải lỗi hiển thị: sinh dữ
+liệu chơi 4 ván song song (`--parallel 4`) nên GPU nhận lô đầy hơn; arena chơi từng ván một.
 
 ### Trả máy
 

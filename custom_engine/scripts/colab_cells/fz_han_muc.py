@@ -14,13 +14,21 @@ Hỏi hai nơi, bằng thông tin đăng nhập sẵn có của Colab CLI (~/.co
      hỏi; có thể trả 403 vì token Colab CLI cấp cho ứng dụng đăng nhập khác (của gcloud).
   python ~/fz_han_muc.py [--may T4|CPU]   # in tóm tắt (--may: loại máy đang giữ, menu tự truyền)
   python ~/fz_han_muc.py --raw    # in nguyên câu trả lời của cả hai nơi (để kiểm)
+  python ~/fz_han_muc.py --may T4 --giay-t4   # chỉ in số GIÂY T4 còn chạy được (menu dùng cho ô 04)
 """
 import json
+import os
 import sys
 import time
 from urllib.parse import urljoin
 
 T4_UOC_TINH = 1.07  # CCU/giờ của một máy T4, đo trên tài khoản này (colab usage) 2026-09-24
+TRU_HAO = 15 * 60   # giây chừa lại cho ô 06 (gom zip) + tải về, trước khi hết hạn mức
+
+# --giay-t4: chỉ in một số (giây T4 còn chạy được) ra stdout thật, còn lại im lặng.
+CHI_GIAY = "--giay-t4" in sys.argv
+if CHI_GIAY:
+    sys.stdout = open(os.devnull, "w")
 
 try:
     from colab_cli.common import state
@@ -111,5 +119,9 @@ if nap:
     print(f"Nạp lại lúc:   {time.strftime('%H:%M %d/%m', time.localtime(int(nap)))}"
           + (f" (sau {gio_phut(con / 3600)})" if con > 0 else ""))
 if h is not None:
-    print(f"Gợi ý SECS ô 04 (trên T4): {max(0, int(h * 3600) - 20 * 60)}"
-          f" (= thời gian GPU còn lại - 20 phút để gom zip + tải về)")
+    print(f"Gợi ý SECS ô 04 (trên T4): {max(0, int(h * 3600) - TRU_HAO)}"
+          f" (= thời gian GPU còn lại - {TRU_HAO // 60} phút để gom zip + tải về)")
+if CHI_GIAY:
+    if h is None:
+        sys.exit(1)
+    print(int(h * 3600), file=sys.__stdout__)
