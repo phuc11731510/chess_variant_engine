@@ -13,5 +13,12 @@ cmd = f"""python {E}/python/train.py \
 
 print(cmd)
 !{cmd}
-!ls -la {NEXT_ONNX} {NEXT_PT}
-print(f"Tai ve dien thoai: menu fz -> d -> {NEXT_ONNX} (roi {NEXT_PT})")
+import os
+if _exit_code == 0 and os.path.exists(NEXT_ONNX) and os.path.exists(NEXT_PT):
+    !ls -la {NEXT_ONNX} {NEXT_PT}
+    # Menu fz đọc các dòng FZ_TAI_VE=: tải mạng đời mới về Download/FairyZero khi ô xong
+    # (đã có tệp cùng tên -> "gen1 (2).onnx", không ghi đè).
+    print(f"FZ_TAI_VE={NEXT_ONNX}")
+    print(f"FZ_TAI_VE={NEXT_PT}")
+else:
+    print("[!] Huấn luyện lỗi -- không tải về")

@@ -67,6 +67,8 @@ EOF
 
 # Xem log truc tiep can ssh + khoa ca nhan (colab ssh dua khoa len may Colab).
 command -v ssh >/dev/null || pkg install -y openssh
+# Thanh tien do (%, toc do, con bao lau) khi tai len / tai ve qua menu.
+command -v pv >/dev/null || pkg install -y pv
 [ -f ~/.ssh/id_ed25519 ] || ssh-keygen -t ed25519 -N "" -q -f ~/.ssh/id_ed25519
 
 # Chia se tep tu ung dung khac (MT Manager, Files) -> Termux -> "Edit": Termux chep tep vao

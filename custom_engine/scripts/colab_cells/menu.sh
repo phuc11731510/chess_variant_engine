@@ -225,6 +225,105 @@ xem() {
 
 # Chay o tep $1: nhanh thi chay thang; con lai thi chay nen + xem log.
 # Tra ve 0 = o ket thuc; 1 = Ctrl+C khi dang xem (o VAN chay nen); 2 = khong khoi dong / huy.
+# Gia tri "TEN = ..." dang ghi trong tep o $1.
+gia_tri() { doc "$1" | sed -n "s/^$2[[:space:]]*=[[:space:]]*\([^ #]*\).*/\1/p" | head -1; }
+so_nguyen() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$((10#$1))" -gt 0 ]; }
+# Ghi "TEN = so" vao dong "TEN = <so>" DAU TIEN cua tep $1 (giu chu thich va \r cuoi dong neu co):
+# lan sau mo fz van la so nay. 0 = ghi duoc.
+ghi_bien() {
+  sed -i -E "0,/^$2[[:space:]]*=[[:space:]]*[0-9]+/s//$2 = $3/" "$1" 2>/dev/null
+  [ "$(gia_tri "$1" "$2")" = "$3" ] && return 0
+  local o=${1##*/}; o=${o%%_*}
+  echo "[!] Không ghi được $2 = $3 vào ${1##*/} -- tệp thiếu dòng '$2 = <số>' (ô bản cũ? cập nhật: bash ~/lay_ve.sh $o)" >&2
+  return 1
+}
+
+# Hoi tham so cua o $1 (tep) TRUOC khi chay chuoi va GHI NGAY vao tep o (lan sau mo fz van giu).
+# Dong trong o:
+#   # fz: che_do_sinh          -> 3 che do SECS / GAMES (o 04)
+#   # fz: hoi TEN cau hoi      -> hoi mot so nguyen cho bien TEN (vd GAMES o 08)
+# In "SECS=@T4" neu chon "het han muc T4 - 15 phut": so giay tinh LUC o bat dau chay (chay_o),
+# khong phai luc hoi, roi moi ghi vao tep.
+hoi_tham_so() {
+  local f=$1 id x g sc ra=() dong ten cau cu kv
+  id=$(basename "$f"); id=${id%%_*}
+  if doc "$f" | grep -q '^# fz: che_do_sinh'; then
+    g=$(gia_tri "$f" GAMES); sc=$(gia_tri "$f" SECS)
+    {
+      echo
+      echo "== Ô $id: $(tieu_de "$f") -- chọn chế độ (trong tệp: GAMES=${g:-?}, SECS=${sc:-?}) =="
+      echo " 1  Tối đa theo hạn mức T4: GAMES=1000, SECS = lúc hết hạn mức T4 - 15 phút"
+      echo " 2  Tự chọn số ván, SECS=10000"
+      echo " 3  Tự đặt cả số ván và SECS"
+      echo " Enter = dùng số trong tệp"
+    } >&2
+    read -rp "Chọn: " x
+    case "$x" in
+      1) ra+=(GAMES=1000 SECS=@T4) ;;
+      2) read -rp "Số ván (GAMES): " g; so_nguyen "$g" || { echo "[!] Không phải số" >&2; return 1; }
+         ra+=(GAMES=$((10#$g)) SECS=10000) ;;
+      3) read -rp "Số ván (GAMES): " g; so_nguyen "$g" || { echo "[!] Không phải số" >&2; return 1; }
+         read -rp "Giây (SECS): " sc; so_nguyen "$sc" || { echo "[!] Không phải số" >&2; return 1; }
+         ra+=(GAMES=$((10#$g)) SECS=$((10#$sc))) ;;
+      "") ;;
+      *) echo "[!] Chọn 1, 2, 3 hoặc Enter" >&2; return 1 ;;
+    esac
+  fi
+  # fd 3: read ben trong doc tu ban phim (stdin), khong tu danh sach cau hoi.
+  while IFS= read -r dong <&3; do
+    ten=${dong%% *}; cau=${dong#* }
+    cu=$(gia_tri "$f" "$ten")
+    read -rp "Ô $id -- $cau (Enter = $cu): " x
+    [ -z "$x" ] && continue
+    so_nguyen "$x" || { echo "[!] Không phải số" >&2; return 1; }
+    ra+=("$ten=$((10#$x))")
+  done 3< <(doc "$f" | sed -n 's/^# fz: hoi \([A-Z_][A-Z0-9_]*\) \(.*\)$/\1 \2/p')
+  for kv in "${ra[@]}"; do
+    [ "$kv" = SECS=@T4 ] && { echo SECS=@T4; continue; }
+    ghi_bien "$f" "${kv%%=*}" "${kv#*=}" || return 1
+    echo "[đã lưu] ô $id: ${kv%%=*} = ${kv#*=}" >&2
+  done
+}
+
+# SECS=@T4 -> so giay: thoi gian T4 con chay duoc (h) - 15 phut. Loi -> tra 1.
+giay_t4() {
+  local may g
+  may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
+  g=$(py_colab ~/fz_han_muc.py --may "$may" --giay-t4 2>/dev/null) || return 1
+  [[ "$g" =~ ^[0-9]+$ ]] || return 1
+  g=$((g - 15 * 60))
+  [ $g -gt 0 ] || { echo "[!] Hạn mức T4 còn dưới 15 phút" >&2; return 1; }
+  echo $g
+}
+
+# Muc g: doi GEN_CURRENT trong 00_cau_hinh.py (ghi thang vao tep -- moi o sau doc dung so do).
+doi_doi() {
+  local f=$D/00_cau_hinh.py gen x moi
+  gen=$(gia_tri "$f" GEN_CURRENT)
+  [[ "$gen" =~ ^[0-9]+$ ]] || { echo "[!] Không thấy dòng 'GEN_CURRENT = <số>' trong 00_cau_hinh.py"; return; }
+  echo "== Đời mạng hiện tại: GEN_CURRENT = $gen (00_cau_hinh.py) =="
+  echo " +      = tăng lên $((gen + 1))"
+  echo " -      = giảm xuống $((gen - 1))"
+  echo " <số>   = đặt đúng số đó"
+  echo " Enter  = giữ nguyên"
+  read -rp "Chọn: " x
+  case "$x" in
+    "") return ;;
+    +) moi=$((gen + 1)) ;;
+    -) moi=$((gen - 1)) ;;
+    *) [[ "$x" =~ ^[0-9]+$ ]] || { echo "[!] Gõ +, - hoặc một số"; return; }; moi=$((10#$x)) ;;
+  esac
+  [ $moi -ge 0 ] || { echo "[!] Đời không âm"; return; }
+  # Chi thay so (giu chu thich, \r cuoi dong neu tep sua tren dien thoai co).
+  sed -i -E "0,/^GEN_CURRENT[[:space:]]*=[[:space:]]*[0-9]+/s//GEN_CURRENT = $moi/" "$f"
+  gen=$(gia_tri "$f" GEN_CURRENT)
+  if [ "$gen" = "$moi" ]; then
+    echo "[xong] GEN_CURRENT = $moi -> ô chạy sau dùng gen$moi.onnx / gen$moi.pt, sinh vào games_gen$moi, huấn luyện ra gen$((moi + 1))"
+  else
+    echo "[!] Ghi không được (đang là '$gen') -- sửa tay 00_cau_hinh.py"
+  fi
+}
+
 # Giu may cua phien $S (~/fz_nhan_may.py, xem dau tep do): Colab CLI XOA phien va TAT keep-alive
 # khi colab exec gap loi 404/401 -- ca khi may van song (vd kernel cu chet). kiem_may: phien con
 # thi bat lai keep-alive neu no chet + ghi endpoint; cuu_phien: phien vua bi xoa ma may con -> nhan
@@ -233,7 +332,13 @@ kiem_may() { [ -f ~/fz_nhan_may.py ] && py_colab ~/fz_nhan_may.py kiem "$S"; }
 cuu_phien() { [ -f ~/fz_nhan_may.py ] && py_colab ~/fz_nhan_may.py cuu "$S"; }
 
 chay_o() {
-  local f=$1 id out pid ban x lan qua
+  local f=$1 id out pid ban x lan qua g
+  if [ "${2:-}" = SECS=@T4 ]; then
+    echo "[hạn mức] Tính SECS theo hạn mức T4 còn lại..."
+    g=$(giay_t4) || { echo "[!] Không tính được thời gian T4 còn lại -- không chạy ô"; return 2; }
+    ghi_bien "$f" SECS "$g" || return 2
+    echo "[hạn mức] SECS = $g (≈ $((g / 60)) phút, đã trừ 15 phút cho gom zip + tải về) -- đã lưu vào ô"
+  fi
   id=$(basename "$f"); id=${id%%_*}
   echo
   echo "====== Ô $id: $(tieu_de "$f") ======"
@@ -250,7 +355,7 @@ chay_o() {
     return 0
   fi
   kiem_may >/dev/null
-  kiem_secs "$f" || return 2
+  [ "${2:-}" = SECS=@T4 ] || kiem_secs "$f" || return 2
   lan=1; qua=ssh
   if ! out=$(khoi_dong_ssh "$id" "$f"); then
     qua=exec
@@ -315,14 +420,14 @@ log_truc_tiep() {
 # giua chung (het quota), khong kip 06. Chi CANH BAO (khong tu doi SECS). 0 = chay tiep.
 kiem_secs() {
   local secs may goi x
-  secs=$(doc "$1" | sed -n 's/^SECS *= *\([0-9][0-9]*\).*/\1/p' | head -1)
+  secs=$(gia_tri "$1" SECS)
   [ -n "$secs" ] && [ -f ~/fz_han_muc.py ] || return 0
   may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
   goi=$(py_colab ~/fz_han_muc.py --may "$may" 2>/dev/null | sed -n 's/^Gợi ý SECS[^:]*: *\([0-9][0-9]*\).*/\1/p')
   [ -n "$goi" ] || return 0
   [ "$secs" -le "$goi" ] && return 0
   echo "[!] SECS = $secs (≈ $((secs / 60)) phút) nhưng hạn mức chỉ còn đủ cho SECS ≈ $goi (≈ $((goi / 60)) phút,"
-  echo "    đã trừ 20 phút gom zip + tải về). Colab sẽ ngắt máy khi hết hạn mức -> 06 không kịp chạy."
+  echo "    đã trừ 15 phút gom zip + tải về). Colab sẽ ngắt máy khi hết hạn mức -> 06 không kịp chạy."
   echo "    Sửa SECS ở ô 04, hoặc chạy tiếp."
   read -rp "    Vẫn chạy với SECS = $secs? Gõ 'co' (Enter = huỷ): " x
   [ "$x" = co ]
@@ -773,12 +878,19 @@ EOF
 CHUOI() { echo "$TKG/.chuoi_$(ten_tk "$TK")_$S"; }
 chay_cac_o() {
   local id f i=0 con
+  local -A gd=()
   rm -f "$(CHUOI)"
+  # Hoi het tham so TRUOC (chuoi dai khong phai dung giua chung cho nguoi tra loi).
+  for id in "$@"; do
+    f=$(ls "$D"/"$id"_*.py 2>/dev/null | head -1)
+    [ -n "$f" ] || continue
+    gd[$id]=$(hoi_tham_so "$f") || { echo "[dừng -- không chạy ô nào]"; return 1; }
+  done
   for id in "$@"; do
     i=$((i + 1))
     f=$(ls "$D"/"$id"_*.py 2>/dev/null | head -1)
     if [ -z "$f" ]; then echo "[!] Không có ô $id"; continue; fi
-    chay_o "$f"
+    chay_o "$f" "${gd[$id]:-}"
     case $? in
       0) ;;
       1) con="${*:i+1}"
@@ -821,6 +933,7 @@ while true; do
   echo "--------------------------------------"
   echo " m    Xin máy T4 (tên '$S')"
   echo " p    Chọn máy / đặt tên máy mới (chạy nhiều máy cùng lúc)"
+  echo " g    Đổi đời mạng GEN_CURRENT (hiện ${gen:-?}): + / - / số"
   echo " c    Xin máy CPU (thử nghiệm, không tốn hạn mức T4)"
   echo " l    Log trực tiếp ô đang chạy nền"
   echo " k    Xem máy đang giữ"
@@ -851,6 +964,7 @@ while true; do
   a|A) tai_khoan; continue ;;
   t|T) tra_may; continue ;;
   p|P) chon_may; continue ;;
+  g|G) doi_doi; dung; continue ;;
   d|D) duyet_colab; continue ;;
   u|U) duyet_dt; continue ;;
   esac
