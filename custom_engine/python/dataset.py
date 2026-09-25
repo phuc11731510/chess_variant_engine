@@ -16,7 +16,8 @@ import torch
 from torch.utils.data import Dataset
 
 from trainingdata_reader import (is_game_member, iter_games, reconstruct_planes,
-                                 POLICY_SIZE)
+                                 AUX_BASE, BOARD, CASTLING_KEYS, HISTORY_PLANES,
+                                 NO_CASTLING_SQ, NUM_PLANES, POLICY_SIZE)
 
 
 def wdl_from_qd(q, d):
@@ -175,11 +176,15 @@ class FairyDataset(Dataset):
       * sparse=False: cache the fully-dense tensors (faster per-item, much more RAM).
     """
 
+    packed = False   # test subclasses skip __init__
+
     def __init__(self, data, q_ratio=0.2, downsample_keep=1.0, cache=True, seed=0,
                  diff_focus=False, df_slope=1.0, df_kld_w=0.5, df_min=0.2, sparse=True,
-                 max_records=0, games=None, label=""):
+                 max_records=0, games=None, label="", packed=False):
         """`games` (from list_games / split_games) loads only those games; by
-        default every game in `data`. `label` names the set in the log line."""
+        default every game in `data`. `label` names the set in the log line.
+        `packed` (sparse cache only): items are pack_compact() samples, to batch
+        with collate_packed and rebuild on the device with unpack_batch."""
         rng = random.Random(seed)
         games = list_games(data) if games is None else list(games)
         if not games:
@@ -188,6 +193,7 @@ class FairyDataset(Dataset):
         self.q_ratio = q_ratio   # set before _compact/_build (they call self._value)
         self.cache = cache
         self.sparse = sparse
+        self.packed = packed and cache and sparse
         self._cached = None
         self._records = None
 
@@ -316,5 +322,89 @@ class FairyDataset(Dataset):
 
     def __getitem__(self, i):
         if self._cached is not None:
-            return self._build_from_compact(self._cached[i]) if self.sparse else self._cached[i]
+            if self.sparse:
+                c = self._cached[i]
+                return pack_compact(c) if self.packed else self._build_from_compact(c)
+            return self._cached[i]
         return self._build(self._records[i])
+
+
+# --------------------------------------------------------------------------- #
+# Packed samples (train.py, sparse cache): the DataLoader workers hand over the
+# bitboards and the legal policy slots only (~4 KB/position instead of 132 KB of
+# dense float planes + policy), and unpack_batch() rebuilds the dense tensors of
+# the whole batch on the training device (GPU). On Colab's 2 vCPUs the workers
+# building dense planes competed with the process driving the GPU (T4: 405 ms per
+# step vs 351 ms of GPU work). The tensors are bit-identical to __getitem__ with
+# packed=False (test_extreme.py 11 checks every plane and policy slot).
+# --------------------------------------------------------------------------- #
+N_MASKS = HISTORY_PLANES + 5           # 216 history + 4 castling (aux 0-3) + e.p. (aux 4)
+
+# Castling right on square s (rank*10+file) -> the 128-bit mask (lo, hi) with bit
+# rank*12+file set, as the reader's planes; row 100 = NO_CASTLING_SQ (no bit).
+_CASTLE_MASK = np.zeros((BOARD * BOARD + 1, 2), dtype=np.uint64)
+for _s in range(BOARD * BOARD):
+    _b = (_s // BOARD) * 12 + _s % BOARD
+    _CASTLE_MASK[_s, _b // 64] = np.uint64(1) << np.uint64(_b % 64)
+
+
+def _castle_row(sq):
+    return BOARD * BOARD if sq == NO_CASTLING_SQ else sq
+
+
+def pack_compact(c):
+    """One compact record -> (masks int64[221,2], scalars f32[3], pi_idx, pi_val, value).
+    The scalars are computed exactly as reconstruct_planes does (float64 division
+    rounded to float32), so the planes rebuilt from them are bit-identical."""
+    masks = np.empty((N_MASKS, 2), dtype=np.uint64)
+    masks[:HISTORY_PLANES] = np.asarray(c["piece_planes"], dtype=np.uint64).reshape(HISTORY_PLANES, 2)
+    masks[HISTORY_PLANES:HISTORY_PLANES + 4] = _CASTLE_MASK[[_castle_row(c[k]) for k in CASTLING_KEYS]]
+    masks[HISTORY_PLANES + 4] = np.asarray(c["ep_mask"], dtype=np.uint64)
+    scal = np.array([c["rule50_count"] / 100.0, c["checks_remaining_us"] / 10.0,
+                     c["checks_remaining_them"] / 10.0], dtype=np.float32)
+    return masks.view(np.int64), scal, c["pi_idx"], c["pi_val"], c["value"]
+
+
+def collate_packed(items):
+    """DataLoader collate_fn for packed samples: stack, pad the legal policy slots
+    to the batch's longest list with index POLICY_SIZE (a spare column that
+    unpack_batch drops) and value 0."""
+    masks = torch.from_numpy(np.stack([it[0] for it in items]))
+    scal = torch.from_numpy(np.stack([it[1] for it in items]))
+    value = torch.from_numpy(np.stack([it[4] for it in items]))
+    n = max(len(it[2]) for it in items)
+    idx = np.full((len(items), n), POLICY_SIZE, dtype=np.int64)
+    val = np.zeros((len(items), n), dtype=np.float32)
+    for b, it in enumerate(items):
+        k = len(it[2])
+        idx[b, :k] = it[2]
+        val[b, :k] = it[3]
+    return masks, scal, torch.from_numpy(idx), torch.from_numpy(val), value
+
+
+_WORD_T = torch.from_numpy(
+    ((np.arange(BOARD)[:, None] * 12 + np.arange(BOARD)[None, :]) // 64).astype(np.int64))
+_BIT_T = torch.from_numpy(
+    ((np.arange(BOARD)[:, None] * 12 + np.arange(BOARD)[None, :]) % 64).astype(np.int64))
+
+
+def unpack_batch(batch, device, channels_last=False):
+    """collate_packed batch -> (x f32[B,226,10,10], pi f32[B,10600], value f32[B,3])
+    on `device`; x in channels_last memory format when asked (same values)."""
+    masks, scal, idx, val, value = (t.to(device, non_blocking=True) for t in batch)
+    b = masks.size(0)
+    word, bit = _WORD_T.to(device), _BIT_T.to(device)
+    fmt = torch.channels_last if channels_last else torch.contiguous_format
+    x = torch.empty((b, NUM_PLANES, BOARD, BOARD), dtype=torch.float32, device=device,
+                    memory_format=fmt)
+    # masks[:, :, word] -> [B,221,10,10] = the word holding each cell's bit; the
+    # arithmetic shift of a negative int64 is harmless: only bit 0 is kept.
+    x[:, :N_MASKS] = torch.bitwise_and(torch.bitwise_right_shift(masks[:, :, word], bit), 1)
+    x[:, AUX_BASE + 5] = scal[:, 0, None, None]          # rule50 / 100
+    x[:, AUX_BASE + 6] = 0.0                              # unused
+    x[:, AUX_BASE + 7] = 1.0                              # board edge
+    x[:, AUX_BASE + 8] = scal[:, 1, None, None]          # checks us / 10
+    x[:, AUX_BASE + 9] = scal[:, 2, None, None]          # checks them / 10
+    pi = torch.full((b, POLICY_SIZE + 1), -1.0, dtype=torch.float32, device=device)
+    pi.scatter_(1, idx, val)
+    return x, pi[:, :POLICY_SIZE], value

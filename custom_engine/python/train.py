@@ -18,11 +18,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
-from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
+from torch.optim.swa_utils import AveragedModel, SWALR
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet, ExportNet, NUM_PLANES, POLICY_SIZE  # noqa: E402
-from dataset import FairyDataset, game_mtimes, list_games, split_games  # noqa: E402
+from dataset import (FairyDataset, collate_packed, game_mtimes, list_games,  # noqa: E402
+                     split_games, unpack_batch)
 from run_seed import resolve_seed  # noqa: E402
 
 
@@ -42,7 +43,45 @@ def value_loss(logits, target_wdl):
     return -(target_wdl * F.log_softmax(logits, dim=1)).sum(dim=1).mean()
 
 
-def evaluate(net, loader, device, use_amp=False):
+def device_batches(loader, device, channels_last=False):
+    """(x, pi, value) on `device` for each batch of `loader`. Packed batches
+    (collate_packed) are rebuilt there by unpack_batch; dense ones are moved.
+    channels_last: x in that memory format (same values; faster convolutions
+    with --amp on tensor-core GPUs, T4: -13% per training step)."""
+    fmt = torch.channels_last if channels_last else torch.contiguous_format
+    for batch in loader:
+        if len(batch) == 5:
+            yield unpack_batch(batch, device, channels_last)
+        else:
+            x, pi, val = batch
+            yield (x.to(device, non_blocking=True).contiguous(memory_format=fmt),
+                   pi.to(device, non_blocking=True), val.to(device, non_blocking=True))
+
+
+@torch.no_grad()
+def update_bn(loader, model, device, channels_last=False):
+    """torch.optim.swa_utils.update_bn (same steps: reset the BatchNorm running
+    statistics, momentum None = cumulative average over one pass in train mode),
+    fed through device_batches so packed batches work."""
+    momenta = {}
+    for m in model.modules():
+        if isinstance(m, torch.nn.modules.batchnorm._BatchNorm):
+            m.reset_running_stats()
+            momenta[m] = m.momentum
+    if not momenta:
+        return
+    was_training = model.training
+    model.train()
+    for m in momenta:
+        m.momentum = None
+    for x, _, _ in device_batches(loader, device, channels_last):
+        model(x)
+    for m in momenta:
+        m.momentum = momenta[m]
+    model.train(was_training)
+
+
+def evaluate(net, loader, device, use_amp=False, channels_last=False):
     """(policy loss, value loss): the mean over every POSITION `loader` yields, with
     the weights fixed (eval mode: BatchNorm uses its running statistics, no dropout,
     no gradient). Each batch counts by its size, so the numbers do not depend on
@@ -51,10 +90,7 @@ def evaluate(net, loader, device, use_amp=False):
     net.eval()
     tp = tv = n = 0.0
     with torch.no_grad(), torch.autocast(device_type=device, enabled=use_amp):
-        for x, pi, val in loader:
-            x = x.to(device, non_blocking=True)
-            pi = pi.to(device, non_blocking=True)
-            val = val.to(device, non_blocking=True)
+        for x, pi, val in device_batches(loader, device, channels_last):
             p_logits, v_logits = net(x)
             bs = x.size(0)
             tp += policy_loss(p_logits.float(), pi).item() * bs
@@ -214,8 +250,10 @@ def main():
     if workers is None:
         workers = min(os.cpu_count() or 2, 8) if device == "cuda" else 0
     pin = args.pin_memory or (device == "cuda")
+    cl = device == "cuda"          # channels_last: same values, faster convolutions
+    packed = args.sparse_cache and not args.no_cache
     print(f"[train] device={device}  amp={use_amp}  sparse_cache={args.sparse_cache}  "
-          f"workers={workers}  pin_memory={pin}")
+          f"workers={workers}  pin_memory={pin}  channels_last={cl}  planes_on_device={packed}")
 
     torch.manual_seed(args.seed)
     if not 0.0 <= args.val_frac < 1.0:
@@ -230,9 +268,11 @@ def main():
                       cache=not args.no_cache, diff_focus=args.diff_focus,
                       df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min,
                       sparse=args.sparse_cache, max_records=args.max_records,
-                      games=train_games, label="train" if val_games else "", seed=args.seed)
+                      games=train_games, label="train" if val_games else "", seed=args.seed,
+                      packed=packed)
+    collate = collate_packed if packed else None
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
-                    num_workers=workers, pin_memory=pin,
+                    num_workers=workers, pin_memory=pin, collate_fn=collate,
                     persistent_workers=(workers > 0))
 
     # Validation: the held-out games in full (no down-sampling / diff_focus: the
@@ -244,11 +284,13 @@ def main():
     val_loaders = None
     if val_games:
         ds_val = FairyDataset(args.data, q_ratio=args.q_ratio, cache=not args.no_cache,
-                              sparse=args.sparse_cache, games=val_games, label="validation")
+                              sparse=args.sparse_cache, games=val_games, label="validation",
+                              packed=packed)
         train_part = random.Random(args.seed + 1).sample(range(len(ds)), min(len(ds), len(ds_val)))
         def eval_loader(d):
             return DataLoader(d, batch_size=max(args.batch, 256), shuffle=False,
-                              num_workers=workers, pin_memory=pin, persistent_workers=(workers > 0))
+                              num_workers=workers, pin_memory=pin, collate_fn=collate,
+                              persistent_workers=(workers > 0))
         val_loaders = (eval_loader(Subset(ds, train_part)), eval_loader(ds_val))
         print(f"[val] {len(val_games)} of {len(games)} games held out ({len(ds_val)} positions), "
               f"compared with {len(train_part)} training positions")
@@ -261,8 +303,8 @@ def main():
     def report(what, model):
         if val_loaders is None:
             return
-        tp, tv = evaluate(model, val_loaders[0], device, use_amp)
-        vp, vv = evaluate(model, val_loaders[1], device, use_amp)
+        tp, tv = evaluate(model, val_loaders[0], device, use_amp, cl)
+        vp, vv = evaluate(model, val_loaders[1], device, use_amp, cl)
         print(f"  [val] {what:<14}  train: policy={tp:.4f} value={tv:.4f}  |  "
               f"validation: policy={vp:.4f} value={vv:.4f}", flush=True)
 
@@ -272,6 +314,8 @@ def main():
         net.load_state_dict(torch.load(args.init_from, map_location="cpu"))
         print(f"[warm-start] loaded weights from {args.init_from}")
     net.to(device)
+    if cl:
+        net.to(memory_format=torch.channels_last)
     if args.optimizer == "sgd":
         opt = torch.optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
                               weight_decay=args.weight_decay, nesterov=args.momentum > 0)
@@ -319,13 +363,10 @@ def main():
         net.train()
         tp = tv = n = 0.0
         in_swa = epoch >= swa_start
-        for x, pi, val in dl:
+        for x, pi, val in device_batches(dl, device, cl):
             if use_lr_sched and not in_swa:        # custom schedule controls LR pre-SWA
                 for g in opt.param_groups:
                     g["lr"] = lr_for_step(global_step)
-            x = x.to(device, non_blocking=True)
-            pi = pi.to(device, non_blocking=True)
-            val = val.to(device, non_blocking=True)
             # autocast runs matmuls/convs in FP16 but keeps softmax/log_softmax in
             # FP32, so the masked policy CE (with -inf fills) stays numerically safe.
             with torch.autocast(device_type=device, enabled=use_amp):
@@ -366,16 +407,16 @@ def main():
         print("[swa] WARNING: training stopped before any SWA epoch ended; exporting the "
               "trained weights as they are (no average)")
         report("exported model", net)
-        final = net.to("cpu")
+        final = net.to("cpu", memory_format=torch.contiguous_format)
     else:
         # Recompute BN running stats for the SWA-averaged weights, then export.
         print(f"[swa] averaged {int(swa_net.n_averaged)} epoch(s); updating BatchNorm "
               "statistics on the averaged model...")
-        update_bn(dl, swa_net, device=device)
+        update_bn(dl, swa_net, device, cl)
         report("exported model", swa_net.module)
         # Move back to CPU for a portable checkpoint + a CPU-graph ONNX export
         # (the dummy input in export_onnx lives on CPU).
-        final = swa_net.module.to("cpu")
+        final = swa_net.module.to("cpu", memory_format=torch.contiguous_format)
     ckpt = os.path.splitext(args.out)[0] + ".pt"
     torch.save(final.state_dict(), ckpt)
     print(f"[ckpt] saved {ckpt}")
