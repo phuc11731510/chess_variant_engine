@@ -19,10 +19,11 @@ may khong con trong danh sach cua tai khoan.
   python ~/fz_giu_may.py song <endpoint>        # 0 = dang chay
   python ~/fz_giu_may.py tat <endpoint>         # dung (menu goi truoc khi tra may)
   python ~/fz_giu_may.py chay <endpoint> <ten>  # vong lap (tien trinh nen)
+  python ~/fz_giu_may.py proxy <ten>            # ProxyCommand cho ssh: `colab ssh --proxy-mode -s <ten>`
+                                                # nhung KHONG tu xin may moi khi phien <ten> khong con
 Tep: ~/.config/colab-cli/fz_giu_<endpoint>.pid / .log (HOME cua tai khoan -- menu dat HOME rieng).
 """
 import os
-import shutil
 import signal
 import subprocess
 import sys
@@ -73,13 +74,32 @@ def menu_dang_ssh(ten):
     return False
 
 
-def ping_ssh(colab, ten):
-    """Mot phien ssh ngan vao may. -> ma thoat cua ssh."""
+def proxy(ten):
+    """`colab ssh --proxy-mode -s <ten>` cua Colab CLI, CAM tu xin may.
+
+    CLI tu xin may MOI (mac dinh CPU) khi phien <ten> khong co trong sessions.json luc no khoi dong
+    -- vd may vua bi tra / thu hoi va mot lenh `colab sessions` da xoa phien (da xay ra 2026-09-26:
+    tien trinh giu may kiem phien xong thi phien bi xoa, CLI khoi dong vai giay sau va xin may moi).
+    O day thay ham tu xin may cua CLI ngay trong CUNG tien trinh -> khong con khe ho thoi gian."""
+    from colab_cli.commands import ssh as m
+
+    def khong_xin(*_a, **_k):
+        sys.stderr.write(f"[fz] phien '{ten}' khong con (may da tra / bi thu hoi) -- KHONG tu xin may moi\n")
+        raise SystemExit(3)
+
+    m._auto_create_session = khong_xin
+    from colab_cli.cli import main
+    sys.argv = ["colab", "ssh", "--proxy-mode", "-s", ten]
+    return main()
+
+
+def ping_ssh(ten):
+    """Mot phien ssh ngan vao may (qua proxy() -- khong tu xin may). -> ma thoat cua ssh."""
     khoa = tep(f"fz_giu_{ten}.ssh")
     open(khoa, "w").close()
     try:
         return subprocess.run(
-            ["ssh", "-o", f"ProxyCommand={colab} ssh --proxy-mode -s {ten}",
+            ["ssh", "-o", f"ProxyCommand={sys.executable} {os.path.abspath(__file__)} proxy {ten}",
              "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
              "-o", "LogLevel=ERROR", "-o", "ConnectTimeout=30", "-o", "BatchMode=yes",
              f"root@colab-{ten}", "true"],
@@ -96,14 +116,13 @@ def ping_ssh(colab, ten):
 
 def chay(endpoint, ten):
     from colab_cli.common import state
-    colab = shutil.which("colab") or "colab"
     # tat (SIGTERM) -> SystemExit: cac khoi finally chay -> xoa tep khoa ssh va tep pid.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     with open(tep(f"fz_giu_{endpoint}.pid"), "w") as f:
         f.write(str(os.getpid()))
     ghi_log(endpoint, f"bat dau (pid {os.getpid()}, phien '{ten}')")
     try:
-        _vong_lap(state, colab, endpoint, ten)
+        _vong_lap(state, endpoint, ten)
     finally:
         try:
             os.remove(tep(f"fz_giu_{endpoint}.pid"))
@@ -111,18 +130,19 @@ def chay(endpoint, ten):
             pass
 
 
-def _vong_lap(state, colab, endpoint, ten):
+def _vong_lap(state, endpoint, ten):
     vong = loi = 0
     while True:
         vong += 1
         s = state.store.get(ten)
         if s is None or s.endpoint != endpoint:
-            if vong % THU_DANH_SACH == 1:
+            vong = THU_DANH_SACH * (vong // THU_DANH_SACH + 1)   # hoi danh sach may NGAY vong nay
+            if vong == THU_DANH_SACH:
                 ghi_log(endpoint, f"phien '{ten}' khong con tro may nay -- bo qua (menu t -> n de nhan lai)")
         elif menu_dang_ssh(ten):
             loi = 0                      # menu dang ket noi: da la hoat dong
         else:
-            rc = ping_ssh(colab, ten)
+            rc = ping_ssh(ten)
             if rc == 0:
                 loi = 0
             else:
@@ -166,6 +186,8 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     if len(a) == 2 and a[0] == "song":
         sys.exit(0 if pid_song(a[1]) else 1)
+    if len(a) == 2 and a[0] == "proxy":
+        sys.exit(proxy(a[1]) or 0)
     if len(a) == 2 and a[0] == "tat":
         sys.exit(tat(a[1]))
     if len(a) == 3 and a[0] in ("bat", "chay"):

@@ -124,7 +124,11 @@ ssh_colab() {
   local k=$TKH/.config/colab-cli/fz_giu_$S.ssh i=0
   [ -n "$(find "$k" -mmin -1 2>/dev/null)" ] || rm -f "$k"
   while [ -e "$k" ] && [ $i -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
-  ssh -o ProxyCommand="env HOME=$TKH $(type -P colab) ssh --proxy-mode -s $S" \
+  # ProxyCommand: ~/fz_giu_may.py proxy = `colab ssh --proxy-mode` nhung KHONG tu xin may moi khi
+  # phien khong con (CLI mac dinh xin may CPU moi -- vd bam l sau khi may bi thu hoi).
+  local px="$(type -P colab) ssh --proxy-mode -s $S"
+  [ -f ~/fz_giu_may.py ] && px="$(type -P python) $HOME/fz_giu_may.py proxy $S"
+  ssh -o ProxyCommand="env HOME=$TKH $px" \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
       -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
       "root@colab-$S" "$@"
@@ -544,7 +548,9 @@ tai_khoan() {
     *)
       [[ "$x" =~ ^[0-9]+$ ]] && [ "$x" -ge 1 ] && [ "$x" -le ${#ds[@]} ] || continue
       [ "${ds[$((x - 1))]}" = "$TK" ] && return
-      chon_tk "${ds[$((x - 1))]}" || continue
+      hoi_trung "${ds[$((x - 1))]}" "$S" || continue
+      tk_dang_nhap "$TK" && { tra_het_khi_doi "$TK" || continue; }
+      dat_tk "${ds[$((x - 1))]}"; ghi_cua_so
       echo "[cửa sổ này dùng tài khoản $(ten_tk "$TK")]"
       tk_dang_nhap "$TK" || echo "Chưa đăng nhập -- mở link dưới đây:"
       colab sessions
@@ -558,7 +564,7 @@ tai_khoan() {
 # cua no tu dung -> Colab thu hoi) -- nen m / c tu choi ten dang la mot may con chay.
 chon_may() {
   local ds i x ten hw ghi an=0
-  mapfile -t ds < <(colab sessions 2>/dev/null | grep '^\[')
+  mapfile -t ds < <(colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]')
   clear
   echo "== Máy của tài khoản $(ten_tk "$TK") · cửa sổ này: '$S' =="
   local co=()
@@ -897,7 +903,7 @@ chon_android() {
 tra_may() {
   local ds dong i x chon ten ep hw
   while true; do
-    mapfile -t ds < <(colab sessions 2>/dev/null | grep '^\[')
+    mapfile -t ds < <(colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]')
     clear
     echo "== Trả máy (tài khoản $(ten_tk "$TK")) =="
     if [ ${#ds[@]} -eq 0 ]; then echo "  (không giữ máy nào)"; return; fi
@@ -941,25 +947,54 @@ tra_may() {
     [ "$x" = co ] || continue
     # Con giu may -> may chu con tra han muc: chup truoc khi tra (muc a hien lai).
     chup_han_muc "$TK" && echo "[đã chụp hạn mức] $(dong_han_muc "$TK")"
-    for x in "${hop[@]}"; do
-      dong=${ds[$((x - 1))]}
-      ten=${dong%%]*}; ten=${ten#[}
-      ep=${dong#*] }; ep=${ep%% *}
-      [ -f ~/fz_giu_may.py ] && py_colab ~/fz_giu_may.py tat "$ep"
-      if [ "$ten" != "?" ]; then
-        colab stop -s "$ten"
-      else
-        echo "[colab] Trả máy không tên $ep..."
-        py_colab - "$ep" <<'EOF'
+    for x in "${hop[@]}"; do tra_mot "${ds[$((x - 1))]}"; done
+    dung
+  done
+}
+
+# Tra mot may -- $1 = mot dong "[ten] endpoint | Hardware: ..." cua colab sessions (ten "?" = may
+# khong ten o dien thoai nay: tra thang theo endpoint). Tat tien trinh giu may cua no truoc.
+tra_mot() {
+  local dong=$1 ten ep
+  ten=${dong%%]*}; ten=${ten#[}
+  ep=${dong#*] }; ep=${ep%% *}
+  [ -f ~/fz_giu_may.py ] && py_colab ~/fz_giu_may.py tat "$ep"
+  if [ "$ten" != "?" ]; then
+    colab stop -s "$ten"
+  else
+    echo "[colab] Trả máy không tên $ep..."
+    py_colab - "$ep" <<'EOF'
 import sys
 from colab_cli.common import state
 state.client.unassign(sys.argv[1])
 print("[colab] Session terminated.")
 EOF
-      fi
-    done
-    dung
-  done
+  fi
+}
+
+# Doi tai khoan (muc a): tai khoan $1 dang giu may -> hoi tra HET truoc khi doi. Colab khong cho
+# chay nhieu may cung luc tren mot tai khoan mien phi nua, nen may bo lai chi ngoi tieu han muc.
+# 0 = doi tiep (da tra, hoac chon giu), 1 = huy doi.
+tra_het_khi_doi() {
+  local ds x khac
+  mapfile -t ds < <(colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]')
+  [ ${#ds[@]} -eq 0 ] && return 0
+  echo "Tài khoản $(ten_tk "$1") đang giữ ${#ds[@]} máy:"
+  printf '   %s\n' "${ds[@]}"
+  khac=$(cua_so_khac "$1")
+  [ -n "$khac" ] && echo "[!] Tài khoản này đang mở ở cửa sổ khác -- trả máy thì ô đang chạy bên đó cũng MẤT."
+  echo " co    = TRẢ HẾT rồi đổi tài khoản (mọi tệp /content trên các máy đó MẤT -- đã tải về chưa?)"
+  echo " giu   = đổi tài khoản, GIỮ máy (vẫn tiêu hạn mức của $(ten_tk "$1"))"
+  echo " Enter = huỷ, không đổi"
+  read -rp "Chọn: " x
+  case "$x" in
+  co)
+    chup_han_muc "$1" && echo "[đã chụp hạn mức] $(dong_han_muc "$1")"
+    for x in "${ds[@]}"; do tra_mot "$x"; done
+    return 0 ;;
+  giu) return 0 ;;
+  *) return 1 ;;
+  esac
 }
 
 # Chay lan luot cac o $@; dung chuoi khi nguoi dung Ctrl+C / huy.
