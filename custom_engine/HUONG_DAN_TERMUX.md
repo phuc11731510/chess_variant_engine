@@ -164,7 +164,7 @@ Mục `a` còn làm được:
 
 | Gõ | Việc |
 |---|---|
-| số | Cửa sổ này dùng tài khoản đó (cửa sổ khác không đổi) |
+| số | Cửa sổ này dùng tài khoản đó (cửa sổ khác không đổi). Tài khoản đang dùng còn giữ máy thì menu liệt kê các máy đó và hỏi: **`co`** = trả HẾT rồi đổi (chụp hạn mức trước khi trả; `/content` các máy đó mất), **`giu`** = đổi mà giữ máy (vẫn tiêu hạn mức), **Enter** = huỷ. Colab miễn phí giờ không cho chạy nhiều máy cùng lúc trên một tài khoản, nên thường chọn `co` |
 | `n` | Thêm tài khoản mới |
 | `r` | Đổi tên (tên nội bộ để phân biệt, vd `phuc`, `phuc2`) — cả tài khoản chính (mặc định tên `chinh`). Chữ, số, `_`, `-`, tối đa 20 ký tự. Không đổi được khi tài khoản đang mở ở cửa sổ khác |
 | `x` | Đăng xuất một tài khoản (không được khi nó đang mở ở cửa sổ khác): hỏi trả máy `fz` của nó trước (nên trả — máy vẫn tiêu hạn mức tới khi Colab thu hồi), gõ `co` → xoá token; tài khoản phụ bị xoá khỏi danh sách |
