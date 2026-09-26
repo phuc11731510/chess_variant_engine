@@ -92,8 +92,54 @@ def tom_tat(ch, bay_gio=None):
     return dau
 
 
+# Màu ANSI (Termux hiểu); FZ_MAU=0 hoặc NO_COLOR thì tắt.
+MAU = os.environ.get("FZ_MAU", "1") != "0" and not os.environ.get("NO_COLOR")
+
+
+def mau(ma, chu):
+    return f"\033[{ma}m{chu}\033[0m" if MAU else chu
+
+
+XANH, VANG, DO, LAM, MO = "32", "33", "31", "36", "2"
+
+
+def gp(h):
+    """Giờ ngắn cho màn hình hẹp: 4 giờ 55 / 35 phút."""
+    m = max(0, int(round(h * 60)))
+    return f"{m // 60} giờ {m % 60:02d}" if m >= 60 else f"{m} phút"
+
+
+def khoi(ch, bay_gio=None, lui="   "):
+    """Vài dòng ngắn (<= ~38 ký tự), có màu, cho màn hình điện thoại (mục a)."""
+    if not ch:
+        return [lui + mau(MO, "chưa chụp hạn mức (h -> d)")]
+    now = time.time() if bay_gio is None else bay_gio
+    nap = ch.get("nap_lai")
+    dong = []
+    if nap and now >= nap and ch.get("luc", 0) < nap:
+        dong.append(lui + mau(LAM, "ĐÃ TỚI giờ nạp lại"))
+        dong.append(lui + mau(MO, f"lúc {luc(nap)} · h -> d xem mới"))
+        return dong
+    if ch.get("het_luc") and ch["het_luc"] >= ch.get("luc", 0):
+        dong.append(lui + mau(DO, "HẾT") + mau(MO, f"  T4 bị từ chối {luc(ch['het_luc'])}"))
+    elif ch.get("con") is not None:
+        ccu = ch["con"] / 1000
+        gio = ccu / T4_UOC_TINH
+        dong.append(lui + "Còn  " + mau(XANH if gio >= 1 else VANG, f"{ccu:.2f} đv ≈ {gp(gio)} T4"))
+    else:
+        dong.append(lui + mau(MO, "không rõ còn bao nhiêu"))
+    if nap:
+        con = nap - now
+        dong.append(lui + "Nạp  " + luc(nap) + (mau(MO, f" · sau {gp(con / 3600)}") if con > 0 else ""))
+    dong.append(lui + mau(MO, f"chụp lúc {luc(ch.get('luc', 0))}"))
+    return dong
+
+
 if "--dong" in sys.argv:        # không hỏi mạng
     print(tom_tat(doc_chup()))
+    sys.exit(0)
+if "--khoi" in sys.argv:        # không hỏi mạng: vài dòng ngắn, có màu
+    print("\n".join(khoi(doc_chup())))
     sys.exit(0)
 
 # --giay-t4 / --chup: không in gì ra stdout thật (--giay-t4 in đúng một số ở cuối).
@@ -148,9 +194,11 @@ if not co_han_muc:
     ccu = next((d for t, d, _ in ket_qua if d is not None), None)
     if ccu is not None and not int(ccu.get("assignmentsCount") or 0):
         # Bình thường: máy chủ chỉ trả hạn mức khi đang giữ máy.
-        print("Tài khoản không giữ máy nào -> máy chủ Colab không trả hạn mức (chỉ trả khi đang giữ máy).")
-        print(f"Lần chụp gần nhất: {tom_tat(doc_chup())}")
-        print(f"(giờ theo điện thoại, {mui_gio()})")
+        print("Không giữ máy nào -> máy chủ Colab")
+        print("không trả hạn mức (chỉ trả khi đang")
+        print("giữ máy). Lần chụp gần nhất:")
+        print("\n".join(khoi(doc_chup())))
+        print(mau(MO, f"   (giờ điện thoại, {mui_gio()})"))
         if ccu.get("eligibleGpus") is not None:
             print(f"GPU được dùng: {', '.join(ccu.get('eligibleGpus') or []) or '(không)'}")
         sys.exit(3)
