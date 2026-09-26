@@ -247,12 +247,23 @@ CPU tên `fzhm<số>` (~30 giây, gần như không tốn hạn mức), đọc h
 Mục **`a`** hiện dưới mỗi tài khoản một dòng từ lần chụp gần nhất, để biết nên đổi sang tài khoản nào:
 
 ```
-== Tài khoản Colab == (giờ theo điện thoại: 09:51 26/09, UTC+07:00)
-  1  chinh (chính)       đã đăng nhập <- cửa sổ này
-      hạn mức: HẾT (xin T4 bị từ chối lúc 09:40 26/09) · nạp lại 02:20 27/09 (sau 16 giờ 29 phút)
-  2  phuc2               đã đăng nhập
-      hạn mức: còn 5.54 đơn vị ≈ 5 giờ 11 phút T4 (lúc 21:05 25/09) · nạp lại 13:10 26/09 (sau 3 giờ 19 phút)
+== Tài khoản Colab ==
+giờ điện thoại 13:49 26/09 · UTC+07:00
+
+ 1  chinh (chính) ◀ đang dùng
+    HẾT  T4 bị từ chối 09:40 26/09
+    Nạp  02:20 27/09 · sau 12 giờ 31
+    chụp lúc 09:38 26/09
+
+ 2  phuc2
+    Còn  5.27 đv ≈ 4 giờ 55 T4
+    Nạp  17:09 26/09 · sau 3 giờ 20
+    chụp lúc 12:49 26/09
 ```
+
+Mỗi dòng ≤ ~38 ký tự (vừa màn hình điện thoại, không bị gãy dòng), có màu: **xanh lá** = còn ≥ 1
+giờ T4, **vàng** = còn dưới 1 giờ, **đỏ** = HẾT / chưa đăng nhập, **xanh dương** = đã tới giờ nạp
+lại, **mờ** = thông tin phụ. Tắt màu: `NO_COLOR=1 fz`.
 
 - **Giờ nạp lại** máy chủ trả là giây epoch (mốc tuyệt đối theo UTC, không phụ thuộc múi giờ); menu in
   theo **múi giờ của điện thoại**, kèm nhãn (`UTC+07:00`) — thấy nhãn sai thì chỉnh múi giờ Android.

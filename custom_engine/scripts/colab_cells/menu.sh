@@ -20,6 +20,13 @@ TAI=$HOME/storage/downloads/FairyZero
 S=${S:-fz}
 LOGD=/content/fz_log
 
+# Mau ANSI (Termux hieu) -- tat khi khong phai terminal hoac co NO_COLOR.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  M_DAM=$'\e[1m' M_XANH=$'\e[32m' M_VANG=$'\e[33m' M_DO=$'\e[31m' M_LAM=$'\e[36m' M_MO=$'\e[2m' M_HET=$'\e[0m'
+else
+  M_DAM= M_XANH= M_VANG= M_DO= M_LAM= M_MO= M_HET=
+fi
+
 # Tai khoan Colab. Colab CLI lay moi thu (token.json, sessions.json, ~/.ssh) tu ~ = $HOME, nen
 # moi tai khoan phu co mot HOME rieng cho CLI: ~/.fz_tk/<ten>/ (.config/colab-cli rieng, .ssh
 # tro ve ~/.ssh). Tai khoan chinh (TK rong) = ~ nhu cu. Chi lenh colab (va python dung
@@ -477,21 +484,31 @@ tai_khoan() {
       wait; chup=0
     fi
     clear
-    echo "== Tài khoản Colab == (giờ theo điện thoại: $(date '+%H:%M %d/%m, UTC%:z'))"
+    # Moi dong <= ~38 ky tu: man hinh dien thoai hep, dong dai bi gay xuong dong kho doc.
+    echo "${M_DAM}== Tài khoản Colab ==${M_HET}"
+    echo "${M_MO}giờ điện thoại $(date '+%H:%M %d/%m') · UTC$(date +%:z)${M_HET}"
     for i in "${!ds[@]}"; do
-      ten=${ds[$i]}; x=""
-      [ "$ten" = "$TK" ] && x="<- cửa sổ này"
-      [ -n "$(cua_so_khac "$ten")" ] && x="${x:+$x, }đang mở ở cửa sổ khác"
-      printf " %2d  %-20s %-15s %s\n" $((i + 1)) "$(ten_tk "$ten")$([ -z "$ten" ] && echo " (chính)")" \
-        "$(tk_dang_nhap "$ten" && echo "đã đăng nhập" || echo "CHƯA đăng nhập")" "$x"
-      tk_dang_nhap "$ten" && echo "      hạn mức: $(dong_han_muc "$ten")"
+      ten=${ds[$i]}
+      echo
+      x=""
+      [ "$ten" = "$TK" ] && x=" ${M_LAM}◀ đang dùng${M_HET}"
+      printf ' %s%d  %s%s%s\n' "$M_DAM" $((i + 1)) "$(ten_tk "$ten")" "$M_HET" \
+        "$([ -z "$ten" ] && echo " ${M_MO}(chính)${M_HET}")$x"
+      [ -n "$(cua_so_khac "$ten")" ] && echo "    ${M_VANG}đang mở ở cửa sổ khác${M_HET}"
+      if tk_dang_nhap "$ten"; then khoi_han_muc "$ten" | sed 's/^   /    /'
+      else echo "    ${M_DO}CHƯA đăng nhập${M_HET}"; fi
     done
+    echo
+    echo "${M_MO}Hạn mức chỉ đọc được khi đang giữ${M_HET}"
+    echo "${M_MO}máy: số trên là lần chụp gần nhất.${M_HET}"
     echo "---"
-    echo " Hạn mức chỉ đọc được khi tài khoản ĐANG GIỮ MÁY: chụp tự động ở m, h, t (trước khi trả) và khi"
-    echo " mở mục này. Tài khoản không giữ máy: số là của lần chụp gần nhất (h -> d để đọc mới)."
-    echo " Số = cửa sổ này dùng tài khoản đó (cửa sổ khác không đổi)"
-    echo " n  = thêm tài khoản · r = đổi tên · x = đăng xuất / xoá · Enter = về menu"
-    echo " Dùng CÙNG LÚC: mở thêm cửa sổ Termux (vuốt từ mép trái -> NEW SESSION), gõ: fz @<tên>"
+    echo " ${M_DAM}số${M_HET}     cửa sổ này dùng tài khoản đó"
+    echo " ${M_DAM}n${M_HET}      thêm tài khoản"
+    echo " ${M_DAM}r${M_HET}      đổi tên"
+    echo " ${M_DAM}x${M_HET}      đăng xuất / xoá"
+    echo " ${M_DAM}Enter${M_HET}  về menu"
+    echo "${M_MO} Cùng lúc: cửa sổ Termux mới,${M_HET}"
+    echo "${M_MO} gõ fz @<tên>${M_HET}"
     read -rp "Chọn: " x || return
     case "$x" in
     "") return ;;
@@ -656,6 +673,12 @@ dong_han_muc() {
   [ -f ~/fz_han_muc.py ] || return
   HOME=$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME") python ~/fz_han_muc.py --dong 2>/dev/null
 }
+# Vai dong ngan (<= ~38 ky tu, vua man hinh dien thoai), co mau: han muc lan chup gan nhat cua $1.
+khoi_han_muc() {
+  [ -f ~/fz_han_muc.py ] || return
+  HOME=$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME") FZ_MAU=$([ -n "$M_HET" ] && echo 1 || echo 0) \
+    python ~/fz_han_muc.py --khoi 2>/dev/null
+}
 
 # m / c: xin may $1 (T4, rong = CPU) ten $S. Loi thi in gon (khong in traceback cua CLI); T4 bi tu
 # choi (503 Service Unavailable = thuong la HET han muc GPU mien phi) -> ghi nhan, chi cach xem gio
@@ -670,14 +693,18 @@ xin_may() {
     return 0
   fi
   loi=$(grep -o 'Service Unavailable\|Too Many Requests\|Forbidden\|Unauthorized\|precondition failed\|Backend rejected accelerator\|Max retries exceeded\|Name or service not known' <<<"$out" | head -1)
-  echo "[!] Không xin được máy ${1:-CPU}${loi:+ -- máy chủ trả: $loi}"
+  echo "${M_DO}[!] Không xin được máy ${1:-CPU}${M_HET}"
+  [ -n "$loi" ] && echo "    máy chủ trả: $loi"
   case "$loi" in
   "Service Unavailable"|"precondition failed"|"Backend rejected accelerator")
     if [ -n "$1" ]; then
       [ -f ~/fz_han_muc.py ] && py_colab ~/fz_han_muc.py --het
-      echo "    Thường là tài khoản $(ten_tk "$TK") đã HẾT hạn mức GPU miễn phí (hoặc Colab tạm hết $1)."
-      echo "    Lần chụp gần nhất: $(dong_han_muc "$TK")"
-      echo "    h = xem giờ nạp lại chính xác · a = đổi tài khoản (có hạn mức từng tài khoản)"
+      echo "    Thường là ${M_DAM}$(ten_tk "$TK")${M_HET} đã ${M_DO}HẾT${M_HET} hạn mức"
+      echo "    GPU miễn phí (hoặc Colab tạm hết $1)."
+      echo "    Lần chụp gần nhất:"
+      khoi_han_muc "$TK" | sed 's/^   /      /'
+      echo "    ${M_DAM}h${M_HET} = giờ nạp lại chính xác"
+      echo "    ${M_DAM}a${M_HET} = đổi tài khoản"
     fi ;;
   "Max retries exceeded"|"Name or service not known") echo "    Mất mạng? Kiểm tra kết nối rồi thử lại." ;;
   "") grep -v '^[│╭╰]' <<<"$out" | grep -v '^\[colab\]' | tail -3 ;;
@@ -946,7 +973,7 @@ tra_may() {
     read -rp "Trả ${#hop[@]} máy (${hop[*]})? Mọi tệp /content trên đó sẽ MẤT. Gõ 'co' để trả: " x
     [ "$x" = co ] || continue
     # Con giu may -> may chu con tra han muc: chup truoc khi tra (muc a hien lai).
-    chup_han_muc "$TK" && echo "[đã chụp hạn mức] $(dong_han_muc "$TK")"
+    chup_han_muc "$TK" && { echo "[đã chụp hạn mức]"; khoi_han_muc "$TK"; }
     for x in "${hop[@]}"; do tra_mot "${ds[$((x - 1))]}"; done
     dung
   done
@@ -979,17 +1006,23 @@ tra_het_khi_doi() {
   local ds x khac
   mapfile -t ds < <(colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]')
   [ ${#ds[@]} -eq 0 ] && return 0
-  echo "Tài khoản $(ten_tk "$1") đang giữ ${#ds[@]} máy:"
-  printf '   %s\n' "${ds[@]}"
+  echo
+  echo "${M_DAM}$(ten_tk "$1")${M_HET} đang giữ ${#ds[@]} máy:"
+  for x in "${ds[@]}"; do
+    echo "   ${x%%]*}] $(sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' <<<"$x")"
+  done
   khac=$(cua_so_khac "$1")
-  [ -n "$khac" ] && echo "[!] Tài khoản này đang mở ở cửa sổ khác -- trả máy thì ô đang chạy bên đó cũng MẤT."
-  echo " co    = TRẢ HẾT rồi đổi tài khoản (mọi tệp /content trên các máy đó MẤT -- đã tải về chưa?)"
-  echo " giu   = đổi tài khoản, GIỮ máy (vẫn tiêu hạn mức của $(ten_tk "$1"))"
-  echo " Enter = huỷ, không đổi"
+  [ -n "$khac" ] && echo "${M_VANG}[!] Đang mở ở cửa sổ khác -- trả máy${M_HET}" \
+    && echo "${M_VANG}    thì ô chạy bên đó cũng MẤT.${M_HET}"
+  echo " ${M_DAM}co${M_HET}     TRẢ HẾT rồi đổi"
+  echo "        ${M_MO}(/content các máy đó MẤT --${M_HET}"
+  echo "        ${M_MO} đã tải về chưa?)${M_HET}"
+  echo " ${M_DAM}giu${M_HET}    đổi, GIỮ máy (vẫn tiêu hạn mức)"
+  echo " ${M_DAM}Enter${M_HET}  huỷ, không đổi"
   read -rp "Chọn: " x
   case "$x" in
   co)
-    chup_han_muc "$1" && echo "[đã chụp hạn mức] $(dong_han_muc "$1")"
+    chup_han_muc "$1" && { echo "[đã chụp hạn mức]"; khoi_han_muc "$1"; }
     for x in "${ds[@]}"; do tra_mot "$x"; done
     return 0 ;;
   giu) return 0 ;;
