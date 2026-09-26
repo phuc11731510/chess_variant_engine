@@ -15,6 +15,15 @@ Hỏi hai nơi, bằng thông tin đăng nhập sẵn có của Colab CLI (~/.co
   python ~/fz_han_muc.py [--may T4|CPU]   # in tóm tắt (--may: loại máy đang giữ, menu tự truyền)
   python ~/fz_han_muc.py --raw    # in nguyên câu trả lời của cả hai nơi (để kiểm)
   python ~/fz_han_muc.py --may T4 --giay-t4   # chỉ in số GIÂY T4 còn chạy được (menu dùng cho ô 04)
+  python ~/fz_han_muc.py --chup   # chỉ chụp (lưu) hạn mức nếu đọc được, không in gì; 0 = đã chụp
+  python ~/fz_han_muc.py --dong   # KHÔNG hỏi mạng: một dòng tóm tắt từ lần chụp gần nhất (mục a)
+  python ~/fz_han_muc.py --het    # ghi nhận: vừa xin T4 bị từ chối (hết hạn mức?) -- mục m
+
+freeCcuQuotaInfo CHỈ có khi tài khoản đang giữ máy (đo 2026-09-26: không giữ máy -> ccu-info không
+có trường đó, dù còn hạn mức). Nên mỗi lần đọc được, nó được CHỤP vào
+~/.config/colab-cli/fz_han_muc.json (HOME của tài khoản -- menu đặt HOME riêng cho mỗi tài khoản),
+và lúc không giữ máy thì in lần chụp gần nhất. Thời điểm nạp lại là giây epoch (UTC, mốc tuyệt đối,
+không phụ thuộc múi giờ); in ra theo múi giờ của điện thoại, kèm nhãn múi giờ để thấy nếu đặt sai.
 """
 import json
 import os
@@ -22,12 +31,75 @@ import sys
 import time
 from urllib.parse import urljoin
 
+CHUP = os.path.expanduser("~/.config/colab-cli/fz_han_muc.json")
 T4_UOC_TINH = 1.07  # CCU/giờ của một máy T4, đo trên tài khoản này (colab usage) 2026-09-24
 TRU_HAO = 15 * 60   # giây chừa lại cho ô 06 (gom zip) + tải về, trước khi hết hạn mức
 
-# --giay-t4: chỉ in một số (giây T4 còn chạy được) ra stdout thật, còn lại im lặng.
+
+
+def gio_phut(h):
+    m = int(round(h * 60))
+    return f"{m // 60} giờ {m % 60:02d} phút"
+
+
+def luc(ts):
+    """Giờ điện thoại của mốc epoch `ts`."""
+    return time.strftime("%H:%M %d/%m", time.localtime(int(ts)))
+
+
+def mui_gio():
+    z = time.strftime("%z")                    # vd +0700
+    return f"UTC{z[:3]}:{z[3:]}" if len(z) == 5 else (z or "?")
+
+
+def doc_chup():
+    try:
+        with open(CHUP) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def ghi_chup(d):
+    os.makedirs(os.path.dirname(CHUP), exist_ok=True)
+    tam = CHUP + ".tam"
+    with open(tam, "w") as f:
+        json.dump(d, f)
+    os.replace(tam, CHUP)
+
+
+def tom_tat(ch, bay_gio=None):
+    """Một dòng: hạn mức lúc chụp + giờ nạp lại (hoặc 'đã tới giờ nạp lại')."""
+    if not ch:
+        return "chưa chụp hạn mức (h / t / a khi đang giữ máy)"
+    now = time.time() if bay_gio is None else bay_gio
+    nap = ch.get("nap_lai")
+    qua_nap = bool(nap) and now >= nap and ch.get("luc", 0) < nap
+    if qua_nap:
+        dau = "ĐÃ TỚI giờ nạp lại -- có lẽ đã có hạn mức mới"
+    elif ch.get("het_luc") and ch["het_luc"] >= ch.get("luc", 0):
+        dau = f"HẾT (xin T4 bị từ chối lúc {luc(ch['het_luc'])})"
+    elif ch.get("con") is not None:
+        ccu = ch["con"] / 1000
+        dau = f"còn {ccu:.2f} đơn vị ≈ {gio_phut(ccu / T4_UOC_TINH)} T4 (lúc {luc(ch['luc'])})"
+    else:
+        dau = f"không rõ còn bao nhiêu (lúc {luc(ch['luc'])})"
+    if nap and not qua_nap:
+        con = nap - now
+        dau += f" · nạp lại {luc(nap)}" + (f" (sau {gio_phut(con / 3600)})" if con > 0 else "")
+    elif nap:
+        dau += f" ({luc(nap)})"
+    return dau
+
+
+if "--dong" in sys.argv:        # không hỏi mạng
+    print(tom_tat(doc_chup()))
+    sys.exit(0)
+
+# --giay-t4 / --chup: không in gì ra stdout thật (--giay-t4 in đúng một số ở cuối).
 CHI_GIAY = "--giay-t4" in sys.argv
-if CHI_GIAY:
+IM = CHI_GIAY or "--chup" in sys.argv
+if IM:
     sys.stdout = open(os.devnull, "w")
 
 try:
@@ -65,14 +137,23 @@ for ten, url, params in NOI:
 if "--raw" in sys.argv:
     sys.exit(0)
 
-
-def gio_phut(h):
-    m = int(round(h * 60))
-    return f"{m // 60} giờ {m % 60:02d} phút"
-
+if "--het" in sys.argv:         # mục m: xin T4 bị từ chối -> ghi nhận, giữ giờ nạp lại đã biết
+    ch = doc_chup() or {"luc": 0}
+    ch["het_luc"] = int(time.time())
+    ghi_chup(ch)
+    sys.exit(0)
 
 co_han_muc = [(t, d) for t, d, _ in ket_qua if d is not None and d.get("freeCcuQuotaInfo")]
 if not co_han_muc:
+    ccu = next((d for t, d, _ in ket_qua if d is not None), None)
+    if ccu is not None and not int(ccu.get("assignmentsCount") or 0):
+        # Bình thường: máy chủ chỉ trả hạn mức khi đang giữ máy.
+        print("Tài khoản không giữ máy nào -> máy chủ Colab không trả hạn mức (chỉ trả khi đang giữ máy).")
+        print(f"Lần chụp gần nhất: {tom_tat(doc_chup())}")
+        print(f"(giờ theo điện thoại, {mui_gio()})")
+        if ccu.get("eligibleGpus") is not None:
+            print(f"GPU được dùng: {', '.join(ccu.get('eligibleGpus') or []) or '(không)'}")
+        sys.exit(3)
     print("Không nơi nào trả về hạn mức miễn phí (freeCcuQuotaInfo):")
     for ten, d, loi in ket_qua:
         print(f"  {ten}: " + (f"trả về các trường {sorted(d)}" if d is not None else f"lỗi -- {loi}"))
@@ -84,8 +165,16 @@ rate = float(info.get("consumptionRateHourly") or 0)
 so_may = int(info.get("assignmentsCount") or 0)
 # Loai may cua phien (menu truyen vao tu `colab status`: T4 / CPU / ...); rong = khong biet.
 may = sys.argv[sys.argv.index("--may") + 1] if "--may" in sys.argv[:-1] else ""
+if may.upper() == "TAM":        # menu h -> d: máy CPU xin tạm chỉ để đọc hạn mức (trả ngay sau đó)
+    may, so_may = "", max(0, so_may - 1)
+    print("(đọc bằng một máy CPU tạm -- menu trả nó ngay sau đây)")
 q = info["freeCcuQuotaInfo"]
 tok = q.get("remainingTokens")
+nap = q.get("nextRefillTimestampSec")
+ghi_chup({"luc": int(time.time()), "con": None if tok is None else int(tok),
+          "nap_lai": int(nap) if nap else None, "tieu": rate, "so_may": so_may})
+if "--chup" in sys.argv:
+    sys.exit(0)
 print("== Hạn mức Colab của tài khoản ==")
 # Một hạn mức chung cho cả tài khoản (đơn vị tính toán). Mọi máy đang giữ đều tiêu vào nó theo
 # consumptionRateHourly: T4 ~1,07/giờ, CPU rất ít -- nên máy CPU chạy được rất lâu (trang web Colab
@@ -113,11 +202,10 @@ print(f"Đơn vị mua:    {float(info.get('currentBalance') or info.get('paidCo
 if info.get("eligibleGpus") is not None:
     print(f"GPU được dùng: {', '.join(info.get('eligibleGpus') or []) or '(không)'}"
           f" · không được: {', '.join(info.get('ineligibleGpus') or []) or '(không)'}")
-nap = q.get("nextRefillTimestampSec")
 if nap:
     con = int(nap) - time.time()
-    print(f"Nạp lại lúc:   {time.strftime('%H:%M %d/%m', time.localtime(int(nap)))}"
-          + (f" (sau {gio_phut(con / 3600)})" if con > 0 else ""))
+    print(f"Nạp lại lúc:   {luc(nap)} (giờ điện thoại, {mui_gio()})"
+          + (f" -- sau {gio_phut(con / 3600)}" if con > 0 else ""))
 if h is not None:
     print(f"Gợi ý SECS ô 04 (trên T4): {max(0, int(h * 3600) - TRU_HAO)}"
           f" (= thời gian GPU còn lại - {TRU_HAO // 60} phút để gom zip + tải về)")

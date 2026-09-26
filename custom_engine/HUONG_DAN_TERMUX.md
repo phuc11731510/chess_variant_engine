@@ -208,6 +208,8 @@ colab new -s fz --gpu T4
 
 `colab new --gpu T4` báo lỗi hết tài nguyên = tài khoản miễn phí đã dùng hết GPU trong ngày; đợi vài
 giờ đến một ngày, hoặc Colab Pro. GPU khác: `--gpu L4` / `A100` / `H100` (cần Pro / đơn vị tính toán).
+Ở menu (`m`), lỗi đó (máy chủ trả `503 Service Unavailable`) in gọn một dòng thay cho cả trang
+traceback, kèm giờ nạp lại đã biết của tài khoản và gợi ý `h` / `a`.
 
 **Còn bao lâu nữa bị ngắt?** Menu **`h`**. `colab usage` chỉ in số dư đơn vị **mua** (tài khoản
 miễn phí: 0) — nên menu chạy thêm `~/fz_han_muc.py`. Nó hỏi đúng nơi `colab usage` hỏi
@@ -231,8 +233,31 @@ Hạn mức là **một con số chung của cả tài khoản**; mọi máy đa
 (thường vài chục giờ — giống "tối đa X giờ" trên trang web), kèm dòng "Nếu dùng T4" để biết còn bao
 nhiêu giờ T4.
 
-Chưa giữ máy nào thì nó tính theo mức T4 ~1,07/giờ. `python ~/fz_han_muc.py --raw` in nguyên dữ
-liệu API trả về để tự kiểm. Đây là API nội bộ của Google (không có tài liệu chính thức), có thể đổi.
+`python ~/fz_han_muc.py --raw` in nguyên dữ liệu API trả về để tự kiểm. Đây là API nội bộ của Google
+(không có tài liệu chính thức), có thể đổi.
+
+**Máy chủ CHỈ trả hạn mức khi tài khoản đang giữ máy** (đo 2026-09-26: không giữ máy thì câu trả lời
+không có `freeCcuQuotaInfo`, dù còn hạn mức — không phải lỗi, cũng không phải dấu hiệu hết hạn mức).
+Vì vậy mỗi lần đọc được, hạn mức được **chụp** lại (tệp `~/.config/colab-cli/fz_han_muc.json` trong
+HOME của tài khoản đó — mỗi tài khoản một bản): tự động ở `m` (xin được máy), `h`, `t` (ngay TRƯỚC khi
+trả máy) và khi mở `a`. Không giữ máy thì `h` in lần chụp gần nhất và hỏi **`d`** = xin tạm một máy
+CPU tên `fzhm<số>` (~30 giây, gần như không tốn hạn mức), đọc hạn mức + giờ nạp lại, rồi trả ngay
+(Ctrl+C giữa chừng vẫn trả).
+
+Mục **`a`** hiện dưới mỗi tài khoản một dòng từ lần chụp gần nhất, để biết nên đổi sang tài khoản nào:
+
+```
+== Tài khoản Colab == (giờ theo điện thoại: 09:51 26/09, UTC+07:00)
+  1  chinh (chính)       đã đăng nhập <- cửa sổ này
+      hạn mức: HẾT (xin T4 bị từ chối lúc 09:40 26/09) · nạp lại 02:20 27/09 (sau 16 giờ 29 phút)
+  2  phuc2               đã đăng nhập
+      hạn mức: còn 5.54 đơn vị ≈ 5 giờ 11 phút T4 (lúc 21:05 25/09) · nạp lại 13:10 26/09 (sau 3 giờ 19 phút)
+```
+
+- **Giờ nạp lại** máy chủ trả là giây epoch (mốc tuyệt đối theo UTC, không phụ thuộc múi giờ); menu in
+  theo **múi giờ của điện thoại**, kèm nhãn (`UTC+07:00`) — thấy nhãn sai thì chỉnh múi giờ Android.
+- Đã qua giờ nạp lại kể từ lần chụp: dòng ghi `ĐÃ TỚI giờ nạp lại -- có lẽ đã có hạn mức mới`.
+- Số "còn" là **lúc chụp**; tài khoản còn giữ máy (ở cửa sổ khác) thì mở lại `a` để chụp mới.
 
 ### 4.1. Nhiều máy cùng lúc (đặt tên máy)
 
@@ -677,10 +702,31 @@ một đời với selfplay 4,3 giờ.
 ## 10. Giữ Termux sống khi tắt màn hình
 
 Engine chạy trên Colab nên không phụ thuộc điện thoại. Nhưng tiến trình **giữ máy khỏi bị thu hồi vì
-"idle"** chạy **trên điện thoại**: `colab new` (menu `m` / `c`) khởi động nó chạy nền (`colab
-keep-alive`), cứ 60 giây báo Colab một lần, tự dừng sau 24 giờ hoặc khi máy bị trả. Termux bị Android
-giết thì tiến trình đó chết theo và máy Colab có thể bị thu hồi vì idle. Nên suốt lúc selfplay/train
-hãy giữ Termux sống:
+"ngồi không"** chạy **trên điện thoại**: `~/fz_giu_may.py` (menu tự bật sau `m` / `c`, khi mở menu và
+trước mỗi ô; tắt khi trả máy ở `t`). Termux bị Android giết thì tiến trình đó chết theo và máy Colab
+bị thu hồi sau khoảng 10 phút. Nên suốt lúc selfplay/train hãy giữ Termux sống (cách làm: các gạch
+đầu dòng ngay dưới bảng).
+
+**Vì sao cần (đo 2026-09-26, Colab CLI 0.7.4, mỗi cách một máy CPU):**
+
+| Cách | Kết quả |
+|---|---|
+| Không làm gì / một tiến trình ghi tệp mỗi phút | bị thu hồi ~10 phút sau khi xin |
+| Báo `tun/m/<máy>/keep-alive/` mỗi 60 giây (cách CLI ≤ 0.7.2 giữ máy; 0.7.4 đã bỏ) | **vẫn** bị thu hồi ~10 phút |
+| Kernel bận (một khối lệnh chạy dài) / CPU 100% qua ssh | bị thu hồi ~12–15 phút |
+| `colab status` mỗi 60 giây | bị thu hồi ~12 phút |
+| Một phiên ssh luôn mở có dữ liệu chạy / **ssh ngắn (`true`) mỗi 60 giây** | **sống** (20+ phút, đo tiếp) |
+
+Tức là Colab tính "đang dùng" theo **kết nối ssh vào máy**. `fz_giu_may.py` mở một phiên ssh ngắn
+mỗi 60 giây — trừ khi menu đang có phiên ssh tới máy đó (xem log `l`, khởi động ô: chính nó đã là
+hoạt động). Colab chỉ cho **một** phiên ssh mỗi máy, nên trong vài giây nó ssh, nó giữ tệp khoá
+`fz_giu_<tên máy>.ssh` và menu chờ khoá đó rồi mới nối (khoá cũ hơn 60 giây = sót lại, bỏ qua).
+Trước mỗi lần nó kiểm tên phiên còn trỏ đúng máy (`colab ssh --proxy-mode` TỰ XIN MÁY MỚI nếu tên
+không còn); tự dừng khi máy không còn trong danh sách của tài khoản. Kiểm:
+`python ~/fz_giu_may.py song <endpoint>` (0 = đang chạy; endpoint xem ở `k`), nhật ký
+`~/.config/colab-cli/fz_giu_<endpoint>.log`.
+
+Giữ Termux sống:
 
 - `termux-wake-lock` (hoặc kéo thanh thông báo Termux → **Acquire wakelock**).
 - **Cài đặt → Ứng dụng → Termux → Pin → Không hạn chế**. Trên Samsung còn phải bỏ Termux khỏi

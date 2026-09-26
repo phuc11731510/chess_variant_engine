@@ -25,9 +25,22 @@ import sys
 try:
     from colab_cli.common import state
     from colab_cli.state import SessionState
-    from colab_cli.commands.session import spawn_keep_alive
 except ImportError as e:
     sys.exit(f"[!] Colab CLI thieu thanh phan: {e}")
+try:        # Colab CLI <= 0.7.2: tien trinh keep-alive tren dien thoai giu may
+    from colab_cli.commands.session import spawn_keep_alive
+except ImportError:
+    # 0.7.4 bo keep-alive (README: "the Colab backend automatically maintaining liveness"),
+    # SessionState cung khong con keep_alive_pid -> khong co gi de bat lai.
+    spawn_keep_alive = None
+# Giu may cua chinh menu (fz_giu_may.py, cung thu muc): chay voi MOI phien ban CLI, khong bi CLI tat
+# khi no xoa phien. Tu 2026-09-26 may khong co ket noi ssh bi thu hoi sau ~10 phut (ca voi
+# keep-alive cua CLI cu) -- xem dau fz_giu_may.py.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import fz_giu_may
+except ImportError:
+    fz_giu_may = None
 
 LUU = os.path.expanduser("~/.config/colab-cli/fz_may_{}.txt")
 
@@ -42,7 +55,11 @@ def may_dang_giu():
 
 
 def keep_alive_song(s):
-    pid = s.keep_alive_pid
+    if fz_giu_may is not None and not fz_giu_may.pid_song(s.endpoint):
+        return False
+    if spawn_keep_alive is None:
+        return True             # CLI khong dung keep-alive
+    pid = getattr(s, "keep_alive_pid", None)
     if not pid:
         return False
     try:
@@ -52,6 +69,12 @@ def keep_alive_song(s):
 
 
 def bat_keep_alive(s):
+    if fz_giu_may is not None:
+        fz_giu_may.bat(s.endpoint, s.name)
+    elif spawn_keep_alive is None:
+        print("[!] Thieu ~/fz_giu_may.py -- may se bi Colab thu hoi khi ngoi khong: bash ~/lay_ve.sh")
+    if spawn_keep_alive is None or getattr(s, "keep_alive_pid", None) and keep_alive_cli_song(s):
+        return
     try:
         state.client.keep_alive_assignment(s.endpoint)  # bao ngay mot lan
     except Exception as e:  # noqa: BLE001 -- tien trinh nen se thu lai
@@ -64,6 +87,13 @@ def bat_keep_alive(s):
         kw["config_path"] = state.config_path
     s.keep_alive_pid = spawn_keep_alive(s.endpoint, s.name, **kw)
     state.store.add(s)
+
+
+def keep_alive_cli_song(s):
+    try:
+        return b"keep-alive" in open(f"/proc/{s.keep_alive_pid}/cmdline", "rb").read()
+    except OSError:
+        return False
 
 
 def ghi_endpoint(ten, endpoint):
@@ -92,7 +122,9 @@ def nhan(ten, endpoint, ds=None):
     bat_keep_alive(s)
     ghi_endpoint(ten, endpoint)
     state.history.log_event(ten, "session_created", {"endpoint": endpoint, "fz": "nhan_lai"})
-    print(f"[da nhan lai] may {endpoint} ({s.accelerator}) = phien '{ten}', keep-alive pid {s.keep_alive_pid}")
+    ka = getattr(s, "keep_alive_pid", None)
+    print(f"[da nhan lai] may {endpoint} ({s.accelerator}) = phien '{ten}'"
+          + (f", keep-alive pid {ka}" if ka else ""))
     return 0
 
 
@@ -114,7 +146,7 @@ def kiem(ten):
         state.store.add(s)
     if not keep_alive_song(s):
         bat_keep_alive(s)
-        print(f"[!] keep-alive cua phien '{ten}' da chet -> bat lai (pid {s.keep_alive_pid})")
+        print(f"[giu may] bat tien trinh giu may cho phien '{ten}' (~/fz_giu_may.py)")
     elif doi:
         print(f"[lam moi] token phien '{ten}'")
     return 0
