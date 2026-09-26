@@ -15,6 +15,7 @@ Hỏi hai nơi, bằng thông tin đăng nhập sẵn có của Colab CLI (~/.co
   python ~/fz_han_muc.py [--may T4|CPU]   # in tóm tắt (--may: loại máy đang giữ, menu tự truyền)
   python ~/fz_han_muc.py --raw    # in nguyên câu trả lời của cả hai nơi (để kiểm)
   python ~/fz_han_muc.py --may T4 --giay-t4   # chỉ in số GIÂY T4 còn chạy được (menu dùng cho ô 04)
+  python ~/fz_han_muc.py --may T4 --chua 10   # gợi ý SECS = thời gian T4 còn lại - 10 phút (mặc định 10)
   python ~/fz_han_muc.py --chup   # chỉ chụp (lưu) hạn mức nếu đọc được, không in gì; 0 = đã chụp
   python ~/fz_han_muc.py --dong   # KHÔNG hỏi mạng: một dòng tóm tắt từ lần chụp gần nhất (mục a)
   python ~/fz_han_muc.py --het    # ghi nhận: vừa xin T4 bị từ chối (hết hạn mức?) -- mục m
@@ -33,7 +34,9 @@ from urllib.parse import urljoin
 
 CHUP = os.path.expanduser("~/.config/colab-cli/fz_han_muc.json")
 T4_UOC_TINH = 1.07  # CCU/giờ của một máy T4, đo trên tài khoản này (colab usage) 2026-09-24
-TRU_HAO = 15 * 60   # giây chừa lại cho ô 06 (gom zip) + tải về, trước khi hết hạn mức
+TRU_HAO = 10 * 60   # giây chừa lại (ván dở chơi nốt + ô 06 gom zip + tải về) trước khi hết hạn mức
+if "--chua" in sys.argv[:-1]:   # menu truyền số phút chừa người dùng chọn (~/.fz_tk/.chua_phut)
+    TRU_HAO = int(sys.argv[sys.argv.index("--chua") + 1]) * 60
 
 
 

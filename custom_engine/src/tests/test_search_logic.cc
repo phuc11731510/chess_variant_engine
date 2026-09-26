@@ -25,6 +25,8 @@
 //      Node slab allocator corrupting memory at thread exit on MinGW.
 //   8. A game file written by PlayOneGame replays exactly: planes, pi mask,
 //      best/played indices, game end and z of every record.
+//   9. Self-play soft stop (--stop-file): no new game once the file exists, the
+//      games in flight finish into complete files.
 //
 // Every sub-test runs even if an earlier one failed; the process exits 1 at the
 // end if anything failed.
@@ -32,6 +34,7 @@
 #include "tests/test_common.h"
 #include "app/fairyzero_ffi.h"
 #include "app/uci_nn_engine.h"
+#include <filesystem>
 #include <iomanip>
 
 namespace {
@@ -874,6 +877,77 @@ void TestSelfPlayRecordsReplay() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 9. Soft stop on demand (--stop-file): once the file exists RunSelfPlay takes no
+// new game, and the games in flight still finish into complete files. The phone
+// menu relies on this to stop several machines together at a total game count.
+void TestSelfPlayStopFile() {
+    std::cout << "\n--- 9. Self-play soft stop (--stop-file) ---" << std::endl;
+    namespace fs = std::filesystem;
+    fztest::DetBackend backend(/*runs_on_cpu=*/true, /*batch=*/8, /*immediate_mod=*/0);
+    fztest::TestSearchOptions opts;
+    opts.SetNoise(0.25f, 0.3f);
+    const fs::path dir = "test_stop_file_games", stop = "test_stop_file.flag";
+    const std::string ext = lczero::TrainingDataWriter::Extension();
+    // Finished games (<ext>) and leftovers of unfinished ones (<ext>.tmp) in dir.
+    auto count = [&](int* tmp) {
+        int n = 0, t = 0;
+        std::error_code ec;
+        for (const auto& e : fs::directory_iterator(dir, ec)) {
+            const std::string f = e.path().filename().string();
+            if (f.size() > ext.size() && f.compare(f.size() - ext.size(), ext.size(), ext) == 0) ++n;
+            else ++t;
+        }
+        if (tmp) *tmp = t;
+        return n;
+    };
+    auto run = [&](int games) {
+        lczero::SelfPlayConfig cfg;
+        cfg.start_fen = lczero::ChessBoard::kStartposFen;
+        cfg.out_dir = dir.string();
+        cfg.num_games = games;
+        cfg.visits = 16;
+        cfg.max_moves = 30;
+        cfg.temp_cutoff_ply = 10;
+        cfg.parallel = 2;
+        cfg.stop_file = stop.string();
+        lczero::RunSelfPlay(cfg, &backend, opts.Dict());
+    };
+    std::error_code ec;
+    // a) The file is there from the start: no game at all.
+    fs::remove_all(dir, ec);
+    { std::ofstream(stop.string()) << ""; }
+    run(50);
+    int tmp = 0;
+    EXPECT(count(&tmp) == 0 && tmp == 0, "stop file present at start: " << count(nullptr) << " game(s) played");
+    // b) The file appears while running (after 3 games): stops long before --games.
+    fs::remove(stop, ec);
+    fs::remove_all(dir, ec);
+    std::atomic<bool> over{false};
+    std::thread watcher([&] {
+        while (!over.load()) {
+            if (count(nullptr) >= 3) { std::ofstream(stop.string()) << ""; return; }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    });
+    run(100000);
+    over = true;
+    watcher.join();
+    const int n = count(&tmp);
+    EXPECT(n >= 3 && n < 100, "stop file during the run: " << n << " games (want 3.. a few more)");
+    EXPECT(tmp == 0, tmp << " unfinished file(s) left behind");
+    int bad = 0;
+    for (const auto& e : fs::directory_iterator(dir, ec)) {
+        std::vector<lczero::TrainingDataV1> recs;
+        if (!lczero::ReadTrainingData(e.path().string(), recs) || recs.empty()) ++bad;
+    }
+    EXPECT(bad == 0, bad << " game file(s) unreadable after the soft stop");
+    std::cout << "  stop file at start: 0 games; appeared after 3: " << n << " games, all complete"
+              << (n >= 3 && n < 100 && tmp == 0 && bad == 0 ? "  OK" : "") << std::endl;
+    fs::remove(stop, ec);
+    fs::remove_all(dir, ec);
+}
+
 }  // namespace
 
 void run_search_logic_tests(const std::string& weights_path) {
@@ -890,6 +964,7 @@ void run_search_logic_tests(const std::string& weights_path) {
     TestUciTreeReuse(weights_path);
     TestSearchLifecycleStress();
     TestSelfPlayRecordsReplay();
+    TestSelfPlayStopFile();
 
     std::cout << "\n========================================" << std::endl;
     if (g_failures == 0) {

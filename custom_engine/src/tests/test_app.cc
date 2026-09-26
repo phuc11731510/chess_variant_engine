@@ -53,6 +53,14 @@ void TestParseCli() {
                    o.weights_file == "/content/seed_gen0.onnx" && o.sp_out == "/content/games_gen0",
                "notebook self-play command: a value was not taken");
     }
+    // Cell 04 on Colab with the soft-stop file (menu fz / automatic loop).
+    {
+        const auto o = Parse({"--selfplay", "--games", "1000", "--max-seconds", "15480",
+                              "--stop-file", "/content/fz_log/dung_mem", "--out", "/content/games_gen3"});
+        EXPECT(o.errors.empty() && o.sp_stop_file == "/content/fz_log/dung_mem" &&
+                   Parse({"--selfplay"}).sp_stop_file.empty(),
+               "--stop-file value, and off without the flag");
+    }
     // The arena command of the notebook.
     {
         const auto o = Parse({"--arena", "--model-a", "a.onnx", "--model-b", "b.onnx", "--games", "400",
@@ -123,6 +131,7 @@ void TestParseCli() {
              {"--selfplay", "--fixed-batch", "65"},
              {"--selfplay", "--parallel", "0"},
              {"--selfplay", "--max-seconds", "-3"},
+             {"--selfplay", "--stop-file"},              // missing value
              {"--selfplay", "--search-opt", "cpuct"},    // no '='
              {"--selfplay", "--search-opt", "=2"},
              {"--selfplay", "--provider", "gpu"},
