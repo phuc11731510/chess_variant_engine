@@ -118,6 +118,12 @@ dung() { echo; read -rp "--- Enter để về menu ---" _; }
 
 # ssh toi may Colab cua phien $S (khong can ~/.ssh/config).
 ssh_colab() {
+  # Tien trinh giu may (~/fz_giu_may.py) dang mo phien ssh ngan cua no (vai giay) -> cho: Colab chi
+  # cho MOT phien ssh moi may, noi chen vao se bi tu choi (429).
+  # Khoa cu hon 60 giay = sot lai (mot lan ssh ngan chi vai giay) -> bo qua.
+  local k=$TKH/.config/colab-cli/fz_giu_$S.ssh i=0
+  [ -n "$(find "$k" -mmin -1 2>/dev/null)" ] || rm -f "$k"
+  while [ -e "$k" ] && [ $i -lt 40 ]; do sleep 0.5; i=$((i + 1)); done
   ssh -o ProxyCommand="env HOME=$TKH $(type -P colab) ssh --proxy-mode -s $S" \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
       -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
@@ -328,7 +334,7 @@ doi_doi() {
   fi
 }
 
-# Giu may cua phien $S (~/fz_nhan_may.py, xem dau tep do): Colab CLI XOA phien va TAT keep-alive
+# Giu may cua phien $S (~/fz_nhan_may.py + ~/fz_giu_may.py, xem dau hai tep do): Colab CLI XOA phien va TAT keep-alive
 # khi colab exec gap loi 404/401 -- ca khi may van song (vd kernel cu chet). kiem_may: phien con
 # thi bat lai keep-alive neu no chet + ghi endpoint; cuu_phien: phien vua bi xoa ma may con -> nhan
 # lai. 0 = phien dung duoc.
@@ -456,19 +462,29 @@ tai_khoan() {
     tk_hop_le "$ten" && ! tk_trung "$ten" || continue
     mkdir -p "$TKG/$ten/.config/colab-cli" && cp "$x"/*.json "$TKG/$ten/.config/colab-cli/"
   done
+  local chup=1
   while true; do
     ds=("")
     for x in "$TKG"/*/; do [ -d "$x" ] && ds+=("$(basename "$x")"); done
+    if [ $chup = 1 ]; then
+      # Tai khoan nao dang giu may thi may chu tra han muc -> chup lai (song song, <= 20 giay).
+      echo "[đang chụp hạn mức các tài khoản...]"
+      for ten in "${ds[@]}"; do tk_dang_nhap "$ten" && chup_han_muc "$ten" & done
+      wait; chup=0
+    fi
     clear
-    echo "== Tài khoản Colab =="
+    echo "== Tài khoản Colab == (giờ theo điện thoại: $(date '+%H:%M %d/%m, UTC%:z'))"
     for i in "${!ds[@]}"; do
       ten=${ds[$i]}; x=""
       [ "$ten" = "$TK" ] && x="<- cửa sổ này"
       [ -n "$(cua_so_khac "$ten")" ] && x="${x:+$x, }đang mở ở cửa sổ khác"
       printf " %2d  %-20s %-15s %s\n" $((i + 1)) "$(ten_tk "$ten")$([ -z "$ten" ] && echo " (chính)")" \
         "$(tk_dang_nhap "$ten" && echo "đã đăng nhập" || echo "CHƯA đăng nhập")" "$x"
+      tk_dang_nhap "$ten" && echo "      hạn mức: $(dong_han_muc "$ten")"
     done
     echo "---"
+    echo " Hạn mức chỉ đọc được khi tài khoản ĐANG GIỮ MÁY: chụp tự động ở m, h, t (trước khi trả) và khi"
+    echo " mở mục này. Tài khoản không giữ máy: số là của lần chụp gần nhất (h -> d để đọc mới)."
     echo " Số = cửa sổ này dùng tài khoản đó (cửa sổ khác không đổi)"
     echo " n  = thêm tài khoản · r = đổi tên · x = đăng xuất / xoá · Enter = về menu"
     echo " Dùng CÙNG LÚC: mở thêm cửa sổ Termux (vuốt từ mép trái -> NEW SESSION), gõ: fz @<tên>"
@@ -594,11 +610,73 @@ duoc_xin() {
 }
 
 # Muc h: han muc mien phi con lai + so du, may dang giu, GPU duoc dung (~/fz_han_muc.py).
+# May chu CHI tra han muc khi tai khoan dang giu may -> khong giu may thi in lan chup gan nhat va
+# cho xin tam mot may CPU (~30 giay, gan nhu khong ton han muc) de doc han muc + gio nap lai.
 han_muc() {
-  local may
+  local may rc x
+  [ -f ~/fz_han_muc.py ] || { echo "[!] Thiếu ~/fz_han_muc.py -- chạy: bash ~/lay_ve.sh"; colab usage; return; }
   # Loai may cua phien $S, tu dong "... | Hardware: T4 | ..." cua colab status (CPU / T4 / ...).
   may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
-  if [ -f ~/fz_han_muc.py ]; then py_colab ~/fz_han_muc.py --may "$may"; else echo "[!] Thiếu ~/fz_han_muc.py -- chạy: bash ~/lay_ve.sh"; colab usage; fi
+  py_colab ~/fz_han_muc.py --may "$may"; rc=$?
+  [ $rc = 3 ] || return
+  echo
+  read -rp "d = xin tạm máy CPU ~30 giây để đọc hạn mức + giờ nạp lại (rồi trả ngay) · Enter = thôi: " x
+  [ "$x" = d ] || [ "$x" = D ] || return
+  do_han_muc
+}
+
+# Xin tam may CPU ten rieng, doc (va chup) han muc, tra may ngay. Ctrl+C giua chung van tra may.
+do_han_muc() {
+  local ten="fzhm$$"
+  echo "[xin tạm máy CPU '$ten'...]"
+  if ! colab new -s "$ten" >/dev/null 2>&1; then
+    echo "[!] Không xin được cả máy CPU -- Colab đang từ chối tài khoản này (thử lại sau)."
+    return 1
+  fi
+  trap 'colab stop -s "'"$ten"'" >/dev/null 2>&1' INT
+  py_colab ~/fz_han_muc.py --may TAM
+  if colab stop -s "$ten" >/dev/null 2>&1; then echo "[đã trả máy tạm '$ten']"
+  else echo "[!] Chưa trả được máy tạm '$ten' -- trả ở mục t"; fi
+  trap - INT
+}
+
+# Chup han muc (neu dang giu may) cua tai khoan $1 ("" = chinh) -- im lang, toi da 20 giay.
+chup_han_muc() {
+  [ -f ~/fz_han_muc.py ] || return 1
+  HOME=$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME") timeout 20 python ~/fz_han_muc.py --chup >/dev/null 2>&1
+}
+# Mot dong tu lan chup gan nhat cua tai khoan $1, khong hoi mang.
+dong_han_muc() {
+  [ -f ~/fz_han_muc.py ] || return
+  HOME=$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME") python ~/fz_han_muc.py --dong 2>/dev/null
+}
+
+# m / c: xin may $1 (T4, rong = CPU) ten $S. Loi thi in gon (khong in traceback cua CLI); T4 bi tu
+# choi (503 Service Unavailable = thuong la HET han muc GPU mien phi) -> ghi nhan, chi cach xem gio
+# nap lai va doi tai khoan.
+xin_may() {
+  local out rc loi
+  out=$(colab new -s "$S" ${1:+--gpu "$1"} 2>&1); rc=$?
+  grep '^\[colab\]' <<<"$out"
+  if [ $rc = 0 ] && colab status -s "$S" 2>/dev/null; then
+    kiem_may >/dev/null
+    chup_han_muc "$TK" &          # dang giu may -> may chu tra han muc: chup nen
+    return 0
+  fi
+  loi=$(grep -o 'Service Unavailable\|Too Many Requests\|Forbidden\|Unauthorized\|precondition failed\|Backend rejected accelerator\|Max retries exceeded\|Name or service not known' <<<"$out" | head -1)
+  echo "[!] Không xin được máy ${1:-CPU}${loi:+ -- máy chủ trả: $loi}"
+  case "$loi" in
+  "Service Unavailable"|"precondition failed"|"Backend rejected accelerator")
+    if [ -n "$1" ]; then
+      [ -f ~/fz_han_muc.py ] && py_colab ~/fz_han_muc.py --het
+      echo "    Thường là tài khoản $(ten_tk "$TK") đã HẾT hạn mức GPU miễn phí (hoặc Colab tạm hết $1)."
+      echo "    Lần chụp gần nhất: $(dong_han_muc "$TK")"
+      echo "    h = xem giờ nạp lại chính xác · a = đổi tài khoản (có hạn mức từng tài khoản)"
+    fi ;;
+  "Max retries exceeded"|"Name or service not known") echo "    Mất mạng? Kiểm tra kết nối rồi thử lại." ;;
+  "") grep -v '^[│╭╰]' <<<"$out" | grep -v '^\[colab\]' | tail -3 ;;
+  esac
+  return 1
 }
 
 # Kich thuoc de doc (1.2M, 340K).
@@ -861,10 +939,13 @@ tra_may() {
     [ ${#hop[@]} -eq 0 ] && continue
     read -rp "Trả ${#hop[@]} máy (${hop[*]})? Mọi tệp /content trên đó sẽ MẤT. Gõ 'co' để trả: " x
     [ "$x" = co ] || continue
+    # Con giu may -> may chu con tra han muc: chup truoc khi tra (muc a hien lai).
+    chup_han_muc "$TK" && echo "[đã chụp hạn mức] $(dong_han_muc "$TK")"
     for x in "${hop[@]}"; do
       dong=${ds[$((x - 1))]}
       ten=${dong%%]*}; ten=${ten#[}
       ep=${dong#*] }; ep=${ep%% *}
+      [ -f ~/fz_giu_may.py ] && py_colab ~/fz_giu_may.py tat "$ep"
       if [ "$ten" != "?" ]; then
         colab stop -s "$ten"
       else
@@ -920,6 +1001,10 @@ chay_cac_o() {
 if [ -n "$LE" ]; then tai_len "$2" "${3:-}"; exit; fi
 if [ $# -gt 0 ]; then chay_cac_o "$@"; exit; fi
 
+# Mo menu: may cua cua so nay con thi bao dam tien trinh giu may (~/fz_giu_may.py) dang chay --
+# vd dien thoai vua khoi dong lai, hoac menu cu (truoc 2026-09-26) chua bat no. Chay nen, im lang.
+[ -n "$LE" ] || { kiem_may >/dev/null 2>&1 & }
+
 while true; do
   clear
   gen=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^GEN_CURRENT *= *\([0-9]*\).*/\1/p')
@@ -960,11 +1045,10 @@ while true; do
 
   case "${chon[0]}" in
   q|Q) exit 0 ;;
-  m|M) duoc_xin && { colab new -s "$S" --gpu T4; colab status -s "$S"; kiem_may >/dev/null; }; dung; continue ;;
+  m|M) duoc_xin && xin_may T4; dung; continue ;;
   c|C)
     # Khong --gpu = may CPU. O dung GPU (04, 07, 08: --provider cuda / --amp) se loi tren may nay.
-    duoc_xin || { dung; continue; }
-    colab new -s "$S"; colab status -s "$S"; kiem_may >/dev/null
+    duoc_xin && xin_may || { dung; continue; }
     echo; echo "[máy CPU] Hợp để thử menu, ô 01/02/03/05/06, tải lên/về. Ô 04/07/08 cần T4."
     echo "          Đổi sang T4: t (trả máy) rồi m."
     dung; continue ;;
