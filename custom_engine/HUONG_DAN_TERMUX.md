@@ -26,6 +26,7 @@ Có hai cách dùng:
 7. [Một đời, từng ô](#7-một-đời-từng-ô)
 8. [Tải tệp lên / về](#8-tải-tệp-lên--về)
 9. [Sang đời tiếp theo](#9-sang-đời-tiếp-theo)
+   - [9.1. Vòng lặp tự động (mục v)](#91-vòng-lặp-tự-động-mục-v)
 10. [Giữ Termux sống khi tắt màn hình](#10-giữ-termux-sống-khi-tắt-màn-hình)
 11. [Cách B: script tự động](#11-cách-b-script-tự-động)
 12. [Lệnh Colab CLI dùng tay](#12-lệnh-colab-cli-dùng-tay)
@@ -376,6 +377,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     u    Duyệt tệp điện thoại, tải lên Colab
     t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)
     a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)
+    v    Vòng lặp tự động: sinh -> huấn luyện -> lên đời
     q    Thoát
    --------------------------------------
     Nhiều ô liền nhau: gõ cách nhau, vd: 01 02
@@ -722,6 +724,53 @@ DATA = "/content/games_gen0.zip,/content/games_gen1.zip"
 Máy còn sống từ đời trước (chưa `stop`) thì chỉ cần đổi `GEN_CURRENT` rồi `o 04` — `gen1.onnx`
 vẫn nằm ở `/content`. Colab miễn phí tự ngắt sau tối đa khoảng 12 giờ, nên một phiên thường chỉ đủ
 một đời với selfplay 4,3 giờ.
+
+### 9.1. Vòng lặp tự động (mục v)
+
+Treo máy cả ngày: vòng lặp tự xin máy, sinh dữ liệu, huấn luyện, đưa mạng mới lên GitHub rồi sang đời
+sau, lặp lại. Mở bằng menu **`v`** hoặc gõ thẳng **`fz tu_dong`**.
+
+**Chuẩn bị một lần**
+
+1. Quyền GitHub (giai đoạn 4 tải mạng lên Release): `pkg install gh`, rồi `gh auth login` → chọn
+   **GitHub.com** → **HTTPS** → **Login with a web browser** → mở link, dán mã hiện trong Termux.
+   Chỉ một lần (kiểm: `gh auth status`).
+2. Binary có `--stop-file` trên Release: xin máy (CPU là đủ: `c`), chạy **`02 02b`** (~10-40 phút tuỳ
+   máy), binary mới tự tải về `Download/FairyZero/custom_engine`, rồi đưa lên Release thay tệp cũ:
+   ```bash
+   gh release upload v3.0.0 ~/storage/downloads/FairyZero/custom_engine --clobber -R phuc11731510/chess_variant_engine
+   ```
+   (tệp tải về mang tên khác, vd `custom_engine (2)`, thì đổi tên thành `custom_engine` trước).
+3. Ô 04 bản mới (có `DUNG_MEM`): `bash ~/lay_ve.sh 04` (ghi đè ô 04; tham số bạn đã sửa thì sửa lại).
+4. Đặt đúng đời trong ô 00 (`g`) — vòng lặp **bắt đầu từ `GEN_CURRENT`** (đổi điện thoại thì đặt lại).
+5. Thư mục dữ liệu các đời trước trong `Download/FairyZero/`: `games_gen<N-1>/`, `games_gen<N-2>/`
+   (mỗi thư mục chứa thẳng các tệp `.gz`). Thiếu thì vòng lặp hỏi có chạy tiếp không.
+
+**Chạy:** mở **tối đa 2 cửa sổ** Termux, cửa sổ nào cũng gõ `fz tu_dong`. Mỗi cửa sổ lo trọn **một**
+máy của **một** tài khoản (hai cửa sổ không bao giờ lấy cùng tài khoản), hiện log trực tiếp như `l`.
+Lúc bắt đầu hỏi: tổng số ván mỗi đời (Enter = lần trước, mặc định 1000), số phút chừa trước lúc hết
+hạn mức (như ô 04), rồi in đời đang ở giai đoạn nào (vd `Đã có 487/1000 ván đời 3 -> sinh tiếp`).
+
+**Một đời G, tự động:**
+
+| Giai đoạn | Việc |
+|---|---|
+| 1. Xin máy | Thử T4 lần lượt: tài khoản **đã tới giờ nạp lại** → **xanh** (≥ 1 giờ T4, nhiều trước) → chưa chụp hạn mức. Bỏ qua: vàng (< 1 giờ), HẾT chờ giờ nạp lại, tài khoản đang mở ở cửa sổ khác hoặc đang giữ máy không phải của vòng lặp. Không xin được máy nào → 10 phút sau thử lại (tài khoản HẾT không rõ giờ nạp lại: mỗi giờ thử một lần). |
+| 2. Sinh dữ liệu | Máy mới: `02`. Rồi `04` với `SECS` = hạn mức T4 − số phút chừa, `GAMES` = số ván còn thiếu → `06` → tải về với tên tích luỹ `games_genG_<tổng>.zip`. **Tổng** = số lớn nhất trong tên gói + số ván đã xong trên các máy đang chạy. Đủ mục tiêu → mỗi cửa sổ **dừng mềm** máy của mình (ván dở chơi nốt). Máy hết lượt mà chưa đủ → tải về, trả máy, xin tài khoản khác. |
+| 3. Huấn luyện | Khi mọi máy đã tải về: cửa sổ có máy **nhiều hạn mức nhất** huấn luyện, cửa sổ kia trả máy và chờ (không xin máy trong lúc chờ). Gộp mọi `games_genG_*.zip` vào thư mục `games_genG/`, gói `games_genG/`, `games_gen(G-1)/`, `games_gen(G-2)/` thành `games_genG.zip`. Máy phải còn **≥ 20 phút T4 lúc sắp tải dữ liệu lên** (không thì trả, xin máy khác), tải lên, `07`, tải `gen(G+1).onnx` + `.pt` về. Máy mất giữa chừng → xin máy mới ngay, rồi 10 phút một lần, làm lại. |
+| 4. Lên đời | `gh release upload` hai tệp mạng lên Release (theo `REL` ô 00), `GEN_CURRENT` + 1, sang đời mới — máy vừa huấn luyện (đã có mạng mới) sinh dữ liệu tiếp luôn. |
+
+**Dừng:** Ctrl+C trong cửa sổ vòng lặp → **`s`** = dừng mềm **cả** vòng lặp (mọi cửa sổ: chơi nốt ván
+dở, gom, tải về, trả máy rồi thoát; đang huấn luyện thì làm xong đời đó rồi mới dừng) · **`q`** = thoát
+riêng cửa sổ này, máy và ô trên Colab **vẫn chạy** (tiêu hạn mức) — mở lại `fz tu_dong` là nó **nhận
+lại** máy đó và làm tiếp · Enter = xem tiếp.
+
+**Chạy tiếp sau khi dừng** (hay điện thoại tắt): mở lại `fz tu_dong`. Vòng lặp đọc thẳng thư mục
+FairyZero: có `gen(G+1).onnx` + `.pt` → chỉ còn tải lên GitHub; có `games_genG.zip` → huấn luyện; còn
+lại → tổng = số lớn nhất trong tên `games_genG_<số>.zip`, sinh tiếp.
+
+> Các gói lẻ `games_genG_<số>.zip` vẫn giữ sau khi gộp — xoá tay khi không cần. `games_genG.zip` (không
+> số) chỉ dành cho gói gộp; tệp cũ trùng tên thì đổi tên trước.
 
 ---
 

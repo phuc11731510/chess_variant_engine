@@ -55,6 +55,8 @@ curl -fsSL -o ~/fz_may.py "$URL/fz_may.py" && echo "[tai]        ~/fz_may.py"
 curl -fsSL -o ~/fz_han_muc.py "$URL/fz_han_muc.py" && echo "[tai]        ~/fz_han_muc.py"
 curl -fsSL -o ~/fz_nhan_may.py "$URL/fz_nhan_may.py" && echo "[tai]        ~/fz_nhan_may.py"
 curl -fsSL -o ~/fz_giu_may.py "$URL/fz_giu_may.py" && echo "[tai]        ~/fz_giu_may.py"
+curl -fsSL -o ~/fz_tu_dong.sh "$URL/fz_tu_dong.sh" && echo "[tai]        ~/fz_tu_dong.sh"
+curl -fsSL -o ~/fz_tu_dong.py "$URL/fz_tu_dong.py" && echo "[tai]        ~/fz_tu_dong.py"
 
 # Thay hai dong cu (neu co) trong ~/.bashrc.
 #   fz            : mo menu.
