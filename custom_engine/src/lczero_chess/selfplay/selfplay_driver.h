@@ -15,6 +15,8 @@ struct SelfPlayConfig {
   int num_games = 100;            // total games to generate (hard cap on count).
   double max_seconds = 0.0;       // wall-clock budget from first game (0 = off). Stops
                                   // taking NEW games once exceeded; in-flight games finish.
+  std::string stop_file;          // soft stop on demand: once this file exists, stop taking
+                                  // NEW games; in-flight games finish ("" = off).
   int visits = 200;               // NEW MCTS playouts per move.
   int max_moves = 200;            // hard cap per game (cutoff -> draw).
   int temp_cutoff_ply = 30;       // plies below this use temperature sampling.

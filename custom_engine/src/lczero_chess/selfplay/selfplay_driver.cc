@@ -30,6 +30,7 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
   // P(bên công nhiều hơn thắng): chỉ tính ván CÓ thắng-bại VÀ có bên-công-rõ (wa != ba).
   std::atomic<int> aggr_decisive{0}, aggr_won{0};
   std::atomic<bool> stopped_by_time{false};  // set once when the wall-clock budget ends the run
+  std::atomic<bool> stopped_by_file{false};  // set once when --stop-file ends the run
   std::mutex log_mu;
   const auto t0 = std::chrono::steady_clock::now();  // reference for --max-seconds (first game)
 
@@ -39,6 +40,8 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
             << ", max_moves=" << cfg.max_moves << ")";
   if (cfg.max_seconds > 0.0)
     std::cout << " [gioi han thoi gian: " << cfg.max_seconds << "s]";
+  if (!cfg.stop_file.empty())
+    std::cout << " [dung mem khi co tep: " << cfg.stop_file << "]";
   std::cout << std::endl;
 
   auto worker = [&]() {
@@ -57,6 +60,21 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
             std::lock_guard<std::mutex> lk(log_mu);
             std::cout << "[selfplay] Dat nguong thoi gian " << cfg.max_seconds
                       << "s -> ngung nhan van moi (da xong " << done.load()
+                      << " van, cac van dang chay se hoan tat)." << std::endl;
+          }
+          break;
+        }
+      }
+      // Soft stop on demand (--stop-file, e.g. the phone menu when several machines
+      // together reached their target): same place and cost as the budget above --
+      // one stat() per game, never in the search. In-flight games finish normally.
+      if (!cfg.stop_file.empty()) {
+        std::error_code fe;
+        if (std::filesystem::exists(cfg.stop_file, fe)) {
+          if (!stopped_by_file.exchange(true)) {
+            std::lock_guard<std::mutex> lk(log_mu);
+            std::cout << "[selfplay] Co tep dung " << cfg.stop_file
+                      << " -> ngung nhan van moi (da xong " << done.load()
                       << " van, cac van dang chay se hoan tat)." << std::endl;
           }
           break;
@@ -146,6 +164,8 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
             << " games in " << secs << "s";
   if (stopped_by_time.load())
     std::cout << " (dung som do dat nguong --max-seconds)";
+  else if (stopped_by_file.load())
+    std::cout << " (dung som do tep --stop-file)";
   if (cfg.show_nps) {
     const long nps_final = secs > 0.0 ? static_cast<long>(total_nodes.load() / secs) : 0;
     std::cout << "  (" << nps_final << " nps tong, " << total_nodes.load()

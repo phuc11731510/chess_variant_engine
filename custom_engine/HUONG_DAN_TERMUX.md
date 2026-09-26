@@ -332,12 +332,13 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 | 02 | `02_khoi_dong.py` | 1 (+5a) | clone mã, binary từ Release, ONNX Runtime, `pip install onnx…`, tải mạng đời hiện tại từ Release |
 | 02b | `02b_bien_dich.py` | 1b | biên dịch lại (chỉ khi cần) |
 | 03 | `03_tao_gen0.py` | 2 | tạo mạng đời 0 mới (ghi đè gen0) |
-| 04 | `04_sinh_du_lieu.py` | 3 | sinh dữ liệu |
+| 04 | `04_sinh_du_lieu.py` | 3 | sinh dữ liệu (dừng mềm được bằng 09b / vòng lặp tự động) |
 | 05 | `05_xem_log.py` | — | tình trạng ô chạy nền gần nhất: còn chạy hay xong, log cuối |
 | 06 | `06_dong_goi.py` | 4 | gom ván thành zip, tự tải zip về điện thoại |
 | 07 | `07_huan_luyen.py` | 5 | huấn luyện đời sau |
 | 08 | `08_arena.py` | 6 | arena |
 | 09 | `09_dung_viec_nen.py` | — | dừng ngay ô đang chạy nền |
+| 09b | `09b_dung_mem.py` | — | dừng MỀM ô 04: không nhận ván mới, chơi nốt ván dở, rồi 06 chạy tiếp |
 
 ---
 
@@ -362,6 +363,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     07   Huấn luyện đời sau (mục 5)
     08   Arena đời mới đấu đời cũ (mục 6)
     09   Dừng NGAY ô đang chạy nền
+    09b  Dừng MỀM ô 04 (chơi nốt ván đang dở)
    --------------------------------------
     m    Xin máy T4 (tên 'fz')
     p    Chọn máy / đặt tên máy mới (chạy nhiều máy cùng lúc)
@@ -569,14 +571,14 @@ Sửa tham số khác trong `04_sinh_du_lieu.py` nếu muốn, rồi menu `fz` �
 
 | Gõ | GAMES (số ván) | SECS (giới hạn giây) |
 |---|---|---|
-| `1` | 1000 | lúc **hết hạn mức T4 − 15 phút** — tính ngay lúc ô 04 bắt đầu chạy (sau 02 trong chuỗi `02 04 06` cũng đúng) |
+| `1` | 1000 | lúc **hết hạn mức T4 − số phút chừa** — menu hỏi số phút ngay sau khi chọn (mặc định 10, Enter = số bạn gõ lần trước); giây tính ngay lúc ô 04 bắt đầu chạy (sau 02 trong chuỗi `02 04 06` cũng đúng) |
 | `2` | bạn gõ | 10000 |
 | `3` | bạn gõ | bạn gõ |
 | Enter | giữ số đang ghi trong ô | giữ số đang ghi trong ô |
 
 Chạy chuỗi (vd `04 06 07 08`): menu hỏi hết các câu **trước** khi chạy ô đầu, nên chuỗi không dừng
-giữa chừng chờ bạn. 15 phút chừa lại gồm: engine chơi nốt ván đang dở (~2-3 phút), ô 06 gom zip, tải
-zip về.
+giữa chừng chờ bạn. Số phút chừa lại phải đủ cho: engine chơi nốt ván đang dở (~2-3 phút), ô 06 gom
+zip, tải zip về (~50 MB cho vài trăm ván). Hết hạn mức trước đó thì Colab ngắt máy, mất cả lượt.
 
 Màn hình log hiện lệnh đầy đủ rồi log của engine chạy ra liên tục. Ctrl+C để về menu (selfplay vẫn
 chạy), có thể thoát Termux; xem lại: menu `l`.
@@ -584,7 +586,7 @@ chạy), có thể thoát Termux; xem lại: menu `l`.
 > `--max-seconds` dừng mềm: hết giờ thì không nhận ván mới, ván đang chạy vẫn chơi nốt —
 > thường vượt 2-3 phút.
 
-**Trước khi chạy**, menu so `SECS` với hạn mức còn lại (như mục `h`, đã trừ 20 phút cho 06). `SECS`
+**Trước khi chạy**, menu so `SECS` với hạn mức còn lại (như mục `h`, đã trừ số phút chừa). `SECS`
 lớn hơn thì cảnh báo — Colab sẽ **ngắt máy khi hết hạn mức**, `/content` mất theo, 06 không kịp chạy
 — và chỉ chạy tiếp khi gõ `co`. Menu không tự sửa `SECS`.
 
@@ -600,12 +602,25 @@ Khi selfplay xong, cuối log có khối `--- Throughput ---` — so cấu hình
 
 Lỡ sai tham số, muốn dừng ngay: ô **`09`** (dừng ô chạy nền gần nhất cùng engine / train.py của nó).
 
+Muốn dừng **mềm** (đủ ván rồi, hay cần máy cho việc khác): ô **`09b`**. Engine thôi nhận ván mới, các ván
+đang chơi chơi nốt (vài phút) rồi ô 04 kết thúc như hết `SECS` — chuỗi `04 06` chạy tiếp 06 như thường,
+không mất ván nào. Cần binary có `--stop-file` (biên dịch từ 2026-09-26, ô 02b); ô 04 in
+`FZ_DUNG_MEM=co` khi binary hỗ trợ, `FZ_DUNG_MEM=khong` kèm cảnh báo khi là binary cũ.
+
 ### Ô 06 — đóng gói · vài phút
 
 **Cách tiện nhất: gõ `04 06` ngay từ đầu.** Menu chạy 04, xem log tới khi 04 xong, tự chạy 06: gom
-ván thành `games_gen0.zip` rồi **tự tải zip về** `Download/FairyZero/`. Đã có tệp cùng tên thì lưu
-`games_gen0 (2).zip`, `(3)`… như Windows Explorer, không ghi đè. Ctrl+C lúc đang xem 04 thì dừng
-chuỗi; 06 không chạy.
+ván thành `games_gen0.zip` rồi **tự tải zip về** `Download/FairyZero/` với **tên tích luỹ**
+`games_gen<đời>_<tổng>.zip`: `<tổng>` = số lớn nhất trong tên các gói cùng đời đã có + số ván trong gói
+này. Vd đã có `games_gen3_487.zip`, gói mới 223 ván → `games_gen3_710.zip`. Nhìn tên gói lớn nhất là biết
+đời đó đã có bao nhiêu ván, qua mọi máy / mọi lần chạy (vòng lặp tự động đếm đúng như vậy). Hai cửa sổ
+tải cùng lúc thì xếp hàng lúc đặt tên, không trùng số. Tải xong, các ván đó trên Colab được chuyển sang
+`/content/da_tai/<giờ>/` để 06 lần sau trên cùng máy chỉ gom ván **mới** (không đếm trùng). Ctrl+C lúc
+đang xem 04 thì dừng chuỗi; 06 không chạy.
+
+> Tên `games_gen<đời>.zip` (không có số) trên điện thoại từ nay chỉ dành cho **gói gộp 3 đời** mà vòng
+> lặp tự động tạo để huấn luyện. Gói cũ trùng tên đó (dữ liệu của một máy, từ ô 06 trước đây) thì đổi tên
+> theo kiểu tích luỹ trước khi chạy vòng lặp.
 
 Chạy riêng: đợi ô 04 chạy xong (log in `[fz] o 04 xong …`; hoặc ô 05 báo `DA XONG`), rồi menu `fz` →
 **`06`** (gõ tắt: `o 06`). Zip tự tải về khi 06 xong. Ctrl+C giữa chừng (hoặc ssh lỗi) thì mở lại

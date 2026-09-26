@@ -287,6 +287,10 @@ Mở PowerShell tại thư mục `FairyZero`:
   tự dừng khi chạy quá `<giây>` kể từ ván đầu. Dừng "mềm": ngừng nhận ván MỚI, để ván đang chạy hoàn tất
   (không có `.gz` cụt), thống kê cuối tính theo số ván THỰC SỰ xong. Chi phí ≈ 0 (so sánh 1 lần/ván, ngoài
   vòng lặp MCTS). Công dụng chính là khớp **quota Colab** — xem cách đặt ở **B.2**.
+- `--stop-file <tệp>` — **dừng mềm theo lệnh**: trước mỗi ván MỚI engine xem `<tệp>` có chưa; có thì
+  ngừng nhận ván mới, ván đang chạy vẫn hoàn tất (như `--max-seconds`, cùng chi phí ≈ 0). Tệp chỉ cần CÓ
+  (rỗng cũng được). Có sẵn từ đầu thì không chơi ván nào. Menu fz trên Termux dùng nó (ô 04 xoá tệp trước
+  khi chạy; ô 09b và vòng lặp tự động tạo tệp) để dừng nhiều máy cùng lúc khi đủ tổng số ván.
 
 ### B.2. Trên Google Colab (GPU — nhanh hơn nhiều)
 Đã dựng engine Linux theo **Mục C.4 bước 1–3** (chạy `colab_setup.sh`). Sinh dữ liệu **vào ổ local
@@ -720,6 +724,7 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 |----|----------|---------|
 | `--games N` | 100 | Tổng số ván engine tự đánh với chính nó và ghi lại. Càng nhiều → dữ liệu huấn luyện càng phong phú nhưng càng lâu. |
 | `--max-seconds S` | 0 (tắt) | Giới hạn thời gian: dừng khi chạy quá S giây kể từ ván đầu (song song với trần `--games`, dừng khi CÁI NÀO đến trước). Dừng "mềm" — ngừng nhận ván mới, ván đang chạy vẫn hoàn tất. Dùng khớp **quota Colab**: đặt `--games` thật lớn rồi để S là ràng buộc (xem B.2). |
+| `--stop-file F` | (tắt) | Dừng mềm theo lệnh: có tệp F thì ngừng nhận ván mới, ván đang chạy vẫn hoàn tất. Menu fz dùng để dừng các máy khi đủ tổng số ván. |
 | `--visits N` | 200 | Số playout MCTS mỗi nước trong lúc tự chơi. Cao → nước đi chất lượng hơn (dữ liệu tốt hơn) nhưng chậm. Đời đầu để 200, đời sau tăng 400/800. |
 | `--parallel K` | 1 | Số ván chạy **song song** cùng lúc. Đặt ≈ số nhân CPU để tận dụng hết máy → sinh nhanh hơn nhiều. |
 | `--threads-per-game T` | 1 | Số luồng MCTS dùng cho **mỗi** ván. Thường để 1 và tăng `--parallel` thay vì cái này. |

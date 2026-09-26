@@ -245,6 +245,19 @@ xem() {
 # Gia tri "TEN = ..." dang ghi trong tep o $1.
 gia_tri() { doc "$1" | sed -n "s/^$2[[:space:]]*=[[:space:]]*\([^ #]*\).*/\1/p" | head -1; }
 so_nguyen() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$((10#$1))" -gt 0 ]; }
+# So phut chua lai truoc luc het han muc T4 (van dang do choi not + gom zip + tai ve): hoi moi lan
+# chon che do 1 cua o 04, Enter = so go lan truoc (~/.fz_tk/.chua_phut), mac dinh 10.
+CHUA_F=$TKG/.chua_phut
+chua_phut() { local n; n=$(cat "$CHUA_F" 2>/dev/null); so_nguyen "$n" && echo $((10#$n)) || echo 10; }
+# Hoi so phut chua (Enter = giu so cu), luu lai. 1 = go sai.
+hoi_chua_phut() {
+  local x
+  read -rp "Chừa bao nhiêu phút trước khi hết hạn mức (Enter = $(chua_phut)): " x
+  [ -z "$x" ] && return 0
+  so_nguyen "$x" || { echo "[!] Không phải số" >&2; return 1; }
+  mkdir -p "$TKG" && echo $((10#$x)) > "$CHUA_F"
+  echo "[đã lưu] chừa $((10#$x)) phút" >&2
+}
 # Ghi "TEN = so" vao dong "TEN = <so>" DAU TIEN cua tep $1 (giu chu thich va \r cuoi dong neu co):
 # lan sau mo fz van la so nay. 0 = ghi duoc.
 ghi_bien() {
@@ -259,8 +272,8 @@ ghi_bien() {
 # Dong trong o:
 #   # fz: che_do_sinh          -> 3 che do SECS / GAMES (o 04)
 #   # fz: hoi TEN cau hoi      -> hoi mot so nguyen cho bien TEN (vd GAMES o 08)
-# In "SECS=@T4" neu chon "het han muc T4 - 15 phut": so giay tinh LUC o bat dau chay (chay_o),
-# khong phai luc hoi, roi moi ghi vao tep.
+# In "SECS=@T4" neu chon "het han muc T4 - <so phut chua>" (hoi so phut ngay luc chon): so giay tinh
+# LUC o bat dau chay (chay_o), khong phai luc hoi, roi moi ghi vao tep.
 hoi_tham_so() {
   local f=$1 id x g sc ra=() dong ten cau cu kv
   id=$(basename "$f"); id=${id%%_*}
@@ -273,14 +286,15 @@ hoi_tham_so() {
     {
       echo
       echo "== Ô $id: $(tieu_de "$f") -- chọn chế độ (trong tệp: GAMES=${g:-?}, SECS=${sc:-?}) =="
-      echo " 1  Tối đa theo hạn mức T4: GAMES=1000, SECS = lúc hết hạn mức T4 - 15 phút"
+      echo " 1  Tối đa theo hạn mức T4: GAMES=1000, SECS = lúc hết hạn mức T4 - số phút chừa (hỏi tiếp)"
       echo " 2  Tự chọn số ván, SECS=10000"
       echo " 3  Tự đặt cả số ván và SECS"
       echo " Enter = dùng số trong tệp"
     } >&2
     read -rp "Chọn: " x
     case "$x" in
-      1) ra+=(GAMES=1000 SECS=@T4) ;;
+      1) hoi_chua_phut || return 1
+         ra+=(GAMES=1000 SECS=@T4) ;;
       2) read -rp "Số ván (GAMES): " g; so_nguyen "$g" || { echo "[!] Không phải số" >&2; return 1; }
          ra+=(GAMES=$((10#$g)) SECS=10000) ;;
       3) read -rp "Số ván (GAMES): " g; so_nguyen "$g" || { echo "[!] Không phải số" >&2; return 1; }
@@ -306,14 +320,14 @@ hoi_tham_so() {
   done
 }
 
-# SECS=@T4 -> so giay: thoi gian T4 con chay duoc (h) - 15 phut. Loi -> tra 1.
+# SECS=@T4 -> so giay: thoi gian T4 con chay duoc (h) - so phut chua (chua_phut). Loi -> tra 1.
 giay_t4() {
   local may g
   may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
   g=$(py_colab ~/fz_han_muc.py --may "$may" --giay-t4 2>/dev/null) || return 1
   [[ "$g" =~ ^[0-9]+$ ]] || return 1
-  g=$((g - 15 * 60))
-  [ $g -gt 0 ] || { echo "[!] Hạn mức T4 còn dưới 15 phút" >&2; return 1; }
+  g=$((g - $(chua_phut) * 60))
+  [ $g -gt 0 ] || { echo "[!] Hạn mức T4 còn dưới $(chua_phut) phút" >&2; return 1; }
   echo $g
 }
 
@@ -358,7 +372,7 @@ chay_o() {
     echo "[hạn mức] Tính SECS theo hạn mức T4 còn lại..."
     g=$(giay_t4) || { echo "[!] Không tính được thời gian T4 còn lại -- không chạy ô"; return 2; }
     ghi_bien "$f" SECS "$g" || return 2
-    echo "[hạn mức] SECS = $g (≈ $((g / 60)) phút, đã trừ 15 phút cho gom zip + tải về) -- đã lưu vào ô"
+    echo "[hạn mức] SECS = $g (≈ $((g / 60)) phút, đã trừ $(chua_phut) phút cho gom zip + tải về) -- đã lưu vào ô"
   fi
   id=$(basename "$f"); id=${id%%_*}
   echo
@@ -444,11 +458,11 @@ kiem_secs() {
   secs=$(gia_tri "$1" SECS)
   [ -n "$secs" ] && [ -f ~/fz_han_muc.py ] || return 0
   may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
-  goi=$(py_colab ~/fz_han_muc.py --may "$may" 2>/dev/null | sed -n 's/^Gợi ý SECS[^:]*: *\([0-9][0-9]*\).*/\1/p')
+  goi=$(py_colab ~/fz_han_muc.py --may "$may" --chua "$(chua_phut)" 2>/dev/null | sed -n 's/^Gợi ý SECS[^:]*: *\([0-9][0-9]*\).*/\1/p')
   [ -n "$goi" ] || return 0
   [ "$secs" -le "$goi" ] && return 0
   echo "[!] SECS = $secs (≈ $((secs / 60)) phút) nhưng hạn mức chỉ còn đủ cho SECS ≈ $goi (≈ $((goi / 60)) phút,"
-  echo "    đã trừ 15 phút gom zip + tải về). Colab sẽ ngắt máy khi hết hạn mức -> 06 không kịp chạy."
+  echo "    đã trừ $(chua_phut) phút gom zip + tải về). Colab sẽ ngắt máy khi hết hạn mức -> 06 không kịp chạy."
   echo "  1   Dùng SECS = $goi (vừa hạn mức) -- lưu vào ô"
   echo "  co  Vẫn chạy với SECS = $secs"
   echo "  Enter = huỷ"
@@ -725,12 +739,33 @@ ten_trong() {
   echo "$goc ($n)$duoi"
 }
 
+# Ten tich luy cua goi van doi $1: so N lon nhat trong ten games_gen$1_<N>.zip o Download/FairyZero
+# (= tong so van doi do da tai ve, qua moi may / moi lan chay). Chua co goi nao -> 0.
+tong_tich_luy() {
+  local f n m=0
+  for f in "$TAI"/games_gen"$1"_*.zip; do
+    n=${f##*_}; n=${n%.zip}
+    [[ "$n" =~ ^[0-9]+$ ]] && [ $((10#$n)) -gt $m ] && m=$((10#$n))
+  done
+  echo $m
+}
+# So van (tep .gz/.bin) trong zip $1.
+dem_van() {
+  python - "$1" <<'EOF'
+import sys, zipfile
+print(sum(n.endswith((".gz", ".bin")) for n in zipfile.ZipFile(sys.argv[1]).namelist()))
+EOF
+}
+
 # Tai tep Colab $1 ve Download/FairyZero. Truyen qua ssh (cat, khong base64, khong giu ca tep
 # trong RAM -- hop zip lon); ssh loi thi dung colab download. Tai vao tep tam an, kiem du kich
 # thuoc, roi moi dat ten: tep dich luon la ban day du; trung ten -> ten_trong. Chon ten + mv
 # nam trong khoa (mkdir la nguyen tu) nen hai cua so tai cung ten cung luc khong de len nhau.
+# $2 = van: $1 la goi van /content/games_gen<G>.zip (o 06) -> dat TEN TICH LUY games_gen<G>_<N>.zip,
+# N = tong_tich_luy + so van trong goi (tinh trong khoa: hai cua so tai cung luc lay hai so khac nhau).
+# TAI_VE_MOC (ten ham, tuy chon) chay NGAY sau khi dat ten, van trong khoa.
 tai_ve() {
-  local nguon=$1 ten kt tam dich i q
+  local nguon=$1 kieu=${2:-} ten kt tam dich i q g n=
   ten=${nguon##*/}
   q=$(printf %q "$nguon")
   mkdir -p "$TAI"
@@ -752,11 +787,19 @@ tai_ve() {
     colab download -s "$S" "$nguon" "$tam" >/dev/null 2>&1 && [ -f "$tam" ] ||
       { rm -f "$tam"; echo "[!] Không tải được: $nguon (không có trên Colab?)"; return 1; }
   fi
+  if [ "$kieu" = van ]; then
+    g=${ten#games_gen}; g=${g%.zip}
+    n=$(dem_van "$tam" 2>/dev/null)
+    [[ "$g" =~ ^[0-9]+$ ]] && so_nguyen "$n" || { echo "[!] Không đếm được số ván trong $ten -- lưu tên thường"; kieu=; }
+  fi
   for i in $(seq 50); do mkdir "$TAI/.khoa_dat_ten" 2>/dev/null && break; sleep 0.2; done
-  dich=$(ten_trong "$ten")
+  if [ "$kieu" = van ]; then dich=$(ten_trong "games_gen${g}_$(( $(tong_tich_luy "$g") + n )).zip")
+  else dich=$(ten_trong "$ten"); fi
   mv "$tam" "$TAI/$dich"
+  [ -n "${TAI_VE_MOC:-}" ] && "$TAI_VE_MOC"
   rmdir "$TAI/.khoa_dat_ten" 2>/dev/null
-  if [ "$dich" = "$ten" ]; then echo "[xong] Download/FairyZero/$dich"
+  if [ "$kieu" = van ]; then echo "[xong] Download/FairyZero/$dich  ($n ván · tổng tích luỹ đời $g: $(tong_tich_luy "$g"))"
+  elif [ "$dich" = "$ten" ]; then echo "[xong] Download/FairyZero/$dich"
   else echo "[xong] Download/FairyZero/$dich  (đã có '$ten' -> lưu tên mới, không ghi đè)"; fi
   # Bao cho Android: tep hien ngay trong Files / trinh chon tep.
   command -v termux-media-scan >/dev/null && termux-media-scan "$TAI/$dich" >/dev/null 2>&1
@@ -815,10 +858,44 @@ tai_theo_o() {
   fi
   echo
   echo "== Ô $1 yêu cầu tải về điện thoại: ${#ds[@]} tệp =="
-  for f in "${ds[@]}"; do tai_ve "$f" || loi=1; done
+  for f in "${ds[@]}"; do
+    if [[ "${f##*/}" =~ ^games_gen[0-9]+\.zip$ ]]; then
+      # Goi van cua o 06: ten tich luy, roi cat cac van da tai khoi thu muc van tren Colab.
+      if tai_ve "$f" van; then cat_van_da_tai "$f"; else loi=1; fi
+    else
+      tai_ve "$f" || loi=1
+    fi
+  done
   if [ $loi = 0 ]; then
     ssh_colab "cat > $LOGD/$1.da_tai" <<<"$dau"
     echo "Tệp ở: bộ nhớ trong -> Download -> FairyZero (Files / MT Manager: /sdcard/Download/FairyZero)"
+  fi
+}
+
+# Goi van $1 (/content/games_gen<G>.zip) vua tai ve dien thoai: chuyen DUNG cac van trong goi ra
+# khoi thu muc van (sang /content/da_tai/<gio>/...) -- o 06 lan sau (vd chay lai 04 06 tren cung
+# may) chi gom van MOI, khong dem trung vao tong tich luy. Khong xoa: van con tren may neu can.
+cat_van_da_tai() {
+  local out
+  out=$(ssh_colab "python3 - $(printf %q "$1")" <<'EOF' 2>/dev/null
+import os, sys, time, zipfile
+z = sys.argv[1]
+goc = os.path.dirname(z)
+dich = os.path.join(goc, "da_tai", time.strftime("%Y%m%d_%H%M%S"))
+n = 0
+for m in zipfile.ZipFile(z).namelist():
+    f = os.path.join(goc, m)
+    if m.endswith((".gz", ".bin")) and os.path.isfile(f):
+        os.makedirs(os.path.dirname(os.path.join(dich, m)), exist_ok=True)
+        os.replace(f, os.path.join(dich, m))
+        n += 1
+print(f"FZ_DA_CAT={n} {dich}")
+EOF
+)
+  if grep -q '^FZ_DA_CAT=' <<<"$out"; then
+    echo "[Colab] $(sed -n 's/^FZ_DA_CAT=\([0-9]*\) \(.*\)/\1 ván đã tải chuyển sang \2 (06 lần sau không gom lại)/p' <<<"$out")"
+  else
+    echo "[!] Chưa chuyển được các ván đã tải trên Colab -- chạy lại 06 trên máy này sẽ gom lại cả chúng (đếm trùng)."
   fi
 }
 
