@@ -60,8 +60,11 @@ def ghi_log(endpoint, dong):
 
 
 def menu_dang_ssh(ten):
-    """Co tien trinh ssh (cua menu) toi may <ten> dang chay tren dien thoai?"""
+    """Co tien trinh ssh (cua menu) toi may <ten> CUA TAI KHOAN NAY dang chay tren dien thoai?
+    Moi tai khoan deu mac dinh dat ten may 'fz' -> phan biet bang HOME trong ProxyCommand cua menu
+    (`env HOME=<HOME tai khoan> ...`); tien trinh nay chay voi dung HOME do."""
     dich = f"root@colab-{ten}".encode()
+    home = f"HOME={os.path.expanduser('~')} ".encode()
     for d in os.listdir("/proc"):
         if not d.isdigit() or int(d) == os.getpid():
             continue
@@ -69,7 +72,7 @@ def menu_dang_ssh(ten):
             a = open(f"/proc/{d}/cmdline", "rb").read().split(b"\0")
         except OSError:
             continue
-        if a and os.path.basename(a[0]) == b"ssh" and dich in a:
+        if a and os.path.basename(a[0]) == b"ssh" and dich in a and any(home in x for x in a):
             return True
     return False
 

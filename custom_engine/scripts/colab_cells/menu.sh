@@ -101,7 +101,9 @@ while [[ "${1:-}" == @* || "${1:-}" == :* ]]; do
 done
 LE=                                   # `fz_menu.sh [@tk] --tai-len <tep>`: moc chia se tep
 [ "${1:-}" = --tai-len ] && LE=1
-[ -n "$LE" ] || hoi_trung "$TK" "$S" || exit 1
+TUDONG=                               # `fz tu_dong`: vong lap tu dong (tu chon tai khoan -- khong hoi trung)
+[ "${1:-}" = tu_dong ] && TUDONG=1
+[ -n "$LE$TUDONG" ] || hoi_trung "$TK" "$S" || exit 1
 dat_tk "$TK"
 [ -n "$LE" ] || ghi_cua_so
 colab() { HOME=$TKH command colab "$@"; }
@@ -1143,7 +1145,18 @@ chay_cac_o() {
   done
 }
 
+# Muc v / `fz tu_dong`: vong lap tu dong sinh du lieu -> huan luyen -> len doi (~/fz_tu_dong.sh, xem
+# dau tep do). Moi cua so chay vong lap lo mot may; hai cua so = hai may, tu phoi hop.
+tu_dong() {
+  [ -f ~/fz_tu_dong.sh ] || { echo "[!] Thiếu ~/fz_tu_dong.sh -- chạy: bash ~/lay_ve.sh"; return; }
+  # shellcheck source=/dev/null
+  source ~/fz_tu_dong.sh
+  td_vong
+  ghi_cua_so      # ve menu: cua so nay dung lai tai khoan dang dat
+}
+
 if [ -n "$LE" ]; then tai_len "$2" "${3:-}"; exit; fi
+if [ -n "$TUDONG" ]; then tu_dong; exit; fi
 if [ $# -gt 0 ]; then chay_cac_o "$@"; exit; fi
 
 # Mo menu: may cua cua so nay con thi bao dam tien trinh giu may (~/fz_giu_may.py) dang chay --
@@ -1182,6 +1195,7 @@ while true; do
   echo " u    Duyệt tệp điện thoại, tải lên Colab"
   echo " t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)"
   echo " a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)"
+  echo " v    Vòng lặp tự động: sinh -> huấn luyện -> lên đời"
   echo " q    Thoát"
   echo "--------------------------------------"
   echo " Nhiều ô liền nhau: gõ cách nhau, vd: 01 02"
@@ -1201,6 +1215,7 @@ while true; do
   l|L) log_truc_tiep; continue ;;
   h|H) han_muc; dung; continue ;;
   a|A) tai_khoan; continue ;;
+  v|V) tu_dong; dung; continue ;;
   t|T) tra_may; continue ;;
   p|P) chon_may; continue ;;
   g|G) doi_doi; dung; continue ;;
