@@ -332,12 +332,12 @@ td_chay() {
 # May san sang cho doi $1: co ma nguon + binary co --stop-file + gen$1.onnx (+ gen$1.pt neu $2 = pt).
 # Chua thi chay 02. 0 = san sang, 1 = loi (thu lai), 2 = loi khong tu sua duoc, 3 = mat may, 4 = q.
 td_kiem_may_cl() {
-  ssh_colab "b=$E_CL/build-linux/custom_engine; test -s \$b && echo BIN_\$(grep -c -a -- --stop-file \$b); test -s /content/gen$1.onnx && echo CO_ONNX; test -s /content/gen$1.pt && echo CO_PT" 2>/dev/null
+  ssh_colab "b=$E_CL/build-linux/custom_engine; test -s \$b && echo BIN_\$(grep -c -a -- --stop-file \$b); test -s /content/gen$1.onnx && echo CO_ONNX; test -s /content/gen$1.pt && python3 -c 'import onnx, onnxscript, onnxruntime' 2>/dev/null && echo CO_PT" 2>/dev/null
 }
 td_chuan_bi() {
   local g=$1 can_pt=${2:-} out rc
   out=$(td_kiem_may_cl "$g")
-  if ! grep -q '^BIN_[1-9]' <<<"$out" || ! grep -q CO_ONNX <<<"$out" || { [ -n "$can_pt" ] && ! grep -q CO_PT <<<"$out"; }; then
+  if ! grep -q '^BIN_[1-9]' <<<"$out" || ! grep -q CO_ONNX <<<"$out"; then
     td_ghi buoc=chuan_bi
     td_in "chạy 02 (mã, binary, gen$g từ Release)"
     td_chay 02 "$(ls "$D"/02_*.py 2>/dev/null | head -1)"; rc=$?
@@ -351,7 +351,14 @@ td_chuan_bi() {
     return 2
   fi
   if ! grep -q CO_ONNX <<<"$out"; then td_in "${M_DO}[!] Release không có gen$g.onnx${M_HET}"; return 2; fi
-  if [ -n "$can_pt" ] && ! grep -q CO_PT <<<"$out"; then td_in "${M_DO}[!] Release không có gen$g.pt (cần để huấn luyện)${M_HET}"; return 2; fi
+  if [ -n "$can_pt" ] && ! grep -q CO_PT <<<"$out"; then
+    # Chi may huan luyen moi tai .pt + thu vien (o 02c) -- may chi sinh du lieu khong can.
+    td_in "02c: tải gen$g.pt + thư viện huấn luyện"
+    td_chay 02c "$(ls "$D"/02c_*.py 2>/dev/null | head -1)"; rc=$?
+    [ $rc = 0 ] || return $rc
+    out=$(td_kiem_may_cl "$g")
+    grep -q CO_PT <<<"$out" || { td_in "${M_DO}[!] chưa có gen$g.pt / thư viện huấn luyện (Release thiếu gen$g.pt?)${M_HET}"; return 2; }
+  fi
   return 0
 }
 
@@ -601,6 +608,11 @@ td_bat_dau() {
   g=$(td_gen)
   [[ "$g" =~ ^[0-9]+$ ]] || { echo "[!] Không đọc được GEN_CURRENT trong 00_cau_hinh.py"; return 1; }
   o04=$(ls "$D"/04_*.py 2>/dev/null | head -1)
+  if [ -z "$(ls "$D"/02c_*.py 2>/dev/null)" ]; then
+    echo "[!] Thiếu ô 02c (tải .pt trước huấn luyện):"
+    echo "    bash ~/lay_ve.sh"
+    return 1
+  fi
   if [ -z "$o04" ] || ! grep -q DUNG_MEM "$o04"; then
     echo "[!] Ô 04 trên điện thoại là bản cũ (chưa"
     echo "    dừng mềm được): bash ~/lay_ve.sh 04"
