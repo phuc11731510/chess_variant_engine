@@ -47,11 +47,15 @@ def xep(ds, now=None):
             thu.append((3, 0, ten, "chua_chup", "chưa chụp hạn mức"))
             continue
         nap, luc = ch.get("nap_lai"), ch.get("luc", 0)
-        if nap and now >= nap and luc < nap:
+        het = bool(ch.get("het_luc")) and ch["het_luc"] >= luc
+        # Bi tu choi SAU gio nap lai: lan nap do khong con gi -> HET, gio nap moi chua biet.
+        het_sau_nap = het and bool(nap) and ch["het_luc"] >= nap
+        if nap and now >= nap and luc < nap and not het_sau_nap:
             thu.append((0, 0, ten, "nap_lai", "đã tới giờ nạp lại"))
             continue
-        het = bool(ch.get("het_luc")) and ch["het_luc"] >= luc
-        if ch.get("con") is not None:
+        if het_sau_nap:
+            nap = None                 # gio nap cu da qua va da dung -> "khong ro gio nap lai"
+        elif ch.get("con") is not None:
             gio = ch["con"] / 1000 / T4_UOC_TINH
             if gio >= 1:
                 thu.append((1, -gio, ten, "xanh", f"còn ≈ {gio:.1f} giờ T4"))

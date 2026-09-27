@@ -77,7 +77,8 @@ def tom_tat(ch, bay_gio=None):
         return "chưa chụp hạn mức (h / t / a khi đang giữ máy)"
     now = time.time() if bay_gio is None else bay_gio
     nap = ch.get("nap_lai")
-    qua_nap = bool(nap) and now >= nap and ch.get("luc", 0) < nap
+    # Bi tu choi SAU gio nap lai = lan nap do da dung het (hoac chua nap): HET, khong phai "da toi gio".
+    qua_nap = bool(nap) and now >= nap and ch.get("luc", 0) < nap and not ch.get("het_luc", 0) >= nap
     if qua_nap:
         dau = "ĐÃ TỚI giờ nạp lại -- có lẽ đã có hạn mức mới"
     elif ch.get("het_luc") and ch["het_luc"] >= ch.get("luc", 0):
@@ -119,7 +120,8 @@ def khoi(ch, bay_gio=None, lui="   "):
     now = time.time() if bay_gio is None else bay_gio
     nap = ch.get("nap_lai")
     dong = []
-    if nap and now >= nap and ch.get("luc", 0) < nap:
+    het_sau_nap = bool(nap) and ch.get("het_luc", 0) >= nap   # bi tu choi sau gio nap lai
+    if nap and now >= nap and ch.get("luc", 0) < nap and not het_sau_nap:
         dong.append(lui + mau(LAM, "ĐÃ TỚI giờ nạp lại"))
         dong.append(lui + mau(MO, f"lúc {luc(nap)} · h -> d xem mới"))
         return dong
@@ -131,7 +133,9 @@ def khoi(ch, bay_gio=None, lui="   "):
         dong.append(lui + "Còn  " + mau(XANH if gio >= 1 else VANG, f"{ccu:.2f} đv ≈ {gp(gio)} T4"))
     else:
         dong.append(lui + mau(MO, "không rõ còn bao nhiêu"))
-    if nap:
+    if nap and het_sau_nap and now >= nap:
+        dong.append(lui + "Nạp  " + mau(MO, "chưa rõ (lần trước " + luc(nap) + ")"))
+    elif nap:
         con = nap - now
         dong.append(lui + "Nạp  " + luc(nap) + (mau(MO, f" · sau {gp(con / 3600)}") if con > 0 else ""))
     dong.append(lui + mau(MO, f"chụp lúc {luc(ch.get('luc', 0))}"))
