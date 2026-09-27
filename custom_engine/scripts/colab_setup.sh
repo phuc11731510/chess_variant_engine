@@ -52,10 +52,13 @@ apt-get -qq install -y ninja-build >/dev/null 2>&1 || true
 # --- (2) ONNX Runtime GPU ----------------------------------------------------
 mkdir -p "$ENGINE_DIR/third_party"
 cd "$ENGINE_DIR/third_party"
-if [ ! -d "$ORT_PKG" ]; then
-  echo "[colab] downloading $ORT_PKG ..."
+# Bien dich can header (include/). Goi GON cua colab_quickstart.sh (o 02) chi co thu vien -> tai
+# goi chinh thuc day du, ghi de len (cung thu vien, them include/).
+if [ ! -f "$ORT_PKG/include/onnxruntime_cxx_api.h" ]; then
+  echo "[colab] downloading $ORT_PKG (goi day du, can header de bien dich) ..."
   wget -q "$ORT_URL" -O "${ORT_PKG}.tgz"
   tar xzf "${ORT_PKG}.tgz"
+  rm -f "${ORT_PKG}.tgz"
 fi
 cd "$ENGINE_DIR"
 echo "[colab] ONNX Runtime: $ENGINE_DIR/third_party/$ORT_PKG"
