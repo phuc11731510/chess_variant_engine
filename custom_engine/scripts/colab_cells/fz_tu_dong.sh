@@ -169,11 +169,10 @@ td_mo_khoa_chon() { rm -rf "$TD/.khoa_chon"; }
 
 # Mot vong xin may: nhan lai may cua vong lap truoc (neu co), roi thu tung tai khoan theo thu tu
 # fz_tu_dong.py xep toi khi xin duoc. 0 = co may (cua so nay da chuyen sang tai khoan do).
-td_xin_mot_vong() {
-  local ds=() muc=() tk ten loai mo_ta rc
-  mkdir -p "$TD"
-  td_khoa_chon
-  mapfile -t ds < <(echo; for tk in "$TKG"/*/; do [ -d "$tk" ] && basename "$tk"; done)
+# Nhan lai mot may cua vong lap ma khong cua so nao dang lo (cua so do bi dong / Termux bi giet).
+# Goi khi da giu khoa chon. 0 = da nhan (cua so nay chuyen sang tai khoan do).
+td_nhan_lai() {
+  local tk ten rc
   for tk in "${ds[@]}"; do
     ten=$(ten_tk "$tk")
     [ -f "$TD/may_$ten" ] && tk_dang_nhap "$tk" && [ -z "$(cua_so_khac "$tk")" ] || continue
@@ -182,10 +181,19 @@ td_xin_mot_vong() {
     if [ $rc = 0 ]; then
       ghi_cua_so; TD_CO_MAY=1; TD_NHAN_LAI=1
       td_in "nhận lại máy của vòng lặp trước: $ten"
-      td_mo_khoa_chon; return 0
+      return 0
     fi
     [ $rc = 1 ] && rm -f "$TD/may_$ten"
   done
+  return 1
+}
+td_ds_tk() { mapfile -t ds < <(echo; for tk in "$TKG"/*/; do [ -d "$tk" ] && basename "$tk"; done); }
+td_xin_mot_vong() {
+  local ds=() muc=() tk ten loai mo_ta rc
+  mkdir -p "$TD"
+  td_khoa_chon
+  td_ds_tk
+  if td_nhan_lai; then td_mo_khoa_chon; return 0; fi
   for tk in "${ds[@]}"; do
     tk_dang_nhap "$tk" && muc+=("$(ten_tk "$tk")|$(td_home "$tk")|$(cat "$TD/thu_$(ten_tk "$tk")" 2>/dev/null)")
   done
@@ -223,7 +231,7 @@ td_xem() {
     NGAT=0
     ssh_colab "python3 $LOGD/fz_may.py theo_doi $o $pid $them" > "$fifo" 2>/dev/null &
     sp=$!
-    exec {fd}<"$fifo"
+    command exec {fd}<"$fifo" || { td_giet "$sp"; td_ngu 5 || return 4; continue; }
     ly_do=het
     while :; do
       if IFS= read -r -t 15 -u "$fd" dong; then
@@ -655,7 +663,18 @@ td_vong() {
     g=$(td_gen)
     if [ -f "$TD_DUNG" ] && [ "$TD_VAI" != huan_luyen ]; then
       td_in "dừng mềm: trả máy, thoát vòng lặp"
-      td_tra; break
+      td_tra
+      # May cua vong lap ma cua so lo no da chet (vd Termux bi giet): nhan lai, dung mem, tai ve, tra.
+      local ds=()
+      while :; do
+        td_khoa_chon; td_ds_tk
+        if ! td_nhan_lai; then td_mo_khoa_chon; break; fi
+        td_mo_khoa_chon
+        TD_NHAN_LAI=0; td_tiep_tuc "$g"
+        [ $TD_THOAT = 1 ] && break 2
+        td_tra
+      done
+      break
     fi
     if td_toi_luot_hl "$g" || [ "$(td_tong "$g")" -ge "$(td_muc)" ]; then td_giai_doan_3 "$g"; continue; fi
     if [ $TD_CO_MAY = 0 ]; then
