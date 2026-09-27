@@ -24,6 +24,9 @@
 #include "app/bench_nn.h"
 
 #include <algorithm>
+#include <array>
+#include <cstring>
+#include <functional>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -97,6 +100,101 @@ lczero::EvalResult RunOnce(lczero::Backend* backend, const lczero::EvalPosition&
   comp->AddInput(ep, res.AsPtr());
   comp->ComputeBlocking();
   return res;
+}
+
+// ---- Copy cost (E3 / E4) ----------------------------------------------------
+// The backend hands ORT PAGEABLE host buffers: each Run() copies the input
+// (batch x 22600 floats) to the GPU and the full policy (batch x 10600 floats)
+// back. This times session->Run() alone (no encode, no softmax) four ways at
+// the same fixed batch, so the gap is exactly the copy cost:
+//   A  pageable in / pageable out          (what the backend does today)
+//   B  pinned in / pinned out  (IoBinding)  (E3)
+//   C  pinned in / GPU out                  (output copy removed: E4's upper bound)
+//   D  GPU in / GPU out                     (no copy at all: floor)
+// The input data is arbitrary (convolution time does not depend on values).
+void BenchCopyCost(lczero::OnnxBackend* be, int batch) {
+  Ort::Session* sess = be->SessionForBench();
+  if (!sess) return;
+  const std::array<int64_t, 4> ishape{batch, (int64_t)lczero::InputPlanesCount,
+                                      (int64_t)lczero::BoardHeight, (int64_t)lczero::BoardWidth};
+  const std::array<int64_t, 2> pshape{batch, (int64_t)lczero::PolicyOutputSize};
+  const std::array<int64_t, 2> vshape{batch, (int64_t)lczero::ValueOutputSize};
+  const size_t in_n = batch * lczero::InputBufferUnitSize;
+  const size_t p_n = batch * lczero::PolicyOutputSize, v_n = batch * lczero::ValueOutputSize;
+  std::vector<float> host_in(in_n), host_p(p_n), host_v(v_n);
+  std::mt19937 rng(1);
+  for (auto& x : host_in) x = (rng() & 1) ? 1.0f : 0.0f;
+
+  Ort::MemoryInfo cpu_mi = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+  Ort::MemoryInfo cuda_mi("Cuda", OrtDeviceAllocator, 0, OrtMemTypeDefault);
+  Ort::MemoryInfo pin_mi("CudaPinned", OrtDeviceAllocator, 0, OrtMemTypeCPUOutput);
+  std::unique_ptr<Ort::Allocator> cuda_alloc, pin_alloc;
+  try { cuda_alloc = std::make_unique<Ort::Allocator>(*sess, cuda_mi); }
+  catch (const std::exception& e) { std::cout << "  (khong co allocator Cuda: " << e.what() << ")\n"; return; }
+  try { pin_alloc = std::make_unique<Ort::Allocator>(*sess, pin_mi); }
+  catch (const std::exception& e) { std::cout << "  (khong co allocator CudaPinned: " << e.what() << ")\n"; return; }
+
+  auto mk = [&](Ort::Allocator& a, const int64_t* shape, size_t rank) {
+    return Ort::Value::CreateTensor<float>(a, shape, rank);
+  };
+  // Pinned input filled with the same data (content does not matter, but keep it equal).
+  Ort::Value pin_in = mk(*pin_alloc, ishape.data(), 4);
+  std::memcpy(pin_in.GetTensorMutableData<float>(), host_in.data(), in_n * sizeof(float));
+  Ort::Value pin_p = mk(*pin_alloc, pshape.data(), 2), pin_v = mk(*pin_alloc, vshape.data(), 2);
+  Ort::Value gpu_in = mk(*cuda_alloc, ishape.data(), 4);
+  Ort::Value gpu_p = mk(*cuda_alloc, pshape.data(), 2), gpu_v = mk(*cuda_alloc, vshape.data(), 2);
+  const char* in_names[] = {"input"};
+  const char* out_names[] = {"policy", "value"};
+  auto run_plain = [&]() {
+    Ort::Value in = Ort::Value::CreateTensor<float>(cpu_mi, host_in.data(), in_n, ishape.data(), 4);
+    Ort::Value outs[] = {
+        Ort::Value::CreateTensor<float>(cpu_mi, host_p.data(), p_n, pshape.data(), 2),
+        Ort::Value::CreateTensor<float>(cpu_mi, host_v.data(), v_n, vshape.data(), 2)};
+    sess->Run(Ort::RunOptions{nullptr}, in_names, &in, 1, out_names, outs, 2);
+  };
+  auto make_bound = [&](Ort::Value& in, Ort::Value& p, Ort::Value& v) {
+    auto io = std::make_unique<Ort::IoBinding>(*sess);
+    io->BindInput("input", in);
+    io->BindOutput("policy", p);
+    io->BindOutput("value", v);
+    return io;
+  };
+  auto io_b = make_bound(pin_in, pin_p, pin_v);
+  auto io_c = make_bound(pin_in, gpu_p, gpu_v);
+  auto io_d = make_bound(gpu_in, gpu_p, gpu_v);
+
+  auto time_ms = [&](const std::function<void()>& f) {
+    for (int i = 0; i < 20; ++i) f();  // warm-up
+    double best = 1e30;                // best of 5 rounds of 200 (noise-robust)
+    for (int r = 0; r < 5; ++r) {
+      const auto t0 = std::chrono::steady_clock::now();
+      for (int i = 0; i < 200; ++i) f();
+      best = std::min(best, std::chrono::duration<double, std::milli>(
+                                std::chrono::steady_clock::now() - t0).count() / 200);
+    }
+    return best;
+  };
+  const Ort::RunOptions ro{nullptr};
+  const double a = time_ms(run_plain);
+  const double b = time_ms([&] { sess->Run(ro, *io_b); });
+  const double c = time_ms([&] { sess->Run(ro, *io_c); });
+  const double d = time_ms([&] { sess->Run(ro, *io_d); });
+  // Correctness of B vs A (same input bytes): outputs must match.
+  run_plain();
+  sess->Run(ro, *io_b);
+  double diff = 0;
+  const float* bp = pin_p.GetTensorData<float>();
+  for (size_t i = 0; i < p_n; ++i) diff = std::max(diff, (double)std::fabs(bp[i] - host_p[i]));
+
+  std::printf("\n--- Chi phi CHEP du lieu (E3/E4), batch %d, chi session->Run() ---\n", batch);
+  std::printf("  vao %.2f MB, policy ra %.2f MB, value ra %zu B moi Run\n",
+              in_n * 4 / 1e6, p_n * 4 / 1e6, v_n * 4);
+  std::printf("  A pageable vao/ra (hien tai)  : %.3f ms\n", a);
+  std::printf("  B pinned vao/ra   (E3)        : %.3f ms  (%+.1f%%)  max|B-A|=%.2g\n", b,
+              100 * (b / a - 1), diff);
+  std::printf("  C pinned vao, ra o GPU (tran E4): %.3f ms  (%+.1f%%)\n", c, 100 * (c / a - 1));
+  std::printf("  D vao/ra deu o GPU (san)      : %.3f ms  (%+.1f%%)  = toan bo chep chiem %.1f%%\n",
+              d, 100 * (d / a - 1), 100 * (a - d) / a);
 }
 
 }  // namespace
@@ -219,6 +317,8 @@ int run_bench_nn(const EngineOptions& o) {
       }
       std::cout << "  (ms/Run gan nhu khong doi = GPU van tinh du " << prod
                 << " o; phan thua la phi)\n";
+      if (o.sp_provider == "cuda")
+        BenchCopyCost(static_cast<lczero::OnnxBackend*>(backend.get()), prod);
     }
   }
 

@@ -107,6 +107,9 @@ class OnnxBackend : public Backend {
   void UpdateConfiguration(const OptionsDict& opts) override;
   bool IsSameConfiguration(const OptionsDict& opts) const override;
 
+  // For --bench-nn only (copy-cost measurement with IoBinding).
+  Ort::Session* SessionForBench() { return session_.get(); }
+
  private:
   void InitializeSession();
 
