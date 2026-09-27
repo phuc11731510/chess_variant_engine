@@ -103,6 +103,12 @@ LE=                                   # `fz_menu.sh [@tk] --tai-len <tep>`: moc 
 [ "${1:-}" = --tai-len ] && LE=1
 TUDONG=                               # `fz tu_dong`: vong lap tu dong (tu chon tai khoan -- khong hoi trung)
 [ "${1:-}" = tu_dong ] && TUDONG=1
+# `fz dung`: dung mem MOI cua so vong lap tu dong tren dien thoai nay (go o bat ky cua so nao).
+if [ "${1:-}" = dung ]; then
+  mkdir -p "$TKG/.tu_dong" && : > "$TKG/.tu_dong/dung_tay"
+  echo "[đã yêu cầu dừng mềm] Mọi cửa sổ vòng lặp: chơi nốt ván dở, gom, tải về, trả máy rồi thoát."
+  exit 0
+fi
 [ -n "$LE$TUDONG" ] || hoi_trung "$TK" "$S" || exit 1
 dat_tk "$TK"
 [ -n "$LE" ] || ghi_cua_so
@@ -676,7 +682,7 @@ do_han_muc() {
   py_colab ~/fz_han_muc.py --may TAM
   if colab stop -s "$ten" >/dev/null 2>&1; then echo "[đã trả máy tạm '$ten']"
   else echo "[!] Chưa trả được máy tạm '$ten' -- trả ở mục t"; fi
-  trap - INT
+  trap 'NGAT=1' INT        # tra lai bat Ctrl+C cua menu (trap - INT thi Ctrl+C sau do giet ca menu)
 }
 
 # Chup han muc (neu dang giu may) cua tai khoan $1 ("" = chinh) -- im lang, toi da 20 giay.

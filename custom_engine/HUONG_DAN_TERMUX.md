@@ -760,7 +760,7 @@ hạn mức (như ô 04), rồi in đời đang ở giai đoạn nào (vd `Đã 
 | 3. Huấn luyện | Khi mọi máy đã tải về: cửa sổ có máy **nhiều hạn mức nhất** huấn luyện, cửa sổ kia trả máy và chờ (không xin máy trong lúc chờ). Gộp mọi `games_genG_*.zip` vào thư mục `games_genG/`, gói `games_genG/`, `games_gen(G-1)/`, `games_gen(G-2)/` thành `games_genG.zip`. Máy phải còn **≥ 20 phút T4 lúc sắp tải dữ liệu lên** (không thì trả, xin máy khác), tải lên, `07`, tải `gen(G+1).onnx` + `.pt` về. Máy mất giữa chừng → xin máy mới ngay, rồi 10 phút một lần, làm lại. |
 | 4. Lên đời | `gh release upload` hai tệp mạng lên Release (theo `REL` ô 00), `GEN_CURRENT` + 1, sang đời mới — máy vừa huấn luyện (đã có mạng mới) sinh dữ liệu tiếp luôn. |
 
-**Dừng:** Ctrl+C trong cửa sổ vòng lặp → **`s`** = dừng mềm **cả** vòng lặp (mọi cửa sổ: chơi nốt ván
+**Dừng:** gõ **`fz dung`** ở bất kỳ cửa sổ Termux nào (kể cả cửa sổ mới), hoặc Ctrl+C trong cửa sổ vòng lặp → **`s`** = dừng mềm **cả** vòng lặp (mọi cửa sổ: chơi nốt ván
 dở, gom, tải về, trả máy rồi thoát; đang huấn luyện thì làm xong đời đó rồi mới dừng) · **`q`** = thoát
 riêng cửa sổ này, máy và ô trên Colab **vẫn chạy** (tiêu hạn mức) — mở lại `fz tu_dong` là nó **nhận
 lại** máy đó và làm tiếp · Enter = xem tiếp.
