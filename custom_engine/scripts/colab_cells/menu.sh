@@ -671,6 +671,7 @@ han_muc() {
 }
 
 # Xin tam may CPU ten rieng, doc (va chup) han muc, tra may ngay. Ctrl+C giua chung van tra may.
+# $1 = im: chi chup (khong in bang han muc) -- dung sau khi xin T4 bi tu choi.
 do_han_muc() {
   local ten="fzhm$$"
   echo "[xin tạm máy CPU '$ten'...]"
@@ -679,7 +680,8 @@ do_han_muc() {
     return 1
   fi
   trap 'colab stop -s "'"$ten"'" >/dev/null 2>&1' INT
-  py_colab ~/fz_han_muc.py --may TAM
+  if [ "${1:-}" = im ]; then py_colab ~/fz_han_muc.py --may TAM --chup >/dev/null 2>&1
+  else py_colab ~/fz_han_muc.py --may TAM; fi
   if colab stop -s "$ten" >/dev/null 2>&1; then echo "[đã trả máy tạm '$ten']"
   else echo "[!] Chưa trả được máy tạm '$ten' -- trả ở mục t"; fi
   trap 'NGAT=1' INT        # tra lai bat Ctrl+C cua menu (trap - INT thi Ctrl+C sau do giet ca menu)
@@ -723,9 +725,11 @@ xin_may() {
       [ -f ~/fz_han_muc.py ] && py_colab ~/fz_han_muc.py --het
       echo "    Thường là ${M_DAM}$(ten_tk "$TK")${M_HET} đã ${M_DO}HẾT${M_HET} hạn mức"
       echo "    GPU miễn phí (hoặc Colab tạm hết $1)."
-      echo "    Lần chụp gần nhất:"
+      # Doc han muc + gio nap lai bang may CPU tam (tra ngay): tai khoan hien vang kem gio nap lai
+      # thay vi HET khong ro gio. Khong xin duoc ca CPU thi giu nhan HET.
+      [ -f ~/fz_han_muc.py ] && { echo -n "    "; do_han_muc im; }
+      echo "    Hạn mức:"
       khoi_han_muc "$TK" | sed 's/^   /      /'
-      echo "    ${M_DAM}h${M_HET} = giờ nạp lại chính xác"
       echo "    ${M_DAM}a${M_HET} = đổi tài khoản"
     fi ;;
   "Max retries exceeded"|"Name or service not known") echo "    Mất mạng? Kiểm tra kết nối rồi thử lại." ;;
