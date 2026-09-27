@@ -104,6 +104,9 @@ const std::vector<SearchOpt>& SearchOptTable() {
         // lc0 allows up to 1024, but one NN computation holds MaxBatchSize inputs:
         // more would throw "Maximum batch size exceeded" in the middle of a game.
         {"minibatch-size", Kind::kInt, &BP::kMiniBatchSizeId, 0, double(lczero::MaxBatchSize), {}},
+        // NN cache entries (read when the cache is built, CreateMemCache). Fixed slots
+        // take ~1.6 KB each, compact ones ~0.3 KB (nn-cache-compact).
+        {"nn-cache-size", Kind::kInt, &lczero::SharedBackendParams::kNNCacheSizeId, 0, 16777216, {}},
         {"max-prefetch", Kind::kInt, &SP::kMaxPrefetchBatchId, 0, double(lczero::MaxBatchSize), {}},
         {"tempdecay-moves", Kind::kInt, &BP::kTempDecayMovesId, 0, 640, {}},
         {"tempdecay-delay-moves", Kind::kInt, &BP::kTempDecayDelayMovesId, 0, 100, {}},
@@ -114,6 +117,7 @@ const std::vector<SearchOpt>& SearchOptTable() {
         {"max-concurrent-searchers", Kind::kInt, &BP::kMaxConcurrentSearchersId, 0, 128, {}},
         {"task-workers", Kind::kInt, &BP::kTaskWorkersPerSearchWorkerId, -1, 128, {}},
         {"two-fold-draws", Kind::kBool, &BP::kTwoFoldDrawsId, 0, 0, {}},
+        {"nn-cache-compact", Kind::kBool, &lczero::SharedBackendParams::kNNCacheCompactId, 0, 0, {}},
         {"root-has-own-cpuct-params", Kind::kBool, &BP::kRootHasOwnCpuctParamsId, 0, 0, {}},
         {"out-of-order-eval", Kind::kBool, &BP::kOutOfOrderEvalId, 0, 0, {}},
         {"sticky-endgames", Kind::kBool, &BP::kStickyEndgamesId, 0, 0, {}},

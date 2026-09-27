@@ -20,6 +20,17 @@ static uint64_t ComputeEvalPositionHash(const EvalPosition& pos) {
     return HashCat(last.Hash(), static_cast<uint64_t>(last.GetRepetitions()));
 }
 
+// Checksum of n priors (their bit patterns), for the compact cache.
+static uint32_t PriorsCheck(const float* p, size_t n) {
+    uint32_t h = 2166136261u;
+    for (size_t i = 0; i < n; ++i) {
+        uint32_t x;
+        std::memcpy(&x, p + i, sizeof x);
+        h = (h ^ x) * 16777619u;
+    }
+    return h;
+}
+
 // ==========================================
 // ZeroHeapCacheComputation Implementation
 // ==========================================
@@ -134,6 +145,7 @@ ZeroHeapCache::ZeroHeapCache(std::unique_ptr<Backend> wrapped, const OptionsDict
     : wrapped_backend_(std::move(wrapped)) {
     // Default capacity matches option size setup
     int cache_size = options.GetOrDefault<int>(SharedBackendParams::kNNCacheSizeId, 65536);
+    compact_ = options.GetOrDefault<bool>(SharedBackendParams::kNNCacheCompactId, false);
     SetCacheSize(cache_size);
 }
 
@@ -155,6 +167,15 @@ std::optional<EvalResult> ZeroHeapCache::GetCachedEvaluation(const EvalPosition&
     
     // Direct index allocation
     if (cache_size_ == 0) return std::nullopt;
+    if (compact_) {
+        const bool probe = pos.legal_moves.empty();
+        EvalResult result;
+        result.p.resize(probe ? 0 : std::min<size_t>(num_moves, 384));
+        if (!CompactRead(hash, num_moves, probe, &result.q, &result.d, &result.m, result.p.data(),
+                         result.p.size()))
+            return std::nullopt;
+        return result;
+    }
     size_t idx = hash % cache_size_;
     auto& bucket = cache_buckets_[idx];
     
@@ -192,6 +213,13 @@ std::optional<EvalResult> ZeroHeapCache::GetCachedEvaluation(const EvalPosition&
 }
 
 void ZeroHeapCache::ClearCache() {
+    if (compact_) {
+        for (size_t i = 0; i < cache_size_; ++i) {
+            compact_buckets_[i].hash.store(0, std::memory_order_relaxed);
+            compact_buckets_[i].sequence.store(0, std::memory_order_relaxed);
+        }
+        return;
+    }
     for (size_t i = 0; i < cache_size_; ++i) {
         auto& bucket = cache_buckets_[i];
         bucket.hash.store(0, std::memory_order_relaxed);
@@ -202,7 +230,18 @@ void ZeroHeapCache::ClearCache() {
 void ZeroHeapCache::SetCacheSize(size_t size) {
     if (size == 0) {
         cache_buckets_.reset();
-        cache_size_ = 0;
+        compact_buckets_.reset();
+        arena_.reset();
+        cache_size_ = arena_size_ = 0;
+        return;
+    }
+    if (compact_) {
+        compact_buckets_ = std::make_unique<CompactBucket[]>(size);
+        arena_size_ = size * kArenaMovesPerEntry;
+        arena_ = std::make_unique<float[]>(arena_size_);
+        arena_head_.store(0, std::memory_order_relaxed);
+        cache_size_ = size;
+        ClearCache();
         return;
     }
     
@@ -228,6 +267,17 @@ bool ZeroHeapCache::IsSameConfiguration(const OptionsDict& opts) const {
 // Lockless thread-safe Seqlock Reading
 bool ZeroHeapCache::TryRead(uint64_t hash, uint16_t num_moves, EvalResultPtr& out) {
     if (cache_size_ == 0) return false;
+    if (compact_) {
+        float q, d, m;
+        // Priors go straight to the caller's buffer; on a miss it is later
+        // overwritten by the real evaluation anyway.
+        if (!CompactRead(hash, num_moves, false, &q, &d, &m, out.p.data(), out.p.size()))
+            return false;
+        if (out.q) *out.q = q;
+        if (out.d) *out.d = d;
+        if (out.m) *out.m = m;
+        return true;
+    }
     
     size_t idx = hash % cache_size_;
     auto& bucket = cache_buckets_[idx];
@@ -262,6 +312,30 @@ bool ZeroHeapCache::TryRead(uint64_t hash, uint16_t num_moves, EvalResultPtr& ou
 // Lockless thread-safe Seqlock Writing
 void ZeroHeapCache::Insert(uint64_t hash, uint16_t num_moves, float q, float d, float m, std::span<const float> p) {
     if (cache_size_ == 0) return;
+    if (compact_) {
+        auto& b = compact_buckets_[hash % cache_size_];
+        uint32_t seq = b.sequence.load(std::memory_order_relaxed);
+        while (true) {
+            if ((seq & 1) != 0) return;  // another thread is writing this bucket
+            if (b.sequence.compare_exchange_strong(seq, seq + 1, std::memory_order_acquire,
+                                                   std::memory_order_relaxed))
+                break;
+        }
+        std::atomic_thread_fence(std::memory_order_release);
+        const size_t n = std::min<size_t>({num_moves, p.size(), 384});
+        // Reserve the arena range first (readers of older entries there then see
+        // the head moved past them), then write it.
+        const uint64_t pos = arena_head_.fetch_add(n, std::memory_order_acq_rel);
+        std::atomic_thread_fence(std::memory_order_release);
+        ArenaWrite(pos, n, p.data());
+        b.hash.store(hash, std::memory_order_relaxed);
+        b.num_moves = num_moves;
+        b.q = q; b.d = d; b.m = m;
+        b.pos = pos;
+        b.check = PriorsCheck(p.data(), n);
+        b.sequence.store(seq + 2, std::memory_order_release);
+        return;
+    }
     
     size_t idx = hash % cache_size_;
     auto& bucket = cache_buckets_[idx];
@@ -292,6 +366,43 @@ void ZeroHeapCache::Insert(uint64_t hash, uint16_t num_moves, float q, float d, 
     }
     
     bucket.sequence.store(seq + 2, std::memory_order_release); // End writing lock
+}
+
+void ZeroHeapCache::ArenaRead(uint64_t pos, size_t n, float* dst) const {
+    const size_t at = pos % arena_size_, first = std::min(n, arena_size_ - at);
+    std::memcpy(dst, arena_.get() + at, first * sizeof(float));
+    if (n > first) std::memcpy(dst + first, arena_.get(), (n - first) * sizeof(float));
+}
+
+void ZeroHeapCache::ArenaWrite(uint64_t pos, size_t n, const float* src) {
+    const size_t at = pos % arena_size_, first = std::min(n, arena_size_ - at);
+    std::memcpy(arena_.get() + at, src, first * sizeof(float));
+    if (n > first) std::memcpy(arena_.get(), src + first, (n - first) * sizeof(float));
+}
+
+// Seqlock read of a compact entry and its arena priors. probe = existence check
+// only (no move-count match, no priors). p_cap = room in p.
+bool ZeroHeapCache::CompactRead(uint64_t hash, uint16_t num_moves, bool probe, float* q,
+                                float* d, float* m, float* p, size_t p_cap) {
+    const auto& b = compact_buckets_[hash % cache_size_];
+    const uint32_t seq1 = b.sequence.load(std::memory_order_acquire);
+    if (seq1 % 2 != 0) return false;
+    if (b.hash.load(std::memory_order_relaxed) != hash) return false;
+    const uint16_t nm = b.num_moves;
+    const float bq = b.q, bd = b.d, bm = b.m;
+    const uint64_t pos = b.pos;
+    const uint32_t check = b.check;
+    if (!probe && nm != num_moves) return false;
+    const size_t n = probe ? 0 : std::min<size_t>({nm, p_cap, 384});
+    if (n > 0) ArenaRead(pos, n, p);
+    std::atomic_thread_fence(std::memory_order_acquire);
+    if (b.sequence.load(std::memory_order_acquire) != seq1) return false;
+    // Priors overwritten by newer entries since this one was written?
+    if (arena_head_.load(std::memory_order_relaxed) - pos > arena_size_) return false;
+    const size_t stored = std::min<size_t>(nm, 384);
+    if (n == stored && PriorsCheck(p, n) != check) return false;  // corrupted priors
+    *q = bq; *d = bd; *m = bm;
+    return true;
 }
 
 // Factory function
