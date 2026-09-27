@@ -354,12 +354,13 @@ bool Eval(lczero::Backend* b, const lczero::PositionHistory& h, const lczero::Mo
     return r == lczero::BackendComputation::FETCHED_IMMEDIATELY;
 }
 
-void TestCache() {
-    std::cout << "--- 4. ZeroHeapCache ---" << std::endl;
+void TestCache(bool compact) {
+    std::cout << "--- 4. ZeroHeapCache" << (compact ? " (nn-cache-compact)" : "") << " ---" << std::endl;
     auto positions = MakePositions(8);
     lczero::OptionsParser parser;
     parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, "a.onnx");
     parser.GetMutableDefaultsOptions()->Set<int>(lczero::SharedBackendParams::kNNCacheSizeId, 4096);
+    parser.GetMutableDefaultsOptions()->Set<bool>(lczero::SharedBackendParams::kNNCacheCompactId, compact);
     auto counting = std::make_unique<CountingBackend>();
     CountingBackend* inner = counting.get();
     auto cache = lczero::CreateMemCache(std::move(counting), parser.GetOptionsDict());
@@ -406,6 +407,7 @@ void TestCache() {
     {
         lczero::OptionsParser ps;
         ps.GetMutableDefaultsOptions()->Set<int>(lczero::SharedBackendParams::kNNCacheSizeId, 2);
+        ps.GetMutableDefaultsOptions()->Set<bool>(lczero::SharedBackendParams::kNNCacheCompactId, compact);
         lczero::ZeroHeapCache zc(std::make_unique<CountingBackend>(), ps.GetOptionsDict());
         constexpr uint16_t kMoves = 96;
         std::atomic<bool> stop{false};
@@ -563,7 +565,8 @@ void run_neural_tests(const std::string& weights_path) {
         std::cout << "--- 3. [SKIP] OnnxBackend vs ORT: no weights file '" << weights_path
                   << "' (pass --weights <net.onnx>) ---" << std::endl;
     }
-    Section("4. cache", TestCache);
+    Section("4. cache", [] { TestCache(false); });
+    Section("4b. compact cache", [] { TestCache(true); });
     Section("5. batching", TestBatching);
     Section("6. raw root eval", TestRawRootEval);
     if (g_fail) {
