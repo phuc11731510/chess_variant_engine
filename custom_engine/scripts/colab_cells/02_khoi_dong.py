@@ -6,15 +6,10 @@
 !git clone -q --depth 1 -b main https://github.com/phuc11731510/chess_variant_engine.git
 !BIN_URL={REL}/custom_engine bash {E}/scripts/colab_quickstart.sh
 
-# Thư viện cho huấn luyện (mục 5a của sổ tay). Cảnh báo "protobuf ... incompatible" là của
-# các gói khác của Colab, không ảnh hưởng FairyZero.
-!pip install -q onnx onnxscript onnxruntime
-
-# Tải mạng đời hiện tại từ GitHub Release. Đặt False cho tệp nào bạn tự tải lên từ
-# điện thoại (colab upload) hoặc tự tạo (ô 03, đời 0).
+# Tải mạng đời hiện tại (.onnx) từ GitHub Release. Đặt False nếu bạn tự tải lên từ điện thoại
+# (colab upload) hoặc tự tạo (ô 03, đời 0). .pt + thư viện huấn luyện: ô 02c (chỉ máy huấn luyện).
 TAI_ONNX = True
-TAI_PT = True
-for tai, f in [(TAI_ONNX, CURRENT_ONNX), (TAI_PT, CURRENT_PT)]:
+for tai, f in [(TAI_ONNX, CURRENT_ONNX)]:
     if tai:
         name = f.split("/")[-1]
         # wget hỏng vẫn để lại tệp rỗng -> xoá để không nhầm là đã có

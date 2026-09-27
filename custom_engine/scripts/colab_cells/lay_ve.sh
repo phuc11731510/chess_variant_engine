@@ -14,7 +14,7 @@ REPO=phuc11731510/chess_variant_engine
 SHA=$(curl -fsSL -H 'Accept: application/vnd.github.sha' "https://api.github.com/repos/$REPO/commits/main" 2>/dev/null) || SHA=
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || SHA=main
 URL=https://raw.githubusercontent.com/$REPO/$SHA/custom_engine/scripts/colab_cells
-CELLS="00_cau_hinh 01_kiem_gpu 02_khoi_dong 02b_bien_dich 03_tao_gen0 04_sinh_du_lieu
+CELLS="00_cau_hinh 01_kiem_gpu 02_khoi_dong 02b_bien_dich 02c_chuan_bi_huan_luyen 03_tao_gen0 04_sinh_du_lieu
 05_xem_log 06_dong_goi 07_huan_luyen 08_arena 09_dung_viec_nen 09b_dung_mem"
 DIR=$HOME/storage/downloads/FairyZero/o_lenh
 

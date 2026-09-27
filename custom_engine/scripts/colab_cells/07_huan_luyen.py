@@ -3,6 +3,9 @@
 # Cửa sổ trượt nhiều đời: DATA = "/content/games_gen0.zip,/content/games_gen1.zip"
 # (các zip cũ phải có trên máy: colab upload ... từ Termux).
 DATA = ZIP_GAMES
+import os
+if not os.path.exists(CURRENT_PT):
+    print(f"[!] Chưa có {CURRENT_PT} -- chạy ô 02c trước (tải .pt + thư viện huấn luyện)")
 
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \

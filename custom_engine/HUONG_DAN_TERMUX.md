@@ -330,7 +330,8 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 |---|---|---|---|
 | 00 | `00_cau_hinh.py` | Cấu hình | `GEN_CURRENT` và mọi đường dẫn — **tự ghép vào đầu mọi ô** |
 | 01 | `01_kiem_gpu.py` | 0 | `nvidia-smi` |
-| 02 | `02_khoi_dong.py` | 1 (+5a) | clone mã, binary từ Release, ONNX Runtime, `pip install onnx…`, tải mạng đời hiện tại từ Release |
+| 02 | `02_khoi_dong.py` | 1 | clone mã, binary từ Release, ONNX Runtime, tải `gen<N>.onnx` từ Release |
+| 02c | `02c_chuan_bi_huan_luyen.py` | 5a | chỉ máy sắp huấn luyện: `gen<N>.pt` từ Release + `pip install onnx…` (chạy trước 07) |
 | 02b | `02b_bien_dich.py` | 1b | biên dịch lại (chỉ khi cần) |
 | 03 | `03_tao_gen0.py` | 2 | tạo mạng đời 0 mới (ghi đè gen0) |
 | 04 | `04_sinh_du_lieu.py` | 3 | sinh dữ liệu (dừng mềm được bằng 09b / vòng lặp tự động) |
@@ -357,6 +358,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     01   Kiểm GPU (mục 0)
     02   Khởi động: mã, binary, ONNX Runtime, mạng (mục 1)
     02b  Biên dịch lại, chỉ khi cần (mục 1b)
+    02c  Chuẩn bị huấn luyện: gen.pt + thư viện (trước ô 07)
     03   Tạo mạng đời 0 MỚI, ghi đè gen0 (mục 2)
     04   Sinh dữ liệu (mục 3)
     05   Tình trạng ô chạy nền gần nhất
@@ -642,7 +644,8 @@ in dòng `FZ_TAI_VE=<đường dẫn>` thì menu tải tệp đó về khi ô xo
 
 ### Ô 07 — huấn luyện · 10-40 phút
 
-Kiểm `/content/gen0.pt` có trên máy (`echo '!ls -la /content' | colab exec -s fz`). Sửa tham số
+Chạy **`02c`** trước (tải `gen<N>.pt` + thư viện huấn luyện — ô 02 không tải để máy chỉ sinh dữ liệu
+đỡ ~55 MB), hoặc gõ luôn `02c 07`. Sửa tham số
 trong `07_huan_luyen.py` nếu muốn (`--epochs`, `--lr`, `DATA`, …), rồi:
 
 Menu `fz` → chọn **`07`** (gõ tắt: `o 07`).

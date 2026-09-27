@@ -26,6 +26,12 @@ set -e
 ORT_VER="${ORT_VER:-1.20.1}"
 ORT_PKG="${ORT_PKG:-onnxruntime-linux-x64-gpu-${ORT_VER}}"
 ORT_URL="${ORT_URL:-https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VER}/${ORT_PKG}.tgz}"
+# Goi gon (chi 3 thu vien can, xz) tren Release cua repo -- chi co cho ban 1.20.1. ORT_GON_URL= (rong)
+# de tat, luon tai goi chinh thuc.
+if [ "$ORT_VER" = 1.20.1 ]; then
+  ORT_GON_URL="${ORT_GON_URL-https://github.com/phuc11731510/chess_variant_engine/releases/download/v3.0.0/${ORT_PKG}-gon.tar.xz}"
+  ORT_GON_SHA="${ORT_GON_SHA-d5005438ce9a12fffe8d72228bb508263e67939479a68b27314703058a66f34a}"
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENGINE_DIR="$(dirname "$SCRIPT_DIR")"
@@ -49,10 +55,24 @@ chmod +x "$BIN"
 # --- 2. ONNX Runtime ---------------------------------------------------------
 mkdir -p third_party && cd third_party
 if [ ! -d "$ORT_PKG" ]; then
-  echo "[quick] tai $ORT_PKG ..."
-  wget -q "$ORT_URL" -O "${ORT_PKG}.tgz"
-  tar xzf "${ORT_PKG}.tgz"
-  rm -f "${ORT_PKG}.tgz"
+  # Uu tien goi GON tren Release cua repo (ORT_GON_URL): chi 3 thu vien engine can (libonnxruntime,
+  # providers_shared, providers_cuda -- bo TensorRT, header, cmake), nen xz -9e: ~81 MB thay vi goi
+  # chinh thuc 258 MB. Loi (chua co tren Release / sai sha256) thi tai goi chinh thuc nhu cu.
+  ok=
+  if [ -n "${ORT_GON_URL:-}" ]; then
+    echo "[quick] tai $ORT_PKG (goi gon) ..."
+    if wget -q "$ORT_GON_URL" -O "${ORT_PKG}.tar.xz" &&
+       { [ -z "${ORT_GON_SHA:-}" ] || echo "$ORT_GON_SHA  ${ORT_PKG}.tar.xz" | sha256sum -c --quiet; } &&
+       tar xJf "${ORT_PKG}.tar.xz"; then ok=1
+    else echo "[quick] goi gon loi -- tai goi chinh thuc"; rm -rf "$ORT_PKG"; fi
+    rm -f "${ORT_PKG}.tar.xz"
+  fi
+  if [ -z "$ok" ]; then
+    echo "[quick] tai $ORT_PKG ..."
+    wget -q "$ORT_URL" -O "${ORT_PKG}.tgz"
+    tar xzf "${ORT_PKG}.tgz"
+    rm -f "${ORT_PKG}.tgz"
+  fi
 fi
 cd "$ENGINE_DIR"
 echo "[quick] ONNX Runtime: $ENGINE_DIR/third_party/$ORT_PKG"
