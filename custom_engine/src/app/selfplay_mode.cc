@@ -112,8 +112,25 @@ int run_selfplay(const EngineOptions& o) {
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, o.sp_noise_eps);
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, o.sp_noise_alpha);
-        if (o.sp_cpuct >= 0.0f)
-            parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_cpuct);
+        // Self-play search parameters of lc0's own self-play (upstream/lc0
+        // src/selfplay/tournament.cc), not the UCI defaults, which are tuned for
+        // playing strength (2026-09-28, owner's decision):
+        //   cpuct 1.3 FIXED (owner's choice; lc0 self-play 1.2), cpuct-factor 0
+        //     -- UCI: 1.745 growing with visits (factor 3.894);
+        //   fpu reduction 0 (an unvisited move starts at its parent's Q) -- UCI 0.33;
+        //   two-fold-draws off: the variant's rule is THREEFOLD repetition, a
+        //     search scoring the first repetition as a draw skews the q targets;
+        //   sticky-endgames off;
+        //   task-workers 0: the search's helper threads spin for work and take
+        //     the 2 vCPUs from the other games (T4, 16 games aggregated: +13%).
+        // --cpuct and --search-opt still override.
+        auto* sd = parser.GetMutableDefaultsOptions();
+        sd->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_cpuct >= 0.0f ? o.sp_cpuct : 1.3f);
+        sd->Set<float>(lczero::classic::BaseSearchParams::kCpuctFactorId, 0.0f);
+        sd->Set<float>(lczero::classic::BaseSearchParams::kFpuValueId, 0.0f);
+        sd->Set<bool>(lczero::classic::BaseSearchParams::kTwoFoldDrawsId, false);
+        sd->Set<bool>(lczero::classic::BaseSearchParams::kStickyEndgamesId, false);
+        sd->Set<int>(lczero::classic::BaseSearchParams::kTaskWorkersPerSearchWorkerId, 0);
         // No speculative prefetch by default (lc0's default is 32). Prefetch only
         // fills the NN cache with guesses; it never changes what the search
         // computes. Measured 2026-09-23 on a Colab T4: +37% playouts/s without it
