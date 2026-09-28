@@ -9,6 +9,8 @@
 #include <iostream>
 #include <algorithm>
 #include <limits>
+#include <cstdlib>
+#include <new>
 #if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
 #define FZ_X86_SIMD 1
 #include <immintrin.h>
@@ -141,8 +143,9 @@ static std::vector<std::string> split_options(const std::string& s, char delimit
 // ==========================================
 // OnnxComputation Implementation
 // ==========================================
-
-OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size)
+OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info,
+                                 OnnxBufferPool* pool, float softmax_temp, bool fixed_batch,
+                                 size_t fixed_batch_size)
     : session_(session), memory_info_(memory_info),
       // Capacity is how many positions the SEARCH may pile into one
       // computation, which is NOT the same as the ORT session's fixed batch:
@@ -159,9 +162,8 @@ OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_
       // memset, ORT's input read and its policy/value writes all overran the
       // heap blocks.
       slots_(OnnxBufferSlots(fixed_batch, fixed_batch_size)),
-      input_buffer_(new float[slots_ * InputBufferUnitSize]),
-      policy_output_buffer_(new float[slots_ * PolicyOutputSize]),
-      value_output_buffer_(new float[slots_ * ValueOutputSize]),
+      pool_(pool),
+      buf_(pool->Acquire()),  // sized by the backend for this same slots_ (OnnxBackend::InitializeSession)
       results_(capacity_),
       position_moves_(capacity_),
       softmax_temp_(softmax_temp), fixed_batch_(fixed_batch),
@@ -218,7 +220,7 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
     EncodePositionForNN(*pos.history, kMoveHistory, FillEmptyHistory::FEN_ONLY, &planes, &transform);
 
     // Unpack bits into flat float buffer
-    float* current_input_ptr = input_buffer_.get() + slot * InputBufferUnitSize;
+    float* current_input_ptr = buf_.input + slot * InputBufferUnitSize;
     UnpackInputPlanes(planes, current_input_ptr, BoardWidth, BoardHeight);
 
     return ENQUEUED_FOR_EVAL;
@@ -264,14 +266,14 @@ void OnnxComputation::ComputeBlocking() {
         
         if (fixed_batch_ && run_batch > current_batch) {
             size_t pad_count = run_batch - current_batch;
-            std::memset(input_buffer_.get() + (offset + current_batch) * InputBufferUnitSize, 0, pad_count * InputBufferUnitSize * sizeof(float));
+            std::memset(buf_.input + (offset + current_batch) * InputBufferUnitSize, 0, pad_count * InputBufferUnitSize * sizeof(float));
         }
         
         // 1. Direct Memory Mapping: map C++ float arrays directly into Ort::Value (zero-copy)
         std::array<int64_t, 4> input_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(InputPlanesCount), static_cast<int64_t>(BoardHeight), static_cast<int64_t>(BoardWidth) };
         Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
             memory_info_,
-            input_buffer_.get() + offset * InputBufferUnitSize,
+            buf_.input + offset * InputBufferUnitSize,
             run_batch * InputBufferUnitSize,
             input_shape.data(),
             input_shape.size()
@@ -280,7 +282,7 @@ void OnnxComputation::ComputeBlocking() {
         std::array<int64_t, 2> policy_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(PolicyOutputSize) };
         Ort::Value policy_tensor = Ort::Value::CreateTensor<float>(
             memory_info_,
-            policy_output_buffer_.get() + offset * PolicyOutputSize,
+            buf_.policy + offset * PolicyOutputSize,
             run_batch * PolicyOutputSize,
             policy_shape.data(),
             policy_shape.size()
@@ -289,7 +291,7 @@ void OnnxComputation::ComputeBlocking() {
         std::array<int64_t, 2> value_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(ValueOutputSize) };
         Ort::Value value_tensor = Ort::Value::CreateTensor<float>(
             memory_info_,
-            value_output_buffer_.get() + offset * ValueOutputSize,
+            buf_.value + offset * ValueOutputSize,
             run_batch * ValueOutputSize,
             value_shape.data(),
             value_shape.size()
@@ -324,8 +326,8 @@ void OnnxComputation::ComputeBlocking() {
     
     // 4. Fill results and execute Softmax for legal moves
     for (size_t b = 0; b < enqueued; ++b) {
-        const float* raw_policy = policy_output_buffer_.get() + b * PolicyOutputSize;
-        const float* raw_value = value_output_buffer_.get() + b * ValueOutputSize;
+        const float* raw_policy = buf_.policy + b * PolicyOutputSize;
+        const float* raw_value = buf_.value + b * ValueOutputSize;
         EvalResultPtr res = results_[b];
 
         // 4.1. WDL value. The graph must end with a softmax (python/train.py's
@@ -401,6 +403,7 @@ std::unique_ptr<BackendComputation> OnnxBackend::CreateComputation() {
     return std::make_unique<OnnxComputation>(
         session_.get(),
         memory_info_,
+        &pool_,
         softmax_temp_,
         fixed_batch_,
         fixed_batch_size_
@@ -412,7 +415,9 @@ void OnnxBackend::InitializeSession() {
         throw Exception("ONNX Backend: Weight path is not set!");
     }
     
-    // Reset any old session
+    // Reset any old session (its pinned buffers first: they use its allocator)
+    pool_.Reset(0, nullptr);
+    memory_info_ = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     session_.reset();
     
     // Reset and rebuild session options
@@ -530,6 +535,58 @@ void OnnxBackend::InitializeSession() {
     } catch (const std::exception& e) {
         throw Exception(std::string("ONNX Backend: Failed to load ONNX model: ") + e.what());
     }
+
+    // Buffer pool (see OnnxBufferPool): pinned host memory on CUDA.
+    // FZ_ORT_PINNED=0 turns pinning off (A/B measurement only).
+    std::unique_ptr<Ort::Allocator> pinned;
+    const char* pin_env = std::getenv("FZ_ORT_PINNED");
+    if (gpu_ep && provider_ == "cuda" && !(pin_env && std::string(pin_env) == "0")) {
+        try {
+            Ort::MemoryInfo pin_mi("CudaPinned", OrtDeviceAllocator, 0, OrtMemTypeCPUOutput);
+            pinned = std::make_unique<Ort::Allocator>(*session_, pin_mi);
+            memory_info_ = std::move(pin_mi);
+        } catch (const std::exception& e) {
+            std::cerr << "[ONNX Backend] WARNING: no CudaPinned allocator (" << e.what()
+                      << ") -> pageable host buffers." << std::endl;
+        }
+    }
+    pool_.Reset(OnnxBufferSlots(fixed_batch_, fixed_batch_size_), std::move(pinned));
+    std::cout << "[ONNX Backend] host buffers: " << (pool_.pinned() ? "pinned" : "pageable")
+              << std::endl;
+}
+
+void OnnxBufferPool::Reset(size_t slots, std::unique_ptr<Ort::Allocator> pinned) {
+    std::lock_guard<std::mutex> lock(mu_);
+    for (float* b : blocks_) {
+        if (pinned_) pinned_->Free(b);
+        else ::operator delete[](b, std::align_val_t{64});
+    }
+    blocks_.clear();
+    free_.clear();
+    slots_ = slots;
+    pinned_ = std::move(pinned);
+}
+
+OnnxBuffers OnnxBufferPool::Acquire() {
+    std::lock_guard<std::mutex> lock(mu_);
+    if (!free_.empty()) {
+        const OnnxBuffers b = free_.back();
+        free_.pop_back();
+        return b;
+    }
+    // Section sizes are multiples of 8 floats, so each section stays 32-byte
+    // aligned (SoftmaxLegal reads the policy with aligned AVX2 loads).
+    const size_t in_n = slots_ * InputBufferUnitSize, p_n = slots_ * PolicyOutputSize;
+    const size_t total = in_n + p_n + slots_ * ValueOutputSize;
+    float* block = pinned_ ? static_cast<float*>(pinned_->Alloc(total * sizeof(float)))
+                           : static_cast<float*>(::operator new[](total * sizeof(float), std::align_val_t{64}));
+    blocks_.push_back(block);
+    return OnnxBuffers{block, block + in_n, block + in_n + p_n};
+}
+
+void OnnxBufferPool::Release(const OnnxBuffers& b) {
+    std::lock_guard<std::mutex> lock(mu_);
+    free_.push_back(b);
 }
 
 void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
