@@ -73,14 +73,34 @@ td_khoa() {
   return 1
 }
 td_van_0() { td_ghi van=0; }     # TAI_VE_MOC: goi vua co ten tich luy -> van cua may nay da nam trong ten
-# Tong van doi $1: so lon nhat trong ten goi da tai + van da xong tren may cac cua so dang sinh / tai.
+# Van dang do tren may cua cua so (tep $1) dang o buoc sinh: engine luon giu dung `par` van cung luc
+# (xong van nao mo van moi ngay) cho toi khi het so van duoc giao (`giao`) -> min(par, giao - van).
+# Sau khi da gui dung mem (dung_van, dung_dang ghi luc gui): khong mo van moi nua -> dung_dang tru di
+# so van xong tu luc do. Khong biet cau hinh (may nhan lai tu vong lap cu, o 04 ban cu) -> 0.
+td_dang_do() {
+  local f=$1 v par giao dv dd d
+  v=$(td_doc "$f" van); v=${v:-0}
+  dd=$(td_doc "$f" dung_dang)
+  if [ -n "$dd" ]; then
+    dv=$(td_doc "$f" dung_van); d=$((dd - (v - ${dv:-0})))
+  else
+    par=$(td_doc "$f" par); giao=$(td_doc "$f" giao)
+    [ -n "$par" ] && [ -n "$giao" ] || { echo 0; return; }
+    d=$((giao - v)); [ $d -gt "$par" ] && d=$par
+  fi
+  [ $d -gt 0 ] && echo $d || echo 0
+}
+# Tong van doi $1: so lon nhat trong ten goi da tai + van da xong VA dang do tren may cac cua so dang
+# sinh / tai. Tinh ca van dang do: du muc tieu thi dung mem LUC DO, van dang do choi not la vua du
+# (khong thua ca loat van song song cua moi may), va cua so khac khong nhan lai phan van dang choi.
 td_tong() {
   local f t=0 v co=1
   td_khoa && co=0
   for f in $(td_cac_cua_so); do
     [ "$(td_doc "$f" gen)" = "$1" ] || continue
     case $(td_doc "$f" buoc) in
-      sinh|tai) v=$(td_doc "$f" van); t=$((t + ${v:-0})) ;;
+      sinh) v=$(td_doc "$f" van); t=$((t + ${v:-0} + $(td_dang_do "$f"))) ;;
+      tai) v=$(td_doc "$f" van); t=$((t + ${v:-0})) ;;
     esac
   done
   t=$((t + $(tong_tich_luy "$1")))
@@ -289,7 +309,7 @@ td_can_dung() {
   [ -f "$TD_DUNG" ] && return 0
   tong=$(td_tong "$TD_G"); muc=$(td_muc)
   if [ "$tong" != "${TD_TONG_IN:-}" ] && [ $((SECONDS - ${TD_LUC_IN:-0})) -ge 60 ]; then
-    td_in "đời $TD_G: ${M_DAM}$tong/$muc${M_HET} ván (đã tải $(tong_tich_luy "$TD_G"))"
+    td_in "đời $TD_G: ${M_DAM}$tong/$muc${M_HET} ván (đã tải $(tong_tich_luy "$TD_G"), tính cả ván đang chơi dở)"
     TD_TONG_IN=$tong; TD_LUC_IN=$SECONDS
   fi
   [ "$tong" -ge "$muc" ]
@@ -300,6 +320,7 @@ td_gui_dung() {
   for i in 1 2 3; do
     out=$(ssh_colab "p=\$(pgrep -af '[c]ustom_engine.* --selfplay' | sed -n 's/.* --stop-file \([^ ]*\).*/\1/p' | head -1); if [ -n \"\$p\" ]; then touch \"\$p\" && echo FZ_DA_DUNG; else echo FZ_KHONG_CHAY; fi" 2>/dev/null)
     if grep -q FZ_DA_DUNG <<<"$out"; then
+      td_ghi dung_van="$(td_doc "$TD_W" van)" dung_dang="$(td_dang_do "$TD_W")"
       td_in "${M_VANG}dừng mềm máy $(ten_tk "$TK")${M_HET}: $([ -f "$TD_DUNG" ] && echo "dừng tay" || echo "đủ $(td_muc) ván") -- ván dở chơi nốt"
       return 0
     fi
@@ -364,28 +385,31 @@ td_chuan_bi() {
 
 # Giai doan 2 tren may cua cua so nay: 04 (tran theo han muc) -> 06 -> tai ve.
 td_sinh() {
-  local g=$1 rc secs muc tong so f
+  local g=$1 rc secs muc tong so f o04 par duoi
   td_chuan_bi "$g"; rc=$?
   case $rc in 0) ;; 2) TD_LOI=1; return ;; 3) td_mat_may; return ;; 4) return ;; *) td_ngu 30; return ;; esac
   [ -f "$TD_DUNG" ] && return
   secs=$(td_giay_t4)
   if [ -z "$secs" ]; then td_in "không đọc được hạn mức -- thử lại sau 1 phút"; td_ngu 60; return; fi
-  secs=$((secs - $(chua_phut) * 60))
+  o04=$(ls "$D"/04_*.py | head -1)
+  par=$(song_song_o04 "$o04"); duoi=$(duoi_giay "$par")
+  secs=$((secs - $(chua_phut) * 60 - duoi))
   if [ $secs -lt $((TD_PHUT_SINH * 60)) ]; then
-    td_in "$(ten_tk "$TK"): hạn mức còn $((secs / 60 + $(chua_phut))) phút T4 -> trả máy"
+    td_in "$(ten_tk "$TK"): hạn mức còn $(( (secs + duoi) / 60 + $(chua_phut) )) phút T4 -> trả máy"
     td_tra; return
   fi
   muc=$(td_muc); tong=$(td_tong "$g"); so=$((muc - tong))
   [ $so -ge 1 ] || return
-  f=$TD/o_$$/$(basename "$(ls "$D"/04_*.py | head -1)")
+  f=$TD/o_$$/$(basename "$o04")
   mkdir -p "$TD/o_$$"
   sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^GAMES[[:space:]]*=[[:space:]]*[0-9]+/s//GAMES = $so/" \
-    "$(ls "$D"/04_*.py | head -1)" > "$f"
+    "$o04" > "$f"
   TD_G=$g; TD_TONG_IN=
-  td_ghi gen="$g" buoc=sinh van=0
-  td_in "04 trên $(ten_tk "$TK"): tối đa $so ván, SECS=$secs (≈ $((secs / 60)) phút) · đời $g: $tong/$muc"
+  td_ghi gen="$g" buoc=sinh van=0 giao="$so" par="$par" dung_van= dung_dang=
+  td_in "04 trên $(ten_tk "$TK"): tối đa $so ván ($par song song), SECS=$secs (≈ $((secs / 60)) phút, đã trừ $(chua_phut) phút gom zip + tải về và $(( (duoi + 59) / 60 )) phút đuôi ván) · đời $g: $tong/$muc"
   td_chay 04 "$f"; rc=$?
   case $rc in 3) td_mat_may; return ;; 4) return ;; esac
+  ghi_duoi_log
   td_gom_tai "$g"
 }
 # 06 + tai goi van ve (ten tich luy; van cua may nay ve 0 ngay luc dat ten).
@@ -416,9 +440,14 @@ td_tiep_tuc() {
   td_in "máy đang có ô $o ($tt)"
   case "$o:$tt" in
     04:chay)
-      TD_G=$g; TD_TONG_IN=; td_ghi gen="$g" buoc=sinh van=0
+      # So van duoc giao + so van song song: doc tu dong lenh cua engine dang chay (tinh van dang do).
+      local cfg giao par
+      cfg=$(ssh_colab "pgrep -af '[c]ustom_engine.* --selfplay' | head -1" 2>/dev/null)
+      giao=$(sed -n 's/.* --games \([0-9]*\).*/\1/p' <<<"$cfg"); par=$(sed -n 's/.* --parallel \([0-9]*\).*/\1/p' <<<"$cfg")
+      TD_G=$g; TD_TONG_IN=; td_ghi gen="$g" buoc=sinh van=0 giao="$giao" par="$par" dung_van= dung_dang=
       td_xem 04 "$pid" 50; rc=$?
       case $rc in 3) td_mat_may; return ;; 4) return ;; esac
+      ghi_duoi_log
       td_gom_tai "$g" ;;
     04:*) td_ghi gen="$g" buoc=tai van=0; td_gom_tai "$g" ;;
     06:chay) td_ghi gen="$g" buoc=tai

@@ -257,6 +257,33 @@ so_nguyen() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$((10#$1))" -gt 0 ]; }
 # chon che do 1 cua o 04, Enter = so go lan truoc (~/.fz_tk/.chua_phut), mac dinh 10.
 CHUA_F=$TKG/.chua_phut
 chua_phut() { local n; n=$(cat "$CHUA_F" 2>/dev/null); so_nguyen "$n" && echo $((10#$n)) || echo 10; }
+# Duoi van khi o 04 dung mem vi het SECS: van dang do van choi not (vuot SECS vai phut; nhieu van
+# song song thi lau hon). Moi lan 04 dung vi het SECS, ghi_duoi_log ghi "<song song> <giay vuot>" vao
+# $DUOI_F (tu log o 04 tren may). duoi_giay P = lan vuot DAI NHAT trong 10 lan gan nhat cung P; chua
+# co lan nao thi so do ban dau (T4, 2026-09-28: 4 van ~1,5 phut, 16 van ~3,4 phut, 24 van ~7 phut).
+# SECS = han muc con lai - chua_phut (gom zip + tai ve) - duoi_giay.
+DUOI_F=$TKG/.duoi_van
+song_song_o04() { local p; p=$(gia_tri "$1" PARALLEL); so_nguyen "$p" && echo $((10#$p)) || echo 4; }
+duoi_giay() {
+  local p=$1 m
+  m=$(awk -v p="$p" '$1 == p { a[n++] = $2 } END { for (i = (n > 10 ? n - 10 : 0); i < n; i++) if (a[i] > m) m = a[i]; print m + 0 }' "$DUOI_F" 2>/dev/null)
+  if [ "${m:-0}" -gt 0 ]; then echo "$m"
+  elif [ "$p" -le 4 ]; then echo 120
+  elif [ "$p" -le 16 ]; then echo 240
+  else echo $((p * 20)); fi
+}
+duoi_phut() { echo $(( ($(duoi_giay "$1") + 59) / 60 )); }
+# Doc log o 04 tren may: 04 dung vi het SECS -> ghi so giay vuot. Im lang neu khong co gi de ghi.
+ghi_duoi_log() {
+  local r p secs x
+  r=$(ssh_colab "f=$LOGD/04.log; grep -o -- '--parallel [0-9]*' \$f | head -1; grep -o -- '--max-seconds [0-9]*' \$f | head -1; sed -n 's/^\[selfplay\] Finished [0-9]*\/[0-9]* games in \([0-9]*\)[.0-9]*s (dung som do dat nguong --max-seconds).*/\1/p' \$f | tail -1" 2>/dev/null) || return 0
+  p=$(sed -n 's/^--parallel //p' <<<"$r"); secs=$(sed -n 's/^--max-seconds //p' <<<"$r")
+  x=$(grep -E '^[0-9]+$' <<<"$r" | tail -1)
+  so_nguyen "$p" && so_nguyen "$secs" && so_nguyen "$x" && [ "$x" -gt "$secs" ] || return 0
+  echo "$p $((x - secs))" >> "$DUOI_F"
+  tail -n 50 "$DUOI_F" > "$DUOI_F.t" 2>/dev/null && mv "$DUOI_F.t" "$DUOI_F"
+  echo "[đuôi ván] $p ván song song: vượt SECS $((x - secs)) giây -- đã ghi, lần sau trừ theo số này"
+}
 # Hoi so phut chua (Enter = giu so cu), luu lai. 1 = go sai.
 hoi_chua_phut() {
   local x
@@ -328,14 +355,15 @@ hoi_tham_so() {
   done
 }
 
-# SECS=@T4 -> so giay: thoi gian T4 con chay duoc (h) - so phut chua (chua_phut). Loi -> tra 1.
+# SECS=@T4 -> so giay: thoi gian T4 con chay duoc (h) - so phut chua (chua_phut) - duoi van (duoi_giay,
+# theo so van song song cua o 04 tep $1). Loi -> tra 1.
 giay_t4() {
   local may g
   may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
   g=$(py_colab ~/fz_han_muc.py --may "$may" --giay-t4 2>/dev/null) || return 1
   [[ "$g" =~ ^[0-9]+$ ]] || return 1
-  g=$((g - $(chua_phut) * 60))
-  [ $g -gt 0 ] || { echo "[!] Hạn mức T4 còn dưới $(chua_phut) phút" >&2; return 1; }
+  g=$((g - $(chua_phut) * 60 - $(duoi_giay "$(song_song_o04 "$1")")))
+  [ $g -gt 0 ] || { echo "[!] Hạn mức T4 còn dưới $(chua_phut) phút + đuôi ván" >&2; return 1; }
   echo $g
 }
 
@@ -378,9 +406,9 @@ chay_o() {
   local f=$1 id out pid ban x lan qua g
   if [ "${2:-}" = SECS=@T4 ]; then
     echo "[hạn mức] Tính SECS theo hạn mức T4 còn lại..."
-    g=$(giay_t4) || { echo "[!] Không tính được thời gian T4 còn lại -- không chạy ô"; return 2; }
+    g=$(giay_t4 "$f") || { echo "[!] Không tính được thời gian T4 còn lại -- không chạy ô"; return 2; }
     ghi_bien "$f" SECS "$g" || return 2
-    echo "[hạn mức] SECS = $g (≈ $((g / 60)) phút, đã trừ $(chua_phut) phút cho gom zip + tải về) -- đã lưu vào ô"
+    echo "[hạn mức] SECS = $g (≈ $((g / 60)) phút, đã trừ $(chua_phut) phút gom zip + tải về và $(duoi_phut "$(song_song_o04 "$f")") phút đuôi ván) -- đã lưu vào ô"
   fi
   id=$(basename "$f"); id=${id%%_*}
   echo
@@ -432,6 +460,7 @@ chay_o() {
   if [ -z "$pid" ]; then echo "$out"; echo "[!] Không khởi động được ô $id"; return 2; fi
   FZ_O_PID=$pid
   xem "$id" "$pid" || return 1
+  [ "$id" = 04 ] && ghi_duoi_log
   tai_theo_o "$id"
   return 0
 }
@@ -448,6 +477,7 @@ log_truc_tiep() {
   fi
   [ -n "$con" ] && echo "(chuỗi đang chờ: ô $id xong thì chạy $con)"
   if xem "$id" "$pid"; then
+    [ "$id" = 04 ] && ghi_duoi_log
     tai_theo_o "$id"
     if [ -n "$con" ]; then
       rm -f "$(CHUOI)"
@@ -466,11 +496,11 @@ kiem_secs() {
   secs=$(gia_tri "$1" SECS)
   [ -n "$secs" ] && [ -f ~/fz_han_muc.py ] || return 0
   may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
-  goi=$(py_colab ~/fz_han_muc.py --may "$may" --chua "$(chua_phut)" 2>/dev/null | sed -n 's/^Gợi ý SECS[^:]*: *\([0-9][0-9]*\).*/\1/p')
+  goi=$(py_colab ~/fz_han_muc.py --may "$may" --chua "$(( $(chua_phut) + $(duoi_phut "$(song_song_o04 "$1")") ))" 2>/dev/null | sed -n 's/^Gợi ý SECS[^:]*: *\([0-9][0-9]*\).*/\1/p')
   [ -n "$goi" ] || return 0
   [ "$secs" -le "$goi" ] && return 0
   echo "[!] SECS = $secs (≈ $((secs / 60)) phút) nhưng hạn mức chỉ còn đủ cho SECS ≈ $goi (≈ $((goi / 60)) phút,"
-  echo "    đã trừ $(chua_phut) phút gom zip + tải về). Colab sẽ ngắt máy khi hết hạn mức -> 06 không kịp chạy."
+  echo "    đã trừ $(chua_phut) phút gom zip + tải về và $(duoi_phut "$(song_song_o04 "$1")") phút đuôi ván). Colab sẽ ngắt máy khi hết hạn mức -> 06 không kịp chạy."
   echo "  1   Dùng SECS = $goi (vừa hạn mức) -- lưu vào ô"
   echo "  co  Vẫn chạy với SECS = $secs"
   echo "  Enter = huỷ"
