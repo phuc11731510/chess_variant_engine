@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 #include "neural/backend.h"
@@ -56,10 +57,46 @@ bool IsWdlDistribution(const float* wdl);
 // multiple of the fixed batch so the last, zero-padded Run() stays inside.
 size_t OnnxBufferSlots(bool fixed_batch, size_t fixed_batch_size);
 
+// One computation's input + policy + value buffers, carved from one block.
+struct OnnxBuffers {
+  float* input = nullptr;   // slots * InputBufferUnitSize
+  float* policy = nullptr;  // slots * PolicyOutputSize
+  float* value = nullptr;   // slots * ValueOutputSize
+};
+
+// Reuses OnnxBuffers across computations instead of allocating them per Run().
+//
+// On CUDA the blocks are PINNED host memory (the CUDA EP's CudaPinned
+// allocator): copies to and from the GPU then run at full DMA speed instead of
+// being staged through a driver bounce buffer. Measured on a Colab T4 at batch
+// 16 (--bench-nn, "Chi phi CHEP"): 5.07 -> 4.83 ms per Run (-4.7%), outputs
+// bit-identical. Pinned allocation itself is slow (cudaHostAlloc, ms), which is
+// why the blocks are pooled and kept while the session lives. Without a pinned
+// allocator (CPU / DML) the pool still saves a large malloc + page faults per
+// Run. It grows to the number of computations alive at once; thread-safe.
+class OnnxBufferPool {
+ public:
+  ~OnnxBufferPool() { Reset(0, nullptr); }
+  // Frees every block (none may be in use) and sets the block size and
+  // allocator for later ones. pinned == nullptr -> plain heap blocks.
+  void Reset(size_t slots, std::unique_ptr<Ort::Allocator> pinned);
+  OnnxBuffers Acquire();
+  void Release(const OnnxBuffers& b);
+  bool pinned() const { return pinned_ != nullptr; }
+
+ private:
+  std::mutex mu_;
+  size_t slots_ = 0;
+  std::unique_ptr<Ort::Allocator> pinned_;
+  std::vector<OnnxBuffers> free_;
+  std::vector<float*> blocks_;  // every block handed out (block start = OnnxBuffers::input)
+};
+
 class OnnxComputation : public BackendComputation {
  public:
-  OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size);
-  ~OnnxComputation() override = default;
+  OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, OnnxBufferPool* pool,
+                  float softmax_temp, bool fixed_batch, size_t fixed_batch_size);
+  ~OnnxComputation() override { pool_->Release(buf_); }
 
   size_t UsedBatchSize() const override {
     return enqueued_.load(std::memory_order_acquire);
@@ -80,14 +117,13 @@ class OnnxComputation : public BackendComputation {
   // which must get its own slot; ComputeBlocking runs after they all finished.
   std::atomic<size_t> enqueued_{0};
   
-  // Heap buffers, not fixed arrays: a fresh OnnxComputation is built for EVERY
+  // Pooled buffers, not fixed arrays: a fresh OnnxComputation is built for EVERY
   // Run(), and zero-filled arrays of MaxBatchSize cost a flat ~3.6 ms per Run on
   // a Colab T4 (see the ctor). Nothing is memset; every byte ORT reads is written.
   const size_t capacity_;  // inputs AddInput accepts (MaxBatchSize)
   const size_t slots_;     // buffer slots, >= capacity_ (OnnxBufferSlots)
-  std::unique_ptr<float[]> input_buffer_;         // slots_ * InputBufferUnitSize
-  std::unique_ptr<float[]> policy_output_buffer_; // slots_ * PolicyOutputSize
-  std::unique_ptr<float[]> value_output_buffer_;  // slots_ * ValueOutputSize
+  OnnxBufferPool* pool_;
+  OnnxBuffers buf_;        // from pool_, sized for slots_
 
   std::vector<EvalResultPtr> results_;
   std::vector<StaticVector<Move, 384>> position_moves_;
@@ -115,8 +151,9 @@ class OnnxBackend : public Backend {
 
   Ort::Env env_;
   Ort::SessionOptions session_options_;
-  Ort::MemoryInfo memory_info_;
+  Ort::MemoryInfo memory_info_;  // CPU, or CudaPinned when pool_ is pinned
   std::unique_ptr<Ort::Session> session_;
+  OnnxBufferPool pool_;  // after session_: destroyed first (pinned blocks use its allocator)
   
   std::string weights_path_;
   std::string backend_opts_;
