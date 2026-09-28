@@ -67,12 +67,16 @@ def rand_board():
     return b
 
 
-def synth_game(n, broken_at=(), float_at=(), empty_at=(), zero_at=()):
-    """A game whose history chains like the engine's, except at `broken_at`."""
+def synth_game(n, broken_at=(), float_at=(), empty_at=(), zero_at=(), dense_at=(), hibit_at=()):
+    """A game whose history chains like the engine's, except at `broken_at`.
+    dense_at: a policy that is not -1 / >= 0 (NaN, -0.5). hibit_at: a piece bit
+    above the board (bit 125), which the frame change cannot carry."""
     recs, prev = [], None
     for k in range(n):
         planes = np.zeros((8, 27, 2), np.uint64)
         planes[0] = rand_board()
+        if k in hibit_at:
+            planes[0, 3, 1] |= np.uint64(1) << np.uint64(61)
         if prev is not None and k not in broken_at:
             planes[1:] = v6.other_frame(prev)[:7]
         elif k in broken_at:
@@ -91,6 +95,9 @@ def synth_game(n, broken_at=(), float_at=(), empty_at=(), zero_at=()):
             else:
                 cnt = rng.multinomial(800, rng.dirichlet(np.ones(len(legal)) * 0.3))
                 pi[legal] = cnt.astype(np.float32) / np.float32(800)
+            if k in dense_at:
+                pi[legal[0]] = np.nan
+                pi[(legal[-1] + 1) % 10600] = -0.5
         r = {"version": 6, "input_format": 1, "probabilities": pi,
              "piece_planes": planes.reshape(-1), "rule50_count": int(rng.integers(0, 256)),
              "castling_us_ooo_sq": 0xFF, "castling_us_oo_sq": int(rng.integers(0, 100)),
@@ -118,6 +125,8 @@ cases = {
     "no legal move at 0, 5": dict(n=10, empty_at=(0, 5)),
     "zero visits at 2": dict(n=6, zero_at=(2,)),
     "one record": dict(n=1),
+    "malformed policy (NaN, -0.5) at 1, 9": dict(n=12, dense_at=(1, 9)),
+    "piece bit above the board at 4": dict(n=12, hibit_at=(4,)),
 }
 for label, kw in cases.items():
     recs = synth_game(**kw)

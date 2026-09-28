@@ -233,7 +233,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     AssignResult(records[i], final_result, stm_black[i]);
   }
 
-  // Write all positions to one gzip (.gz) file; destructor/Finalize closes it.
+  // Write all positions to one game file (.xz v6 / .gz, see trainingdata/writer.h).
   TrainingDataWriter writer(out_filename);
   for (const auto& r : records) writer.WriteChunk(r);
   writer.Finalize();

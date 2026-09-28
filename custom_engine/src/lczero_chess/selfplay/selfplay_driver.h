@@ -11,7 +11,7 @@ namespace lczero {
 struct SelfPlayConfig {
   std::string start_fen;          // starting position FEN (used if start_fens empty).
   std::vector<std::string> start_fens;  // opening book: pick one per game (diverse openings).
-  std::string out_dir = "selfplay_data";  // output directory (1 .gz per game).
+  std::string out_dir = "selfplay_data";  // output directory (1 game file per game).
   int num_games = 100;            // total games to generate (hard cap on count).
   double max_seconds = 0.0;       // wall-clock budget from first game (0 = off). Stops
                                   // taking NEW games once exceeded; in-flight games finish.

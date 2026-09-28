@@ -129,6 +129,7 @@ neural_sources = files(
 # Training data (self-play) source files
 trainingdata_sources = files(
   'src/lczero_chess/trainingdata/writer.cc',
+  'src/lczero_chess/trainingdata/game_v6.cc',
   'src/lczero_chess/selfplay/training_extract.cc',
   'src/lczero_chess/selfplay/selfplay_game.cc',
   'src/lczero_chess/selfplay/selfplay_driver.cc'
@@ -192,15 +193,30 @@ if not zlib_dep.found()
 endif
 if zlib_dep.found()
   add_project_arguments('-DHAVE_ZLIB', language: 'cpp')
-  message('zlib found: training data will be gzip-compressed (.gz)')
+endif
+# liblzma for the compact v6 game files (.xz, ~4.8x smaller than .gz; see
+# python/trainingdata_v6.py). Optional: without it self-play writes .gz (or .bin).
+# Linux/Colab: apt-get install liblzma-dev (runtime liblzma.so.5 is always there).
+lzma_dep = dependency('liblzma', required: false)
+if not lzma_dep.found()
+  lzma_dep = cc.find_library('lzma', required: false)
+endif
+if lzma_dep.found()
+  add_project_arguments('-DHAVE_LZMA', language: 'cpp')
+  message('liblzma found: training data will be v6 game files (.xz)')
+elif zlib_dep.found()
+  message('liblzma NOT found: training data will be gzip-compressed records (.gz)')
 else
-  message('zlib NOT found: training data will be uncompressed (.bin)')
+  message('liblzma and zlib NOT found: training data will be uncompressed (.bin)')
 endif
 
 # Allocator options linking
 deps = [thread_dep, onnx_dep]
 if zlib_dep.found()
   deps += zlib_dep
+endif
+if lzma_dep.found()
+  deps += lzma_dep
 endif
 malloc_opt = get_option('malloc')
 if malloc_opt == 'mimalloc' and cc.get_id() == 'msvc'

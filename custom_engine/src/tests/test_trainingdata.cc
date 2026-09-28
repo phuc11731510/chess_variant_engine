@@ -30,46 +30,98 @@ void run_trainingdata_tests() {
     }
     std::cout << "[PASS] TEST 1: layout size correct.\n" << std::endl;
 
-    // TEST 2: write N records, read them back, compare bit-for-bit.
-    std::cout << "TEST 2: Writer/Reader round-trip (bit-exact)..." << std::endl;
+    // Writes `recs` as <name><ext>, reads them back, compares every byte.
+    auto round_trip = [](const std::vector<lczero::TrainingDataV1>& recs, const std::string& ext,
+                         const char* what) {
+        const std::string fname = std::string("test_trainingdata_t1") + ext;
+        {
+            lczero::TrainingDataWriter writer(fname);
+            if (!writer.IsOpen()) {
+                std::cerr << "[FAIL] Could not open output file: " << fname << std::endl;
+                std::exit(1);
+            }
+            for (const auto& r : recs) writer.WriteChunk(r);
+            if (!writer.Finalize()) {
+                std::cerr << "[FAIL] Finalize failed: " << fname << std::endl;
+                std::exit(1);
+            }
+        }
+        std::vector<lczero::TrainingDataV1> readback;
+        if (!lczero::ReadTrainingData(fname, readback)) {
+            std::cerr << "[FAIL] ReadTrainingData failed (open or truncated): " << fname << std::endl;
+            std::exit(1);
+        }
+        if (readback.size() != recs.size()) {
+            std::cerr << "[FAIL] " << fname << ": wrote " << recs.size() << ", read "
+                      << readback.size() << std::endl;
+            std::exit(1);
+        }
+        for (size_t n = 0; n < recs.size(); ++n) {
+            if (std::memcmp(&recs[n], &readback[n], sizeof(lczero::TrainingDataV1)) != 0) {
+                std::cerr << "[FAIL] " << fname << ": record " << n << " differs after round-trip!"
+                          << std::endl;
+                std::exit(1);
+            }
+        }
+        std::ifstream f(fname, std::ios::binary | std::ios::ate);
+        const long long bytes = static_cast<long long>(f.tellg());
+        f.close();
+        std::remove(fname.c_str());
+        std::cout << "  - " << ext << ", " << what << ": " << recs.size()
+                  << " records, all bytes match (" << bytes << " B on disk)" << std::endl;
+    };
+    std::vector<std::string> exts = {lczero::TrainingDataWriter::Extension(), ".bin"};
+#ifdef HAVE_ZLIB
+    if (exts[0] != ".gz") exts.push_back(".gz");
+#endif
+
+    // TEST 2: arbitrary bytes (NaN, negative "probabilities", random planes):
+    // every format must still give them back byte for byte (v6 keeps such a
+    // record whole: FLAG_DENSE_PI / FLAG_FULL).
+    std::cout << "TEST 2: Writer/Reader round-trip of arbitrary bytes (bit-exact)..." << std::endl;
     const int kNumRecords = 5;
     std::vector<lczero::TrainingDataV1> originals(kNumRecords);
     for (int n = 0; n < kNumRecords; ++n) fill_deterministic(originals[n], n + 1);
-
-    std::string fname =
-        std::string("test_trainingdata_t1") + lczero::TrainingDataWriter::Extension();
-
-    {
-        lczero::TrainingDataWriter writer(fname);
-        if (!writer.IsOpen()) {
-            std::cerr << "[FAIL] Could not open output file: " << fname << std::endl;
-            std::exit(1);
-        }
-        for (const auto& r : originals) writer.WriteChunk(r);
-        writer.Finalize();
-    }
-    std::cout << "  - Wrote " << kNumRecords << " records to " << fname << std::endl;
-
-    std::vector<lczero::TrainingDataV1> readback;
-    if (!lczero::ReadTrainingData(fname, readback)) {
-        std::cerr << "[FAIL] ReadTrainingData failed (open or truncated)!" << std::endl;
-        std::exit(1);
-    }
-    if (readback.size() != originals.size()) {
-        std::cerr << "[FAIL] Record count mismatch: wrote " << originals.size()
-                  << ", read " << readback.size() << std::endl;
-        std::exit(1);
-    }
-    for (int n = 0; n < kNumRecords; ++n) {
-        if (std::memcmp(&originals[n], &readback[n], sizeof(lczero::TrainingDataV1)) != 0) {
-            std::cerr << "[FAIL] Record " << n << " differs after round-trip!" << std::endl;
-            std::exit(1);
-        }
-    }
-    std::remove(fname.c_str());
-    std::cout << "  - Read back " << readback.size()
-              << " records, all bytes match." << std::endl;
+    for (const auto& ext : exts) round_trip(originals, ext, "arbitrary bytes");
     std::cout << "[PASS] TEST 2: round-trip bit-exact.\n" << std::endl;
+
+    // TEST 3: a real game (random legal moves from the start position), records
+    // as self-play writes them: the v6 file stores ply 0 only after the first
+    // record and must rebuild plies 1-7 exactly; policy as visit counts n/800.
+    std::cout << "TEST 3: round-trip of a real game (history chain, visit counts)..." << std::endl;
+    setup_custom_variant();
+    {
+        std::vector<lczero::TrainingDataV1> game;
+        game.reserve(80);
+        auto h = std::make_unique<lczero::PositionHistory>();
+        h->Reset(lczero::Position::FromFen(lczero::ChessBoard::kStartposFen));
+        std::mt19937_64 rng(0xDA7A6ULL);
+        for (int ply = 0; ply < 80; ++ply) {
+            const lczero::MoveList lm = h->Last().GenerateLegalMoves();
+            if (lm.empty() || h->ComputeGameResult() != lczero::GameResult::UNDECIDED) break;
+            lczero::TrainingDataV1 rec;
+            std::memset(&rec, 0, sizeof(rec));
+            rec.version = lczero::kTrainingDataVersion;
+            rec.input_format = lczero::kInputFormat10x10;
+            lczero::EncodePlanesIntoRecord(*h, rec);
+            std::fill_n(rec.probabilities, lczero::kPolicySize, -1.0f);
+            uint32_t left = 800;
+            for (size_t i = 0; i < lm.size(); ++i) {
+                const uint32_t n = i + 1 == lm.size() ? left : static_cast<uint32_t>(rng() % (left + 1));
+                left -= n;
+                rec.probabilities[lczero::MoveToNNIndex(lm[i], 0)] =
+                    static_cast<float>(n) / static_cast<float>(800);
+            }
+            rec.visits = 801;
+            rec.result_q = (ply & 1) ? -1.0f : 1.0f;
+            rec.best_q = static_cast<float>(rng() % 2001) / 1000.0f - 1.0f;
+            rec.played_idx = rec.best_idx = lczero::MoveToNNIndex(lm[0], 0);
+            game.push_back(rec);
+            h->Append(lm[static_cast<size_t>(rng() % lm.size())]);
+        }
+        for (const auto& ext : exts) round_trip(game, ext, "real game");
+    }
+    std::cout << "[PASS] TEST 3: real game round-trip bit-exact.\n" << std::endl;
 
     std::cout << "========================================" << std::endl;
     std::cout << "ALL TRAINING DATA (T1) TESTS PASSED!" << std::endl;
@@ -86,6 +138,16 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
     setup_custom_variant();
 
     lczero::TrainingDataWriter writer(prefix + "_records.gz");
+    // The same records as a v6 game file (C++ writer -> Python v6 reader), plus
+    // one whole game in both formats (the history chain of consecutive plies):
+    // python/test_roundtrip.py compares them record by record.
+    const bool v6 = std::string(lczero::TrainingDataWriter::Extension()) == ".xz";
+    std::unique_ptr<lczero::TrainingDataWriter> writer_xz, game_gz, game_xz;
+    if (v6) {
+        writer_xz = std::make_unique<lczero::TrainingDataWriter>(prefix + "_records.xz");
+        game_gz = std::make_unique<lczero::TrainingDataWriter>(prefix + "_game.gz");
+        game_xz = std::make_unique<lczero::TrainingDataWriter>(prefix + "_game.xz");
+    }
     std::ofstream dense_out(prefix + "_dense.bin", std::ios::binary);
     if (!dense_out) { std::cerr << "[FAIL] cannot open dense output" << std::endl; std::exit(1); }
     int num_cases = 0;
@@ -137,6 +199,7 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
         rec.policy_kld = 0.456f; rec.visits = 777;
         rec.played_idx = 2005; rec.best_idx = 2005;
         writer.WriteChunk(rec);
+        if (writer_xz) writer_xz->WriteChunk(rec);
         ++num_cases;
 
         if (eval_backend) {
@@ -214,6 +277,25 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
                     const lczero::MoveList lm = h->Last().GenerateLegalMoves();
                     if (lm.empty() || h->ComputeGameResult() != lczero::GameResult::UNDECIDED) break;
                     if (ply % 7 == 3 || (ply == 0 && game == 0)) emit(*h);
+                    if (game_xz && game == 0) {      // every ply of each start's first game
+                        lczero::TrainingDataV1 g;
+                        std::memset(&g, 0, sizeof(g));
+                        g.version = lczero::kTrainingDataVersion;
+                        g.input_format = lczero::kInputFormat10x10;
+                        lczero::EncodePlanesIntoRecord(*h, g);
+                        std::fill_n(g.probabilities, lczero::kPolicySize, -1.0f);
+                        uint32_t left = 800;
+                        for (size_t i = 0; i < lm.size(); ++i) {
+                            const uint32_t n = i + 1 == lm.size() ? left
+                                                                 : static_cast<uint32_t>(rng() % (left + 1));
+                            left -= n;
+                            g.probabilities[lczero::MoveToNNIndex(lm[i], 0)] = n / 800.0f;
+                        }
+                        g.visits = 801;
+                        g.root_q = static_cast<float>(ply) / 64.0f;
+                        game_gz->WriteChunk(g);
+                        game_xz->WriteChunk(g);
+                    }
                     h->Append(lm[static_cast<size_t>(rng() % lm.size())]);
                 }
             }
@@ -229,6 +311,9 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
     }
 
     writer.Finalize();
+    for (auto* w : {writer_xz.get(), game_gz.get(), game_xz.get()}) {
+        if (w && !w->Finalize()) { std::cerr << "[FAIL] cannot write " << w->GetFileName() << std::endl; std::exit(1); }
+    }
     dense_out.close();
     std::cout << "[roundtrip] Emitted " << num_cases << " cases -> "
               << prefix << "_records.gz / " << prefix << "_dense.bin" << std::endl;
