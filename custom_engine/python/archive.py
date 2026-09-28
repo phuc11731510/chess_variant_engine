@@ -1,8 +1,8 @@
 """Bundle self-play games into one .zip (Store) for fast Drive transfer (plan 5.3).
 
-Self-play writes thousands of tiny .gz files; uploading them one-by-one makes
+Self-play writes thousands of tiny game files (.xz, older .gz); uploading them one-by-one makes
 Google Drive throttle the transfer. This packs them into a SINGLE .zip using
-ZIP_STORED (no extra compression — the .gz payloads are already compressed, so
+ZIP_STORED (no extra compression — the game files are already compressed, so
 re-deflating only wastes CPU and barely shrinks anything) and can unpack it back.
 
 The training side can read a bundle directly (no unpack needed): train.py
@@ -26,7 +26,7 @@ import os
 import zipfile
 
 
-def _gather(sources, exts=(".gz", ".bin")):
+def _gather(sources, exts=(".xz", ".gz", ".bin")):
     """Expand `sources` (dirs and/or globs) to a sorted, de-duplicated file list."""
     files = []
     for s in sources:
@@ -50,7 +50,7 @@ def _human(n):
 def pack(args):
     files = _gather(args.sources)
     if not files:
-        raise SystemExit(f"[archive] no .gz/.bin files under: {args.sources}")
+        raise SystemExit(f"[archive] no .xz/.gz/.bin files under: {args.sources}")
     # arcnames relative to a common base so the gen-dir structure is preserved
     # (e.g. gen0/game_3.gz) and `unpack` restores the same layout.
     base = args.base or (os.path.dirname(os.path.commonpath(files)) if len(files) > 1
@@ -89,10 +89,10 @@ def list_cmd(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Bundle/unbundle self-play .gz games (5.3).")
+    ap = argparse.ArgumentParser(description="Bundle/unbundle self-play games (5.3).")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    p = sub.add_parser("pack", help="bundle .gz/.bin files into one .zip (Store)")
+    p = sub.add_parser("pack", help="bundle .xz/.gz/.bin game files into one .zip (Store)")
     p.add_argument("sources", nargs="+", help="dirs and/or globs to bundle")
     p.add_argument("--out", required=True, help="output .zip path")
     p.add_argument("--base", default=None,

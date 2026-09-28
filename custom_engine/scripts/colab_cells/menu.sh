@@ -761,11 +761,11 @@ tong_tich_luy() {
   done
   echo $m
 }
-# So van (tep .gz/.bin) trong zip $1.
+# So van (tep .xz/.gz/.bin) trong zip $1.
 dem_van() {
   python - "$1" <<'EOF'
 import sys, zipfile
-print(sum(n.endswith((".gz", ".bin")) for n in zipfile.ZipFile(sys.argv[1]).namelist()))
+print(sum(n.endswith((".xz", ".gz", ".bin")) for n in zipfile.ZipFile(sys.argv[1]).namelist()))
 EOF
 }
 
@@ -897,7 +897,7 @@ dich = os.path.join(goc, "da_tai", time.strftime("%Y%m%d_%H%M%S"))
 n = 0
 for m in zipfile.ZipFile(z).namelist():
     f = os.path.join(goc, m)
-    if m.endswith((".gz", ".bin")) and os.path.isfile(f):
+    if m.endswith((".xz", ".gz", ".bin")) and os.path.isfile(f):
         os.makedirs(os.path.dirname(os.path.join(dich, m)), exist_ok=True)
         os.replace(f, os.path.join(dich, m))
         n += 1

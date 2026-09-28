@@ -107,7 +107,9 @@ def test_struct_layout():
     rec = R.unpack_record(R._STRUCT.pack(*fields))
     check(rec["version"] == 5 and rec["input_format"] == 1, "version/input_format")
     # A version or input format the reader does not know must be refused, not read.
-    for bad_version, bad_format in ((0, 1), (6, 1), (7, 1), (5, 2)):
+    # (Version 6 is known: the fields of version 5, written by the engine as .bin
+    # when it is built without liblzma; see trainingdata_reader.KNOWN_VERSIONS.)
+    for bad_version, bad_format in ((0, 1), (7, 1), (8, 1), (5, 2)):
         try:
             R.unpack_record(R._STRUCT.pack(*([bad_version, bad_format] + fields[2:])))
             refused = False

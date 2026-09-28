@@ -1,5 +1,5 @@
 # Gom ván thành zip, tải về điện thoại (mục 4)
-# Mục 4 của sổ tay: gom hàng nghìn tệp .gz thành một .zip (train.py đọc .zip trực tiếp).
+# Mục 4 của sổ tay: gom hàng nghìn tệp ván (.xz; bản engine cũ: .gz) thành một .zip (train.py đọc .zip trực tiếp).
 # Đợi ô 04 chạy xong (log in "[fz] o 04 xong") rồi mới chạy, nếu không sẽ thiếu các ván cuối.
 # Chạy "04 06" trong menu fz = 06 tự chạy khi 04 xong, gom zip rồi TỰ TẢI zip về
 # Download/FairyZero với TÊN TÍCH LUỸ games_gen<đời>_<tổng>.zip (tổng = số lớn nhất trong tên các gói

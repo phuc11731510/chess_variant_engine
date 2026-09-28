@@ -32,12 +32,12 @@ that one audits the move-generation process that produced it.
 Usage:
   python audit_generation.py <game_gen_N.zip | game.gz | dir>
 """
-import sys, os, glob, gzip, zipfile
+import sys, os, glob, zipfile
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
-from trainingdata_reader import iter_records, _iter_stream
+from trainingdata_reader import is_game_member, iter_records, _iter_member
 
 # N of the N-checks win rule = the value the starting FEN carries in its "N+N"
 # field. 8 since 2026-09-21 (was 7). Must match the startFen in
@@ -46,15 +46,15 @@ MAX_CHECKS = 8
 
 
 def _records(path):
-    """Yields (game, record); one .gz/.bin file (or zip member) is one game."""
+    """Yields (game, record); one .xz/.gz/.bin file (or zip member) is one game."""
     if os.path.isdir(path):
         files = []
-        for ext in ("*.gz", "*.bin", "*.zip"):
+        for ext in ("*.xz", "*.gz", "*.bin", "*.zip"):
             files += glob.glob(os.path.join(path, ext))
     else:
         files = [path]
     if not files:
-        raise SystemExit(f"[audit] no .gz/.bin/.zip under: {path}")
+        raise SystemExit(f"[audit] no .xz/.gz/.bin/.zip under: {path}")
     for f in files:
         if not f.endswith(".zip"):
             for r in iter_records(f):
@@ -62,16 +62,9 @@ def _records(path):
             continue
         with zipfile.ZipFile(f) as zf:
             for name in zf.namelist():
-                if name.endswith("/"):
-                    continue
-                with zf.open(name) as raw:
-                    if name.endswith(".gz"):
-                        with gzip.GzipFile(fileobj=raw) as g:
-                            for r in _iter_stream(g, f"{f}:{name}"):
-                                yield (f, name), r
-                    elif name.endswith(".bin"):
-                        for r in _iter_stream(raw, f"{f}:{name}"):
-                            yield (f, name), r
+                if is_game_member(name):
+                    for r in _iter_member(zf, name, f):
+                        yield (f, name), r
 
 
 def wdl(q, d):
@@ -80,7 +73,7 @@ def wdl(q, d):
 
 def main():
     if len(sys.argv) < 2:
-        raise SystemExit("usage: python audit_generation.py <zip|gz|dir>")
+        raise SystemExit("usage: python audit_generation.py <zip|xz|gz|dir>")
     path = sys.argv[1]
     n = 0
     err = dict(value=0, polsum=0, nolegal=0, neg_not_m1=0, plane_empty=0, stm=0, checks=0,
