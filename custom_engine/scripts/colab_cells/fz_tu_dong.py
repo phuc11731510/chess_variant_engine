@@ -78,7 +78,7 @@ def xep(ds, now=None):
 
 
 def la_van(ten):
-    return ten.endswith((".gz", ".bin"))
+    return ten.endswith((".xz", ".gz", ".bin"))
 
 
 def ten_moi(thu_muc, ten):

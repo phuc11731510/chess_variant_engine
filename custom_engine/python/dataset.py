@@ -1,4 +1,4 @@
-"""Dataset for FairyZero training: .gz training records -> (input, pi, value_wdl).
+"""Dataset for FairyZero training: game files (.xz v6, .gz, .bin) -> (input, pi, value_wdl).
 
 Applies the qMix value target (8.2.1): target = q_ratio*q_wdl + (1-q_ratio)*z_wdl,
 and optional position down-sampling (8.2.3). For small datasets the dense tensors
@@ -81,7 +81,7 @@ def _resolve_files(data):
             continue
         found = []
         if os.path.isdir(part):
-            for ext in ("*.gz", "*.bin", "*.zip"):
+            for ext in ("*.xz", "*.gz", "*.bin", "*.zip"):
                 found += glob.glob(os.path.join(part, ext))
         else:
             found = glob.glob(part)
@@ -95,7 +95,7 @@ def _resolve_files(data):
 
 def list_games(data):
     """Every game in `data` (see _resolve_files), in load order: (path, None) for
-    a .gz/.bin file -- self-play writes one game per file -- and (zip, member) for
+    a .xz/.gz/.bin file -- self-play writes one game per file -- and (zip, member) for
     each game inside a .zip bundle, in the bundle's order."""
     games = []
     for f in _resolve_files(data):
@@ -241,7 +241,9 @@ class FairyDataset(Dataset):
         store = compact_cache if compact_cache is not None else (
             dense_cache if dense_cache is not None else raw_records)
         kept = 0
-        records = iter_games(games)
+        # The compact cache only needs the legal policy slots: v6 games then skip
+        # building the dense probabilities[10600] of every position.
+        records = iter_games(games, sparse=compact_cache is not None)
         for r in records:
             k = _keep(r)
             if k is False:
@@ -294,8 +296,12 @@ class FairyDataset(Dataset):
         Policy convention preserved exactly: illegal = -1, legal = (0 or fraction).
         We store only legal slots (pi >= 0, i.e. pi > -0.5) as (uint16 idx, f32 val);
         __getitem__ refills a -1 dense vector and writes them back."""
-        pi = r["probabilities"]
-        legal = np.nonzero(pi > -0.5)[0].astype(np.uint16)
+        if "legal_idx" in r:               # v6 game: the sparse policy is stored as is
+            legal, legal_pi = r["legal_idx"], r["legal_pi"]
+        else:
+            pi = r["probabilities"]
+            legal = np.nonzero(pi > -0.5)[0].astype(np.uint16)
+            legal_pi = pi[legal].astype(np.float32)
         return {
             "piece_planes": np.asarray(r["piece_planes"], dtype=np.uint64),  # no copy (reader)
             "ep_mask": np.asarray(r["ep_mask"], dtype=np.uint64),
@@ -307,7 +313,7 @@ class FairyDataset(Dataset):
             "checks_remaining_us": r["checks_remaining_us"],
             "checks_remaining_them": r["checks_remaining_them"],
             "pi_idx": legal,
-            "pi_val": pi[legal].astype(np.float32),
+            "pi_val": legal_pi,
             "value": self._value(r),
         }
 

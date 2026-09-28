@@ -17,6 +17,8 @@ import zipfile
 
 import numpy as np
 
+import trainingdata_v6
+
 POLICY_SIZE = 10600
 HISTORY_PLANES = 216          # 27 planes/ply * 8 ply
 NUM_PLANES = 226
@@ -47,7 +49,10 @@ assert RECORD_SIZE == 45940, f"record size {RECORD_SIZE} != 45940 (layout drift!
 # trainingdata_v1.h keeps the history; the layout has never changed). Anything
 # else is refused: a future version may change what a field means, and a record
 # that parses by size alone would then be read wrong without any error.
-KNOWN_VERSIONS = (1, 2, 3, 4, 5)
+# Version 6 has the fields and meanings of version 5; the engine writes it in the
+# compact per-game .xz container (trainingdata_v6.py), or -- built without
+# liblzma -- as these 45940-byte records in a .bin file.
+KNOWN_VERSIONS = (1, 2, 3, 4, 5, 6)
 # From version 5 the castling bytes are the rook's square (rank*10 + file,
 # canonical frame); before, the rook was always on its side's first rank and
 # the byte was its file. unpack_record() turns an old file into that square.
@@ -192,15 +197,23 @@ def _read_stream(f, where=""):
     return list(_iter_stream(f, where))
 
 
-def iter_records(filename):
-    """Stream records from a .gz (or raw .bin) file one at a time (low peak RAM)."""
+def iter_records(filename, sparse=False):
+    """Stream records from a .xz (v6), .gz or raw .bin game file (low peak RAM).
+
+    sparse=True lets a v6 game skip building the dense 'probabilities' (the
+    records then carry only 'legal_idx' / 'legal_pi'; dataset.py's compact
+    cache needs nothing else). Older formats always carry 'probabilities'."""
+    if filename.endswith(V6_EXT):
+        with open(filename, "rb") as f:
+            yield from trainingdata_v6.decode_game(f.read(), filename, dense=not sparse)
+        return
     opener = gzip.open if filename.endswith(".gz") else open
     with opener(filename, "rb") as f:
         yield from _iter_stream(f, filename)
 
 
 def read_records(filename):
-    """Read all records from a .gz (or raw .bin) file (eager; see iter_records)."""
+    """Read all records from a .xz / .gz / .bin file (eager; see iter_records)."""
     return list(iter_records(filename))
 
 
@@ -217,12 +230,21 @@ def iter_records_from_zip(zip_path):
                 yield from _iter_member(zf, name, zip_path)
 
 
+V6_EXT = ".xz"
+# Every game-file extension, oldest format last. One self-play game = one file.
+GAME_EXTS = (V6_EXT, ".gz", ".bin")
+
+
 def is_game_member(name):
-    """A game inside a .zip bundle (archive.py packs one .gz per game)."""
-    return name.endswith(".gz") or name.endswith(".bin")
+    """A game inside a .zip bundle (archive.py packs one game file per game)."""
+    return name.endswith(GAME_EXTS)
 
 
-def _iter_member(zf, name, zip_path):
+def _iter_member(zf, name, zip_path, sparse=False):
+    if name.endswith(V6_EXT):
+        yield from trainingdata_v6.decode_game(zf.read(name), f"{zip_path}:{name}",
+                                               dense=not sparse)
+        return
     with zf.open(name) as raw:
         if name.endswith(".gz"):
             with gzip.GzipFile(fileobj=raw) as f:
@@ -231,22 +253,23 @@ def _iter_member(zf, name, zip_path):
             yield from _iter_stream(raw, f"{zip_path}:{name}")
 
 
-def iter_games(games):
+def iter_games(games, sparse=False):
     """Stream the records of `games`, one at a time, in the given order. A game is
-    (path, None) for a .gz/.bin file -- self-play writes one game per file -- or
-    (zip_path, member) for a game inside a .zip bundle (dataset.list_games).
-    Consecutive games of one bundle share one open ZipFile."""
+    (path, None) for a .xz/.gz/.bin file -- self-play writes one game per file --
+    or (zip_path, member) for a game inside a .zip bundle (dataset.list_games).
+    Consecutive games of one bundle share one open ZipFile. v6 and older games
+    can be mixed freely; `sparse`: see iter_records."""
     zf, zpath = None, None
     try:
         for path, member in games:
             if member is None:
-                yield from iter_records(path)
+                yield from iter_records(path, sparse)
                 continue
             if path != zpath:
                 if zf is not None:
                     zf.close()
                 zf, zpath = zipfile.ZipFile(path), path
-            yield from _iter_member(zf, member, path)
+            yield from _iter_member(zf, member, path, sparse)
     finally:
         if zf is not None:
             zf.close()
