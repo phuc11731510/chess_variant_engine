@@ -198,7 +198,8 @@ int run_bench_cpu(const EngineOptions& o) {
     return uint64_t(snaps.size());
   });
   const std::string file = std::string("bench_cpu_tmp") + lczero::TrainingDataWriter::Extension();
-  bench("TrainingDataWriter per record (gzip + disk)", [&](double* ns) {
+  bench((std::string("TrainingDataWriter per record (") + lczero::TrainingDataWriter::Extension() +
+         " + disk)").c_str(), [&](double* ns) {
     const auto t0 = Clock::now();
     lczero::TrainingDataWriter w(file);
     for (const auto& r : recs) w.WriteChunk(r);

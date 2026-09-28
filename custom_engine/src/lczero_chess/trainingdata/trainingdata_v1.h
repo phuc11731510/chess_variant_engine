@@ -43,7 +43,12 @@ namespace lczero {
 //      file alone no longer places the rook. Up to version 4 the rook was always
 //      on its side's first rank and the byte was its file; readers turn it into
 //      the square (us: rank 0, them: rank 9; python/trainingdata_reader.py).
-constexpr uint32_t kTrainingDataVersion = 5;
+//   6: the fields and their meanings are those of version 5 (2026-09-28); what
+//      changed is the FILE: self-play writes each game as a compact ".xz"
+//      container (trainingdata/game_v6.h, python/trainingdata_v6.py; ~4.8x
+//      smaller than .gz) that decodes back to these records bit for bit. A build
+//      without liblzma still writes these 45940-byte records (.gz / .bin).
+constexpr uint32_t kTrainingDataVersion = 6;
 constexpr uint32_t kInputFormat10x10 = 1;
 
 // Sentinel for "no castling right" in the castling fields.

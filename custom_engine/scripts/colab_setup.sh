@@ -48,6 +48,13 @@ nvidia-smi -L || echo "[colab] WARNING: no GPU visible (Runtime > Change runtime
 echo "[colab] installing meson + ninja + onnx + onnxruntime ..."
 pip install -q meson ninja onnx onnxruntime
 apt-get -qq install -y ninja-build >/dev/null 2>&1 || true
+# liblzma-dev: header for the compact v6 game files (.xz). Without it meson falls
+# back to .gz records, 4.8x bigger -- so say it loudly if the install failed.
+if ! [ -f /usr/include/lzma.h ]; then
+  apt-get -qq update >/dev/null 2>&1 || true
+  apt-get -qq install -y liblzma-dev >/dev/null 2>&1 || true
+fi
+[ -f /usr/include/lzma.h ] || echo "[colab] WARNING: liblzma-dev missing -> self-play writes .gz (4.8x bigger)"
 
 # --- (2) ONNX Runtime GPU ----------------------------------------------------
 mkdir -p "$ENGINE_DIR/third_party"

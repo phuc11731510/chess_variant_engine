@@ -63,6 +63,26 @@ def main():
         assert abs(rec["probabilities"][2005] - 0.75) < 1e-6
         assert abs(rec["probabilities"][100] - 0.25) < 1e-6
 
+    # v6 (engine built with liblzma): the C++ .xz writer against the Python v6
+    # reader -- the same records as the .gz file, and one whole game written in
+    # both formats (consecutive plies: the history chain), every field bit-exact.
+    for gz, xz in ((rec_file, prefix + "_records.xz"),
+                   (prefix + "_game.gz", prefix + "_game.xz")):
+        if not os.path.exists(xz):
+            print(f"[skip] {os.path.basename(xz)} not emitted (engine built without liblzma)")
+            continue
+        a, b = read_records(gz), read_records(xz)
+        same = len(a) == len(b) and all(
+            all((np.asarray(r[k]).tobytes() == np.asarray(s[k], np.asarray(r[k]).dtype).tobytes())
+                if isinstance(r[k], np.ndarray) else
+                (np.float32(r[k]).tobytes() == np.float32(s[k]).tobytes())
+                if isinstance(r[k], float) else r[k] == s[k] for k in r)
+            for r, s in zip(a, b))
+        print(f"[{'OK' if same else 'FAIL'}] {os.path.basename(xz)} (C++ v6 writer) == "
+              f"{os.path.basename(gz)}: {len(b)} records, every field bit-exact; "
+              f"{os.path.getsize(gz)} -> {os.path.getsize(xz)} bytes")
+        ok &= same
+
     # ShuffleBuffer + downsampling smoke test (Section 8.2.2 / 8.2.3).
     sb = ShuffleBuffer(3)
     items, out = list(range(10)), []

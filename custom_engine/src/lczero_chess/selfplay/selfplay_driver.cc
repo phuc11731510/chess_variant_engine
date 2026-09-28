@@ -51,7 +51,7 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
       // hot path. When off (max_seconds<=0) it's a single double-compare per game
       // and reads no clock, so the impact on self-play nps is effectively zero.
       // Hitting the budget only stops taking NEW games; in-flight games finish
-      // normally (each still writes a complete .gz — no truncated training data).
+      // normally (each still writes a complete game file — no truncated training data).
       if (cfg.max_seconds > 0.0) {
         const double el = std::chrono::duration_cast<std::chrono::milliseconds>(
                               std::chrono::steady_clock::now() - t0).count() / 1000.0;
@@ -157,7 +157,7 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
           std::chrono::steady_clock::now() - t0)
           .count() /
       1000.0;
-  // Games ACTUALLY finished (== .gz files written). Equals num_games normally, but
+  // Games ACTUALLY finished (== game files written). Equals num_games normally, but
   // is smaller when --max-seconds ended the run early; ALL averages use this count.
   const int completed = done.load();
   std::cout << "\n[selfplay] Finished " << completed << "/" << cfg.num_games

@@ -1,16 +1,22 @@
 #pragma once
+#include <memory>
 #include <string>
 #include <vector>
+
 #include "trainingdata/trainingdata_v1.h"
 
 namespace lczero {
 
-// Writes a sequence of TrainingDataV1 records to a single file (one file/game).
+class GameV6Encoder;
+
+// Writes the TrainingDataV1 records of ONE game to a single file.
 //
-// Output format:
-//   - If built with HAVE_ZLIB: gzip-compressed (.gz), matching the Python reader.
-//   - Otherwise: raw uncompressed binary (.bin) — still bit-identical records,
-//     just larger on disk (fallback so the engine builds without zlib).
+// The file name's extension picks the format:
+//   .xz  -- compact v6 game file (python/trainingdata_v6.py; needs HAVE_LZMA):
+//           records are collected and the file is written once, at Finalize().
+//   .gz  -- the 45940-byte records, gzip-compressed (needs HAVE_ZLIB).
+//   else -- the 45940-byte records, uncompressed (.bin).
+// Extension() is the best format this build can write; self-play uses it.
 class TrainingDataWriter {
  public:
   // Open `filename` for writing (overwrites if it exists).
@@ -30,10 +36,10 @@ class TrainingDataWriter {
   // Idempotent; also invoked by the destructor.
   bool Finalize();
 
-  bool IsOpen() const { return handle_ != nullptr; }
+  bool IsOpen() const { return handle_ != nullptr || v6_ != nullptr; }
   const std::string& GetFileName() const { return filename_; }
 
-  // File extension used by the active build mode (".gz" or ".bin").
+  // File extension of the best format this build writes (".xz", ".gz" or ".bin").
   static const char* Extension();
 
  private:
@@ -41,13 +47,15 @@ class TrainingDataWriter {
 
   std::string filename_;
   std::string tmp_filename_;  // written first, renamed to filename_ on success
-  void* handle_ = nullptr;  // gzFile (HAVE_ZLIB) or std::ofstream* otherwise
+  void* handle_ = nullptr;  // gzFile (.gz) or std::ofstream* (.bin)
+  bool gz_ = false;
+  std::unique_ptr<GameV6Encoder> v6_;  // .xz: the game being collected
   bool finalized_ = false;
   bool failed_ = false;
 };
 
-// Reads every record from a file written by TrainingDataWriter (same build mode).
-// Returns false on open error or a truncated/partial trailing record.
+// Reads every record of a game file written by TrainingDataWriter (.xz, .gz or
+// .bin, by extension). Returns false on an open error or a damaged / truncated file.
 bool ReadTrainingData(const std::string& filename,
                       std::vector<TrainingDataV1>& out);
 

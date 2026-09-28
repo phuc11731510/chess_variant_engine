@@ -18,18 +18,23 @@ Three facts make it small:
      Only ply 0 is stored; a record whose history does NOT chain that way (the
      first record of a game, or a broken chain) is stored in full (FLAG_FULL).
      The writer checks the chain itself, so the rebuild is exact by construction.
-  3. Column layout: all indices together, all counts together, all boards
+  3. Anything else survives too: a record whose illegal slots are not exactly
+     -1 (or whose policy holds NaN) keeps its whole probabilities[10600]
+     (FLAG_DENSE_PI) -- never the engine's output, but "lossless" holds for any
+     45940-byte record, not only for well-formed ones.
+  4. Column layout: all indices together, all counts together, all boards
      together... so xz sees long runs of similar bytes.
 
 Payload (little-endian), then xz (LZMA2 preset 9e, 1 MiB dictionary, CRC64):
   header  4s magic "FZD6", u32 container revision (=1), u32 data_version,
           u32 input_format, u32 N records, u32 L legal entries (all records),
           u32 LF legal entries stored as float32, u32 F full records
-  u8   flags[N]                 bit0 FLAG_FULL, bit1 FLAG_FLOAT_PI
-  u16  n_legal[N]
+  u8   flags[N]                 bit0 FLAG_FULL, bit1 FLAG_FLOAT_PI, bit2 FLAG_DENSE_PI
+  u16  n_legal[N]               0 for FLAG_DENSE_PI records
   u16  legal_delta[L]           per record: first index, then differences (> 0)
   u16  counts[L - LF]           records without FLAG_FLOAT_PI, in order
   f32  pi_float[LF]             records with FLAG_FLOAT_PI, in order
+  f32  pi_dense[D][10600]       records with FLAG_DENSE_PI, in order (D from flags)
   u64  cur[N][27][2]            ply-0 board planes
   u64  hist[F][7][27][2]        plies 1..7 of the FLAG_FULL records, in order
   u8   rule50[N]
@@ -56,6 +61,8 @@ CONTAINER_REVISION = 1
 DATA_VERSION = 6
 FLAG_FULL = 1
 FLAG_FLOAT_PI = 2
+FLAG_DENSE_PI = 4
+_MINUS_ONE = np.float32(-1.0).view(np.uint32)
 PLY_PLANES = 27
 N_PLY = 8
 REP_PLANE = 26
@@ -146,7 +153,7 @@ def encode_game(records):
     n = len(records)
     flags = np.zeros(n, np.uint8)
     n_legal = np.zeros(n, np.uint16)
-    deltas, counts, pif = [], [], []
+    deltas, counts, pif, dense = [], [], [], []
     cur = np.empty((n, PLY_PLANES, 2), np.uint64)
     hist = []
     seq = None          # board planes of the chain so far, in THIS record's frame
@@ -154,17 +161,20 @@ def encode_game(records):
         if r["version"] != ver or r["input_format"] != fmt:
             raise ValueError("records of one game must share version and input format")
         pi = np.asarray(r["probabilities"], np.float32)
-        legal = np.nonzero(pi >= 0)[0]
-        if len(legal) > 0xFFFF:
-            raise ValueError("too many legal moves")
-        n_legal[k] = len(legal)
-        deltas.append(np.diff(legal, prepend=0).astype(np.uint16))
-        c = _policy_counts(pi[legal], int(r["visits"]))
-        if c is None:
-            flags[k] |= FLAG_FLOAT_PI
-            pif.append(pi[legal])
+        is_legal = pi >= 0
+        if not np.all(pi[~is_legal].view(np.uint32) == _MINUS_ONE):
+            flags[k] |= FLAG_DENSE_PI         # not the -1 / >= 0 form: keep it all
+            dense.append(pi)
         else:
-            counts.append(c)
+            legal = np.nonzero(is_legal)[0]
+            n_legal[k] = len(legal)
+            deltas.append(np.diff(legal, prepend=0).astype(np.uint16))
+            c = _policy_counts(pi[legal], int(r["visits"]))
+            if c is None:
+                flags[k] |= FLAG_FLOAT_PI
+                pif.append(pi[legal])
+            else:
+                counts.append(c)
         planes = np.asarray(r["piece_planes"], np.uint64).reshape(N_PLY, PLY_PLANES, 2)
         cur[k] = planes[0]
         # Chain: the previous record's plies 0..6 in this record's frame.
@@ -177,7 +187,7 @@ def encode_game(records):
     cols = [
         _HEADER.pack(MAGIC, CONTAINER_REVISION, ver, fmt, n, l_total, lf, len(hist)),
         flags.tobytes(), n_legal.astype("<u2").tobytes(),
-        _cat(deltas, "<u2"), _cat(counts, "<u2"), _cat(pif, "<f4"),
+        _cat(deltas, "<u2"), _cat(counts, "<u2"), _cat(pif, "<f4"), _cat(dense, "<f4"),
         cur.astype("<u8").tobytes(), _cat(hist, "<u8"),
         np.array([r["rule50_count"] for r in records], np.uint8).tobytes(),
     ]
@@ -221,6 +231,8 @@ def decode_arrays(data, where=""):
       version, input_format, n,
       legal_idx  uint16[L], legal_start int64[N+1] (record k owns [s[k], s[k+1])),
       legal_pi   float32[L],
+      dense_rec  int[D], dense_pi float32[D, 10600]  (FLAG_DENSE_PI records: their
+                 whole policy; their legal_idx/legal_pi ranges are empty),
       planes     uint64[N, 8, 27, 2] (all 8 plies, rebuilt),
       rule50, castling uint8[4, N], ep uint64[N, 2], checks_us, checks_them, stm,
       floats     dict key -> float32[N], visits, played_idx, best_idx.
@@ -244,10 +256,14 @@ def decode_arrays(data, where=""):
     n_float = int(n_legal[fl].sum())
     if n_float != lf or int(np.count_nonzero(flags & FLAG_FULL)) != f:
         raise ValueError(f"inconsistent v6 flags ({where})")
-    if flags.max(initial=0) > (FLAG_FULL | FLAG_FLOAT_PI) or (n and not flags[0] & FLAG_FULL):
+    dn = (flags & FLAG_DENSE_PI) != 0
+    if (flags.max(initial=0) > (FLAG_FULL | FLAG_FLOAT_PI | FLAG_DENSE_PI) or
+            (n and not flags[0] & FLAG_FULL) or (fl & dn).any() or n_legal[dn].any()):
         raise ValueError(f"invalid v6 flags ({where})")
     counts = c.take("<u2", l_total - lf)
     pif = c.take("<f4", lf)
+    n_dense = int(np.count_nonzero(dn))
+    pid = c.take("<f4", n_dense * POLICY_SIZE).reshape(n_dense, POLICY_SIZE)
     cur = c.take("<u8", n * PLY_PLANES * 2).reshape(n, PLY_PLANES, 2)
     hist = c.take("<u8", f * (N_PLY - 1) * PLY_PLANES * 2).reshape(f, N_PLY - 1, PLY_PLANES, 2)
     rule50 = c.take(np.uint8, n)
@@ -286,6 +302,7 @@ def decode_arrays(data, where=""):
     return {
         "version": ver, "input_format": fmt, "n": n,
         "legal_idx": idx.astype(np.uint16), "legal_start": start, "legal_pi": pi,
+        "dense_rec": np.nonzero(dn)[0], "dense_pi": pid,
         "planes": _rebuild_planes(flags, cur, hist),
         "rule50": rule50, "castling": castling, "ep": ep,
         "checks_us": checks_us, "checks_them": checks_them, "stm": stm,
@@ -300,20 +317,28 @@ def _rebuild_planes(flags, cur, hist):
     Board of record j in A: cur[j] if j is even, else other_frame(cur[j]). A
     segment starts at each FLAG_FULL record s; its plies before s come from s's
     stored plies (in s's frame -> A the same way). Record k of the segment reads
-    plies k-0..k-7 of the segment's A sequence, then goes back to its own frame."""
+    plies k-0..k-7 of the segment's A sequence, then goes back to its own frame.
+
+    The writer's rule is sequential (ply d of record k = other_frame of ply d-1 of
+    record k-1), i.e. a board d records back went through other_frame d times.
+    other_frame twice is the identity except that it drops mask bits above the
+    board (bits 120-127, which the rank mirror has no row for). So every board
+    that went through it at least once is taken CLEANED of those bits, and only
+    the stored ones (ply 0 of each record, plies 1-7 of FLAG_FULL records) are
+    used as stored. A real board never has such bits; the rule keeps this decoder
+    equal to the sequential one (and to the C++ decoder) for any input."""
     n = len(flags)
     out = np.empty((n, N_PLY, PLY_PLANES, 2), np.uint64)
     if n == 0:
         return out
     odd = (np.arange(n) & 1).astype(bool)
-    cur_a = cur.copy()
+    cur_a = _clean(cur)
     cur_a[odd] = other_frame(cur[odd])
     starts = np.nonzero(flags & FLAG_FULL)[0]
     ends = np.append(starts[1:], n)
     for h, (s, e) in enumerate(zip(starts, ends)):
         pre = hist[h][::-1]                           # plies s-7 .. s-1, in s's frame
-        if s & 1:
-            pre = other_frame(pre)
+        pre = other_frame(pre) if s & 1 else _clean(pre)
         seq = np.concatenate((pre, cur_a[s:e]))       # A frame; seq[7 + (k-s)] = record k
         seq_b = other_frame(seq)                      # the same boards in the odd frame
         k = np.arange(s, e)
@@ -321,6 +346,18 @@ def _rebuild_planes(flags, cur, hist):
         even = (k & 1) == 0
         out[s:e][even] = seq[take[even]]              # frame change once per board,
         out[s:e][~even] = seq_b[take[~even]]          # not once per (record, ply)
+        out[s, 1:] = hist[h]                          # stored plies as stored
+    out[:, 0] = cur
+    return out
+
+
+_ON_BOARD_HI = np.uint64((1 << 56) - 1)             # bits 64..119 of the 128-bit mask
+
+
+def _clean(ply):
+    """other_frame(other_frame(ply)): piece planes without bits 120-127."""
+    out = ply.copy()
+    out[..., :REP_PLANE, 1] &= _ON_BOARD_HI
     return out
 
 
@@ -337,6 +374,7 @@ def decode_game(data, where="", dense=True):
         probs = np.full((n, POLICY_SIZE), -1.0, np.float32)
         rec_of = np.repeat(np.arange(n), np.diff(start))
         probs[rec_of, a["legal_idx"]] = a["legal_pi"]
+        probs[a["dense_rec"]] = a["dense_pi"]
         probs.flags.writeable = False
     planes = a["planes"].reshape(n, N_PLY * PLY_PLANES * 2)
     fl = {k: a["floats"][k].tolist() for k in FLOAT_KEYS}
@@ -345,13 +383,19 @@ def decode_game(data, where="", dense=True):
     ep = a["ep"].tolist()
     cu, ct, stm = a["checks_us"].tolist(), a["checks_them"].tolist(), a["stm"].tolist()
     pidx, bidx = a["played_idx"].tolist(), a["best_idx"].tolist()
+    dense_of = {int(j): i for i, j in enumerate(a["dense_rec"])}
     out = []
     for k in range(n):
         r = {"version": a["version"], "input_format": a["input_format"],
              "piece_planes": planes[k],
-             "legal_idx": a["legal_idx"][start[k]:start[k + 1]],
-             "legal_pi": a["legal_pi"][start[k]:start[k + 1]],
              "rule50_count": rule50[k]}
+        if k in dense_of:              # FLAG_DENSE_PI: rebuild the sparse view from it
+            pd = a["dense_pi"][dense_of[k]]
+            li = np.nonzero(pd >= 0)[0].astype(np.uint16)
+            r["legal_idx"], r["legal_pi"] = li, pd[li]
+        else:
+            r["legal_idx"] = a["legal_idx"][start[k]:start[k + 1]]
+            r["legal_pi"] = a["legal_pi"][start[k]:start[k + 1]]
         if probs is not None:
             r["probabilities"] = probs[k]
         for i, key in enumerate(CASTLING_KEYS):
