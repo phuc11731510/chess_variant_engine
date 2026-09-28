@@ -1,9 +1,11 @@
 # Sinh dữ liệu (mục 3)
 # Mục 3 của sổ tay: sinh dữ liệu huấn luyện. Sửa tham số ngay dưới đây.
-# Cấu hình mặc định đã đo là tốt nhất trên T4 (2026-09-28, gen9, 300 s mỗi cấu hình): gom batch mạng
-# của NHIỀU ván (--batch-aggregate), PARALLEL = 16 ván cùng lúc, --fixed-batch 64, mỗi ván vẫn gom 16 lá
-# (--search-opt minibatch-size=16): 3.641 nps so với 2.766 của cấu hình cũ (4 ván, batch 16, không
-# gom) = +27~32%; 24 ván chỉ +3%, 32 ván không hơn, mà phần đuôi dừng mềm dài ra (7 / 12 phút).
+# Cấu hình mặc định đã đo là tốt nhất trên T4 (2026-09-28, gen9, 300 s mỗi cấu hình, so trên CÙNG máy):
+# gom batch mạng của NHIỀU ván (--batch-aggregate), PARALLEL = 16 ván cùng lúc, --fixed-batch 64, mỗi
+# ván gom 32 lá mỗi lượt (--search-opt minibatch-size=32, như lc0 self-play). Engine từ c1217ef dùng
+# thông số self-play kiểu lc0 (cpuct 1,3 cố định, fpu 0, không tính lặp 2 lần là hoà, task-workers 0).
+# Đo: cấu hình cũ (4 ván, batch 16) 2.766 nps -> 4.049 nps. 24/32 ván không hơn mà phần đuôi dừng mềm
+# dài ra; va chạm 1/1 và tắt out-of-order-eval (như lc0) thì chậm hơn trên máy này -> giữ mặc định.
 # --max-seconds dừng MỀM: ván đang chạy vẫn chơi nốt (16 ván: vượt giờ ~3-4 phút). Menu fz tự trừ phần
 # này khỏi SECS theo số đo các lần trước (đuôi ván, ~/.fz_tk/.duoi_van).
 # fz: che_do_sinh
@@ -32,7 +34,7 @@ cmd = f"""bash {E}/run.sh --selfplay \
     --games {GAMES} --max-seconds {SECS} \
     --visits 800 --max-moves 400 --temp-cutoff 32 \
     --parallel {PARALLEL} --provider cuda --fixed-batch 64 --batch-aggregate \
-    --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=16 \
+    --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 \
     --weights {CURRENT_ONNX} --out {OUT_GAMES_DIR}""" + (f" --stop-file {DUNG_MEM}" if co_dung_mem else "")
 
 print(cmd)
