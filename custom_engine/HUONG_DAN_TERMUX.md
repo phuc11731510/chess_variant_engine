@@ -622,7 +622,7 @@ tải cùng lúc thì xếp hàng lúc đặt tên, không trùng số. Tải xo
 `/content/da_tai/<giờ>/` để 06 lần sau trên cùng máy chỉ gom ván **mới** (không đếm trùng). Ctrl+C lúc
 đang xem 04 thì dừng chuỗi; 06 không chạy.
 
-> Tên `games_gen<đời>.zip` (không có số) trên điện thoại từ nay chỉ dành cho **gói gộp 3 đời** mà vòng
+> Tên `games_gen<đời>.zip` (không có số) trên điện thoại từ nay chỉ dành cho **gói gộp 4 đời** (3 đời trước đời 12) mà vòng
 > lặp tự động tạo để huấn luyện. Gói cũ trùng tên đó (dữ liệu của một máy, từ ô 06 trước đây) thì đổi tên
 > theo kiểu tích luỹ trước khi chạy vòng lặp.
 

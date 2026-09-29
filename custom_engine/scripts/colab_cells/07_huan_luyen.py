@@ -7,9 +7,13 @@ import os
 if not os.path.exists(CURRENT_PT):
     print(f"[!] Chưa có {CURRENT_PT} -- chạy ô 02c trước (tải .pt + thư viện huấn luyện)")
 
+# Từ đời 12 (2026-09-29, chủ dự án chọn): cửa sổ 4 đời (vòng lặp v gộp đời hiện tại + 3 đời trước),
+# 1 epoch, SWA kiểu lc0: cứ 25 bước lấy trung bình trọng số một lần, tối đa 10 bản (trung bình
+# trượt ~250 bước cuối), tốc độ học không đổi. Trước đó: 3 đời, 2 epoch, SWA theo epoch -- với 2
+# epoch nó chỉ chụp 1 lần (log "averaged 1 epoch(s)") nên thực ra không lấy trung bình gì.
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
-    --epochs 2 --batch 1024 --lr 1e-3 --amp \
+    --epochs 1 --swa-steps 25 --swa-max-n 10 --batch 1024 --lr 1e-3 --amp \
     --q-ratio 0.2 --weight-decay 1e-4 --report-every 20 \
     --channels 144 --blocks 12 \
     --out {NEXT_ONNX}"""
