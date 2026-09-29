@@ -11,9 +11,11 @@ if not os.path.exists(CURRENT_PT):
 # 1 epoch, SWA kiểu lc0: cứ 25 bước lấy trung bình trọng số một lần, tối đa 10 bản (trung bình
 # trượt ~250 bước cuối), tốc độ học không đổi. Trước đó: 3 đời, 2 epoch, SWA theo epoch -- với 2
 # epoch nó chỉ chụp 1 lần (log "averaged 1 epoch(s)") nên thực ra không lấy trung bình gì.
+# --val-frac 0: KHÔNG giữ ván kiểm định (chủ dự án chọn, 2026-09-29) -- mọi ván đều được học, không
+# in các dòng [val]. Mạnh/yếu xem bằng arena (ô 08); log chỉ còn dòng step để phát hiện hỏng.
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
-    --epochs 1 --swa-steps 25 --swa-max-n 10 --batch 1024 --lr 1e-3 --amp \
+    --epochs 1 --swa-steps 25 --swa-max-n 10 --val-frac 0 --batch 1024 --lr 1e-3 --amp \
     --q-ratio 0.2 --weight-decay 1e-4 --report-every 20 \
     --channels 144 --blocks 12 \
     --out {NEXT_ONNX}"""
