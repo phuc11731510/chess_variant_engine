@@ -43,7 +43,7 @@ class BatchingComputation : public BackendComputation {
 BatchingBackend::BatchingBackend(std::unique_ptr<Backend> wrapped,
                                  int expected_producers, int timeout_us)
     : wrapped_(std::move(wrapped)),
-      expected_producers_(expected_producers < 1 ? 1 : expected_producers),
+      expected_producers_(expected_producers < 0 ? 1 : expected_producers),
       timeout_us_(timeout_us < 0 ? 0 : timeout_us) {
   server_ = std::thread(&BatchingBackend::ServerLoop, this);
 }
@@ -99,6 +99,21 @@ void BatchingBackend::Flush(Group* g) {
   --submitted_groups_;
 }
 
+void BatchingBackend::ProducerEnter() {
+  if (expected_producers_ != 0) return;
+  std::lock_guard<std::mutex> lk(mu_);
+  ++active_producers_;
+}
+
+void BatchingBackend::ProducerLeave() {
+  if (expected_producers_ != 0) return;
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    --active_producers_;
+  }
+  cv_server_.notify_one();  // the games still searching may all be blocked now
+}
+
 void BatchingBackend::ServerLoop() {
   std::unique_lock<std::mutex> lk(mu_);
   while (!stop_) {
@@ -114,7 +129,9 @@ void BatchingBackend::ServerLoop() {
       const size_t n = shared_->UsedBatchSize();
       if (n == 0) break;
       if (n >= MaxBatchSize) break;
-      if (submitted_groups_ >= expected_producers_) break;
+      if (submitted_groups_ >= (expected_producers_ == 0 ? active_producers_
+                                                         : expected_producers_))
+        break;
       if (timeout_us_ <= 0) break;
       const auto deadline = first_pending_ + std::chrono::microseconds(timeout_us_);
       if (cv_server_.wait_until(lk, deadline) == std::cv_status::timeout) break;

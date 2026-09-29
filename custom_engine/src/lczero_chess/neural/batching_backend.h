@@ -29,6 +29,12 @@ namespace lczero {
 // expected producers are blocked waiting, or when a small timeout elapses
 // (the timeout guarantees forward progress / no hang). Groups whose slots span
 // two server rounds are handled via a per-group remaining-slot counter.
+//
+// expected_producers == 0 = DYNAMIC count (arena: each game searches with net A
+// or net B depending on whose move it is, so the number of producers of ONE
+// backend changes every move). The caller brackets each search with
+// ProducerEnter()/ProducerLeave(); "all producers blocked" then means all games
+// currently searching with this backend.
 class BatchingBackend : public Backend {
  public:
   // `expected_producers` = number of concurrent submitting threads
@@ -61,6 +67,11 @@ class BatchingBackend : public Backend {
   void AddSlot(const EvalPosition& pos, EvalResultPtr result, Group* g);
   void Flush(Group* g);
 
+  // Dynamic mode only (expected_producers == 0): a game starts / ends a search
+  // on this backend. No-ops in fixed mode.
+  void ProducerEnter();
+  void ProducerLeave();
+
  private:
   void ServerLoop();
   void EnsureSharedLocked();  // must hold mu_
@@ -77,6 +88,7 @@ class BatchingBackend : public Backend {
   bool running_ = false;               // server is inside ComputeBlocking
   bool stop_ = false;
   int submitted_groups_ = 0;           // producers currently blocked in Flush
+  int active_producers_ = 0;           // dynamic mode: games searching now
   bool have_pending_ = false;
   std::chrono::steady_clock::time_point first_pending_;
   Group* slot_owner_[MaxBatchSize] = {};

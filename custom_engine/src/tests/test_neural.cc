@@ -453,9 +453,14 @@ void TestBatching() {
     auto positions = MakePositions(48);
     std::vector<lczero::MoveList> legal;
     for (const auto& h : positions) legal.push_back(h->Last().GetBoard().GenerateLegalMoves());
-    for (int expected : {8, 2}) {  // 8 > real producers: launches on timeout / full buffer
+    // 8 > real producers: launches on timeout / full buffer. 0 = dynamic count
+    // (arena): producers bracket each group with ProducerEnter/Leave and sometimes
+    // leave for a while, with a 1 s timeout -- a missed "all active producers
+    // blocked" launch would show up as seconds per round.
+    for (int expected : {8, 2, 0}) {
+        const bool dynamic = expected == 0;
         lczero::BatchingBackend batching(std::make_unique<fztest::DetBackend>(false, 64, 0),
-                                         expected, 300);
+                                         expected, dynamic ? 1000000 : 300);
         std::atomic<long> wrong{0}, total{0};
         const auto t0 = std::chrono::steady_clock::now();
         std::vector<std::thread> threads;
@@ -466,6 +471,9 @@ void TestBatching() {
                     const int n = 1 + static_cast<int>(rng() % 40);  // groups span server rounds
                     std::vector<lczero::EvalResult> res(n);
                     std::vector<size_t> which(n);
+                    if (dynamic && rng() % 4 == 0)  // idle, not counted as a producer
+                        std::this_thread::sleep_for(std::chrono::microseconds(200));
+                    if (dynamic) batching.ProducerEnter();
                     auto comp = batching.CreateComputation();
                     for (int i = 0; i < n; ++i) {
                         which[i] = rng() % positions.size();
@@ -477,6 +485,7 @@ void TestBatching() {
                                        res[i].AsPtr());
                     }
                     comp->ComputeBlocking();
+                    if (dynamic) batching.ProducerLeave();
                     for (int i = 0; i < n; ++i) {
                         lczero::EvalResult want;
                         want.p.resize(legal[which[i]].size());
@@ -495,7 +504,7 @@ void TestBatching() {
         std::cout << "  expected_producers=" << expected << ": " << total.load() << " results, "
                   << wrong.load() << " wrong, " << secs << " s" << std::endl;
         EXPECT(wrong == 0, "BatchingBackend returned " << wrong.load() << " wrong results");
-        EXPECT(secs < 60.0, "BatchingBackend took " << secs << " s (stalled?)");
+        EXPECT(secs < (dynamic ? 20.0 : 60.0), "BatchingBackend took " << secs << " s (stalled?)");
     }
 }
 
