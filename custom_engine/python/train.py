@@ -198,6 +198,12 @@ def main():
     ap.add_argument("--value-weight", type=float, default=1.0, help="value-loss weight vs policy")
     ap.add_argument("--swa-start-frac", type=float, default=0.75, help="start SWA at this fraction of epochs")
     ap.add_argument("--swa-lr", type=float, default=0.0, help="SWA LR (0 => lr*0.5)")
+    ap.add_argument("--swa-steps", type=int, default=0,
+                    help="lc0-style SWA: fold the weights into the average every N optimizer "
+                         "steps from the start, LR untouched (0 = per-epoch SWA, --swa-start-frac)")
+    ap.add_argument("--swa-max-n", type=int, default=10,
+                    help="lc0-style SWA: cap on the running-average count -- once reached, each "
+                         "new snapshot weighs 1/(max_n+1) (a moving average of ~the last max_n)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"],
                     help="training device (auto = cuda if available, else cpu)")
     ap.add_argument("--amp", action="store_true",
@@ -340,17 +346,32 @@ def main():
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     print(f"[train] optimizer={args.optimizer} grad_clip={args.grad_clip} "
           f"lr_sched={'on' if use_lr_sched else f'const {args.lr}'} seed={args.seed}")
-    swa_net = AveragedModel(net)
+    # --swa-steps N (lc0 tfprocess.update_swa): every N optimizer steps
+    #   swa = swa * n/(n+1) + w/(n+1),  n = min(snapshots so far, swa_max_n)
+    # the first snapshot is a plain copy; LR is never changed for SWA. Otherwise
+    # (per-epoch SWA) the average is taken at the end of the late epochs below.
+    lc0_swa = args.swa_steps > 0
+    if lc0_swa:
+        max_n = max(1, args.swa_max_n)
+
+        def capped_avg(avg_p, p, num):
+            return avg_p + (p - avg_p) / (torch.clamp(num, max=max_n) + 1)
+
+        swa_net = AveragedModel(net, avg_fn=capped_avg)
+    else:
+        swa_net = AveragedModel(net)
     # SWA averages the weights at the end of the epochs that START after
     # `swa_start_frac` of the training: with 20 epochs and 0.75 that is epochs
     # 16-20. It used to be max(1, int(E * frac)), one epoch early: epochs 15-20,
     # and with the usual `--epochs 2` both epochs (the average then included the
     # half-trained weights of epoch 1). `--swa-start-frac 0` averages every epoch.
-    swa_start = min(args.epochs, int(args.epochs * args.swa_start_frac) + 1)
+    swa_start = (args.epochs + 1 if lc0_swa   # lc0 mode: no per-epoch SWA / SWALR
+                 else min(args.epochs, int(args.epochs * args.swa_start_frac) + 1))
     swa_sched = SWALR(opt, swa_lr=(args.swa_lr if args.swa_lr > 0 else args.lr * 0.5))
 
-    print(f"[train] params={sum(p.numel() for p in net.parameters())/1e6:.2f}M "
-          f"swa: averages the end of epochs {swa_start}..{args.epochs}")
+    swa_desc = (f"every {args.swa_steps} steps, max_n {max_n} (lc0), LR unchanged" if lc0_swa
+                else f"averages the end of epochs {swa_start}..{args.epochs}")
+    print(f"[train] params={sum(p.numel() for p in net.parameters())/1e6:.2f}M swa: {swa_desc}")
     report("start weights", net)
     accum = max(1, args.accum_steps)
     global_step = 0          # counts OPTIMIZER steps (after accumulation)
@@ -386,6 +407,8 @@ def main():
                 scaler.update()
                 opt.zero_grad(set_to_none=True)
                 global_step += 1
+                if lc0_swa and global_step % args.swa_steps == 0:
+                    swa_net.update_parameters(net)
                 if args.report_every and global_step % args.report_every == 0:
                     print(f"  step {global_step:7d}: policy_loss={tp/n:.4f}  value_loss={tv/n:.4f}", flush=True)
                 if args.save_every and global_step % args.save_every == 0:
@@ -404,13 +427,14 @@ def main():
         # Stopped (--max-steps) before the first SWA epoch ended. The averaged
         # model is then still the deep copy made BEFORE training, and exporting
         # it -- as this used to -- wrote out the untrained starting weights.
-        print("[swa] WARNING: training stopped before any SWA epoch ended; exporting the "
-              "trained weights as they are (no average)")
+        print("[swa] WARNING: training stopped before any SWA snapshot was taken; exporting "
+              "the trained weights as they are (no average)")
         report("exported model", net)
         final = net.to("cpu", memory_format=torch.contiguous_format)
     else:
         # Recompute BN running stats for the SWA-averaged weights, then export.
-        print(f"[swa] averaged {int(swa_net.n_averaged)} epoch(s); updating BatchNorm "
+        print(f"[swa] averaged {int(swa_net.n_averaged)} "
+              f"{'snapshot(s)' if lc0_swa else 'epoch(s)'}; updating BatchNorm "
               "statistics on the averaged model...")
         update_bn(dl, swa_net, device, cl)
         report("exported model", swa_net.module)
