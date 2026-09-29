@@ -44,6 +44,7 @@
 #include "neural/backend.h"
 #include "neural/shared_params.h"
 #include "neural/onnx_backend.h"
+#include "neural/batching_backend.h"
 #include "neural/zero_heap_cache.h"
 #include "utils/random.h"
 #include "chess/callbacks.h"
@@ -120,10 +121,30 @@ int run_arena(const EngineOptions& o) {
     const lczero::OptionsDict& opts_a = pa.GetOptionsDict();
     const lczero::OptionsDict& opts_b = pb.GetOptionsDict();
 
+    // --batch-aggregate (as self-play): each net gets its own BatchingBackend that
+    // gathers the leaves of every game currently searching with that net into one
+    // Run (cache -> BatchingBackend -> Onnx). Which games use which net changes
+    // every move, so the producer count is dynamic: each search is bracketed by
+    // ProducerEnter/Leave on its net's batcher.
     std::unique_ptr<lczero::Backend> ba, bb;
+    lczero::BatchingBackend* agg_a = nullptr;
+    lczero::BatchingBackend* agg_b = nullptr;
+    auto make_backend = [&](const lczero::OptionsDict& opts, lczero::BatchingBackend** agg) {
+        if (!o.sp_batch_aggregate) return arena_make_backend(opts);
+        auto raw = std::make_unique<lczero::OnnxBackend>();
+        raw->UpdateConfiguration(opts);
+        auto batching = std::make_unique<lczero::BatchingBackend>(
+            std::move(raw), /*expected_producers=dynamic*/ 0, o.sp_batch_timeout_us);
+        *agg = batching.get();
+        return std::unique_ptr<lczero::Backend>(
+            lczero::CreateMemCache(std::move(batching), opts));
+    };
     try {
-        ba = arena_make_backend(opts_a);
-        bb = arena_make_backend(opts_b);
+        ba = make_backend(opts_a, &agg_a);
+        bb = make_backend(opts_b, &agg_b);
+        if (o.sp_batch_aggregate)
+            std::cout << "[arena] batch-aggregate ON (per net, timeout="
+                      << o.sp_batch_timeout_us << "us)" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "[arena] backend load failed: " << e.what() << std::endl;
         std::exit(1);
@@ -167,7 +188,10 @@ int run_arena(const EngineOptions& o) {
                 auto search = std::make_unique<lczero::classic::Search>(
                     *tree, backend, std::move(responder), lczero::MoveList{}, start,
                     std::move(stopper), false, false, sopts, nullptr);
+                lczero::BatchingBackend* agg = a_to_move ? agg_a : agg_b;
+                if (agg) agg->ProducerEnter();
                 search->RunBlocking(1);
+                if (agg) agg->ProducerLeave();
 
                 lczero::classic::Node* root = tree->GetCurrentHead();
                 game_nodes += static_cast<int64_t>(root->GetN());
