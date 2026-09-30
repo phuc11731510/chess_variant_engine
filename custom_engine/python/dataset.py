@@ -8,6 +8,7 @@ are cached in RAM (fast epochs); for large-scale training use a streaming reader
 import glob
 import os
 import random
+import re
 import time
 import zipfile
 
@@ -120,6 +121,30 @@ def game_mtimes(games):
                 stamps[path] = {i.filename: time.mktime(i.date_time + (0, 0, -1)) for i in zf.infolist()}
         out.append(stamps[path][member])
     return out
+
+
+_GEN_DIR = re.compile(r"(?:^|[/\\])games_gen(\d+)(?:[/\\]|\.zip$|_\d+\.zip$)")
+
+
+def newest_generation(games):
+    """(g, games of generation g) for the highest g named by a `games_gen<g>` folder
+    in a game's path (bundle member `games_gen11/...`, a directory, or a per-generation
+    zip `games_gen11.zip` / `games_gen11_<N>.zip`): the generation just played, whatever
+    its size. (None, []) when no game carries a generation."""
+    gen = {}
+    for g in games:
+        path, member = g
+        m = None
+        if member is not None:
+            m = _GEN_DIR.search("/" + member)
+        if m is None:
+            m = _GEN_DIR.search(path.replace("\\", "/"))
+        if m:
+            gen[g] = int(m.group(1))
+    if not gen:
+        return None, []
+    top = max(gen.values())
+    return top, [g for g in games if gen.get(g) == top]
 
 
 def split_games(games, val_frac, mtimes):
