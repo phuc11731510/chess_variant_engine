@@ -20,6 +20,12 @@
 #      may, cho). Gop du lieu (fz_tu_dong.py gop), can >= 20 phut T4 LUC SAP TAI LEN, tai len, 07,
 #      tai mang moi ve. May mat giua chung -> xin may moi ngay, roi cu 10 phut mot lan, lam lai.
 #   4. gh release upload -> GitHub Release (REL cua o 00), GEN_CURRENT + 1.
+#   0. ARENA (tuy chon, hoi luc bat dau: day doi a b c ...): khi doi hien tai G la mot so trong day
+#      (khong phai so dau), truoc khi sinh du lieu doi G: o 08 cho genG dau voi doi dung truoc no
+#      trong day, tong TD_AR_VAN van (mac dinh 100) chia cho cac may nhu o 04 (dem ca van dang do,
+#      du thi dung mem, khong thua ca loat van song song). Ket qua tung may cong vao
+#      Download/FairyZero/arena/gen<G>_vs_gen<a>.txt; du van -> dong XONG = arena do da xong, vong lap
+#      khong lam lai (dung mem giua chung -> lan sau choi not phan con thieu).
 TD=$TKG/.tu_dong
 TD_W=$TD/w_$$
 TD_MUC_F=$TD/.muc_tieu
@@ -33,6 +39,11 @@ TD_THOAT=0         # q: thoat vong lap o cua so nay, may van chay
 TD_LOI=0           # loi khong tu sua duoc -> dung vong lap
 TD_VAI=            # huan_luyen: cua so nay dang lo giai doan 3-4
 TD_NHAN_LAI=0      # vua nhan lai may cua vong lap truoc -> xem may dang lam gi truoc
+TD_AR_DAY_F=$TD/.arena_day   # day doi arena (vd "11 12 15"), hoi luc bat dau
+TD_AR_VAN_F=$TD/.arena_van   # so van moi arena
+TD_AR_DIR=$TAI/arena         # ket qua arena cua vong lap (tren dien thoai, xem duoc)
+TD_KIEU=           # o dang xem la arena (td_xem / td_can_dung dem theo arena)
+TD_AR_A=           # doi doi thu cua arena dang chay
 # Tep dung mem va duong dan ma nguon tren may: PHAI khop o 04 (DUNG_MEM) va o 00 (E).
 E_CL=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^E *= *"\([^"]*\)".*/\1/p')
 E_CL=${E_CL:-/content/chess_variant_engine/custom_engine}
@@ -257,13 +268,14 @@ td_xem() {
       if IFS= read -r -t 15 -u "$fd" dong; then
         printf '%s\n' "$dong"; lan=0
         [ "$o" = 04 ] && [[ "$dong" =~ ^\[selfplay\]\ ([0-9]+)/ ]] && td_ghi van="${BASH_REMATCH[1]}"
+        [ "$o" = 08 ] && [[ "$dong" =~ ^\ \ game\ ([0-9]+)/ ]] && td_ghi van="${BASH_REMATCH[1]}"
       else
         rc=$?
         [ -n "$dong" ] && printf '%s' "$dong"
         [ $NGAT = 1 ] && { ly_do=ngat; break; }
         [ $rc -gt 128 ] || break                      # het du lieu: ssh da thoat
       fi
-      if [ "$o" = 04 ] && [ $da_dung = 0 ] && [ $((SECONDS - t)) -ge 15 ]; then
+      if { [ "$o" = 04 ] || [ "$o" = 08 ]; } && [ $da_dung = 0 ] && [ $((SECONDS - t)) -ge 15 ]; then
         t=$SECONDS
         td_can_dung && { ly_do=dung; break; }
       fi
@@ -307,6 +319,14 @@ td_giet() {
 td_can_dung() {
   local tong muc
   [ -f "$TD_DUNG" ] && return 0
+  if [ "$TD_KIEU" = arena ]; then
+    tong=$(td_ar_tong "$TD_G" "$TD_AR_A"); muc=$(td_ar_van)
+    if [ "$tong" != "${TD_TONG_IN:-}" ] && [ $((SECONDS - ${TD_LUC_IN:-0})) -ge 60 ]; then
+      td_in "arena gen$TD_G vs gen$TD_AR_A: ${M_DAM}$tong/$muc${M_HET} ván (đã ghi $(td_ar_da "$TD_G" "$TD_AR_A"), tính cả ván đang chơi dở)"
+      TD_TONG_IN=$tong; TD_LUC_IN=$SECONDS
+    fi
+    [ "$tong" -ge "$muc" ]; return
+  fi
   tong=$(td_tong "$TD_G"); muc=$(td_muc)
   if [ "$tong" != "${TD_TONG_IN:-}" ] && [ $((SECONDS - ${TD_LUC_IN:-0})) -ge 60 ]; then
     td_in "đời $TD_G: ${M_DAM}$tong/$muc${M_HET} ván (đã tải $(tong_tich_luy "$TD_G"), tính cả ván đang chơi dở)"
@@ -318,10 +338,10 @@ td_can_dung() {
 td_gui_dung() {
   local i out
   for i in 1 2 3; do
-    out=$(ssh_colab "p=\$(pgrep -af '[c]ustom_engine.* --selfplay' | sed -n 's/.* --stop-file \([^ ]*\).*/\1/p' | head -1); if [ -n \"\$p\" ]; then touch \"\$p\" && echo FZ_DA_DUNG; else echo FZ_KHONG_CHAY; fi" 2>/dev/null)
+    out=$(ssh_colab "p=\$(pgrep -af '[c]ustom_engine.* --(selfplay|arena)' | sed -n 's/.* --stop-file \([^ ]*\).*/\1/p' | head -1); if [ -n \"\$p\" ]; then touch \"\$p\" && echo FZ_DA_DUNG; else echo FZ_KHONG_CHAY; fi" 2>/dev/null)
     if grep -q FZ_DA_DUNG <<<"$out"; then
       td_ghi dung_van="$(td_doc "$TD_W" van)" dung_dang="$(td_dang_do "$TD_W")"
-      td_in "${M_VANG}dừng mềm máy $(ten_tk "$TK")${M_HET}: $([ -f "$TD_DUNG" ] && echo "dừng tay" || echo "đủ $(td_muc) ván") -- ván dở chơi nốt"
+      td_in "${M_VANG}dừng mềm máy $(ten_tk "$TK")${M_HET}: $([ -f "$TD_DUNG" ] && echo "dừng tay" || { [ "$TD_KIEU" = arena ] && echo "đủ $(td_ar_van) ván arena" || echo "đủ $(td_muc) ván"; }) -- ván dở chơi nốt"
       return 0
     fi
     grep -q FZ_KHONG_CHAY <<<"$out" && return 0         # engine vua xong
@@ -353,7 +373,7 @@ td_chay() {
 # May san sang cho doi $1: co ma nguon + binary co --stop-file + gen$1.onnx (+ gen$1.pt neu $2 = pt).
 # Chua thi chay 02. 0 = san sang, 1 = loi (thu lai), 2 = loi khong tu sua duoc, 3 = mat may, 4 = q.
 td_kiem_may_cl() {
-  ssh_colab "b=$E_CL/build-linux/custom_engine; test -s \$b && echo BIN_\$(grep -c -a -- --stop-file \$b); test -s /content/gen$1.onnx && echo CO_ONNX; test -s /content/gen$1.pt && python3 -c 'import onnx, onnxscript, onnxruntime' 2>/dev/null && echo CO_PT" 2>/dev/null
+  ssh_colab "b=$E_CL/build-linux/custom_engine; test -s \$b && echo BIN_\$(grep -c -a -- --stop-file \$b) && echo BINA_\$(grep -c -a FZ_ARENA \$b); test -s /content/gen$1.onnx && echo CO_ONNX; test -s /content/gen$1.pt && python3 -c 'import onnx, onnxscript, onnxruntime' 2>/dev/null && echo CO_PT" 2>/dev/null
 }
 td_chuan_bi() {
   local g=$1 can_pt=${2:-} out rc
@@ -431,6 +451,152 @@ td_gom_tai() {
   return 1
 }
 
+# ---------------- Giai doan 0: arena ----------------
+td_ar_van() { local n; n=$(cat "$TD_AR_VAN_F" 2>/dev/null); so_nguyen "$n" && echo $((10#$n)) || echo 100; }
+td_ar_day() { cat "$TD_AR_DAY_F" 2>/dev/null; }
+td_ar_tep() { echo "$TD_AR_DIR/gen$1_vs_gen$2.txt"; }
+# Doi thu cua doi $1: so dung ngay truoc $1 trong day. Rong = doi $1 khong co arena.
+td_ar_doi_thu() {
+  local d t=
+  for d in $(td_ar_day); do
+    [ "$d" = "$1" ] && [ -n "$t" ] && { echo "$t"; return; }
+    t=$d
+  done
+}
+# Cong W/D/L/N cac dong ket qua (moi may mot dong) cua arena $1 vs $2: in "W D L N".
+td_ar_cong() {
+  local f; f=$(td_ar_tep "$1" "$2")
+  [ -f "$f" ] || { echo "0 0 0 0"; return; }
+  awk '/^[0-9]/ { for (i = 1; i <= NF; i++) { split($i, k, "="); if (k[1] ~ /^[WDLN]$/) s[k[1]] += k[2] } }
+       END { print s["W"] + 0, s["D"] + 0, s["L"] + 0, s["N"] + 0 }' "$f"
+}
+td_ar_da() { local w d l n; read -r w d l n <<<"$(td_ar_cong "$1" "$2")"; echo "$n"; }
+td_ar_xong() { grep -q '^\(XONG\|BO_QUA\)' "$(td_ar_tep "$1" "$2")" 2>/dev/null; }
+# Tong van arena $1 vs $2 = da ghi + van da xong VA dang do tren may cac cua so dang arena (nhu td_tong).
+td_ar_tong() {
+  local f t v co=1
+  td_khoa && co=0
+  t=$(td_ar_da "$1" "$2")
+  for f in $(td_cac_cua_so); do
+    [ "$(td_doc "$f" gen)" = "$1" ] && [ "$(td_doc "$f" buoc)" = arena ] || continue
+    v=$(td_doc "$f" van); t=$((t + ${v:-0} + $(td_dang_do "$f")))
+  done
+  [ $co = 0 ] && rmdir "$TAI/.khoa_dat_ten" 2>/dev/null
+  echo $t
+}
+# Doi $1 con viec arena: co doi thu trong day, chua XONG / BO_QUA, tong (ca van dang do) < so van.
+td_ar_viec() {
+  local a
+  a=$(td_ar_doi_thu "$1"); [ -n "$a" ] || return 1
+  td_ar_xong "$1" "$a" && return 1
+  [ "$(td_ar_tong "$1" "$a")" -lt "$(td_ar_van)" ]
+}
+# Bo arena $1 vs $2 (ly do $3): ghi BO_QUA de vong lap khong thu lai.
+td_ar_bo() {
+  mkdir -p "$TD_AR_DIR"
+  echo "BO_QUA $(date '+%Y-%m-%d %H:%M') $3" >> "$(td_ar_tep "$1" "$2")"
+  td_in "${M_DO}[!] bỏ arena gen$1 vs gen$2: $3${M_HET}"
+}
+# Du van -> dong XONG (ty le thang cua doi moi, khoang tin cay 95%, Elo) va in ket qua.
+td_ar_ket() {
+  local g=$1 a=$2 w d l n kq
+  td_ar_xong "$g" "$a" && return 0
+  read -r w d l n <<<"$(td_ar_cong "$g" "$a")"
+  [ "$n" -ge "$(td_ar_van)" ] || return 0
+  kq=$(awk -v w="$w" -v d="$d" -v n="$n" 'BEGIN {
+    p = (w + d / 2) / n; s = sqrt(p * (1 - p) / n)
+    lo = p - 1.96 * s; hi = p + 1.96 * s
+    e = (p > 0 && p < 1) ? sprintf("%+.0f Elo", -400 * log(1 / p - 1) / log(10)) : "Elo ?"
+    printf "%.1f%% (95%%: %.0f-%.0f%%), %s", 100 * p, 100 * (lo < 0 ? 0 : lo), 100 * (hi > 1 ? 1 : hi), e }')
+  echo "XONG $(date '+%Y-%m-%d %H:%M') W=$w D=$d L=$l N=$n -- gen$g: $kq" >> "$(td_ar_tep "$g" "$a")"
+  td_in "${M_XANH}arena gen$g vs gen$a xong${M_HET}: gen$g thắng $w / hoà $d / thua $l ($n ván) = ${M_DAM}$kq${M_HET}"
+  td_in "(Download/FairyZero/arena/gen${g}_vs_gen$a.txt)"
+}
+# Ghi ket qua lan chay o 08 tren may nay (dong FZ_ARENA cua log) vao tep arena $1 vs $2 -- mot lan
+# moi lan chay (08.da_ghi tren may = dong dau log da ghi), chi khi log dung la arena gen$1 vs gen$2
+# cua day. Cung khoa voi td_ar_tong: van cua may nay ve 0 dung luc dong ket qua duoc them.
+td_ar_ghi() {
+  local g=$1 a=$2 ds dau da kq co=1
+  [ "$(td_ar_doi_thu "$g")" = "$a" ] || return 0
+  mapfile -t ds < <(ssh_colab "printf '%s\n' \"\$(head -1 $LOGD/08.log 2>/dev/null)\" \"\$(cat $LOGD/08.da_ghi 2>/dev/null)\" \"\$(grep -c 'A=/content/gen$g.onnx  vs  B=/content/gen$a.onnx' $LOGD/08.log 2>/dev/null)\" \"\$(grep '^FZ_ARENA ' $LOGD/08.log 2>/dev/null | tail -1)\"" 2>/dev/null)
+  [ ${#ds[@]} -ge 4 ] || { td_in "[!] không đọc được log ô 08 -- ghi kết quả sau"; return 1; }
+  dau=${ds[0]}; da=${ds[1]}; kq=${ds[3]}
+  if [ -z "$dau" ] || [ "$da" = "$dau" ] || [ "${ds[2]:-0}" = 0 ]; then td_ghi van=0; return 0; fi
+  ssh_colab "cat > $LOGD/08.da_ghi" <<<"$dau" || { td_in "[!] chưa ghi được dấu đã ghi -- thử lại sau"; return 1; }
+  mkdir -p "$TD_AR_DIR"
+  td_khoa && co=0
+  if [[ "$kq" =~ ^FZ_ARENA\ W=([0-9]+)\ D=([0-9]+)\ L=([0-9]+)\ N=([0-9]+) ]]; then
+    [ -f "$(td_ar_tep "$g" "$a")" ] ||
+      echo "# arena gen$g (moi) vs gen$a: W/D/L = gen$g thang/hoa/thua, moi may mot dong" > "$(td_ar_tep "$g" "$a")"
+    [ "${BASH_REMATCH[4]}" -gt 0 ] && echo "$(date '+%Y-%m-%d %H:%M') $(ten_tk "$TK") W=${BASH_REMATCH[1]} D=${BASH_REMATCH[2]} L=${BASH_REMATCH[3]} N=${BASH_REMATCH[4]}" >> "$(td_ar_tep "$g" "$a")"
+    td_in "arena máy $(ten_tk "$TK"): gen$g thắng ${BASH_REMATCH[1]} / hoà ${BASH_REMATCH[2]} / thua ${BASH_REMATCH[3]}"
+  else
+    td_in "${M_VANG}[!] log ô 08 không có dòng FZ_ARENA (ô lỗi / dừng ngang) -- các ván đó không tính${M_HET}"
+  fi
+  td_ghi van=0
+  td_ar_ket "$g" "$a"                 # trong khoa: hai cua so xong cung luc khong ghi XONG hai lan
+  [ $co = 0 ] && rmdir "$TAI/.khoa_dat_ten" 2>/dev/null
+  return 0
+}
+# Mang gen$1.onnx (doi thu) len may: co san / tai tu Release (REL cua o 00) / tu dien thoai.
+# 0 = co, 1 = loi mang (thu lai), 2 = khong co o dau ca.
+td_ar_mang() {
+  local a=$1 rel out
+  rel=$(doc "$D/00_cau_hinh.py" | sed -n 's/^REL *= *"\([^"]*\)".*/\1/p' | head -1)
+  out=$(ssh_colab "f=/content/gen$a.onnx; test -s \$f || { wget -q -O \$f.t $rel/gen$a.onnx && mv \$f.t \$f; rm -f \$f.t; }; test -s \$f && echo FZ_CO" 2>/dev/null)
+  grep -q FZ_CO <<<"$out" && return 0
+  [ -s "$TAI/gen$a.onnx" ] || return 2
+  td_in "Release không có gen$a.onnx -> tải từ điện thoại lên"
+  tai_len "$TAI/gen$a.onnx" "/content/gen$a.onnx" || return 1
+}
+# Giai doan 0 tren may cua cua so nay: o 08 (so van con thieu, tran theo han muc) -> ghi ket qua.
+td_arena() {
+  local g=$1 a rc secs par duoi so f o08 muc tong
+  a=$(td_ar_doi_thu "$g")
+  td_chuan_bi "$g"; rc=$?
+  case $rc in 0) ;; 2) TD_LOI=1; return ;; 3) td_mat_may; return ;; 4) return ;; *) td_ngu 30; return ;; esac
+  [ -f "$TD_DUNG" ] && return
+  # Binary / o 08 cu: DUNG vong lap (khong ghi BO_QUA -- cap nhat xong mo lai thi arena van con).
+  if ! grep -q '^BINA_[1-9]' <<<"$(td_kiem_may_cl "$g")"; then
+    td_in "${M_DO}[!] binary trên Release chưa có arena dừng mềm (cần bản từ 2026-09-30)${M_HET}"
+    td_in "    đưa binary mới lên Release rồi mở lại vòng lặp (hoặc tắt arena: dãy đời = -)"
+    TD_LOI=1; return
+  fi
+  td_ar_mang "$a"; rc=$?
+  case $rc in
+    0) ;;
+    2) td_ar_bo "$g" "$a" "không có gen$a.onnx trên Release lẫn Download/FairyZero"; return ;;
+    *) td_con_may || td_mat_may; return ;;
+  esac
+  o08=$(ls "$D"/08_*.py 2>/dev/null | head -1)
+  if [ -z "$o08" ] || ! grep -q '^A_ONNX' "$o08"; then
+    td_in "${M_DO}[!] ô 08 trên điện thoại là bản cũ${M_HET}: bash ~/lay_ve.sh 08, rồi mở lại vòng lặp"
+    TD_LOI=1; return
+  fi
+  secs=$(td_giay_t4)
+  if [ -z "$secs" ]; then td_in "không đọc được hạn mức -- thử lại sau 1 phút"; td_ngu 60; return; fi
+  par=$(song_song_o04 "$o08"); duoi=$(duoi_giay "$par")
+  secs=$((secs - $(chua_phut) * 60 - duoi))
+  if [ $secs -lt $((TD_PHUT_SINH * 60)) ]; then
+    td_in "$(ten_tk "$TK"): hạn mức còn $(( (secs + duoi) / 60 + $(chua_phut) )) phút T4 -> trả máy"
+    td_tra; return
+  fi
+  muc=$(td_ar_van); tong=$(td_ar_tong "$g" "$a"); so=$((muc - tong))
+  [ $so -ge 1 ] || return
+  f=$TD/o_$$/$(basename "$o08")
+  mkdir -p "$TD/o_$$"
+  sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^GAMES[[:space:]]*=[[:space:]]*[0-9]+/s//GAMES = $so/; s#^A_ONNX[[:space:]]*=.*#A_ONNX = \"/content/gen$g.onnx\"#; s#^B_ONNX[[:space:]]*=.*#B_ONNX = \"/content/gen$a.onnx\"#" \
+    "$o08" > "$f"
+  TD_G=$g; TD_AR_A=$a; TD_KIEU=arena; TD_TONG_IN=
+  td_ghi gen="$g" buoc=arena van=0 giao="$so" par="$par" dung_van= dung_dang=
+  td_in "08 arena ${M_DAM}gen$g vs gen$a${M_HET} trên $(ten_tk "$TK"): $so ván ($par song song), SECS=$secs · arena: $tong/$muc"
+  td_chay 08 "$f"; rc=$?
+  TD_KIEU=
+  case $rc in 3) td_mat_may; return ;; 4) return ;; 1) td_ngu 30; return ;; esac
+  td_ar_ghi "$g" "$a"
+  td_ghi buoc=xong
+}
+
 # May vua nhan lai (vong lap truoc bi dong giua chung): may dang lam gi thi lam tiep viec do.
 td_tiep_tuc() {
   local g=$1 o pid tt rc
@@ -454,6 +620,23 @@ td_tiep_tuc() {
              td_xem 06 "$pid" 20; rc=$?; [ $rc = 0 ] || { [ $rc = 3 ] && td_mat_may; return; }
              TAI_VE_MOC=td_van_0 tai_theo_o 06 ;;
     06:*) td_ghi gen="$g" buoc=tai; TAI_VE_MOC=td_van_0 tai_theo_o 06 ;;
+    08:*)
+      # Arena cua vong lap: doi + doi thu doc tu dong "=== ARENA: A=... vs B=..." cua log.
+      local ar g2 a2 cfg giao par
+      ar=$(ssh_colab "grep -m1 '=== ARENA: A=' $LOGD/08.log" 2>/dev/null)
+      [[ "$ar" =~ A=/content/gen([0-9]+)\.onnx\ +vs\ +B=/content/gen([0-9]+)\.onnx ]] || return 0
+      g2=${BASH_REMATCH[1]}; a2=${BASH_REMATCH[2]}
+      [ "$(td_ar_doi_thu "$g2")" = "$a2" ] || return 0      # arena chay tay, khong phai cua day
+      if [ "$tt" = chay ]; then
+        cfg=$(ssh_colab "pgrep -af '[c]ustom_engine.* --arena' | head -1" 2>/dev/null)
+        giao=$(sed -n 's/.* --games \([0-9]*\).*/\1/p' <<<"$cfg"); par=$(sed -n 's/.* --parallel \([0-9]*\).*/\1/p' <<<"$cfg")
+        TD_G=$g2; TD_AR_A=$a2; TD_KIEU=arena; TD_TONG_IN=
+        td_ghi gen="$g2" buoc=arena van=0 giao="$giao" par="$par" dung_van= dung_dang=
+        td_xem 08 "$pid" 50; rc=$?
+        TD_KIEU=
+        case $rc in 3) td_mat_may; return ;; 4) return ;; esac
+      fi
+      td_ar_ghi "$g2" "$a2"; td_ghi buoc=xong ;;
     07:chay)
       if td_lay_hl "$g"; then
         TD_VAI=huan_luyen; td_ghi gen="$g" buoc=huan_luyen
@@ -628,6 +811,43 @@ td_cho_xin() {
   done
 }
 
+# Hoi day doi arena + so van moi arena (Enter = giu), in tinh trang tung cap. 1 = go sai.
+td_hoi_arena() {
+  local x d t= ds=() cap a n
+  echo "${M_MO}Arena: dãy đời, vd 11 12 15 = đời 12 ra thì${M_HET}"
+  echo "${M_MO}đấu đời 11, đời 15 ra thì đấu đời 12${M_HET}"
+  read -rp "Dãy đời arena (Enter = $( [ -n "$(td_ar_day)" ] && td_ar_day || echo "không có"); - = tắt): " x
+  if [ "$x" = - ]; then rm -f "$TD_AR_DAY_F"
+  elif [ -n "$x" ]; then
+    for d in ${x//,/ }; do
+      [[ "$d" =~ ^[0-9]+$ ]] || { echo "[!] '$d' không phải số đời"; return 1; }
+      d=$((10#$d))
+      [ -n "$t" ] && [ "$d" -le "$t" ] && { echo "[!] Dãy phải tăng dần ($t rồi $d)"; return 1; }
+      ds+=("$d"); t=$d
+    done
+    [ ${#ds[@]} -ge 2 ] || { echo "[!] Cần ít nhất 2 đời"; return 1; }
+    echo "${ds[*]}" > "$TD_AR_DAY_F"
+  fi
+  [ -n "$(td_ar_day)" ] || return 0
+  read -rp "Số ván mỗi arena (Enter = $(td_ar_van)): " x
+  if [ -n "$x" ]; then
+    so_nguyen "$x" || { echo "[!] Không phải số"; return 1; }
+    echo $((10#$x)) > "$TD_AR_VAN_F"
+  fi
+  t=
+  for d in $(td_ar_day); do
+    if [ -n "$t" ]; then
+      a=$t; cap="gen$d vs gen$a"
+      if grep -q '^XONG' "$(td_ar_tep "$d" "$a")" 2>/dev/null; then
+        echo "  $cap: ${M_XANH}xong${M_HET} -- $(grep '^XONG' "$(td_ar_tep "$d" "$a")" | tail -1 | sed 's/.* -- //')"
+      elif grep -q '^BO_QUA' "$(td_ar_tep "$d" "$a")" 2>/dev/null; then echo "  $cap: ${M_VANG}đã bỏ${M_HET}"
+      else n=$(td_ar_da "$d" "$a"); echo "  $cap: $n/$(td_ar_van) ván"; fi
+    fi
+    t=$d
+  done
+  return 0
+}
+
 # Bat dau: doi (o 00), muc tieu, so phut chua, thu muc cac doi truoc, giai doan hien tai.
 td_bat_dau() {
   local g x k thieu=() khac=() f n o04
@@ -665,6 +885,7 @@ td_bat_dau() {
     echo $((10#$x)) > "$TD_MUC_F"
   fi
   hoi_chua_phut || return 1
+  td_hoi_arena || return 1
   for ((k = 1; k < TD_SO_DOI; k++)); do
     [ $((g - k)) -ge 0 ] && [ ! -d "$TAI/games_gen$((g - k))" ] && thieu+=("games_gen$((g - k))/")
   done
@@ -677,6 +898,9 @@ td_bat_dau() {
     [ "$x" = co ] || return 1
   fi
   echo "---"
+  if td_ar_viec "$g"; then
+    echo "Arena gen$g vs gen$(td_ar_doi_thu "$g") chưa xong ($(td_ar_da "$g" "$(td_ar_doi_thu "$g")")/$(td_ar_van)) -> đấu trước"
+  fi
   if td_co_mang $((g + 1)); then echo "Đã có gen$((g + 1)).onnx + .pt -> chỉ còn"; echo "tải lên GitHub (giai đoạn 4)"
   elif [ -f "$TAI/games_gen$g.zip" ]; then echo "Đã có games_gen$g.zip -> huấn luyện"
   else
@@ -716,6 +940,15 @@ td_vong() {
         td_tra
       done
       break
+    fi
+    # Giai doan 0: arena cua doi nay (neu co trong day va chua xong) truoc khi sinh du lieu.
+    if td_ar_viec "$g"; then
+      if [ $TD_CO_MAY = 0 ]; then
+        td_ghi gen="$g" buoc=xin van=0
+        td_xin_mot_vong || { td_cho_xin "$g"; continue; }
+      fi
+      if [ $TD_NHAN_LAI = 1 ]; then TD_NHAN_LAI=0; td_tiep_tuc "$g"; continue; fi
+      td_arena "$g"; continue
     fi
     if td_toi_luot_hl "$g" || [ "$(td_tong "$g")" -ge "$(td_muc)" ]; then td_giai_doan_3 "$g"; continue; fi
     if [ $TD_CO_MAY = 0 ]; then
