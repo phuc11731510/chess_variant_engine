@@ -11,12 +11,13 @@ if not os.path.exists(CURRENT_PT):
 # 1 epoch, SWA kiểu lc0: cứ 25 bước lấy trung bình trọng số một lần, tối đa 10 bản (trung bình
 # trượt ~250 bước cuối), tốc độ học không đổi. Trước đó: 3 đời, 2 epoch, SWA theo epoch -- với 2
 # epoch nó chỉ chụp 1 lần (log "averaged 1 epoch(s)") nên thực ra không lấy trung bình gì.
-# --val-frac 0.01: giữ 1% ván MỚI NHẤT (theo giờ sửa tệp, gộp giữ nguyên giờ gốc) làm tập kiểm định
-# -- ván của đời vừa sinh, mạng đời trước chưa học (chủ dự án chọn, 2026-09-29). ~40 ván: số value
-# dao động nhiều. 0 = bỏ tập kiểm định. Mạnh/yếu vẫn xem bằng arena (ô 08).
+# --val-frac 0 --val-newest-gen (chủ dự án chọn, 2026-09-30): trước khi học, chấm mạng đời hiện tại
+# MỘT LẦN trên TOÀN BỘ ván của đời mới nhất (thư mục games_gen<g> số lớn nhất trong gói gộp, bao
+# nhiêu ván cũng được) -- ván chính nó vừa chơi, chưa từng học -> dòng "[val] start weights on
+# generation g ...". Rồi học tất cả, kể cả các ván đó. So con số này giữa các đời; mạnh/yếu: arena.
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
-    --epochs 1 --swa-steps 25 --swa-max-n 10 --val-frac 0.01 --batch 1024 --lr 1e-3 --amp \
+    --epochs 1 --swa-steps 25 --swa-max-n 10 --val-frac 0 --val-newest-gen --batch 1024 --lr 1e-3 --amp \
     --q-ratio 0.2 --weight-decay 1e-4 --report-every 20 \
     --channels 144 --blocks 12 \
     --out {NEXT_ONNX}"""

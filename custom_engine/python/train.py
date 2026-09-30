@@ -23,7 +23,7 @@ from torch.optim.swa_utils import AveragedModel, SWALR
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet, ExportNet, NUM_PLANES, POLICY_SIZE  # noqa: E402
 from dataset import (FairyDataset, collate_packed, game_mtimes, list_games,  # noqa: E402
-                     split_games, unpack_batch)
+                     newest_generation, split_games, unpack_batch)
 from run_seed import resolve_seed  # noqa: E402
 
 
@@ -234,6 +234,11 @@ def main():
                     help="hold out this fraction of the GAMES -- the newest by modification time, "
                          "i.e. the latest self-play -- as a validation set, and print its losses "
                          "before training, after each epoch and for the exported model (0 = off)")
+    ap.add_argument("--val-newest-gen", action="store_true",
+                    help="score the STARTING weights once on every game of the newest generation "
+                         "(highest games_gen<g> folder: games the warm-start net played and never "
+                         "trained on), then train on ALL games including those; no other [val] "
+                         "lines. Needs --val-frac 0")
     ap.add_argument("--report-every", type=int, default=0, help="print running loss every N steps (0 = per-epoch)")
     ap.add_argument("--save-every", type=int, default=0, help="export an ONNX checkpoint every N steps (0 = only final)")
     args = ap.parse_args()
@@ -264,6 +269,8 @@ def main():
     torch.manual_seed(args.seed)
     if not 0.0 <= args.val_frac < 1.0:
         sys.exit(f"--val-frac must be in [0, 1), got {args.val_frac}")
+    if args.val_newest_gen and args.val_frac > 0:
+        sys.exit("--val-newest-gen trains on every game: use it with --val-frac 0")
     games = list_games(args.data)
     mtimes = game_mtimes(games) if args.val_frac > 0 else [0.0] * len(games)
     train_games, val_games = split_games(games, args.val_frac, mtimes)
@@ -305,6 +312,21 @@ def main():
         print(f"[val] validation games modified {day(min(stamp[g] for g in val_games))} .. "
               f"{day(max(stamp[g] for g in val_games))}; training games up to "
               f"{day(max(stamp[g] for g in train_games))}")
+
+    # --val-newest-gen: the newest generation's games, scored ONCE with the starting
+    # weights below, and trained on like every other game (they are in train_games).
+    first_val = None
+    if args.val_newest_gen:
+        gen, newest = newest_generation(games)
+        if not newest:
+            print("[val] --val-newest-gen: no games_gen<g> folder in the data paths -- no score")
+        else:
+            ds_first = FairyDataset(args.data, q_ratio=args.q_ratio, cache=not args.no_cache,
+                                    sparse=args.sparse_cache, games=newest,
+                                    label=f"newest generation {gen}", packed=packed)
+            first_val = (gen, len(newest), len(ds_first),
+                         DataLoader(ds_first, batch_size=max(args.batch, 256), shuffle=False,
+                                    num_workers=workers, pin_memory=pin, collate_fn=collate))
 
     def report(what, model):
         if val_loaders is None:
@@ -373,6 +395,12 @@ def main():
                 else f"averages the end of epochs {swa_start}..{args.epochs}")
     print(f"[train] params={sum(p.numel() for p in net.parameters())/1e6:.2f}M swa: {swa_desc}")
     report("start weights", net)
+    if first_val is not None:
+        gen, n_games, n_pos, loader = first_val
+        vp, vv = evaluate(net, loader, device, use_amp, cl)
+        print(f"  [val] start weights on generation {gen} (all {n_games} games, {n_pos} positions, "
+              f"never trained on; trained on below): policy={vp:.4f} value={vv:.4f}", flush=True)
+        del loader, first_val   # frees the scoring copy of those games
     accum = max(1, args.accum_steps)
     global_step = 0          # counts OPTIMIZER steps (after accumulation)
     micro = 0                # counts micro-batches
