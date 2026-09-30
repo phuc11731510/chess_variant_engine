@@ -50,11 +50,25 @@ static inline void SpinloopPause() {
 #endif
 }
 
+// MinGW (winpthreads): a std::shared_mutex is a pthread_rwlock_t set to
+// PTHREAD_RWLOCK_INITIALIZER, really initialized on its FIRST lock. Two threads
+// taking a fresh one at the same moment (a new Search: its worker thread and the
+// caller) intermittently got an error back -> libstdc++ assertion "__ret == 0" in
+// lock()/lock_shared() (Windows self-play and arena, 2026-09-30). Taking it once
+// in the constructor, before any other thread can see it, does that initialization
+// single-threaded. Elsewhere a no-op.
+inline void PrimeSharedMutex([[maybe_unused]] std::shared_mutex& m) {
+#if defined(__MINGW32__)
+  m.lock();
+  m.unlock();
+#endif
+}
+
 // Implementation of reader-preferenced shared mutex. Based on fair shared
 // mutex.
 class CAPABILITY("mutex") RpSharedMutex {
  public:
-  RpSharedMutex() : waiting_readers_(0) {}
+  RpSharedMutex() : waiting_readers_(0) { PrimeSharedMutex(mutex_); }
 
   void lock() ACQUIRE() {
     int spins = 0;
@@ -140,6 +154,8 @@ class CAPABILITY("mutex") SharedMutex {
   void unlock() RELEASE() { mutex_.unlock(); }
   void lock_shared() ACQUIRE_SHARED() { mutex_.lock_shared(); }
   void unlock_shared() RELEASE_SHARED() { mutex_.unlock_shared(); }
+
+  SharedMutex() { PrimeSharedMutex(mutex_); }
 
   std::shared_mutex& get_raw() { return mutex_; }
 

@@ -762,6 +762,26 @@ hạn mức (như ô 04), rồi in đời đang ở giai đoạn nào (vd `Đã 
 | 2. Sinh dữ liệu | Máy mới: `02`. Rồi `04` với `SECS` = hạn mức T4 − số phút chừa, `GAMES` = số ván còn thiếu → `06` → tải về với tên tích luỹ `games_genG_<tổng>.zip`. **Tổng** = số lớn nhất trong tên gói + số ván đã xong trên các máy đang chạy. Đủ mục tiêu → mỗi cửa sổ **dừng mềm** máy của mình (ván dở chơi nốt). Máy hết lượt mà chưa đủ → tải về, trả máy, xin tài khoản khác. |
 | 3. Huấn luyện | Khi mọi máy đã tải về: cửa sổ có máy **nhiều hạn mức nhất** huấn luyện, cửa sổ kia trả máy và chờ (không xin máy trong lúc chờ). Gộp mọi `games_genG_*.zip` vào thư mục `games_genG/`, gói `games_genG/`, `games_gen(G-1)/`, `games_gen(G-2)/` thành `games_genG.zip`. Máy phải còn **≥ 20 phút T4 lúc sắp tải dữ liệu lên** (không thì trả, xin máy khác), tải lên, `07`, tải `gen(G+1).onnx` + `.pt` về. Máy mất giữa chừng → xin máy mới ngay, rồi 10 phút một lần, làm lại. |
 | 4. Lên đời | `gh release upload` hai tệp mạng lên Release (theo `REL` ô 00), `GEN_CURRENT` + 1, sang đời mới — máy vừa huấn luyện (đã có mạng mới) sinh dữ liệu tiếp luôn. |
+| 0. Arena (tuỳ chọn) | Xem dưới. Nếu đời mới là một số trong **dãy đời arena**, nó đấu đời đứng ngay trước nó trong dãy **trước khi** sinh dữ liệu (giai đoạn 2). |
+
+**Arena trong vòng lặp** (từ 2026-09-30; cần ô 08 mới `bash ~/lay_ve.sh 08` và binary từ 2026-09-30).
+Lúc bắt đầu, sau số phút chừa, vòng lặp hỏi:
+
+- **Dãy đời arena**, vd `11 12 15` (dấu phẩy cũng được): đời 12 ra đời thì đấu đời 11, đời 15 ra đời
+  thì đấu đời 12 (13, 14 không đấu). Dãy phải tăng dần, ít nhất 2 số. Enter = giữ dãy cũ, `-` = tắt.
+- **Số ván mỗi arena** (Enter = lần trước, mặc định 100).
+- Rồi in tình trạng từng cặp: `xong -- 59.5% (95%: 50-69%), +67 Elo`, `đã bỏ`, hoặc `37/100 ván`.
+
+Arena chạy như sinh dữ liệu: **mọi cửa sổ** cùng đấu (mỗi máy ô 08 với `GAMES` = số ván còn thiếu,
+`SECS` theo hạn mức), tổng tính cả ván đang dở, đủ số thì **dừng mềm** (không thừa cả loạt ván song
+song). Mạng đời cũ: có trên Release thì máy Colab tự tải, không thì tải từ `Download/FairyZero/gen<a>.onnx`
+lên (giữ các tệp `.onnx` đời cũ trên điện thoại!). Kết quả từng máy cộng vào
+**`Download/FairyZero/arena/gen<b>_vs_gen<a>.txt`** (mỗi máy một dòng `W= D= L= N=`, W = đời mới
+thắng); đủ số ván → dòng **`XONG`** kèm tỉ lệ thắng, khoảng tin cậy 95%, Elo. Có `XONG` = arena đó
+**đã xong, vòng lặp không làm lại** (mở lại vòng lặp bao nhiêu lần cũng vậy). Dừng mềm giữa arena → các
+ván đã xong vẫn được ghi, lần sau chỉ đấu phần còn thiếu. Thiếu mạng đời cũ ở cả hai nơi → dòng
+`BO_QUA <lý do>`, vòng lặp sang sinh dữ liệu. Binary hoặc ô 08 còn bản cũ → vòng lặp **dừng** kèm hướng
+dẫn (cập nhật rồi mở lại, arena vẫn còn nguyên). Muốn đấu lại một cặp: xoá tệp của cặp đó. Ô 08 chạy tay (menu) **không** đọc / ghi các tệp này.
 
 **Dừng:** gõ **`fz dung`** ở bất kỳ cửa sổ Termux nào (kể cả cửa sổ mới), hoặc Ctrl+C trong cửa sổ vòng lặp → **`s`** = dừng mềm **cả** vòng lặp (mọi cửa sổ: chơi nốt ván
 dở, gom, tải về, trả máy rồi thoát; đang huấn luyện thì làm xong đời đó rồi mới dừng) · **`q`** = thoát

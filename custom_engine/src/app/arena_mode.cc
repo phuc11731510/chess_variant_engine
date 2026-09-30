@@ -35,6 +35,7 @@
 #include <atomic>
 #include <mutex>
 #include <chrono>
+#include <filesystem>
 #include <memory>
 #include <map>
 #include <functional>
@@ -164,9 +165,41 @@ int run_arena(const EngineOptions& o) {
     const auto arena_start = std::chrono::steady_clock::now();
     if (workers > 1) std::cout << "[arena] " << workers << " games in parallel" << std::endl;
 
+    // Soft stop, as self-play: --max-seconds (wall clock) or --stop-file (the phone's loop
+    // when several machines together reached the target) only stop taking NEW games; games
+    // in flight finish and count. Checked once per game, never in the search.
+    std::atomic<bool> stopped_by_time{false}, stopped_by_file{false};
+    if (o.sp_max_seconds > 0.0) std::cout << "[arena] gioi han thoi gian: " << o.sp_max_seconds << "s" << std::endl;
+    if (!o.sp_stop_file.empty()) std::cout << "[arena] dung mem khi co tep: " << o.sp_stop_file << std::endl;
+    auto should_stop = [&]() {
+        if (o.sp_max_seconds > 0.0 &&
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - arena_start).count() >=
+                o.sp_max_seconds) {
+            if (!stopped_by_time.exchange(true)) {
+                std::lock_guard<std::mutex> lk(mu);
+                std::cout << "[arena] Dat nguong thoi gian " << o.sp_max_seconds
+                          << "s -> ngung nhan van moi (da xong " << done
+                          << " van, cac van dang chay se hoan tat)." << std::endl;
+            }
+            return true;
+        }
+        std::error_code fe;
+        if (!o.sp_stop_file.empty() && std::filesystem::exists(o.sp_stop_file, fe)) {
+            if (!stopped_by_file.exchange(true)) {
+                std::lock_guard<std::mutex> lk(mu);
+                std::cout << "[arena] Co tep dung " << o.sp_stop_file
+                          << " -> ngung nhan van moi (da xong " << done
+                          << " van, cac van dang chay se hoan tat)." << std::endl;
+            }
+            return true;
+        }
+        return false;
+    };
+
     auto worker = [&]() {
         auto tree = std::make_unique<lczero::classic::NodeTree>();
         while (true) {
+            if (should_stop()) break;
             const int g = next_game.fetch_add(1);
             if (g >= games) break;
             const bool a_is_white = (g % 2 == 0);        // alternate colors for fairness
@@ -250,7 +283,12 @@ int run_arena(const EngineOptions& o) {
     for (int w = 0; w < workers; ++w) pool.emplace_back(worker);
     for (auto& t : pool) t.join();
 
-    const double score_a = (a_wins + 0.5 * draws) / std::max(1, games);
+    // Scored over the games actually played (fewer than --games after a soft stop).
+    const double score_a = (a_wins + 0.5 * draws) / std::max(1, done);
+    std::cout << "\n[arena] Finished " << done << "/" << games << " games";
+    if (stopped_by_time.load()) std::cout << " (dung som do dat nguong --max-seconds)";
+    else if (stopped_by_file.load()) std::cout << " (dung som do tep --stop-file)";
+    std::cout << std::endl;
     std::cout << "\n=== ARENA RESULT ===" << std::endl;
     std::cout << "  A wins=" << a_wins << "  draws=" << draws << "  B wins=" << b_wins << std::endl;
     std::cout << "  A score = " << score_a << "  (>0.5 => A stronger than B)" << std::endl;
@@ -261,5 +299,8 @@ int run_arena(const EngineOptions& o) {
         std::cout << "  speed: " << nps << " nps (" << total_nodes.load() << " playouts in "
                   << secs << "s)" << std::endl;
     }
+    // One machine-readable line for the phone's loop (sums the machines of one arena).
+    std::cout << "FZ_ARENA W=" << a_wins << " D=" << draws << " L=" << b_wins
+              << " N=" << done << std::endl;
     return 0;
 }
