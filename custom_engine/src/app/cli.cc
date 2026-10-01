@@ -112,7 +112,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         else if (a == "--max-seconds")        real_value(&o.sp_max_seconds, 0.0, 1e9);
         else if (a == "--temp-cutoff")        int_value(&o.sp_temp_cutoff, 0, kBig);
         else if (a == "--backend-threads")    int_value(&o.sp_backend_threads, 1, 256);
-        else if (a == "--fixed-batch")        int_value(&o.sp_fixed_batch, 1, 64);
+        else if (a == "--fixed-batch")        int_value(&o.sp_fixed_batch, 0, 64);  // 0 = dynamic batch (CUDA: no padding)
         else if (a == "--noise-epsilon")      real_value(&o.sp_noise_eps, 0.0, 1.0);
         else if (a == "--noise-alpha")        real_value(&o.sp_noise_alpha, 1e-6, 1e6);
         else if (a == "--policy-temp")        real_value(&o.sp_policy_temp, 1e-3, 1e3);
