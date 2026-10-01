@@ -518,6 +518,55 @@ void OnnxBackend::InitializeSession() {
             }
             gpu_ep = true;
         }
+        if (provider_ == "tensorrt") {
+            // TensorRT EP (A2): builds an engine for this net on first use (minutes),
+            // cached on disk under trt_engine_cache_path and reused. Needs the
+            // TensorRT 10 libs (libnvinfer*.so.10, libnvonnxparser.so.10) on
+            // LD_LIBRARY_PATH. fp32 only (trt_fp16_enable=0). Nodes TensorRT cannot
+            // take fall back to the CUDA EP appended after it. --trt-opt key=value
+            // adds/overrides any TensorRT EP option (an unknown key stops the run).
+            std::vector<std::pair<std::string, std::string>> kv = {
+                {"device_id", "0"},
+                {"trt_fp16_enable", "0"},
+                {"trt_engine_cache_enable", "1"},
+                {"trt_engine_cache_path", "trt_cache"},
+                {"trt_timing_cache_enable", "1"},
+                {"trt_timing_cache_path", "trt_cache"},
+            };
+            if (!(fixed_batch_ && fixed_batch_size_ > 0)) {
+                // Dynamic batch: one optimization profile 1..MaxBatchSize, tuned at the max.
+                const std::string dims = "x" + std::to_string(InputPlanesCount) + "x" +
+                                         std::to_string(BoardHeight) + "x" + std::to_string(BoardWidth);
+                kv.push_back({"trt_profile_min_shapes", "input:1" + dims});
+                kv.push_back({"trt_profile_max_shapes", "input:" + std::to_string(MaxBatchSize) + dims});
+                kv.push_back({"trt_profile_opt_shapes", "input:" + std::to_string(MaxBatchSize) + dims});
+            }
+            for (const auto& o : trt_opts_) {
+                bool replaced = false;
+                for (auto& d : kv)
+                    if (d.first == o.first) { d.second = o.second; replaced = true; }
+                if (!replaced) kv.push_back(o);
+            }
+            OrtTensorRTProviderOptionsV2* trt = nullptr;
+            Ort::ThrowOnError(Ort::GetApi().CreateTensorRTProviderOptions(&trt));
+            std::unique_ptr<OrtTensorRTProviderOptionsV2, void(*)(OrtTensorRTProviderOptionsV2*)> guard(
+                trt, [](OrtTensorRTProviderOptionsV2* p) { Ort::GetApi().ReleaseTensorRTProviderOptions(p); });
+            std::vector<const char*> keys, values;
+            for (const auto& p : kv) {
+                keys.push_back(p.first.c_str());
+                values.push_back(p.second.c_str());
+            }
+            Ort::ThrowOnError(Ort::GetApi().UpdateTensorRTProviderOptions(
+                trt, keys.data(), values.data(), keys.size()));
+            session_options_.AppendExecutionProvider_TensorRT_V2(*trt);
+            OrtCUDAProviderOptions cuda_options{};
+            cuda_options.device_id = 0;
+            session_options_.AppendExecutionProvider_CUDA(cuda_options);
+            std::cout << "[ONNX Backend] TensorRT Execution Provider appended (+ CUDA fallback):";
+            for (const auto& p : kv) std::cout << " " << p.first << "=" << p.second;
+            std::cout << std::endl;
+            gpu_ep = true;
+        }
 #endif
 #ifdef USE_DML
         if (provider_ == "dml") {
@@ -575,6 +624,7 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     fixed_batch_size_ = 16;
     cuda_graph_ = false;
     cuda_opts_.clear();
+    trt_opts_.clear();
     profile_prefix_.clear();
 
     if (!backend_opts_.empty()) {
@@ -602,6 +652,8 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
                     } catch (...) {}
                 } else if (parts[0] == "cuda_graph") {
                     cuda_graph_ = (parts[1] == "1" || parts[1] == "true");
+                } else if (parts[0].rfind("trt.", 0) == 0 && parts[0].size() > 4) {
+                    trt_opts_.emplace_back(parts[0].substr(4), parts[1]);
                 } else if (parts[0] == "profile") {
                     profile_prefix_ = parts[1];
                 } else if (parts[0].rfind("cuda.", 0) == 0 && parts[0].size() > 5) {

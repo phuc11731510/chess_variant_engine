@@ -154,9 +154,10 @@ int run_selfplay(const EngineOptions& o) {
         // Backend options. CPU: game-level parallelism + low intra-op threads.
         // CUDA (Colab GPU, needs a -Duse_cuda build): provider=cuda + fixed_batch.
         std::string sp_backend_opts;
-        if (o.sp_provider == "cuda") {
-            sp_backend_opts = "provider=cuda,fixed_batch=" + std::to_string(o.sp_fixed_batch);
+        if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt") {
+            sp_backend_opts = "provider=" + o.sp_provider + ",fixed_batch=" + std::to_string(o.sp_fixed_batch);
             for (const auto& kv : o.sp_cuda_opts) sp_backend_opts += ",cuda." + kv;
+            for (const auto& kv : o.sp_trt_opts) sp_backend_opts += ",trt." + kv;
         } else if (o.sp_provider == "dml") {
             // Windows iGPU (needs a -Duse_dml build). The explicit provider= key is
             // REQUIRED or onnxruntime silently runs on CPU.
