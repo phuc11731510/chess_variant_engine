@@ -3,8 +3,10 @@
 # 48 ván vẫn sai số lớn (hàng trăm Elo); phát hiện chênh ~50 Elo cần 400-1000 ván.
 # --search-opt max-prefetch=0: như ô 04 -- bỏ đánh giá mạng "đoán trước" (đo trên T4: +37% nps).
 # Gom batch như ô 04 (engine từ 4501740, 2026-09-29): 16 ván cùng lúc, mỗi mạng gom lá của mọi ván
-# đang đến lượt nó vào một lần chạy GPU (--batch-aggregate, --fixed-batch 64, minibatch 32,
-# task-workers 0). Đo T4 gen11 vs gen10: 2.164 -> 2.400 nps (+11%), ván/giờ +19%. Binary cũ không có
+# đang đến lượt nó vào một lần chạy GPU (--batch-aggregate, minibatch 32,
+# task-workers 0). Đo T4 gen11 vs gen10: 2.164 -> 2.400 nps (+11%), ván/giờ +19%. Từ 2026-10-01 mẻ
+# 32 thay 64: arena gom ít lá mỗi lần (cây mới mỗi nước, 400 lượt), mẻ 64 bỏ phí 40-45% chỗ trống;
+# đo T4 gen20 vs gen19: 64 -> 2.165-2.364 nps, 32 -> 2.599 nps (phí còn 27%). Binary cũ không có
 # arena gom batch: log thiếu dòng "[arena] batch-aggregate ON" -> lấy binary mới (ô 02).
 # Vòng lặp tự động (menu v) tự ghi A_ONNX, B_ONNX, GAMES, SECS dưới đây vào bản chép của ô này.
 # fz: hoi GAMES Số ván arena (hai bên đổi màu mỗi ván)
@@ -30,7 +32,7 @@ cmd = f"""bash {E}/run.sh --arena \
     --model-a {A_ONNX} \
     --model-b {B_ONNX} \
     --games {GAMES} --visits 400 --temp-cutoff 32 \
-    --provider cuda --fixed-batch 64 --max-moves 400 --show-nps \
+    --provider cuda --fixed-batch 32 --max-moves 400 --show-nps \
     --search-opt max-prefetch=0 --parallel {PARALLEL} --batch-aggregate \
     --search-opt minibatch-size=32 --search-opt task-workers=0"""
 if co_dung_mem:
