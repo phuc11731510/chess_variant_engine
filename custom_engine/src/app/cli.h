@@ -40,6 +40,7 @@ struct EngineOptions {
     // cudnn_conv_algo_search=HEURISTIC, prefer_nhwc=1), passed as-is to
     // UpdateCUDAProviderOptions -- an unknown key stops the run. --provider cuda only.
     std::vector<std::string> sp_cuda_opts;
+    std::string ort_profile;  // --ort-profile PREFIX (--bench-nn): ORT per-node timing JSON
     bool sp_batch_aggregate=false;  // --batch-aggregate: gom batch NN xuyên nhiều ván (A4, GPU)
     int sp_batch_timeout_us=2000;   // --batch-timeout-us: cửa sổ gộp batch (chống treo)
     std::string arena_a, arena_b;

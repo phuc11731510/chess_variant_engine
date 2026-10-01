@@ -109,6 +109,8 @@ class OnnxBackend : public Backend {
 
   // For --bench-nn only (copy-cost measurement with IoBinding).
   Ort::Session* SessionForBench() { return session_.get(); }
+  // Writes the ORT profile (needs "profile=<prefix>"); returns its path, "" if off.
+  std::string EndProfilingForBench();
 
  private:
   void InitializeSession();
@@ -123,9 +125,11 @@ class OnnxBackend : public Backend {
   std::string provider_ = "cpu";
   bool fixed_batch_ = false;
   size_t fixed_batch_size_ = 16;
-  bool cuda_graph_ = false;
+  bool cuda_graph_ = false;  // EXPERIMENTAL: "cuda_graph=1" backend opt, CUDA-only, needs fixed_batch_. See InitializeSession().
   // "cuda.<key>=<value>" backend opts -> ORT CUDA EP options (--cuda-opt).
-  std::vector<std::pair<std::string, std::string>> cuda_opts_;  // EXPERIMENTAL: "cuda_graph=1" backend opt, CUDA-only, needs fixed_batch_. See InitializeSession().
+  std::vector<std::pair<std::string, std::string>> cuda_opts_;
+  // "profile=<prefix>" (--bench-nn --ort-profile): ORT per-node timing JSON.
+  std::string profile_prefix_;
   int intra_op_threads_ = 1;
   int inter_op_threads_ = 1;
   float softmax_temp_ = 1.0f;
