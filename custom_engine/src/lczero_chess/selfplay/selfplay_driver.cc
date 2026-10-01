@@ -147,9 +147,20 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
     }
   };
 
+  // Producers are registered BEFORE any worker starts (else the first batches
+  // would launch with whatever the first thread submitted) and each worker
+  // unregisters its threads when it stops taking games.
+  const int tpg = std::max(1, cfg.threads_per_game);
+  if (cfg.producer_enter)
+    for (int i = 0; i < workers * tpg; ++i) cfg.producer_enter();
+  auto worker_then_leave = [&]() {
+    worker();
+    if (cfg.producer_leave)
+      for (int i = 0; i < tpg; ++i) cfg.producer_leave();
+  };
   std::vector<std::thread> pool;
   pool.reserve(workers);
-  for (int i = 0; i < workers; ++i) pool.emplace_back(worker);
+  for (int i = 0; i < workers; ++i) pool.emplace_back(worker_then_leave);
   for (auto& t : pool) t.join();
 
   const double secs =

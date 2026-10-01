@@ -36,6 +36,10 @@ struct EngineOptions {
     std::vector<std::pair<std::string,std::string>> sp_search_opts;
     bool sp_show_nps=false;   // --show-nps: print aggregate MCTS NPS during self-play
     bool sp_cuda_graph=false;  // --cuda-graph: EXPERIMENTAL, bat CUDA Graph capture (chi ONNX Runtime CUDA EP, doi hoi --fixed-batch > 0). Chua kiem chung tren phan cung that -- dung --bench-nn de do ca toc do lan tinh dung dan truoc khi dung cho selfplay/arena that.
+    // --cuda-opt key=value (repeatable): ONNX Runtime CUDA EP option (e.g.
+    // cudnn_conv_algo_search=HEURISTIC, prefer_nhwc=1), passed as-is to
+    // UpdateCUDAProviderOptions -- an unknown key stops the run. --provider cuda only.
+    std::vector<std::string> sp_cuda_opts;
     bool sp_batch_aggregate=false;  // --batch-aggregate: gom batch NN xuyên nhiều ván (A4, GPU)
     int sp_batch_timeout_us=2000;   // --batch-timeout-us: cửa sổ gộp batch (chống treo)
     std::string arena_a, arena_b;

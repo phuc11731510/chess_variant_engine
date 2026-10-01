@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -28,6 +29,12 @@ struct SelfPlayConfig {
   int resign_earliest_move = 0;   // do not resign before this ply (lc0 resign-earliest-move).
   float no_resign_frac = 0.10f;   // fraction of games with resign disabled (learn to defend).
   bool show_nps = false;          // append aggregate MCTS NPS to the progress log (--show-nps).
+  // --batch-aggregate: called once per search thread when it starts producing NN
+  // requests (before any game) and when its worker stops taking games, so the
+  // BatchingBackend knows how many threads can still submit. Without it, once
+  // the soft stop leaves fewer than `parallel` games running, every batch waited
+  // for the full --batch-timeout-us. Empty = not used.
+  std::function<void()> producer_enter, producer_leave;
 };
 
 // Generates `cfg.num_games` self-play games into `cfg.out_dir`. Games run on

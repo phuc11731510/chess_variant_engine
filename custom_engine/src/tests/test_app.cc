@@ -95,6 +95,8 @@ void TestParseCli() {
              {"--play-black", "--weights", "net.onnx", "--visits", "400"},
              {"--uci-nn", "--weights", "net.onnx", "--provider", "dml"},
              {"--bench-nn", "--weights", "net.onnx", "--provider", "cuda", "--cuda-graph"},
+             {"--bench-nn", "--weights", "net.onnx", "--provider", "cuda", "--cuda-opt",
+              "cudnn_conv_algo_search=HEURISTIC", "--cuda-opt", "prefer_nhwc=1"},
              {"--arena", "--model-a", "a", "--model-b", "b", "--arena-moves"},
          }) {
         const auto o = Parse(args);
@@ -117,6 +119,10 @@ void TestParseCli() {
     // Every one of these must be an error, not a default.
     for (const auto& args : std::vector<std::vector<std::string>>{
              {"--selfplay", "--visit", "800"},           // typo'd flag
+             {"--selfplay", "--cuda-opt", "prefer_nhwc"},          // no value
+             {"--selfplay", "--cuda-opt", "=1"},                   // no key
+             {"--selfplay", "--cuda-opt", "a,b=1"},                // would split the backend opts
+             {"--selfplay", "--cuda-opt", "prefer_nhwc=1,x=2"},
              {"--selfplay", "--max-move", "400"},        // typo'd flag
              {"--selfplay", "--visits"},                 // missing value
              {"--selfplay", "--visits", "8OO"},          // letter O

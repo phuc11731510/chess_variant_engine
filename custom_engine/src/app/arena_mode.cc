@@ -85,6 +85,7 @@ int run_arena(const EngineOptions& o) {
     std::string bopts;
     if (o.sp_provider == "cuda") {
         bopts = "provider=cuda,fixed_batch=" + std::to_string(std::max(1, o.sp_fixed_batch));
+        for (const auto& kv : o.sp_cuda_opts) bopts += ",cuda." + kv;
     } else if (o.sp_provider == "dml") {
         bopts = "provider=dml,threads=" + std::to_string(std::max(1, o.sp_backend_threads));
     } else {
@@ -160,6 +161,11 @@ int run_arena(const EngineOptions& o) {
     int a_wins = 0, b_wins = 0, draws = 0, done = 0;
     const bool show_nps = o.sp_show_nps;          // --show-nps: aggregate MCTS NPS
     std::atomic<int64_t> total_nodes{0};
+    // Throughput breakdown (B4): time inside Search::RunBlocking vs building the
+    // Search, summed over workers; and the tail after the first worker ran out
+    // of games (fewer than `workers` games feeding the GPU).
+    std::atomic<int64_t> search_us{0}, setup_us{0}, searches{0};
+    std::atomic<int64_t> tail_start_us{-1}, nodes_at_tail{0};
     std::atomic<int> next_game{0};
     std::mutex mu;
     const auto arena_start = std::chrono::steady_clock::now();
@@ -223,8 +229,15 @@ int run_arena(const EngineOptions& o) {
                     std::move(stopper), false, false, sopts, nullptr);
                 lczero::BatchingBackend* agg = a_to_move ? agg_a : agg_b;
                 if (agg) agg->ProducerEnter();
+                const auto t_search = std::chrono::steady_clock::now();
                 search->RunBlocking(1);
+                const auto t_done = std::chrono::steady_clock::now();
                 if (agg) agg->ProducerLeave();
+                search_us.fetch_add(std::chrono::duration_cast<std::chrono::microseconds>(
+                                        t_done - t_search).count());
+                setup_us.fetch_add(std::chrono::duration_cast<std::chrono::microseconds>(
+                                       t_search - start).count());
+                searches.fetch_add(1);
 
                 lczero::classic::Node* root = tree->GetCurrentHead();
                 game_nodes += static_cast<int64_t>(root->GetN());
@@ -280,7 +293,18 @@ int run_arena(const EngineOptions& o) {
     };
     std::vector<std::thread> pool;
     pool.reserve(workers);
-    for (int w = 0; w < workers; ++w) pool.emplace_back(worker);
+    std::atomic<int> done_at_tail{0};
+    for (int w = 0; w < workers; ++w)
+        pool.emplace_back([&] {
+            worker();
+            int64_t none = -1;
+            const int64_t now_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                                       std::chrono::steady_clock::now() - arena_start).count();
+            if (tail_start_us.compare_exchange_strong(none, now_us)) {
+                std::lock_guard<std::mutex> lk(mu);
+                done_at_tail = done;
+            }
+        });
     for (auto& t : pool) t.join();
 
     // Scored over the games actually played (fewer than --games after a soft stop).
@@ -298,6 +322,48 @@ int run_arena(const EngineOptions& o) {
         const long nps = (secs > 0.0) ? std::lround(total_nodes.load() / secs) : 0;
         std::cout << "  speed: " << nps << " nps (" << total_nodes.load() << " playouts in "
                   << secs << "s)" << std::endl;
+    }
+    // Where the time goes (same counters as the self-play summary). The NN
+    // counters are global, i.e. both nets together.
+    {
+        const double secs = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - arena_start).count();
+        const auto ev = lczero::OnnxGetEvalCounters();
+        const int64_t n_search = searches.load();
+        std::cout << "  --- Throughput ---\n";
+        if (done > 0 && secs > 0.0)
+            std::cout << "  Van/gio            : " << (done * 3600.0 / secs) << "\n";
+        if (ev.runs > 0 && secs > 0.0) {
+            const double waste =
+                ev.padded > 0 ? 100.0 * (ev.padded - ev.real) / ev.padded : 0.0;
+            std::cout << "  NN eval/giay       : " << (ev.real / secs) << "\n"
+                      << "  NN eval/playout    : "
+                      << (total_nodes.load() > 0
+                              ? static_cast<double>(ev.real) / total_nodes.load() : 0.0) << "\n"
+                      << "  Run()/giay         : " << (ev.runs / secs) << "\n"
+                      << "  Batch TB moi Run() : " << (static_cast<double>(ev.real) / ev.runs)
+                      << "  (so lan Run: " << ev.runs << ")\n"
+                      << "  Phi do pad         : " << waste << "%  ("
+                      << (ev.padded - ev.real) << "/" << ev.padded << " o batch)\n";
+        }
+        if (n_search > 0 && secs > 0.0) {
+            // Per worker: share of wall time inside RunBlocking / building the
+            // Search; the rest is move selection, MakeMove, result check, waiting.
+            const double wall_us = secs * 1e6 * workers;
+            std::cout << "  Tim kiem (RunBlocking): " << 100.0 * search_us.load() / wall_us
+                      << "% thoi gian moi luong, TB " << search_us.load() / 1000.0 / n_search
+                      << " ms/nuoc (" << n_search << " nuoc)\n"
+                      << "  Dung Search moi nuoc  : " << 100.0 * setup_us.load() / wall_us
+                      << "% thoi gian, TB " << setup_us.load() / 1000.0 / n_search << " ms/nuoc\n";
+        }
+        const int64_t tail = tail_start_us.load();
+        if (tail >= 0 && secs > 0.0) {
+            const double tail_s = secs - tail / 1e6;
+            std::cout << "  Duoi (sau khi luong dau tien het van): " << tail_s << " s = "
+                      << 100.0 * tail_s / secs << "% thoi gian, xong them "
+                      << (done - done_at_tail.load()) << " van\n";
+        }
+        std::cout << std::flush;
     }
     // One machine-readable line for the phone's loop (sums the machines of one arena).
     std::cout << "FZ_ARENA W=" << a_wins << " D=" << draws << " L=" << b_wins

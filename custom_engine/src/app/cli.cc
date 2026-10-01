@@ -1,4 +1,5 @@
 #include "app/cli.h"
+#include <cctype>
 #include <cerrno>
 #include <cmath>
 #include <cstdlib>
@@ -143,6 +144,22 @@ EngineOptions parse_cli(int argc, char* argv[]) {
                 error("--search-opt '" + kv + "': expected name=value");
             } else {
                 o.sp_search_opts.emplace_back(kv.substr(0, eq), kv.substr(eq + 1));
+            }
+        } else if (a == "--cuda-opt") {         // "key=value", ORT CUDA EP option
+            std::string kv;
+            const size_t errors_before = o.errors.size();
+            string_value(&kv);
+            const auto eq = kv.find('=');
+            bool key_ok = eq != std::string::npos && eq > 0;
+            for (size_t k = 0; key_ok && k < eq; ++k)
+                key_ok = std::isalnum(static_cast<unsigned char>(kv[k])) || kv[k] == '_';
+            if (o.errors.size() != errors_before) {
+                // missing value, already reported
+            } else if (!key_ok || eq + 1 >= kv.size() ||
+                       kv.find_first_of(",=", eq + 1) != std::string::npos) {
+                error("--cuda-opt '" + kv + "': expected key=value (key: letters, digits, _)");
+            } else {
+                o.sp_cuda_opts.push_back(kv);
             }
         } else {
             error(a.rfind("-", 0) == 0 ? "unknown flag " + a : "unexpected argument " + a);
