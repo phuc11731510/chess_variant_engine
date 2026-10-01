@@ -84,7 +84,8 @@ std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
   } else {
     bo = "threads=" + std::to_string(std::max(1, o.sp_backend_threads));
   }
-  if (fixed_batch > 0) bo += ",fixed_batch=" + std::to_string(fixed_batch);
+  // 0 = dynamic batch (explicit: the backend's own default is fixed 16).
+  bo += ",fixed_batch=" + std::to_string(std::max(0, fixed_batch));
   if (cuda_graph) bo += ",cuda_graph=1";
   if (with_cuda_opts && o.sp_provider == "cuda")
     for (const auto& kv : o.sp_cuda_opts) bo += ",cuda." + kv;
@@ -406,6 +407,39 @@ int run_bench_nn(const EngineOptions& o) {
         std::printf("  (min-max: mac dinh %.3f-%.3f, thu %.3f-%.3f ms/Run)\n",
                     a[0], a[4], b[0], b[4]);
         std::printf("FZ_A1 %.4f %.4f %.6f\n", a[2], b[2], d);
+      }
+    }
+  }
+
+  // ---- B3: how to stop paying for padding -----------------------------------
+  // For each REAL batch n the search may hand over: (1) the production fixed-64
+  // session, padded to 64; (2) a session fixed at exactly n (what a set of
+  // per-size sessions would use); (3) ONE dynamic-shape session (fixed_batch=0)
+  // run at n. Same position, ms per Run -- the gap to (1) is what padding costs.
+  if (o.sp_provider == "cuda") {
+    std::cout << "\n--- B3: me that n -- phien co dinh 64 (pad) / phien co dinh n / phien dong ---\n";
+    std::unique_ptr<lczero::Backend> f64, dyn;
+    std::string bo;
+    try { f64 = MakeRawOnnx(o, 64, false, &bo); } catch (const std::exception& e) {
+      std::cerr << "  khong dung duoc phien 64: " << e.what() << "\n";
+    }
+    try { dyn = MakeRawOnnx(o, 0, false, &bo); } catch (const std::exception& e) {
+      std::cerr << "  khong dung duoc phien dong: " << e.what() << "\n";
+    }
+    if (f64 && dyn) {
+      std::printf("  max|dong - co dinh 64| = %.6f\n", max_output_diff(f64.get(), dyn.get(), 8));
+      std::printf("%5s %12s %12s %12s %10s %10s\n", "n", "co dinh 64", "co dinh n", "dong",
+                  "n/64", "dong/64");
+      for (int n = 8; n <= 64; n += 8) {
+        std::unique_ptr<lczero::Backend> fn;
+        try { fn = MakeRawOnnx(o, n, false, &bo); } catch (const std::exception&) {}
+        const double a = measure(f64.get(), n).ms_per_run;
+        const double b = fn ? measure(fn.get(), n).ms_per_run : 0.0;
+        // dynamic: warm this shape first (cuDNN algo search per new shape)
+        const double c = measure(dyn.get(), n).ms_per_run;
+        std::printf("%5d %10.3f ms %10.3f ms %10.3f ms %9.1f%% %9.1f%%\n", n, a, b, c,
+                    b > 0 ? 100.0 * b / a : 0.0, 100.0 * c / a);
+        std::printf("FZ_B3 %d %.4f %.4f %.4f\n", n, a, b, c);
       }
     }
   }
