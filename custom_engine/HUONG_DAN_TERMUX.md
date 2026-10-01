@@ -758,11 +758,16 @@ hạn mức (như ô 04), rồi in đời đang ở giai đoạn nào (vd `Đã 
 
 | Giai đoạn | Việc |
 |---|---|
-| 1. Xin máy | Thử T4 lần lượt: tài khoản **đã tới giờ nạp lại** → **xanh** (≥ 1 giờ T4, nhiều trước) → chưa chụp hạn mức. Bỏ qua: vàng (< 1 giờ), HẾT chờ giờ nạp lại, tài khoản đang mở ở cửa sổ khác hoặc đang giữ máy không phải của vòng lặp. Không xin được máy nào → 10 phút sau thử lại (tài khoản HẾT không rõ giờ nạp lại: mỗi giờ thử một lần). |
+| 1. Xin máy | Thử T4 lần lượt: tài khoản **đã tới giờ nạp lại** → **xanh** (≥ 1 giờ T4, nhiều trước) → chưa chụp hạn mức. Bỏ qua: vàng (< 1 giờ), HẾT chờ giờ nạp lại, tài khoản đang mở ở cửa sổ khác hoặc đang giữ máy không phải của vòng lặp. Không xin được máy nào → **lịch xin chung** cho mọi cửa sổ (từ 2026-10-01): xin lại đúng lúc **giờ nạp lại sớm nhất đã biết** của các tài khoản; tài khoản HẾT mà không rõ giờ nạp lại thì mỗi giờ thử một lần (xin được mới biết giờ nạp); tài khoản còn hạn mức mà Colab từ chối (hết T4 tạm thời) thì 10 phút. Trước lúc đó **không cửa sổ nào xin** — chỉ một cửa sổ xin mỗi lần; log in `xin lại lúc HH:MM (lý do)`. |
 | 2. Sinh dữ liệu | Máy mới: `02`. Rồi `04` với `SECS` = hạn mức T4 − số phút chừa, `GAMES` = số ván còn thiếu → `06` → tải về với tên tích luỹ `games_genG_<tổng>.zip`. **Tổng** = số lớn nhất trong tên gói + số ván đã xong trên các máy đang chạy. Đủ mục tiêu → mỗi cửa sổ **dừng mềm** máy của mình (ván dở chơi nốt). Máy hết lượt mà chưa đủ → tải về, trả máy, xin tài khoản khác. |
 | 3. Huấn luyện | Khi mọi máy đã tải về: cửa sổ có máy **nhiều hạn mức nhất** huấn luyện, cửa sổ kia trả máy và chờ (không xin máy trong lúc chờ). Gộp mọi `games_genG_*.zip` vào thư mục `games_genG/`, gói `games_genG/`, `games_gen(G-1)/`, `games_gen(G-2)/` thành `games_genG.zip`. Máy phải còn **≥ 20 phút T4 lúc sắp tải dữ liệu lên** (không thì trả, xin máy khác), tải lên, `07`, tải `gen(G+1).onnx` + `.pt` về. Máy mất giữa chừng → xin máy mới ngay, rồi 10 phút một lần, làm lại. |
 | 4. Lên đời | `gh release upload` hai tệp mạng lên Release (theo `REL` ô 00), `GEN_CURRENT` + 1, sang đời mới — máy vừa huấn luyện (đã có mạng mới) sinh dữ liệu tiếp luôn. |
 | 0. Arena (tuỳ chọn) | Xem dưới. Nếu đời mới là một số trong **dãy đời arena**, nó đấu đời đứng ngay trước nó trong dãy **trước khi** sinh dữ liệu (giai đoạn 2). |
+
+**Lỗi tải tạm thời** (từ 2026-10-01): máy không tải được `gen<G>.onnx` / `.pt` từ Release (vd GitHub trả
+`ERROR 500`) → vòng lặp chạy lại 02 sau 5 phút, tối đa 6 lần liền rồi mới dừng (wget tự thử 4 lần mỗi
+lượt). Vòng lặp **dừng vì lỗi** mà còn giữ máy → nếu máy còn ván chưa tải về thì gom + tải về trước, rồi
+**trả máy** (tải về không được thì giữ máy để lấy tay `d`).
 
 **Arena trong vòng lặp** (từ 2026-09-30; cần ô 08 mới `bash ~/lay_ve.sh 08` và binary từ 2026-09-30).
 Lúc bắt đầu, sau số phút chừa, vòng lặp hỏi:

@@ -12,7 +12,8 @@
 #
 # Mot doi G (GEN_CURRENT cua o 00 luc bat dau; sau moi doi vong lap tu tang):
 #   1. Chua co may: xin T4 theo thu tu fz_tu_dong.py xep (da nap lai / xanh / chua chup ...), bo tai
-#      khoan dang mo o cua so khac; khong xin duoc thi 10 phut sau thu lai.
+#      khoan dang mo o cua so khac; khong xin duoc thi theo LICH CHUNG (td_lich: gio nap lai som nhat,
+#      HET khong ro gio nap: moi gio; con tai khoan thu duoc: 10 phut) -- chi mot cua so xin moi lan.
 #   2. 02 (neu may moi) -> 04 (SECS = han muc T4 - so phut chua, GAMES = so van con thieu) -> 06 ->
 #      tai ve. Tong = so lon nhat trong ten goi + van DA XONG tren cac may dang chay; du muc tieu thi
 #      moi cua so tao tep dung mem tren may minh (engine choi not van do roi thoat nhu het SECS).
@@ -32,7 +33,6 @@ TD_MUC_F=$TD/.muc_tieu
 TD_DUNG=$TD/dung_tay
 TD_PHUT_HL=20      # phut T4 toi thieu luc sap tai du lieu len de huan luyen
 TD_PHUT_SINH=20    # sau khi tru so phut chua, con it hon chung nay phut choi thi khong chay 04, tra may
-TD_CHO_XIN=600     # giay giua hai vong xin may
 TD_SO_DOI=4        # so doi du lieu moi lan huan luyen: doi hien tai + 3 doi truoc (tu doi 12, 2026-09-29; truoc la 3)
 TD_CO_MAY=0        # cua so nay dang giu may (tai khoan $TK, ten $S)
 TD_THOAT=0         # q: thoat vong lap o cua so nay, may van chay
@@ -219,12 +219,20 @@ td_nhan_lai() {
   return 1
 }
 td_ds_tk() { mapfile -t ds < <(echo; for tk in "$TKG"/*/; do [ -d "$tk" ] && basename "$tk"; done); }
+# LICH XIN MAY CHUNG cho moi cua so: $TD/.xin_sau = "<giay epoch>\t<ly do>" -- truoc luc do khong cua
+# so nao xin. Mot vong xin khong duoc (cua so nao lam truoc, trong khoa chon) ghi luc nen xin lai
+# (fz_tu_dong.py hen: gio nap lai som nhat da biet; HET khong ro gio nap: moi gio thu mot lan; con
+# tai khoan thu duoc: 10 phut). Cac cua so khac cho dung luc do -> chi MOT cua so xin moi lan.
+TD_XIN_SAU=$TD/.xin_sau
+td_lich() { local t; t=$(cut -f1 "$TD_XIN_SAU" 2>/dev/null); [[ "$t" =~ ^[0-9]+$ ]] && echo "$t" || echo 0; }
 td_xin_mot_vong() {
   local ds=() muc=() tk ten loai mo_ta rc
   mkdir -p "$TD"
   td_khoa_chon
   td_ds_tk
   if td_nhan_lai; then td_mo_khoa_chon; return 0; fi
+  # Chua toi lich (cua so khac vua xin khong duoc): khong xin.
+  if [ "$(date +%s)" -lt "$(td_lich)" ]; then td_mo_khoa_chon; return 1; fi
   for tk in "${ds[@]}"; do
     tk_dang_nhap "$tk" && muc+=("$(ten_tk "$tk")|$(td_home "$tk")|$(cat "$TD/thu_$(ten_tk "$tk")" 2>/dev/null)")
   done
@@ -246,8 +254,31 @@ td_xin_mot_vong() {
     fi
     td_ranh
   done 3< <(python ~/fz_tu_dong.py xep "${muc[@]}")
+  # Ca vong khong xin duoc: dat lich chung (thu_<ten> vua ghi o tren -> moc "moi gio" dung).
+  muc=()
+  for tk in "${ds[@]}"; do
+    tk_dang_nhap "$tk" && muc+=("$(ten_tk "$tk")|$(td_home "$tk")|$(cat "$TD/thu_$(ten_tk "$tk")" 2>/dev/null)")
+  done
+  if ! python ~/fz_tu_dong.py hen "${muc[@]}" > "$TD_XIN_SAU.t" 2>/dev/null || [ ! -s "$TD_XIN_SAU.t" ]; then
+    printf '%s\t%s\n' $(( $(date +%s) + 600 )) "10 phút (không tính được lịch)" > "$TD_XIN_SAU.t"
+  fi
+  mv "$TD_XIN_SAU.t" "$TD_XIN_SAU"
   td_mo_khoa_chon
   return 1
+}
+# Cho toi lich xin may chung. $1 = ham "thoi cho som" (tuy chon, 0 = thoi). 1 = nguoi dung chon q.
+td_cho_lich() {
+  local t bao=0
+  while :; do
+    t=$(td_lich)
+    [ "$(date +%s)" -ge "$t" ] && return 0
+    if [ $bao = 0 ]; then
+      td_in "chưa xin được máy -- xin lại lúc ${M_DAM}$(date -d "@$t" +%H:%M 2>/dev/null || echo "?")${M_HET} ($(cut -f2 "$TD_XIN_SAU" 2>/dev/null))"
+      bao=1
+    fi
+    td_ngu 10 || return 1
+    [ -n "${1:-}" ] && "$1" && return 0
+  done
 }
 
 # Xem log o $1 (pid $2) den khi o ket thuc; $3 = chi in tu $3 dong cuoi. O 04: dem van ([selfplay]
@@ -391,14 +422,38 @@ td_chuan_bi() {
     td_in "    (bản cũ): chạy tay 02 rồi 02b, đưa binary mới lên Release, rồi mở lại vòng lặp"
     return 2
   fi
-  if ! grep -q CO_ONNX <<<"$out"; then td_in "${M_DO}[!] Release không có gen$g.onnx${M_HET}"; return 2; fi
+  if ! grep -q CO_ONNX <<<"$out"; then
+    # Thuong la loi tam thoi cua GitHub (vd HTTP 500) -- cua so khac van tai duoc. 5 phut sau chay lai
+    # 02; 6 lan lien (30 phut) van khong co thi moi dung (va tra may, xem td_vong).
+    TD_LOI_ONNX=$((${TD_LOI_ONNX:-0} + 1))
+    if [ $TD_LOI_ONNX -ge 6 ]; then
+      td_in "${M_DO}[!] $TD_LOI_ONNX lần liền không tải được gen$g.onnx từ Release${M_HET} -- dừng"
+      TD_LOI_ONNX=0; return 2
+    fi
+    td_in "${M_VANG}[!] chưa tải được gen$g.onnx từ Release (lần $TD_LOI_ONNX/6)${M_HET} -- 5 phút nữa thử lại"
+    ssh_colab "rm -f /content/gen$g.onnx" 2>/dev/null
+    td_ngu 300 || return 4
+    return 1
+  fi
+  TD_LOI_ONNX=0
   if [ -n "$can_pt" ] && ! grep -q CO_PT <<<"$out"; then
     # Chi may huan luyen moi tai .pt + thu vien (o 02c) -- may chi sinh du lieu khong can.
     td_in "02c: tải gen$g.pt + thư viện huấn luyện"
     td_chay 02c "$(ls "$D"/02c_*.py 2>/dev/null | head -1)"; rc=$?
     [ $rc = 0 ] || return $rc
     out=$(td_kiem_may_cl "$g")
-    grep -q CO_PT <<<"$out" || { td_in "${M_DO}[!] chưa có gen$g.pt / thư viện huấn luyện (Release thiếu gen$g.pt?)${M_HET}"; return 2; }
+    if ! grep -q CO_PT <<<"$out"; then
+      TD_LOI_ONNX=$((${TD_LOI_ONNX:-0} + 1))       # cung bo dem: loi tai tam thoi nhu .onnx
+      if [ $TD_LOI_ONNX -ge 6 ]; then
+        td_in "${M_DO}[!] $TD_LOI_ONNX lần liền chưa có gen$g.pt / thư viện huấn luyện (Release thiếu gen$g.pt?)${M_HET} -- dừng"
+        TD_LOI_ONNX=0; return 2
+      fi
+      td_in "${M_VANG}[!] chưa tải được gen$g.pt / thư viện huấn luyện (lần $TD_LOI_ONNX/6)${M_HET} -- 5 phút nữa thử lại"
+      ssh_colab "rm -f /content/gen$g.pt" 2>/dev/null
+      td_ngu 300 || return 4
+      return 1
+    fi
+    TD_LOI_ONNX=0
   fi
   return 0
 }
@@ -543,7 +598,7 @@ td_ar_ghi() {
 td_ar_mang() {
   local a=$1 rel out
   rel=$(doc "$D/00_cau_hinh.py" | sed -n 's/^REL *= *"\([^"]*\)".*/\1/p' | head -1)
-  out=$(ssh_colab "f=/content/gen$a.onnx; test -s \$f || { wget -q -O \$f.t $rel/gen$a.onnx && mv \$f.t \$f; rm -f \$f.t; }; test -s \$f && echo FZ_CO" 2>/dev/null)
+  out=$(ssh_colab "f=/content/gen$a.onnx; test -s \$f || { wget -q --tries=4 --waitretry=15 --retry-on-http-error=429,500,502,503,504 -O \$f.t $rel/gen$a.onnx && mv \$f.t \$f; rm -f \$f.t; }; test -s \$f && echo FZ_CO" 2>/dev/null)
   grep -q FZ_CO <<<"$out" && return 0
   [ -s "$TAI/gen$a.onnx" ] || return 2
   td_in "Release không có gen$a.onnx -> tải từ điện thoại lên"
@@ -739,7 +794,7 @@ td_huan_luyen() {
       [ $NGAT = 1 ] && td_hoi_ngat
       [ $TD_THOAT = 1 ] && return
       if [ $TD_CO_MAY = 0 ]; then
-        if [ $lan -gt 0 ]; then td_in "$((TD_CHO_XIN / 60)) phút nữa xin lại"; td_ngu $TD_CHO_XIN || return; fi
+        if [ $lan -gt 0 ]; then td_cho_lich || return; fi
         lan=$((lan + 1))
         td_xin_mot_vong || continue
         td_ghi buoc=huan_luyen
@@ -798,18 +853,12 @@ td_len_doi() {
   else td_in "${M_DO}[!] không ghi được GEN_CURRENT = $2 vào 00_cau_hinh.py${M_HET}"; TD_LOI=1; fi
 }
 
-# Chua xin duoc may: cho TD_CHO_XIN giay (thoi som khi den luot huan luyen / du van / dung / doi doi).
-td_cho_xin() {
-  local g=$1 i
-  td_in "chưa xin được máy -- $((TD_CHO_XIN / 60)) phút nữa thử lại"
-  for ((i = 0; i < TD_CHO_XIN; i += 10)); do
-    td_ngu 10 || return
-    [ -f "$TD_DUNG" ] && return
-    [ "$(td_gen)" = "$g" ] || return
-    td_toi_luot_hl "$g" && return
-    [ "$(td_tong "$g")" -ge "$(td_muc)" ] && return
-  done
+# Chua xin duoc may: cho toi lich xin chung (thoi som khi den luot huan luyen / du van / dung / doi doi).
+td_cx_thoi() {
+  [ -f "$TD_DUNG" ] || [ "$(td_gen)" != "$TD_CX_G" ] || td_toi_luot_hl "$TD_CX_G" ||
+    [ "$(td_tong "$TD_CX_G")" -ge "$(td_muc)" ]
 }
+td_cho_xin() { TD_CX_G=$1; td_cho_lich td_cx_thoi; }
 
 # Hoi day doi arena + so van moi arena (Enter = giu), in tinh trang tung cap. 1 = go sai.
 td_hoi_arena() {
@@ -911,7 +960,8 @@ td_bat_dau() {
   read -rp "Enter = bắt đầu, n = thôi: " x
   [ -z "$x" ] || return 1
   # Khong con cua so nao chay vong lap: lenh dung tay cu (lan truoc) het hieu luc.
-  [ ${#khac[@]} -eq 0 ] && rm -f "$TD_DUNG"
+  # (va lich xin may chung cua lan truoc: mo lai vong lap = xin ngay)
+  [ ${#khac[@]} -eq 0 ] && rm -f "$TD_DUNG" "$TD_XIN_SAU"
   return 0
 }
 
@@ -958,6 +1008,21 @@ td_vong() {
     if [ $TD_NHAN_LAI = 1 ]; then TD_NHAN_LAI=0; td_tiep_tuc "$g"; continue; fi
     td_sinh "$g"
   done
+  # Dung vi loi ma con giu may: may van tieu han muc, het han muc thi Colab thu hoi -> mat van chua tai.
+  # Con van chua tai (thu muc van cua doi) -> gom + tai ve truoc; roi tra may. Tai ve loi -> giu may
+  # (lay tay: fz -> d) thay vi tra ma mat van.
+  if [ $TD_LOI = 1 ] && [ $TD_CO_MAY = 1 ]; then
+    local gv nv
+    gv=$(td_doc "$TD_W" gen); gv=${gv:-$(td_gen)}
+    nv=$(ssh_colab "ls /content/games_gen$gv 2>/dev/null | grep -c -E '\.(xz|gz|bin)\$'" 2>/dev/null)
+    if [[ "$nv" =~ ^[0-9]+$ ]] && [ "$nv" -gt 0 ]; then
+      td_in "máy còn $nv ván đời $gv chưa tải về -- gom, tải về trước khi trả máy"
+      if td_gom_tai "$gv"; then td_tra
+      else td_in "${M_DO}[!] chưa tải được ván về -- GIỮ máy (lấy tay: fz -> d, rồi t để trả)${M_HET}"; fi
+    else
+      td_tra
+    fi
+  fi
   rm -f "$TD_W"
   echo
   if [ $TD_THOAT = 1 ] && [ $TD_CO_MAY = 1 ]; then

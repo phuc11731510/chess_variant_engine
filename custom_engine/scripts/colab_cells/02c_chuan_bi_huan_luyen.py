@@ -12,5 +12,5 @@ if os.path.exists(CURRENT_PT) and os.path.getsize(CURRENT_PT) > 0:
 else:
     name = CURRENT_PT.split("/")[-1]
     # wget hỏng vẫn để lại tệp rỗng -> xoá để không nhầm là đã có
-    !wget -nv -O {CURRENT_PT} {REL}/{name} || (echo "[!] Release KHONG co {name}"; rm -f {CURRENT_PT})
+    !wget -nv --tries=4 --waitretry=15 --retry-on-http-error=429,500,502,503,504 -O {CURRENT_PT} {REL}/{name} || (echo "[!] Khong tai duoc {name} tu Release (thu 4 lan)"; rm -f {CURRENT_PT})
 !ls -la {CURRENT_PT} 2>/dev/null

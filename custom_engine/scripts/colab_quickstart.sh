@@ -44,7 +44,7 @@ BIN="$ENGINE_DIR/build-linux/custom_engine"
 if [ ! -f "$BIN" ] && [ -n "${BIN_URL:-}" ]; then
   echo "[quick] tai binary: $BIN_URL"
   mkdir -p "$ENGINE_DIR/build-linux"
-  wget -q "$BIN_URL" -O "$BIN" || { echo "[quick] FATAL: tai binary that bai" >&2; exit 1; }
+  wget -q --tries=4 --waitretry=15 --retry-on-http-error=429,500,502,503,504 "$BIN_URL" -O "$BIN" || { echo "[quick] FATAL: tai binary that bai" >&2; exit 1; }
 fi
 [ -f "$BIN" ] || {
   echo "[quick] FATAL: khong co binary o $BIN" >&2
@@ -61,7 +61,7 @@ if [ ! -d "$ORT_PKG" ]; then
   ok=
   if [ -n "${ORT_GON_URL:-}" ]; then
     echo "[quick] tai $ORT_PKG (goi gon) ..."
-    if wget -q "$ORT_GON_URL" -O "${ORT_PKG}.tar.xz" &&
+    if wget -q --tries=4 --waitretry=15 --retry-on-http-error=429,500,502,503,504 "$ORT_GON_URL" -O "${ORT_PKG}.tar.xz" &&
        { [ -z "${ORT_GON_SHA:-}" ] || echo "$ORT_GON_SHA  ${ORT_PKG}.tar.xz" | sha256sum -c --quiet; } &&
        tar xJf "${ORT_PKG}.tar.xz"; then ok=1
     else echo "[quick] goi gon loi -- tai goi chinh thuc"; rm -rf "$ORT_PKG"; fi
@@ -69,7 +69,7 @@ if [ ! -d "$ORT_PKG" ]; then
   fi
   if [ -z "$ok" ]; then
     echo "[quick] tai $ORT_PKG ..."
-    wget -q "$ORT_URL" -O "${ORT_PKG}.tgz"
+    wget -q --tries=4 --waitretry=15 --retry-on-http-error=429,500,502,503,504 "$ORT_URL" -O "${ORT_PKG}.tgz"
     tar xzf "${ORT_PKG}.tgz"
     rm -f "${ORT_PKG}.tgz"
   fi
