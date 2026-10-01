@@ -574,13 +574,12 @@ tai_khoan() {
       colab sessions      # chua co token -> CLI in link dang nhap o day
       dung; return ;;
     d|D)
-      # Tai khoan trung: cung tep token (chep nham giua cac dien thoai) hoac cung email Google.
+      # Tai khoan trung: cung tep token (chep nham giua cac dien thoai). Chi so tep, khong hoi mang.
       if [ ! -f ~/fz_trung_tk.py ]; then echo "[!] Thiếu ~/fz_trung_tk.py -- chạy: bash ~/lay_ve.sh"; dung; continue; fi
       local muc=()
       for ten in "${ds[@]}"; do
         muc+=("$(ten_tk "$ten")|$([ -n "$ten" ] && echo "$TKG/$ten" || echo "$HOME")")
       done
-      echo "[đang hỏi Google email của từng token...]"
       python ~/fz_trung_tk.py "${muc[@]}"
       dung ;;
     r|R)
