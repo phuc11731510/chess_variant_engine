@@ -15,6 +15,9 @@
 #include "utils/random.h"
 
 namespace lczero {
+
+std::atomic<int64_t> g_live_playouts{0};
+
 namespace {
 
 // No-op responder so self-play searches don't print UCI info.
@@ -164,8 +167,12 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
       black_attack += Stockfish::popcount(rp.pieces(Stockfish::BLACK) & kWhiteHalf);
     }
 
-    local_nodes +=
-        SearchSelfPlayMove(tree.get(), backend, options, visits, search_threads);
+    {
+      const int64_t n =
+          SearchSelfPlayMove(tree.get(), backend, options, visits, search_threads);
+      local_nodes += n;
+      g_live_playouts.fetch_add(n, std::memory_order_relaxed);
+    }
     const classic::Node* root = tree->GetCurrentHead();
 
     TrainingDataV1 rec;
