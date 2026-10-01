@@ -70,7 +70,8 @@ std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
                                              int fixed_batch,
                                              bool cuda_graph,
                                              std::string* opts_out,
-                                             bool with_cuda_opts = true) {
+                                             bool with_cuda_opts = true,
+                                             const std::string& profile = "") {
   lczero::OptionsParser parser;
   lczero::classic::SearchParams::Populate(&parser);
   auto* d = parser.GetMutableDefaultsOptions();
@@ -89,6 +90,7 @@ std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
   if (cuda_graph) bo += ",cuda_graph=1";
   if (with_cuda_opts && o.sp_provider == "cuda")
     for (const auto& kv : o.sp_cuda_opts) bo += ",cuda." + kv;
+  if (!profile.empty()) bo += ",profile=" + profile;
   d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bo);
   if (opts_out) *opts_out = bo;
 
@@ -441,6 +443,22 @@ int run_bench_nn(const EngineOptions& o) {
                     b > 0 ? 100.0 * b / a : 0.0, 100.0 * c / a);
         std::printf("FZ_B3 %d %.4f %.4f %.4f\n", n, a, b, c);
       }
+    }
+  }
+
+  // ---- --ort-profile: per-node GPU time of one production-size session ------
+  if (!o.ort_profile.empty() && static_cast<size_t>(prod) <= lczero::MaxBatchSize) {
+    std::string bo;
+    try {
+      auto be = MakeRawOnnx(o, prod, false, &bo, true, o.ort_profile);
+      const Sample s = measure(be.get(), prod);
+      const std::string path =
+          static_cast<lczero::OnnxBackend*>(be.get())->EndProfilingForBench();
+      std::printf("\n--- ORT profile (fixed_batch=%d, %.3f ms/Run): %s\n", prod, s.ms_per_run,
+                  path.c_str());
+      std::printf("FZ_PROFILE %s\n", path.c_str());
+    } catch (const std::exception& e) {
+      std::cerr << "  --ort-profile loi: " << e.what() << "\n";
     }
   }
 

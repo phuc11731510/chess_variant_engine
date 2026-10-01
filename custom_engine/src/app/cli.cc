@@ -125,6 +125,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         else if (a == "--provider")           string_value(&o.sp_provider);
         else if (a == "--out")                string_value(&o.sp_out);
         else if (a == "--stop-file")          string_value(&o.sp_stop_file);
+        else if (a == "--ort-profile")        string_value(&o.ort_profile);
         else if (a == "--start-fen")          string_value(&o.sp_start_fen);
         else if (a == "--weights")            { string_value(&o.weights_file); o.weights_given = true; }
         else if (a == "--model-a")            string_value(&o.arena_a);

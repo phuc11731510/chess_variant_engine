@@ -384,6 +384,12 @@ OnnxBackend::OnnxBackend()
       memory_info_(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)) {
 }
 
+std::string OnnxBackend::EndProfilingForBench() {
+    if (profile_prefix_.empty() || !session_) return "";
+    Ort::AllocatorWithDefaultOptions alloc;
+    return session_->EndProfilingAllocated(alloc).get();
+}
+
 BackendAttributes OnnxBackend::GetAttributes() const {
     int rec_batch = fixed_batch_ ? static_cast<int>(fixed_batch_size_) : 16;
     int max_batch = fixed_batch_ ? static_cast<int>(fixed_batch_size_) : static_cast<int>(MaxBatchSize);
@@ -418,7 +424,16 @@ void OnnxBackend::InitializeSession() {
     // Reset and rebuild session options
     session_options_ = Ort::SessionOptions();
     session_options_.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-    
+    if (!profile_prefix_.empty()) {
+#ifdef _WIN32
+        const std::wstring wprefix(profile_prefix_.begin(), profile_prefix_.end());
+        session_options_.EnableProfiling(wprefix.c_str());
+#else
+        session_options_.EnableProfiling(profile_prefix_.c_str());
+#endif
+        std::cout << "[ONNX Backend] ORT profiling ON (prefix " << profile_prefix_ << ")" << std::endl;
+    }
+
     bool gpu_ep = false;   // true only if a real GPU Execution Provider was appended
     if (provider_ != "cpu") {
         // GPU-class provider: CUDA (Colab, -Duse_cuda) or DirectML (Windows iGPU/GPU,
@@ -560,6 +575,7 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     fixed_batch_size_ = 16;
     cuda_graph_ = false;
     cuda_opts_.clear();
+    profile_prefix_.clear();
 
     if (!backend_opts_.empty()) {
         for (const auto& opt : split_options(backend_opts_, ',')) {
@@ -586,6 +602,8 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
                     } catch (...) {}
                 } else if (parts[0] == "cuda_graph") {
                     cuda_graph_ = (parts[1] == "1" || parts[1] == "true");
+                } else if (parts[0] == "profile") {
+                    profile_prefix_ = parts[1];
                 } else if (parts[0].rfind("cuda.", 0) == 0 && parts[0].size() > 5) {
                     cuda_opts_.emplace_back(parts[0].substr(5), parts[1]);
                 }
