@@ -558,6 +558,7 @@ tai_khoan() {
     echo " ${M_DAM}n${M_HET}      thêm tài khoản"
     echo " ${M_DAM}r${M_HET}      đổi tên"
     echo " ${M_DAM}x${M_HET}      đăng xuất / xoá"
+    echo " ${M_DAM}d${M_HET}      dò tài khoản trùng token"
     echo " ${M_DAM}Enter${M_HET}  về menu"
     echo "${M_MO} Cùng lúc: cửa sổ Termux mới,${M_HET}"
     echo "${M_MO} gõ fz @<tên>${M_HET}"
@@ -572,6 +573,16 @@ tai_khoan() {
       echo "[cửa sổ này dùng tài khoản $ten] Mở link dưới đây, chọn ĐÚNG tài khoản Google muốn thêm:"
       colab sessions      # chua co token -> CLI in link dang nhap o day
       dung; return ;;
+    d|D)
+      # Tai khoan trung: cung tep token (chep nham giua cac dien thoai) hoac cung email Google.
+      if [ ! -f ~/fz_trung_tk.py ]; then echo "[!] Thiếu ~/fz_trung_tk.py -- chạy: bash ~/lay_ve.sh"; dung; continue; fi
+      local muc=()
+      for ten in "${ds[@]}"; do
+        muc+=("$(ten_tk "$ten")|$([ -n "$ten" ] && echo "$TKG/$ten" || echo "$HOME")")
+      done
+      echo "[đang hỏi Google email của từng token...]"
+      python ~/fz_trung_tk.py "${muc[@]}"
+      dung ;;
     r|R)
       read -rp "Số tài khoản cần đổi tên: " i
       [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ] || continue
