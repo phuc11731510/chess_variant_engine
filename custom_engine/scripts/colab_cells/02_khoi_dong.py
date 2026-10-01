@@ -13,5 +13,5 @@ for tai, f in [(TAI_ONNX, CURRENT_ONNX)]:
     if tai:
         name = f.split("/")[-1]
         # wget hỏng vẫn để lại tệp rỗng -> xoá để không nhầm là đã có
-        !wget -nv -O {f} {REL}/{name} || (echo "[!] Release KHONG co {name}"; rm -f {f})
+        !wget -nv --tries=4 --waitretry=15 --retry-on-http-error=429,500,502,503,504 -O {f} {REL}/{name} || (echo "[!] Khong tai duoc {name} tu Release (thu 4 lan)"; rm -f {f})
 !ls -la /content/gen*.onnx /content/gen*.pt 2>/dev/null

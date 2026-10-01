@@ -9,6 +9,9 @@
         chua_chup  chưa chụp lần nào / không rõ còn bao nhiêu -> thử sau cùng
         het        HẾT, không rõ giờ nạp lại               -> mỗi giờ thử một lần
         bo         còn < 1 giờ (vàng) / HẾT chờ giờ nạp lại  -> bỏ qua
+  python ~/fz_tu_dong.py hen <ten>|<HOME>|<lan thu cuoi> ...
+      Sau một vòng xin không được: in "<giây epoch>\t<lý do>" = lúc nên xin lại (giờ nạp lại sớm
+      nhất đã biết; HẾT không rõ giờ nạp: lần thử cuối + 1 giờ; còn tài khoản thử được: 10 phút).
   python ~/fz_tu_dong.py gop <thu muc FairyZero> <doi G> <so doi>
       Cuối giai đoạn 2: bung mọi gói games_gen<G>_<N>.zip vào thư mục games_gen<G>/ (tên tệp thêm
       tiền tố <N>_ vì engine đánh số lại từ game_0 mỗi lần chạy; ván trùng nội dung -- cùng CRC và
@@ -75,6 +78,48 @@ def xep(ds, now=None):
         print(f"{ten}\t{loai}\t{mo_ta}")
     for ten, ly_do in bo:
         print(f"{ten}\tbo\t{ly_do}")
+
+
+def hen(ds, now=None):
+    """Lúc nên xin máy lại sau một vòng xin không được: sớm nhất trong các mốc
+      - tài khoản HẾT / vàng đã biết giờ nạp lại  -> giờ nạp lại đó;
+      - HẾT không rõ giờ nạp lại (hoặc vàng không rõ) -> lần thử cuối + 1 giờ (thử để biết);
+      - còn tài khoản được thử ngay (nạp lại / xanh / chưa chụp) -> 10 phút nữa (Colab từ chối
+        dù còn hạn mức: hết T4 tạm thời).
+    In "<giây epoch>\t<lý do>". Ít nhất 1 phút, nhiều nhất 3 giờ (lần chụp có thể đã cũ)."""
+    now = time.time() if now is None else now
+    moc = []
+    for muc in ds:
+        ten, home, lan = (muc.split("|") + ["", ""])[:3]
+        lan = float(lan or 0)
+        ch = doc_chup(home)
+        if not ch:
+            moc.append((now + 600, f"{ten}: chưa chụp hạn mức"))
+            continue
+        nap, luc = ch.get("nap_lai"), ch.get("luc", 0)
+        het = bool(ch.get("het_luc")) and ch["het_luc"] >= luc
+        het_sau_nap = het and bool(nap) and ch["het_luc"] >= nap
+        if nap and now >= nap and luc < nap and not het_sau_nap:
+            moc.append((now + 600, f"{ten}: đã tới giờ nạp lại"))
+            continue
+        if het_sau_nap:
+            nap = None
+        con = ch.get("con")
+        if not het and con is not None and con / 1000 / T4_UOC_TINH >= 1:
+            moc.append((now + 600, f"{ten}: còn hạn mức (Colab hết T4 tạm thời?)"))
+        elif nap and nap > now:
+            moc.append((nap, f"{ten}: nạp lại lúc {time.strftime('%H:%M', time.localtime(nap))}"))
+        elif het:
+            # Như xep: HẾT không rõ giờ nạp lại -> mỗi giờ thử một lần (xin được thì biết giờ nạp).
+            moc.append((max(lan, now - MOT_GIO) + MOT_GIO, f"{ten}: HẾT, không rõ giờ nạp lại -- thử để biết"))
+        elif con is None:
+            moc.append((now + 600, f"{ten}: không rõ còn bao nhiêu"))
+        # vàng (< 1 giờ) không rõ giờ nạp lại: xep luôn bỏ qua -> không phải mốc
+    if not moc:
+        moc.append((now + 600, "không tài khoản nào thử được -- xem lại sau 10 phút"))
+    t, ly_do = min(moc)
+    t = min(max(t, now + 60), now + 3 * MOT_GIO)
+    print(f"{int(t)}\t{ly_do}")
 
 
 def la_van(ten):
@@ -163,6 +208,8 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     if a and a[0] == "xep":
         xep(a[1:])
+    elif a and a[0] == "hen":
+        hen(a[1:])
     elif len(a) == 4 and a[0] == "gop":
         gop(a[1], a[2], a[3])
     else:
