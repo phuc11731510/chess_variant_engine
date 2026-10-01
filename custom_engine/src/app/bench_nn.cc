@@ -20,6 +20,8 @@
 //
 //   custom_engine --bench-nn --weights net.onnx --provider cuda
 //   custom_engine --bench-nn --weights net.onnx --provider cpu --backend-threads 2
+//   custom_engine --bench-nn --weights net.onnx --provider cuda --fixed-batch 64 \
+//       --cuda-opt prefer_nhwc=1      (sweep WITH the options + A/B vs ORT defaults)
 
 #include "app/bench_nn.h"
 
@@ -67,7 +69,8 @@ struct Sample {
 std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
                                              int fixed_batch,
                                              bool cuda_graph,
-                                             std::string* opts_out) {
+                                             std::string* opts_out,
+                                             bool with_cuda_opts = true) {
   lczero::OptionsParser parser;
   lczero::classic::SearchParams::Populate(&parser);
   auto* d = parser.GetMutableDefaultsOptions();
@@ -83,6 +86,8 @@ std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
   }
   if (fixed_batch > 0) bo += ",fixed_batch=" + std::to_string(fixed_batch);
   if (cuda_graph) bo += ",cuda_graph=1";
+  if (with_cuda_opts && o.sp_provider == "cuda")
+    for (const auto& kv : o.sp_cuda_opts) bo += ",cuda." + kv;
   d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bo);
   if (opts_out) *opts_out = bo;
 
@@ -322,6 +327,89 @@ int run_bench_nn(const EngineOptions& o) {
     }
   }
 
+  // Max |var - ref| over q, d and every policy entry: 12 Runs of `batch` slots,
+  // rotating 6 DIFFERENT positions (graph replay bugs only show on replays).
+  auto max_output_diff = [&](lczero::Backend* ref, lczero::Backend* var, int batch) {
+    std::vector<std::unique_ptr<lczero::PositionHistory>> hs;
+    {
+      auto h = std::make_unique<lczero::PositionHistory>(*history);
+      std::mt19937 rng(20260924);
+      for (int k = 0; k < 6; ++k) {
+        hs.push_back(std::make_unique<lczero::PositionHistory>(*h));
+        for (int j = 0; j < 5; ++j) {
+          const lczero::MoveList lm = h->Last().GetBoard().GenerateLegalMoves();
+          if (lm.empty()) break;
+          h->Append(lm[rng() % lm.size()]);
+        }
+      }
+    }
+    std::vector<lczero::MoveList> legals;
+    std::vector<lczero::EvalResult> refs;
+    for (const auto& h : hs) {
+      legals.push_back(h->Last().GetBoard().GenerateLegalMoves());
+      const lczero::EvalPosition epk{h.get(), std::span<const lczero::Move>(
+                                                  legals.back().data(), legals.back().size())};
+      refs.push_back(RunOnce(ref, epk, legals.back().size()));
+    }
+    double max_diff = 0.0;
+    for (int run = 0; run < 12; ++run) {
+      const size_t k = static_cast<size_t>(run) % hs.size();
+      const lczero::EvalPosition epk{hs[k].get(), std::span<const lczero::Move>(
+                                                      legals[k].data(), legals[k].size())};
+      std::vector<lczero::EvalResult> res(batch);
+      auto comp = var->CreateComputation();
+      for (auto& r : res) {
+        r.p.resize(legals[k].size());
+        comp->AddInput(epk, r.AsPtr());
+      }
+      comp->ComputeBlocking();
+      for (const auto& r : res) {
+        max_diff = std::max({max_diff, static_cast<double>(std::fabs(r.q - refs[k].q)),
+                             static_cast<double>(std::fabs(r.d - refs[k].d))});
+        for (size_t i = 0; i < legals[k].size(); ++i)
+          max_diff = std::max(max_diff, static_cast<double>(std::fabs(r.p[i] - refs[k].p[i])));
+      }
+    }
+    return max_diff;
+  };
+
+  // ---- A1: --cuda-opt vs ORT defaults, same batch profile ------------------
+  // The two sessions are measured alternately (A B A B ...) so GPU clock drift
+  // hits both equally; the median of 5 rounds each is reported.
+  if (!o.sp_cuda_opts.empty()) {
+    if (o.sp_provider != "cuda") {
+      std::cout << "\n--cuda-opt chi ap dung cho --provider cuda; bo qua.\n";
+    } else if (static_cast<size_t>(prod) <= lczero::MaxBatchSize) {
+      std::cout << "\n--- A1: --cuda-opt so voi mac dinh ORT (fixed_batch=" << prod << ") ---\n";
+      std::string bo_ref, bo_var;
+      std::unique_ptr<lczero::Backend> ref, var;
+      try { ref = MakeRawOnnx(o, prod, false, &bo_ref, /*with_cuda_opts=*/false); }
+      catch (const std::exception& e) { std::cerr << "  khong dung duoc backend mac dinh: " << e.what() << "\n"; }
+      try { var = MakeRawOnnx(o, prod, false, &bo_var, /*with_cuda_opts=*/true); }
+      catch (const std::exception& e) { std::cerr << "  khong dung duoc backend --cuda-opt: " << e.what() << "\n"; }
+      if (ref && var) {
+        std::cout << "  mac dinh : " << bo_ref << "\n  thu      : " << bo_var << "\n";
+        const double d = max_output_diff(ref.get(), var.get(), prod);
+        std::printf("  dung : max|thu - mac dinh| = %.6f  %s\n", d,
+                    d > 1e-3 ? "[FAIL] lech qua nguong 1e-3" : "[OK] trong sai so lam tron fp32");
+        std::vector<double> a, b;
+        for (int round = 0; round < 5; ++round) {
+          a.push_back(measure(ref.get(), prod).ms_per_run);
+          b.push_back(measure(var.get(), prod).ms_per_run);
+        }
+        std::sort(a.begin(), a.end());
+        std::sort(b.begin(), b.end());
+        std::printf("  toc do (trung vi 5 vong xen ke): mac dinh %.3f ms/Run (%.1f pos/giay)"
+                    "  vs  thu %.3f ms/Run (%.1f pos/giay)  -> %+.1f%%\n",
+                    a[2], prod / a[2] * 1000.0, b[2], prod / b[2] * 1000.0,
+                    100.0 * (a[2] / b[2] - 1.0));
+        std::printf("  (min-max: mac dinh %.3f-%.3f, thu %.3f-%.3f ms/Run)\n",
+                    a[0], a[4], b[0], b[4]);
+        std::printf("FZ_A1 %.4f %.4f %.6f\n", a[2], b[2], d);
+      }
+    }
+  }
+
   // ---- EXPERIMENTAL: CUDA Graph capture (--cuda-graph) ----------------------
   // Chua kiem chung tren phan cung that (moi viet, khong co GPU local de chay).
   // Kiem CA toc do LAN tinh dung dan truoc khi dung cho selfplay/arena that --
@@ -341,50 +429,9 @@ int run_bench_nn(const EngineOptions& o) {
       if (ref && graph) {
         // 1) Dung. ORT chup (capture) graph o mot trong nhung lan Run() dau roi
         //    PHAT LAI (replay) no o moi lan sau; loi can bat -- replay doc lai bo dem
-        //    cu thay vi input moi -- chi lo ra o cac lan phat lai. Nen chay 12 lan,
-        //    xoay vong 6 THE CO KHAC NHAU (moi lan day du `prod` o cung mot the), va so
-        //    MOI o voi duong khong-graph. (Ban cu chi so 1 lan chay, tuc la dung lan
-        //    chup, khong kiem duoc phat lai.)
-        std::vector<std::unique_ptr<lczero::PositionHistory>> hs;
-        {
-          auto h = std::make_unique<lczero::PositionHistory>(*history);
-          std::mt19937 rng(20260924);
-          for (int k = 0; k < 6; ++k) {
-            hs.push_back(std::make_unique<lczero::PositionHistory>(*h));
-            for (int j = 0; j < 5; ++j) {
-              const lczero::MoveList lm = h->Last().GetBoard().GenerateLegalMoves();
-              if (lm.empty()) break;
-              h->Append(lm[rng() % lm.size()]);
-            }
-          }
-        }
-        std::vector<lczero::MoveList> legals;
-        std::vector<lczero::EvalResult> refs;
-        for (const auto& h : hs) {
-          legals.push_back(h->Last().GetBoard().GenerateLegalMoves());
-          const lczero::EvalPosition epk{h.get(), std::span<const lczero::Move>(
-                                                      legals.back().data(), legals.back().size())};
-          refs.push_back(RunOnce(ref.get(), epk, legals.back().size()));
-        }
-        double max_diff = 0.0;
-        for (int run = 0; run < 12; ++run) {
-          const size_t k = static_cast<size_t>(run) % hs.size();
-          const lczero::EvalPosition epk{hs[k].get(), std::span<const lczero::Move>(
-                                                          legals[k].data(), legals[k].size())};
-          std::vector<lczero::EvalResult> res(prod);
-          auto comp = graph->CreateComputation();
-          for (auto& r : res) {
-            r.p.resize(legals[k].size());
-            comp->AddInput(epk, r.AsPtr());
-          }
-          comp->ComputeBlocking();
-          for (const auto& r : res) {
-            max_diff = std::max({max_diff, static_cast<double>(std::fabs(r.q - refs[k].q)),
-                                 static_cast<double>(std::fabs(r.d - refs[k].d))});
-            for (size_t i = 0; i < legals[k].size(); ++i)
-              max_diff = std::max(max_diff, static_cast<double>(std::fabs(r.p[i] - refs[k].p[i])));
-          }
-        }
+        //    cu thay vi input moi -- chi lo ra o cac lan phat lai (max_output_diff: 12
+        //    lan Run, 6 the co khac nhau, so MOI o voi duong khong-graph).
+        const double max_diff = max_output_diff(ref.get(), graph.get(), prod);
         std::printf("  dung : 12 lan Run x %d o, 6 the co khac nhau: max|graph - khong graph| = %.6f\n",
                     prod, max_diff);
         if (max_diff > 1e-3) {

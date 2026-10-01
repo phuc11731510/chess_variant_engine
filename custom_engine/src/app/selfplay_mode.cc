@@ -156,6 +156,7 @@ int run_selfplay(const EngineOptions& o) {
         std::string sp_backend_opts;
         if (o.sp_provider == "cuda") {
             sp_backend_opts = "provider=cuda,fixed_batch=" + std::to_string(std::max(1, o.sp_fixed_batch));
+            for (const auto& kv : o.sp_cuda_opts) sp_backend_opts += ",cuda." + kv;
         } else if (o.sp_provider == "dml") {
             // Windows iGPU (needs a -Duse_dml build). The explicit provider= key is
             // REQUIRED or onnxruntime silently runs on CPU.
@@ -168,6 +169,7 @@ int run_selfplay(const EngineOptions& o) {
         const lczero::OptionsDict& sp_options = parser.GetOptionsDict();
 
         std::unique_ptr<lczero::Backend> backend;
+        lczero::BatchingBackend* batcher = nullptr;  // owned by `backend`
         try {
             auto raw_backend = std::make_unique<lczero::OnnxBackend>();
             raw_backend->UpdateConfiguration(sp_options);
@@ -175,12 +177,18 @@ int run_selfplay(const EngineOptions& o) {
             // A4: gom batch NN xuyên nhiều ván -> 1 inference đầy hơn (tốt cho GPU).
             // Chèn GIỮA cache và Onnx: ZeroHeapCache -> BatchingBackend -> OnnxBackend.
             if (o.sp_batch_aggregate) {
+                // Dynamic producer count: RunSelfPlay registers parallel x
+                // threads_per_game producers and removes a worker's threads when
+                // it stops taking games (soft-stop tail), so the last batches do
+                // not each wait out the timeout for games that already ended.
                 const int producers =
                     std::max(1, o.sp_parallel) * std::max(1, o.sp_threads_per_game);
-                inner = std::make_unique<lczero::BatchingBackend>(
-                    std::move(inner), producers, o.sp_batch_timeout_us);
+                auto batching = std::make_unique<lczero::BatchingBackend>(
+                    std::move(inner), /*expected_producers=dynamic*/ 0, o.sp_batch_timeout_us);
+                batcher = batching.get();
+                inner = std::move(batching);
                 std::cout << "[selfplay] batch-aggregate ON (producers=" << producers
-                          << ", timeout=" << o.sp_batch_timeout_us << "us)" << std::endl;
+                          << " dong, timeout=" << o.sp_batch_timeout_us << "us)" << std::endl;
                 if (o.sp_provider == "cpu") {
                     std::cout << "[selfplay] NOTE: --batch-aggregate is a GPU optimization; "
                                  "on CPU it serializes inference onto one thread and is SLOWER. "
@@ -211,6 +219,10 @@ int run_selfplay(const EngineOptions& o) {
         cfg.resign_earliest_move = o.sp_resign_earliest;
         cfg.no_resign_frac = o.sp_no_resign_frac;
         cfg.show_nps = o.sp_show_nps;
+        if (batcher) {
+            cfg.producer_enter = [batcher] { batcher->ProducerEnter(); };
+            cfg.producer_leave = [batcher] { batcher->ProducerLeave(); };
+        }
         if (o.sp_resign_threshold > -1.0f) {
             std::cout << "[selfplay] resign: best_q<=" << o.sp_resign_threshold
                       << " for " << o.sp_resign_consecutive << " moves, no-resign frac="

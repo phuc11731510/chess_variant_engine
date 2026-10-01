@@ -469,18 +469,32 @@ void OnnxBackend::InitializeSession() {
                           << std::endl;
                 cuda_graph_ = false;
             }
-            if (cuda_graph_) {
+            if (cuda_graph_ || !cuda_opts_.empty()) {
+                // V2 options: graph capture and/or --cuda-opt keys. An unknown key
+                // or bad value throws here -> the run stops (no silent default).
                 OrtCUDAProviderOptionsV2* cuda_options_v2 = nullptr;
                 Ort::ThrowOnError(Ort::GetApi().CreateCUDAProviderOptions(&cuda_options_v2));
                 std::unique_ptr<OrtCUDAProviderOptionsV2, void(*)(OrtCUDAProviderOptionsV2*)> guard(
                     cuda_options_v2,
                     [](OrtCUDAProviderOptionsV2* p) { Ort::GetApi().ReleaseCUDAProviderOptions(p); });
-                const char* keys[] = {"device_id", "enable_cuda_graph"};
-                const char* values[] = {"0", "1"};
-                Ort::ThrowOnError(Ort::GetApi().UpdateCUDAProviderOptions(cuda_options_v2, keys, values, 2));
+                std::vector<const char*> keys{"device_id"};
+                std::vector<const char*> values{"0"};
+                if (cuda_graph_) {
+                    keys.push_back("enable_cuda_graph");
+                    values.push_back("1");
+                }
+                for (const auto& kv : cuda_opts_) {
+                    keys.push_back(kv.first.c_str());
+                    values.push_back(kv.second.c_str());
+                }
+                Ort::ThrowOnError(Ort::GetApi().UpdateCUDAProviderOptions(
+                    cuda_options_v2, keys.data(), values.data(), keys.size()));
                 session_options_.AppendExecutionProvider_CUDA_V2(*cuda_options_v2);
-                std::cout << "[ONNX Backend] CUDA Execution Provider appended WITH GRAPH CAPTURE "
-                             "(device 0, EXPERIMENTAL -- verify correctness, see onnx_backend.cc)." << std::endl;
+                std::cout << "[ONNX Backend] CUDA Execution Provider appended (device 0";
+                if (cuda_graph_)
+                    std::cout << ", WITH GRAPH CAPTURE -- EXPERIMENTAL, verify correctness";
+                for (const auto& kv : cuda_opts_) std::cout << ", " << kv.first << "=" << kv.second;
+                std::cout << ")." << std::endl;
             } else {
                 OrtCUDAProviderOptions cuda_options{};
                 cuda_options.device_id = 0;
@@ -545,6 +559,7 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     fixed_batch_ = false;
     fixed_batch_size_ = 16;
     cuda_graph_ = false;
+    cuda_opts_.clear();
 
     if (!backend_opts_.empty()) {
         for (const auto& opt : split_options(backend_opts_, ',')) {
@@ -571,6 +586,8 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
                     } catch (...) {}
                 } else if (parts[0] == "cuda_graph") {
                     cuda_graph_ = (parts[1] == "1" || parts[1] == "true");
+                } else if (parts[0].rfind("cuda.", 0) == 0 && parts[0].size() > 5) {
+                    cuda_opts_.emplace_back(parts[0].substr(5), parts[1]);
                 }
             }
         }
