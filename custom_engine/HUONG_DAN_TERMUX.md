@@ -169,6 +169,7 @@ Mục `a` còn làm được:
 | `n` | Thêm tài khoản mới |
 | `r` | Đổi tên (tên nội bộ để phân biệt, vd `phuc`, `phuc2`) — cả tài khoản chính (mặc định tên `chinh`). Chữ, số, `_`, `-`, tối đa 20 ký tự. Không đổi được khi tài khoản đang mở ở cửa sổ khác |
 | `x` | Đăng xuất một tài khoản (không được khi nó đang mở ở cửa sổ khác): hỏi trả máy `fz` của nó trước (nên trả — máy vẫn tiêu hạn mức tới khi Colab thu hồi), gõ `co` → xoá token; tài khoản phụ bị xoá khỏi danh sách |
+| `d` | **Dò tài khoản trùng** (từ 2026-10-01): so tệp token của mọi tài khoản -- **CHÉP TRÙNG** = hai tên cùng một tệp token (chép nhầm khi chuyển điện thoại); hỏi Google email của từng token -- **CÙNG GOOGLE** = hai tên cùng một tài khoản Google (đăng nhập hai lần). Chỉ đọc, không đổi gì. Sửa: giữ một tên, xoá tên kia (`x`) rồi thêm lại bằng đúng tệp token của tài khoản còn thiếu (hoặc `n` đăng nhập lại). Token hết hạn thì báo `Google trả 401` |
 
 Tài khoản đã "cất" bằng menu cũ (`~/.config/colab-cli/luu/<tên>/`) tự thành tài khoản phụ cùng tên
 khi mở `a`. Token hết hạn thì CLI hỏi đăng nhập lại như bình thường.
