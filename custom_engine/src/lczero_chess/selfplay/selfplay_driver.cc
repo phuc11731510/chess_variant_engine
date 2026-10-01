@@ -2,6 +2,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <cstdio>
 #include <filesystem>
 #include <iostream>
 #include <mutex>
@@ -153,15 +155,60 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
   const int tpg = std::max(1, cfg.threads_per_game);
   if (cfg.producer_enter)
     for (int i = 0; i < workers * tpg; ++i) cfg.producer_enter();
+  std::atomic<int> active_workers{workers};
   auto worker_then_leave = [&]() {
     worker();
+    active_workers.fetch_sub(1);
     if (cfg.producer_leave)
       for (int i = 0; i < tpg; ++i) cfg.producer_leave();
   };
   std::vector<std::thread> pool;
   pool.reserve(workers);
   for (int i = 0; i < workers; ++i) pool.emplace_back(worker_then_leave);
+
+  // --show-nps: one throughput line per minute over THAT minute (playouts are
+  // counted per move, NN counters per Run), so the steady phase can be told
+  // apart from the soft-stop tail when comparing configurations.
+  std::mutex tick_mu;
+  std::condition_variable tick_cv;
+  bool all_joined = false;
+  std::thread ticker;
+  if (cfg.show_nps) {
+    ticker = std::thread([&] {
+      int64_t last_nodes = g_live_playouts.load();
+      OnnxEvalCounters last_ev = OnnxGetEvalCounters();
+      auto last_t = std::chrono::steady_clock::now();
+      std::unique_lock<std::mutex> lk(tick_mu);
+      while (!tick_cv.wait_for(lk, std::chrono::seconds(60), [&] { return all_joined; })) {
+        const auto now = std::chrono::steady_clock::now();
+        const double dt = std::chrono::duration<double>(now - last_t).count();
+        const int64_t nodes = g_live_playouts.load();
+        const OnnxEvalCounters ev = OnnxGetEvalCounters();
+        const double runs = static_cast<double>(ev.runs - last_ev.runs);
+        const double real = static_cast<double>(ev.real - last_ev.real);
+        const double padded = static_cast<double>(ev.padded - last_ev.padded);
+        const double el = std::chrono::duration<double>(now - t0).count();
+        std::lock_guard<std::mutex> lg(log_mu);
+        std::printf("[nhip] t=%.0fs  %d van dang chay  %.0f nps  %.0f eval/s  batch TB %.1f  pad %.1f%%\n",
+                    el, active_workers.load(), (nodes - last_nodes) / dt, real / dt,
+                    runs > 0 ? real / runs : 0.0,
+                    padded > 0 ? 100.0 * (padded - real) / padded : 0.0);
+        std::fflush(stdout);
+        last_nodes = nodes;
+        last_ev = ev;
+        last_t = now;
+      }
+    });
+  }
   for (auto& t : pool) t.join();
+  if (ticker.joinable()) {
+    {
+      std::lock_guard<std::mutex> lk(tick_mu);
+      all_joined = true;
+    }
+    tick_cv.notify_all();
+    ticker.join();
+  }
 
   const double secs =
       std::chrono::duration_cast<std::chrono::milliseconds>(

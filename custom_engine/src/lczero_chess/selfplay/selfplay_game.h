@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <atomic>
 #include <cstdint>
 
 #include "chess/position.h"  // GameResult
@@ -60,5 +61,9 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
                        // ở nửa Đen (hạng 6-10); Đen tấn công = quân Đen ở nửa Trắng (hạng 1-5).
                        int64_t* out_white_attack = nullptr,
                        int64_t* out_black_attack = nullptr);
+
+// Process-wide playouts searched so far, added after EVERY move (out_nodes only
+// arrives when a game ends). For the driver's per-minute throughput lines.
+extern std::atomic<int64_t> g_live_playouts;
 
 }  // namespace lczero
