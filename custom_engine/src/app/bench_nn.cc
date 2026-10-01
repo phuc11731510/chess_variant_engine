@@ -433,6 +433,27 @@ int run_bench_nn(const EngineOptions& o) {
     }
     if (f64 && dyn) {
       std::printf("  max|dong - co dinh 64| = %.6f\n", max_output_diff(f64.get(), dyn.get(), 8));
+      if (o.sp_provider == "tensorrt") {
+        // TensorRT vs the CUDA EP the engine uses today, same net, same positions.
+        EngineOptions oc = o;
+        oc.sp_provider = "cuda";
+        oc.sp_trt_opts.clear();
+        try {
+          auto cuda64 = MakeRawOnnx(oc, 64, false, &bo);
+          const double d64 = max_output_diff(cuda64.get(), f64.get(), 64);
+          const double dd = max_output_diff(cuda64.get(), dyn.get(), 8);
+          std::printf("  max|TensorRT - CUDA EP|: co dinh 64 = %.6f, dong = %.6f  %s\n", d64, dd,
+                      std::max(d64, dd) > 1e-3 ? "[FAIL] lech qua 1e-3" : "[OK]");
+          std::printf("FZ_TRT_DIFF %.6f %.6f\n", d64, dd);
+          const double c = measure(cuda64.get(), 64).ms_per_run;
+          const double t = measure(f64.get(), 64).ms_per_run;
+          std::printf("  me 64: CUDA EP %.3f ms/Run  vs  TensorRT %.3f ms/Run  -> %+.1f%%\n", c, t,
+                      100.0 * (c / t - 1.0));
+          std::printf("FZ_TRT_SPEED %.4f %.4f\n", c, t);
+        } catch (const std::exception& e) {
+          std::cerr << "  khong dung duoc phien CUDA doi chung: " << e.what() << "\n";
+        }
+      }
       std::printf("%5s %12s %12s %12s %10s %10s\n", "n", "co dinh 64", "co dinh n", "dong",
                   "n/64", "dong/64");
       for (int n = 8; n <= 64; n += 8) {
