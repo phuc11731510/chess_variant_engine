@@ -97,6 +97,8 @@ void TestParseCli() {
              {"--bench-nn", "--weights", "net.onnx", "--provider", "cuda", "--cuda-graph"},
              {"--bench-nn", "--weights", "net.onnx", "--provider", "cuda", "--cuda-opt",
               "cudnn_conv_algo_search=HEURISTIC", "--cuda-opt", "prefer_nhwc=1"},
+             {"--selfplay", "--provider", "tensorrt", "--fixed-batch", "0", "--trt-opt",
+              "trt_engine_cache_path=/content/trt_cache"},
              {"--arena", "--model-a", "a", "--model-b", "b", "--arena-moves"},
          }) {
         const auto o = Parse(args);

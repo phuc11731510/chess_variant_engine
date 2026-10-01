@@ -78,8 +78,9 @@ std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
   d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, o.weights_file);
 
   std::string bo;
-  if (o.sp_provider == "cuda") {
-    bo = "provider=cuda";
+  if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt") {
+    bo = "provider=" + o.sp_provider;
+    for (const auto& kv : o.sp_trt_opts) bo += ",trt." + kv;
   } else if (o.sp_provider == "dml") {
     bo = "provider=dml,threads=" + std::to_string(std::max(1, o.sp_backend_threads));
   } else {
@@ -256,6 +257,8 @@ int run_bench_nn(const EngineOptions& o) {
 
   std::vector<Sample> samples;
   for (int b : {1, 2, 4, 8, 16, 32, 64, 128, 256}) {
+    // TensorRT builds an engine per session (minutes): only the production size.
+    if (o.sp_provider == "tensorrt" && b != 64) continue;
     if (static_cast<size_t>(b) > lczero::MaxBatchSize) continue;
     std::unique_ptr<lczero::Backend> backend;
     std::string bo;
@@ -418,7 +421,7 @@ int run_bench_nn(const EngineOptions& o) {
   // session, padded to 64; (2) a session fixed at exactly n (what a set of
   // per-size sessions would use); (3) ONE dynamic-shape session (fixed_batch=0)
   // run at n. Same position, ms per Run -- the gap to (1) is what padding costs.
-  if (o.sp_provider == "cuda") {
+  if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt") {
     std::cout << "\n--- B3: me that n -- phien co dinh 64 (pad) / phien co dinh n / phien dong ---\n";
     std::unique_ptr<lczero::Backend> f64, dyn;
     std::string bo;
@@ -434,7 +437,8 @@ int run_bench_nn(const EngineOptions& o) {
                   "n/64", "dong/64");
       for (int n = 8; n <= 64; n += 8) {
         std::unique_ptr<lczero::Backend> fn;
-        try { fn = MakeRawOnnx(o, n, false, &bo); } catch (const std::exception&) {}
+        if (o.sp_provider != "tensorrt")  // one engine per size would take minutes each
+          try { fn = MakeRawOnnx(o, n, false, &bo); } catch (const std::exception&) {}
         const double a = measure(f64.get(), n).ms_per_run;
         const double b = fn ? measure(fn.get(), n).ms_per_run : 0.0;
         // dynamic: warm this shape first (cuDNN algo search per new shape)

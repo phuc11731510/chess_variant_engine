@@ -83,9 +83,10 @@ int run_arena(const EngineOptions& o) {
     // -Duse_dml): the explicit provider= key is REQUIRED or onnxruntime silently
     // runs on CPU. CPU: just intra-op threads.
     std::string bopts;
-    if (o.sp_provider == "cuda") {
-        bopts = "provider=cuda,fixed_batch=" + std::to_string(o.sp_fixed_batch);
+    if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt") {
+        bopts = "provider=" + o.sp_provider + ",fixed_batch=" + std::to_string(o.sp_fixed_batch);
         for (const auto& kv : o.sp_cuda_opts) bopts += ",cuda." + kv;
+        for (const auto& kv : o.sp_trt_opts) bopts += ",trt." + kv;
     } else if (o.sp_provider == "dml") {
         bopts = "provider=dml,threads=" + std::to_string(std::max(1, o.sp_backend_threads));
     } else {

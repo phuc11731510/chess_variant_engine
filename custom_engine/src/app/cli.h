@@ -40,6 +40,9 @@ struct EngineOptions {
     // cudnn_conv_algo_search=HEURISTIC, prefer_nhwc=1), passed as-is to
     // UpdateCUDAProviderOptions -- an unknown key stops the run. --provider cuda only.
     std::vector<std::string> sp_cuda_opts;
+    // --trt-opt key=value (repeatable): ORT TensorRT EP option for --provider tensorrt
+    // (e.g. trt_engine_cache_path=/content/trt_cache, trt_builder_optimization_level=5).
+    std::vector<std::string> sp_trt_opts;
     std::string ort_profile;  // --ort-profile PREFIX (--bench-nn): ORT per-node timing JSON
     bool sp_batch_aggregate=false;  // --batch-aggregate: gom batch NN xuyên nhiều ván (A4, GPU)
     int sp_batch_timeout_us=2000;   // --batch-timeout-us: cửa sổ gộp batch (chống treo)

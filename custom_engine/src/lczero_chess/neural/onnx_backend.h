@@ -128,6 +128,8 @@ class OnnxBackend : public Backend {
   bool cuda_graph_ = false;  // EXPERIMENTAL: "cuda_graph=1" backend opt, CUDA-only, needs fixed_batch_. See InitializeSession().
   // "cuda.<key>=<value>" backend opts -> ORT CUDA EP options (--cuda-opt).
   std::vector<std::pair<std::string, std::string>> cuda_opts_;
+  // "trt.<key>=<value>" backend opts -> ORT TensorRT EP options (--trt-opt).
+  std::vector<std::pair<std::string, std::string>> trt_opts_;
   // "profile=<prefix>" (--bench-nn --ort-profile): ORT per-node timing JSON.
   std::string profile_prefix_;
   int intra_op_threads_ = 1;
