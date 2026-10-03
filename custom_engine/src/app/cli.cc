@@ -146,6 +146,26 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             } else {
                 o.sp_search_opts.emplace_back(kv.substr(0, eq), kv.substr(eq + 1));
             }
+        } else if (a == "--extra-batches") {   // "16,32,48"
+            std::string v;
+            const size_t errors_before = o.errors.size();
+            string_value(&v);
+            if (o.errors.size() == errors_before) {
+                o.sp_extra_batches.clear();
+                size_t i = 0;
+                while (i <= v.size()) {
+                    const size_t j = std::min(v.find(',', i), v.size());
+                    const std::string t = v.substr(i, j - i);
+                    char* end = nullptr;
+                    const long n = std::strtol(t.c_str(), &end, 10);
+                    if (t.empty() || *end != '\0' || n < 1 || n > 64) {
+                        error("--extra-batches '" + v + "': expected sizes 1..64 separated by commas");
+                        break;
+                    }
+                    o.sp_extra_batches.push_back(static_cast<int>(n));
+                    i = j + 1;
+                }
+            }
         } else if (a == "--cuda-opt" || a == "--trt-opt") {  // "key=value", ORT CUDA / TensorRT EP option
             std::string kv;
             const size_t errors_before = o.errors.size();

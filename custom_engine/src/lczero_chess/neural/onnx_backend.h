@@ -58,7 +58,11 @@ size_t OnnxBufferSlots(bool fixed_batch, size_t fixed_batch_size);
 
 class OnnxComputation : public BackendComputation {
  public:
-  OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size);
+  // `small_sessions` (may be null/empty): extra sessions fixed at smaller batch
+  // sizes, ascending; a Run() with fewer inputs than fixed_batch_size uses the
+  // smallest one that fits instead of padding to fixed_batch_size (B3).
+  OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size,
+                  const std::vector<std::pair<size_t, Ort::Session*>>* small_sessions = nullptr);
   ~OnnxComputation() override = default;
 
   size_t UsedBatchSize() const override {
@@ -73,6 +77,7 @@ class OnnxComputation : public BackendComputation {
 
  private:
   Ort::Session* session_;
+  const std::vector<std::pair<size_t, Ort::Session*>>* small_sessions_;
   Ort::MemoryInfo& memory_info_;
   
   // Slots handed out so far. Atomic because lc0's search calls AddInput from
@@ -114,11 +119,17 @@ class OnnxBackend : public Backend {
 
  private:
   void InitializeSession();
+  // One ORT session for this net; batch > 0 pins the "batch" dim to it (GPU).
+  std::unique_ptr<Ort::Session> BuildSession(size_t batch);
 
   Ort::Env env_;
   Ort::SessionOptions session_options_;
   Ort::MemoryInfo memory_info_;
   std::unique_ptr<Ort::Session> session_;
+  // B3 "extra_batches=16:32:48": the same net pinned at smaller batch sizes.
+  std::vector<size_t> extra_batches_;
+  std::vector<std::unique_ptr<Ort::Session>> small_owned_;
+  std::vector<std::pair<size_t, Ort::Session*>> small_sessions_;
   
   std::string weights_path_;
   std::string backend_opts_;

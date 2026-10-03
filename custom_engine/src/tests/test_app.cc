@@ -97,6 +97,7 @@ void TestParseCli() {
              {"--bench-nn", "--weights", "net.onnx", "--provider", "cuda", "--cuda-graph"},
              {"--bench-nn", "--weights", "net.onnx", "--provider", "cuda", "--cuda-opt",
               "cudnn_conv_algo_search=HEURISTIC", "--cuda-opt", "prefer_nhwc=1"},
+             {"--selfplay", "--provider", "cuda", "--fixed-batch", "64", "--extra-batches", "16,32,48"},
              {"--selfplay", "--provider", "tensorrt", "--fixed-batch", "0", "--trt-opt",
               "trt_engine_cache_path=/content/trt_cache"},
              {"--arena", "--model-a", "a", "--model-b", "b", "--arena-moves"},
@@ -121,6 +122,10 @@ void TestParseCli() {
     // Every one of these must be an error, not a default.
     for (const auto& args : std::vector<std::vector<std::string>>{
              {"--selfplay", "--visit", "800"},           // typo'd flag
+             {"--selfplay", "--extra-batches", "16,,48"},
+             {"--selfplay", "--extra-batches", "0"},
+             {"--selfplay", "--extra-batches", "65"},
+             {"--selfplay", "--extra-batches", "16x"},
              {"--selfplay", "--cuda-opt", "prefer_nhwc"},          // no value
              {"--selfplay", "--cuda-opt", "=1"},                   // no key
              {"--selfplay", "--cuda-opt", "a,b=1"},                // would split the backend opts

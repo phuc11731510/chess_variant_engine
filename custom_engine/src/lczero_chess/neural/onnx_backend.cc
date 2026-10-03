@@ -142,8 +142,9 @@ static std::vector<std::string> split_options(const std::string& s, char delimit
 // OnnxComputation Implementation
 // ==========================================
 
-OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size)
-    : session_(session), memory_info_(memory_info),
+OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_info, float softmax_temp, bool fixed_batch, size_t fixed_batch_size,
+                                 const std::vector<std::pair<size_t, Ort::Session*>>* small_sessions)
+    : session_(session), small_sessions_(small_sessions), memory_info_(memory_info),
       // Capacity is how many positions the SEARCH may pile into one
       // computation, which is NOT the same as the ORT session's fixed batch:
       // ComputeBlocking deliberately slices `enqueued_` into several Run()s of
@@ -261,6 +262,18 @@ void OnnxComputation::ComputeBlocking() {
         }
         
         size_t run_batch = fixed_batch_ ? fixed_batch_size_ : current_batch;
+        // B3: a smaller pinned session that still fits pads less (each session
+        // always runs its own fixed shape, so nothing is re-planned per Run).
+        Ort::Session* run_session = session_;
+        if (fixed_batch_ && small_sessions_ && current_batch < fixed_batch_size_) {
+            for (const auto& [size, sess] : *small_sessions_) {
+                if (size >= current_batch) {
+                    run_batch = size;
+                    run_session = sess;
+                    break;
+                }
+            }
+        }
         
         if (fixed_batch_ && run_batch > current_batch) {
             size_t pad_count = run_batch - current_batch;
@@ -303,7 +316,7 @@ void OnnxComputation::ComputeBlocking() {
         Ort::Value outputs[] = { std::move(policy_tensor), std::move(value_tensor) };
         
         // 3. Execute inference synchronously on CPU/GPU
-        session_->Run(
+        run_session->Run(
             Ort::RunOptions{nullptr},
             input_names,
             inputs,
@@ -409,11 +422,36 @@ std::unique_ptr<BackendComputation> OnnxBackend::CreateComputation() {
         memory_info_,
         softmax_temp_,
         fixed_batch_,
-        fixed_batch_size_
+        fixed_batch_size_,
+        &small_sessions_
     );
 }
 
 void OnnxBackend::InitializeSession() {
+    session_.reset();
+    small_sessions_.clear();
+    small_owned_.clear();
+    session_ = BuildSession(fixed_batch_ ? fixed_batch_size_ : 0);
+    // B3: extra sessions only make sense with a pinned batch on a GPU provider.
+    if (fixed_batch_ && provider_ != "cpu") {
+        std::vector<size_t> sizes;
+        for (size_t b : extra_batches_)
+            if (b > 0 && b < fixed_batch_size_) sizes.push_back(b);
+        std::sort(sizes.begin(), sizes.end());
+        sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
+        for (size_t b : sizes) {
+            small_owned_.push_back(BuildSession(b));
+            small_sessions_.emplace_back(b, small_owned_.back().get());
+        }
+        if (!sizes.empty()) {
+            std::cout << "[ONNX Backend] extra batch sessions:";
+            for (size_t b : sizes) std::cout << " " << b;
+            std::cout << " (+ " << fixed_batch_size_ << ")" << std::endl;
+        }
+    }
+}
+
+std::unique_ptr<Ort::Session> OnnxBackend::BuildSession(size_t batch) {
     if (weights_path_.empty()) {
         throw Exception("ONNX Backend: Weight path is not set!");
     }
@@ -440,11 +478,11 @@ void OnnxBackend::InitializeSession() {
         // -Duse_dml). The CUDA path keeps its fixed-batch profile; DirectML usually
         // runs dynamic batch (play = batch 1). EPs below are compiled in only when
         // the matching build flag is set, so the plain CPU build is unaffected.
-        if (fixed_batch_ && fixed_batch_size_ > 0) {
+        if (batch > 0) {
             session_options_.EnableMemPattern();
             try {
-                Ort::ThrowOnError(Ort::GetApi().AddFreeDimensionOverrideByName(session_options_, "batch", fixed_batch_size_));
-                std::cout << "[ONNX Backend] GPU profile: fixed batch size = " << fixed_batch_size_ << std::endl;
+                Ort::ThrowOnError(Ort::GetApi().AddFreeDimensionOverrideByName(session_options_, "batch", batch));
+                std::cout << "[ONNX Backend] GPU profile: fixed batch size = " << batch << std::endl;
             } catch (const std::exception& e) {
                 std::cerr << "[ONNX Backend] Warning: batch-size override failed: " << e.what() << std::endl;
             }
@@ -478,7 +516,7 @@ void OnnxBackend::InitializeSession() {
             // checks BOTH speed AND that graph-mode output (q/d/policy) matches
             // the non-graph path bit-for-bit-ish on the same position -- a silent
             // correctness bug here would corrupt training data, not just crash.
-            if (cuda_graph_ && !(fixed_batch_ && fixed_batch_size_ > 0)) {
+            if (cuda_graph_ && !(batch > 0)) {
                 std::cerr << "[ONNX Backend] WARNING: cuda_graph=1 requires fixed_batch > 0; "
                              "ignoring cuda_graph (dynamic-shape graph capture is not supported here)."
                           << std::endl;
@@ -533,7 +571,7 @@ void OnnxBackend::InitializeSession() {
                 {"trt_timing_cache_enable", "1"},
                 {"trt_timing_cache_path", "trt_cache"},
             };
-            if (!(fixed_batch_ && fixed_batch_size_ > 0)) {
+            if (!(batch > 0)) {
                 // Dynamic batch: one optimization profile 1..MaxBatchSize, tuned at the max.
                 const std::string dims = "x" + std::to_string(InputPlanesCount) + "x" +
                                          std::to_string(BoardHeight) + "x" + std::to_string(BoardWidth);
@@ -600,11 +638,12 @@ void OnnxBackend::InitializeSession() {
     try {
 #ifdef _WIN32
         std::wstring wpath(weights_path_.begin(), weights_path_.end());
-        session_ = std::make_unique<Ort::Session>(env_, wpath.c_str(), session_options_);
+        auto session = std::make_unique<Ort::Session>(env_, wpath.c_str(), session_options_);
 #else
-        session_ = std::make_unique<Ort::Session>(env_, weights_path_.c_str(), session_options_);
+        auto session = std::make_unique<Ort::Session>(env_, weights_path_.c_str(), session_options_);
 #endif
         std::cout << "[ONNX Backend] ORT Session initialized successfully." << std::endl;
+        return session;
     } catch (const std::exception& e) {
         throw Exception(std::string("ONNX Backend: Failed to load ONNX model: ") + e.what());
     }
@@ -625,6 +664,7 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     cuda_graph_ = false;
     cuda_opts_.clear();
     trt_opts_.clear();
+    extra_batches_.clear();
     profile_prefix_.clear();
 
     if (!backend_opts_.empty()) {
@@ -654,6 +694,13 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
                     cuda_graph_ = (parts[1] == "1" || parts[1] == "true");
                 } else if (parts[0].rfind("trt.", 0) == 0 && parts[0].size() > 4) {
                     trt_opts_.emplace_back(parts[0].substr(4), parts[1]);
+                } else if (parts[0] == "extra_batches") {
+                    for (const auto& v : split_options(parts[1], ':')) {
+                        try {
+                            const int n = std::stoi(v);
+                            if (n > 0) extra_batches_.push_back(static_cast<size_t>(n));
+                        } catch (...) {}
+                    }
                 } else if (parts[0] == "profile") {
                     profile_prefix_ = parts[1];
                 } else if (parts[0].rfind("cuda.", 0) == 0 && parts[0].size() > 5) {

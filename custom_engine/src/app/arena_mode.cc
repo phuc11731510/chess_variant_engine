@@ -87,6 +87,11 @@ int run_arena(const EngineOptions& o) {
         bopts = "provider=" + o.sp_provider + ",fixed_batch=" + std::to_string(o.sp_fixed_batch);
         for (const auto& kv : o.sp_cuda_opts) bopts += ",cuda." + kv;
         for (const auto& kv : o.sp_trt_opts) bopts += ",trt." + kv;
+        if (!o.sp_extra_batches.empty()) {
+            bopts += ",extra_batches=";
+            for (size_t i = 0; i < o.sp_extra_batches.size(); ++i)
+                bopts += (i ? ":" : "") + std::to_string(o.sp_extra_batches[i]);
+        }
     } else if (o.sp_provider == "dml") {
         bopts = "provider=dml,threads=" + std::to_string(std::max(1, o.sp_backend_threads));
     } else {
