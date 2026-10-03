@@ -455,10 +455,7 @@ std::unique_ptr<Ort::Session> OnnxBackend::BuildSession(size_t batch) {
     if (weights_path_.empty()) {
         throw Exception("ONNX Backend: Weight path is not set!");
     }
-    
-    // Reset any old session
-    session_.reset();
-    
+
     // Reset and rebuild session options
     session_options_ = Ort::SessionOptions();
     session_options_.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
