@@ -28,6 +28,8 @@
 #pragma once
 
 #include <array>
+#include <atomic>
+#include <cstdint>
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -47,6 +49,19 @@
 
 namespace lczero {
 namespace classic {
+
+// Process-wide counters of where search playouts go (all searches, all
+// threads; relaxed atomics, statistics only). playouts = nn_evals + cache_hits
+// + no_eval_playouts; collision_visits are not playouts (they are retried).
+struct PlayoutStats {
+  std::atomic<int64_t> playouts{0};
+  std::atomic<int64_t> nn_evals{0};          // leaf sent to the NN
+  std::atomic<int64_t> cache_hits{0};        // leaf answered by the NN cache
+  std::atomic<int64_t> no_eval_playouts{0};  // no NN query (terminal, ...)
+  std::atomic<int64_t> terminal_playouts{0}; // of which: terminal nodes
+  std::atomic<int64_t> collision_visits{0};  // collisions backed out
+};
+extern PlayoutStats g_playout_stats;
 
 class Search {
  public:

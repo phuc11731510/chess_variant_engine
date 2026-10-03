@@ -46,6 +46,8 @@
 namespace lczero {
 namespace classic {
 
+PlayoutStats g_playout_stats;
+
 namespace {
 // Maximum delay between outputting "uci info" when nothing interesting happens.
 const int kUciInfoMinimumFrequencyMs = 5000;
@@ -2328,6 +2330,8 @@ void SearchWorker::DoBackupUpdateSingleNode(
   Node* node = node_to_process.node;
   if (node_to_process.IsCollision()) {
     // Collisions are handled via shared_collisions instead.
+    g_playout_stats.collision_visits.fetch_add(node_to_process.multivisit,
+                                               std::memory_order_relaxed);
     return;
   }
 
@@ -2409,6 +2413,20 @@ void SearchWorker::DoBackupUpdateSingleNode(
   search_->total_playouts_ += node_to_process.multivisit;
   if (node_to_process.nn_queried && !node_to_process.is_cache_hit) {
     search_->network_evaluations_++;
+  }
+  // Process-wide breakdown of where playouts go (C1, --show-nps summary).
+  g_playout_stats.playouts.fetch_add(node_to_process.multivisit, std::memory_order_relaxed);
+  if (node_to_process.nn_queried) {
+    (node_to_process.is_cache_hit ? g_playout_stats.cache_hits : g_playout_stats.nn_evals)
+        .fetch_add(1, std::memory_order_relaxed);
+  } else {
+    // Not sent to the NN: a terminal node (first visit or revisit) or a node
+    // whose value was taken from the tree; multivisit > 1 adds several playouts.
+    g_playout_stats.no_eval_playouts.fetch_add(node_to_process.multivisit,
+                                               std::memory_order_relaxed);
+    if (node->IsTerminal())
+      g_playout_stats.terminal_playouts.fetch_add(node_to_process.multivisit,
+                                                  std::memory_order_relaxed);
   }
   search_->cum_depth_ += node_to_process.depth * node_to_process.multivisit;
   search_->max_depth_ = std::max(search_->max_depth_, node_to_process.depth);
