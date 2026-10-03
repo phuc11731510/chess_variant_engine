@@ -6,6 +6,9 @@
 # thông số self-play kiểu lc0 (cpuct 1,3 cố định, fpu 0, không tính lặp 2 lần là hoà, task-workers 0).
 # Đo: cấu hình cũ (4 ván, batch 16) 2.766 nps -> 4.049 nps. 24/32 ván không hơn mà phần đuôi dừng mềm
 # dài ra; va chạm 1/1 và tắt out-of-order-eval (như lc0) thì chậm hơn trên máy này -> giữ mặc định.
+# Cache NN 2.000.000 mục (--search-opt nn-cache-size=2000000, như mặc định self-play của lc0; mặc định
+# engine 65.536): đo T4 gen23 2026-10-03, ABAB 360 s: gửi NN 66% -> 61% lượt tìm, 3.944 -> 4.225 nps
+# (+7%); RAM tiến trình ~4,2 GB / 12,9 GB của máy.
 # --max-seconds dừng MỀM: ván đang chạy vẫn chơi nốt (16 ván: vượt giờ ~3-4 phút). Menu fz tự trừ phần
 # này khỏi SECS theo số đo các lần trước (đuôi ván, ~/.fz_tk/.duoi_van).
 # fz: che_do_sinh
@@ -35,6 +38,7 @@ cmd = f"""bash {E}/run.sh --selfplay \
     --visits 800 --max-moves 400 --temp-cutoff 32 \
     --parallel {PARALLEL} --provider cuda --fixed-batch 64 --batch-aggregate \
     --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 \
+    --search-opt nn-cache-size=2000000 \
     --weights {CURRENT_ONNX} --out {OUT_GAMES_DIR}""" + (f" --stop-file {DUNG_MEM}" if co_dung_mem else "")
 
 print(cmd)
