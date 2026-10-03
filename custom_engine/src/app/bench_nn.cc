@@ -71,7 +71,8 @@ std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
                                              bool cuda_graph,
                                              std::string* opts_out,
                                              bool with_cuda_opts = true,
-                                             const std::string& profile = "") {
+                                             const std::string& profile = "",
+                                             bool with_extra_batches = false) {
   lczero::OptionsParser parser;
   lczero::classic::SearchParams::Populate(&parser);
   auto* d = parser.GetMutableDefaultsOptions();
@@ -92,6 +93,11 @@ std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
   if (with_cuda_opts && o.sp_provider == "cuda")
     for (const auto& kv : o.sp_cuda_opts) bo += ",cuda." + kv;
   if (!profile.empty()) bo += ",profile=" + profile;
+  if (with_extra_batches && !o.sp_extra_batches.empty()) {
+    bo += ",extra_batches=";
+    for (size_t i = 0; i < o.sp_extra_batches.size(); ++i)
+      bo += (i ? ":" : "") + std::to_string(o.sp_extra_batches[i]);
+  }
   d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bo);
   if (opts_out) *opts_out = bo;
 
@@ -433,6 +439,23 @@ int run_bench_nn(const EngineOptions& o) {
     }
     if (f64 && dyn) {
       std::printf("  max|dong - co dinh 64| = %.6f\n", max_output_diff(f64.get(), dyn.get(), 8));
+      if (!o.sp_extra_batches.empty()) {
+        // --extra-batches: the 64 session plus the smaller ones; a batch of n
+        // inputs runs on the smallest pinned session >= n.
+        try {
+          auto multi = MakeRawOnnx(o, 64, false, &bo, true, "", /*with_extra_batches=*/true);
+          double worst = 0.0;
+          for (int n : {1, 8, 16, 24, 40, 48, 56, 64})
+            worst = std::max(worst, max_output_diff(f64.get(), multi.get(), n));
+          std::printf("  --extra-batches: max|nhieu phien - co dinh 64| = %.6f  %s\n", worst,
+                      worst > 1e-3 ? "[FAIL]" : "[OK]");
+          for (int n = 8; n <= 64; n += 8)
+            std::printf("  --extra-batches me %2d: %.3f ms/Run (co dinh 64: %.3f)\n", n,
+                        measure(multi.get(), n).ms_per_run, measure(f64.get(), n).ms_per_run);
+        } catch (const std::exception& e) {
+          std::cerr << "  --extra-batches loi: " << e.what() << "\n";
+        }
+      }
       if (o.sp_provider == "tensorrt") {
         // TensorRT vs the CUDA EP the engine uses today, same net, same positions.
         EngineOptions oc = o;
