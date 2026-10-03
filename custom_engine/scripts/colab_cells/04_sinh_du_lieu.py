@@ -9,6 +9,9 @@
 # Cache NN 2.000.000 mục (--search-opt nn-cache-size=2000000, như mặc định self-play của lc0; mặc định
 # engine 65.536): đo T4 gen23 2026-10-03, ABAB 360 s: gửi NN 66% -> 61% lượt tìm, 3.944 -> 4.225 nps
 # (+7%); RAM tiến trình ~4,2 GB / 12,9 GB của máy.
+# Phiên phụ cỡ mẻ 16/32/48 (--extra-batches 16,32,48, engine từ fbaaffc 2026-10-04): mẻ ít thế chạy trên
+# phiên nhỏ nhất vừa đủ thay vì điền 0 cho đủ 64. Đo T4 gen23 ABAB 360 s (cache 2M): 4.372 -> 4.634 nps
+# khi 16 ván chạy (+6%), cả lần chạy 4.162 -> 4.522 (+8,6%), phí pad 10% -> 5%; kết quả NN lệch 0,000005.
 # --max-seconds dừng MỀM: ván đang chạy vẫn chơi nốt (16 ván: vượt giờ ~3-4 phút). Menu fz tự trừ phần
 # này khỏi SECS theo số đo các lần trước (đuôi ván, ~/.fz_tk/.duoi_van).
 # fz: che_do_sinh
@@ -26,9 +29,13 @@ import os
 if os.path.exists(DUNG_MEM):
     os.remove(DUNG_MEM)   # tệp của lần dừng trước: để lại thì engine dừng ngay từ ván đầu
 try:
-    co_dung_mem = b"--stop-file" in open(f"{E}/build-linux/custom_engine", "rb").read()
+    _bin = open(f"{E}/build-linux/custom_engine", "rb").read()
 except OSError:          # chưa có binary (ô 02 lỗi?) -- lệnh dưới sẽ báo
-    co_dung_mem = False
+    _bin = b""
+co_dung_mem = b"--stop-file" in _bin
+co_phien_phu = b"--extra-batches" in _bin   # binary cũ không có: chạy như trước (chỉ phiên 64)
+del _bin
+print("FZ_PHIEN_PHU=" + ("co" if co_phien_phu else "khong"))
 print("FZ_DUNG_MEM=" + ("co" if co_dung_mem else "khong"))
 if not co_dung_mem:
     print("[!] Binary chưa có --stop-file (bản cũ): không dừng mềm được. Chạy ô 02b, đưa binary mới lên Release.")
@@ -39,7 +46,8 @@ cmd = f"""bash {E}/run.sh --selfplay \
     --parallel {PARALLEL} --provider cuda --fixed-batch 64 --batch-aggregate \
     --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 \
     --search-opt nn-cache-size=2000000 \
-    --weights {CURRENT_ONNX} --out {OUT_GAMES_DIR}""" + (f" --stop-file {DUNG_MEM}" if co_dung_mem else "")
+    --weights {CURRENT_ONNX} --out {OUT_GAMES_DIR}""" + (f" --stop-file {DUNG_MEM}" if co_dung_mem else "") \
+    + (" --extra-batches 16,32,48" if co_phien_phu else "")
 
 print(cmd)
 !{cmd}
