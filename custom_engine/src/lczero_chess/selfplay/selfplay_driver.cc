@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "neural/onnx_backend.h"  // OnnxGetEvalCounters (throughput report)
+#include "search/classic/search.h"  // g_playout_stats
 #include "selfplay/selfplay_game.h"
 #include "trainingdata/writer.h"
 #include "utils/random.h"
@@ -273,6 +274,19 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
                 << "  (so lan Run: " << ev.runs << ")\n"
                 << "  Phi do pad         : " << waste << "%  ("
                 << (ev.padded - ev.real) << "/" << ev.padded << " o batch)\n";
+    }
+    // C1: where the playouts went. nn_evals should equal the ORT count above
+    // (ev.real); more ORT evals than search nn_evals = evaluations nobody used.
+    const auto& ps = classic::g_playout_stats;
+    const double po = static_cast<double>(ps.playouts.load());
+    if (po > 0) {
+      std::cout << "  --- Luot tim (playout) ---\n"
+                << "  Gui NN that        : " << 100.0 * ps.nn_evals.load() / po << "%\n"
+                << "  Trung cache NN     : " << 100.0 * ps.cache_hits.load() / po << "%\n"
+                << "  Khong goi NN       : " << 100.0 * ps.no_eval_playouts.load() / po
+                << "%  (the co da ket thuc: " << 100.0 * ps.terminal_playouts.load() / po << "%)\n"
+                << "  Va cham (rut lai)  : " << ps.collision_visits.load() / po << " / playout\n"
+                << "  NN eval ORT / tim kiem: " << ev.real << " / " << ps.nn_evals.load() << "\n";
     }
   }
   std::cout << "  Output dir: " << cfg.out_dir << std::endl;
