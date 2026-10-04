@@ -30,6 +30,10 @@ namespace lczero {
 // (the timeout guarantees forward progress / no hang). Groups whose slots span
 // two server rounds are handled via a per-group remaining-slot counter.
 //
+// Double buffered (B2): two shared computations. While one runs on the device
+// the producers encode their next leaves into the other, so a full buffer is
+// launched the moment the device is free instead of being refilled from empty.
+//
 // expected_producers == 0 = DYNAMIC count (arena: each game searches with net A
 // or net B depending on whose move it is, so the number of producers of ONE
 // backend changes every move). The caller brackets each search with
@@ -61,6 +65,7 @@ class BatchingBackend : public Backend {
   // group's enqueued slots not yet evaluated by the server.
   struct Group {
     int remaining = 0;
+    bool in_flush = false;  // producer blocked in Flush (guarded by mu_)
   };
 
   // Called by BatchingComputation (the producer side).
@@ -77,7 +82,8 @@ class BatchingBackend : public Backend {
   void EnsureSharedLocked();  // must hold mu_
 
   std::unique_ptr<Backend> wrapped_;
-  std::unique_ptr<BackendComputation> shared_;  // single aggregated computation
+  std::unique_ptr<BackendComputation> bufs_[2];  // double-buffered shared computations
+  int fill_ = 0;                                  // buffer producers add to
   const int expected_producers_;
   const int timeout_us_;
 
@@ -85,13 +91,12 @@ class BatchingBackend : public Backend {
   std::condition_variable cv_server_;  // wakes the server
   std::condition_variable cv_space_;   // producers waiting for slot space
   std::condition_variable cv_done_;    // producers waiting for their group
-  bool running_ = false;               // server is inside ComputeBlocking
   bool stop_ = false;
-  int submitted_groups_ = 0;           // producers currently blocked in Flush
+  int waiting_ = 0;                    // producers in Flush with slots still pending
   int active_producers_ = 0;           // dynamic mode: games searching now
   bool have_pending_ = false;
   std::chrono::steady_clock::time_point first_pending_;
-  Group* slot_owner_[MaxBatchSize] = {};
+  Group* slot_owner_[2][MaxBatchSize] = {};
 
   std::thread server_;
 };

@@ -64,23 +64,27 @@ std::unique_ptr<BackendComputation> BatchingBackend::CreateComputation() {
 }
 
 void BatchingBackend::EnsureSharedLocked() {
-  if (!shared_) shared_ = wrapped_->CreateComputation();
+  for (auto& b : bufs_)
+    if (!b) b = wrapped_->CreateComputation();
 }
 
 void BatchingBackend::AddSlot(const EvalPosition& pos, EvalResultPtr result,
                               Group* g) {
   std::unique_lock<std::mutex> lk(mu_);
   EnsureSharedLocked();
-  // Wait for a free slot: not while the server is running, and not while full.
+  // Wait for room in the FILLING buffer. The other buffer may be running on
+  // the device meanwhile: that is the point (B2) -- leaves for the next Run
+  // are encoded while the current one computes.
   cv_space_.wait(lk, [&] {
-    return stop_ || (!running_ && shared_->UsedBatchSize() < MaxBatchSize);
+    return stop_ || bufs_[fill_]->UsedBatchSize() < MaxBatchSize;
   });
   if (stop_) return;
 
-  const size_t slot = shared_->UsedBatchSize();
+  BackendComputation* buf = bufs_[fill_].get();
+  const size_t slot = buf->UsedBatchSize();
   // Encodes the position and copies legal moves NOW (pos is still valid).
-  shared_->AddInput(pos, result);
-  slot_owner_[slot] = g;
+  buf->AddInput(pos, result);
+  slot_owner_[fill_][slot] = g;
   ++g->remaining;
 
   if (!have_pending_) {
@@ -88,15 +92,20 @@ void BatchingBackend::AddSlot(const EvalPosition& pos, EvalResultPtr result,
     first_pending_ = std::chrono::steady_clock::now();
   }
   // A full buffer must be launched even if not all producers have arrived.
-  if (shared_->UsedBatchSize() >= MaxBatchSize) cv_server_.notify_one();
+  if (buf->UsedBatchSize() >= MaxBatchSize) cv_server_.notify_one();
 }
 
 void BatchingBackend::Flush(Group* g) {
   std::unique_lock<std::mutex> lk(mu_);
-  ++submitted_groups_;
+  if (g->remaining == 0) return;  // all its slots were already evaluated
+  // Counted as waiting only while some of its slots are still pending; the
+  // server uncounts it the moment its last slot is evaluated, so a producer
+  // that was just released (and will submit again soon) never looks blocked.
+  g->in_flush = true;
+  ++waiting_;
   cv_server_.notify_one();  // all-producers-blocked may now be true
   cv_done_.wait(lk, [&] { return stop_ || g->remaining == 0; });
-  --submitted_groups_;
+  g->in_flush = false;
 }
 
 void BatchingBackend::ProducerEnter() {
@@ -118,19 +127,18 @@ void BatchingBackend::ServerLoop() {
   std::unique_lock<std::mutex> lk(mu_);
   while (!stop_) {
     cv_server_.wait(lk, [&] {
-      return stop_ || (shared_ && shared_->UsedBatchSize() > 0);
+      return stop_ || (bufs_[fill_] && bufs_[fill_]->UsedBatchSize() > 0);
     });
     if (stop_) break;
 
-    // Decide when to launch: as soon as the buffer is full OR every expected
-    // producer is blocked waiting (nothing more will arrive this round) OR the
-    // aggregation timeout elapses (forward-progress guarantee).
+    // Decide when to launch the filling buffer: as soon as it is full OR every
+    // producer that can still submit is blocked waiting for results (nothing
+    // more will arrive) OR the aggregation timeout elapses (forward progress).
     while (!stop_) {
-      const size_t n = shared_->UsedBatchSize();
+      const size_t n = bufs_[fill_]->UsedBatchSize();
       if (n == 0) break;
       if (n >= MaxBatchSize) break;
-      if (submitted_groups_ >= (expected_producers_ == 0 ? active_producers_
-                                                         : expected_producers_))
+      if (waiting_ >= (expected_producers_ == 0 ? active_producers_ : expected_producers_))
         break;
       if (timeout_us_ <= 0) break;
       const auto deadline = first_pending_ + std::chrono::microseconds(timeout_us_);
@@ -138,28 +146,34 @@ void BatchingBackend::ServerLoop() {
     }
     if (stop_) break;
 
-    const size_t n = shared_->UsedBatchSize();
-    if (n == 0) {
-      have_pending_ = false;
-      continue;
-    }
+    const int run = fill_;
+    const size_t n = bufs_[run]->UsedBatchSize();
+    have_pending_ = false;
+    if (n == 0) continue;
 
-    // Run inference outside the lock; producers stay parked (running_ == true).
-    running_ = true;
+    // Swap: producers fill the other (empty) buffer while this one runs.
+    fill_ = 1 - run;
+    cv_space_.notify_all();
     lk.unlock();
-    shared_->ComputeBlocking();  // ORT Run + softmax; writes results; resets to 0.
+    bufs_[run]->ComputeBlocking();  // ORT Run + softmax; writes results; resets to 0.
     lk.lock();
 
     // Mark each processed slot's group done; release a fully-evaluated group.
+    bool released = false;
     for (size_t s = 0; s < n; ++s) {
-      Group* g = slot_owner_[s];
-      slot_owner_[s] = nullptr;
-      if (g) --g->remaining;
+      Group* g = slot_owner_[run][s];
+      slot_owner_[run][s] = nullptr;
+      if (g && --g->remaining == 0 && g->in_flush) {
+        --waiting_;
+        released = true;
+      }
     }
-    running_ = false;
-    have_pending_ = false;
-    cv_done_.notify_all();   // wake producers whose group hit remaining == 0
-    cv_space_.notify_all();  // slots are free again
+    if (released) cv_done_.notify_all();
+    cv_space_.notify_all();
+    // Leaves that arrived while the device was busy: the aggregation window for
+    // a NOT full buffer starts now, when the device is free again -- as before
+    // B2 -- so the producers just released still get to join this batch.
+    if (have_pending_) first_pending_ = std::chrono::steady_clock::now();
   }
 }
 
