@@ -190,10 +190,17 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
         const double padded = static_cast<double>(ev.padded - last_ev.padded);
         const double el = std::chrono::duration<double>(now - t0).count();
         std::lock_guard<std::mutex> lg(log_mu);
-        std::printf("[nhip] t=%.0fs  %d van dang chay  %.0f nps  %.0f eval/s  batch TB %.1f  pad %.1f%%\n",
+        // GPU busy = share of the minute spent inside session->Run(); "tinh" adds
+        // the CPU post-processing (softmax, copies) the batcher thread does after.
+        const double run_s = static_cast<double>(ev.run_ns - last_ev.run_ns) * 1e-9;
+        const double comp_s = static_cast<double>(ev.compute_ns - last_ev.compute_ns) * 1e-9;
+        std::printf("[nhip] t=%.0fs  %d van dang chay  %.0f nps  %.0f eval/s  batch TB %.1f  pad %.1f%%"
+                    "  GPU ban %.1f%%  tinh %.1f%%  Run TB %.2f ms\n",
                     el, active_workers.load(), (nodes - last_nodes) / dt, real / dt,
                     runs > 0 ? real / runs : 0.0,
-                    padded > 0 ? 100.0 * (padded - real) / padded : 0.0);
+                    padded > 0 ? 100.0 * (padded - real) / padded : 0.0,
+                    100.0 * run_s / dt, 100.0 * comp_s / dt,
+                    runs > 0 ? 1000.0 * run_s / runs : 0.0);
         std::fflush(stdout);
         last_nodes = nodes;
         last_ev = ev;

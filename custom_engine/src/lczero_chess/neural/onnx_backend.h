@@ -35,6 +35,11 @@ struct OnnxEvalCounters {
   uint64_t real = 0;
   uint64_t padded = 0;
   uint64_t runs = 0;
+  // Wall time inside session->Run() (it returns once the GPU finished and the
+  // outputs are back), and inside the whole ComputeBlocking (Runs + the CPU
+  // softmax/copy afterwards). Over a period: run_ns / elapsed = GPU busy share.
+  uint64_t run_ns = 0;
+  uint64_t compute_ns = 0;
 };
 OnnxEvalCounters OnnxGetEvalCounters();
 void OnnxResetEvalCounters();

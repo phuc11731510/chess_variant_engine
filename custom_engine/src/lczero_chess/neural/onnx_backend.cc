@@ -4,6 +4,7 @@
 #include "utils/exception.h"
 #include <sstream>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -231,18 +232,28 @@ namespace {
 std::atomic<uint64_t> g_eval_real{0};
 std::atomic<uint64_t> g_eval_padded{0};
 std::atomic<uint64_t> g_eval_runs{0};
+std::atomic<uint64_t> g_eval_run_ns{0};
+std::atomic<uint64_t> g_eval_compute_ns{0};
+uint64_t NsSince(std::chrono::steady_clock::time_point t0) {
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                     std::chrono::steady_clock::now() - t0).count());
+}
 }  // namespace
 
 OnnxEvalCounters OnnxGetEvalCounters() {
     return {g_eval_real.load(std::memory_order_relaxed),
             g_eval_padded.load(std::memory_order_relaxed),
-            g_eval_runs.load(std::memory_order_relaxed)};
+            g_eval_runs.load(std::memory_order_relaxed),
+            g_eval_run_ns.load(std::memory_order_relaxed),
+            g_eval_compute_ns.load(std::memory_order_relaxed)};
 }
 
 void OnnxResetEvalCounters() {
     g_eval_real.store(0, std::memory_order_relaxed);
     g_eval_padded.store(0, std::memory_order_relaxed);
     g_eval_runs.store(0, std::memory_order_relaxed);
+    g_eval_run_ns.store(0, std::memory_order_relaxed);
+    g_eval_compute_ns.store(0, std::memory_order_relaxed);
 }
 
 void OnnxComputation::ComputeBlocking() {
@@ -253,6 +264,7 @@ void OnnxComputation::ComputeBlocking() {
     if (!session_) {
         throw Exception("ONNX Backend: ORT session is not initialized!");
     }
+    const auto t_compute = std::chrono::steady_clock::now();
 
     size_t offset = 0;
     while (offset < enqueued) {
@@ -316,6 +328,7 @@ void OnnxComputation::ComputeBlocking() {
         Ort::Value outputs[] = { std::move(policy_tensor), std::move(value_tensor) };
         
         // 3. Execute inference synchronously on CPU/GPU
+        const auto t_run = std::chrono::steady_clock::now();
         run_session->Run(
             Ort::RunOptions{nullptr},
             input_names,
@@ -331,6 +344,7 @@ void OnnxComputation::ComputeBlocking() {
         g_eval_real.fetch_add(current_batch, std::memory_order_relaxed);
         g_eval_padded.fetch_add(run_batch, std::memory_order_relaxed);
         g_eval_runs.fetch_add(1, std::memory_order_relaxed);
+        g_eval_run_ns.fetch_add(NsSince(t_run), std::memory_order_relaxed);
 
         offset += current_batch;
     }
@@ -386,6 +400,7 @@ void OnnxComputation::ComputeBlocking() {
     
     // Reset batch counter
     enqueued_.store(0, std::memory_order_release);
+    g_eval_compute_ns.fetch_add(NsSince(t_compute), std::memory_order_relaxed);
 }
 
 // ==========================================
