@@ -306,7 +306,12 @@ private:
         else if (name == "Temperature") { temperature_ = std::max(0, to_int(temperature_)); }
         else if (name == "TempCutoffPly") { temp_cutoff_ply_ = std::max(0, to_int(temp_cutoff_ply_)); }
         else if (name == "ReuseTree") { reuse_tree_ = (value == "true" || value == "1"); }
-        else if (!name.empty()) { search_opts_[name] = value; }  // lc0 search-param passthrough (applied at `go`)
+        else if (!name.empty()) {   // lc0 search-param passthrough (applied at `go`)
+            search_opts_[name] = value;
+            // Read when the backend/cache is built, not by the search: rebuild.
+            if (name == "nn-cache-size" || name == "nn-cache-compact" || name == "policy-softmax-temp")
+                backend_dirty_ = true;
+        }
         // Unknown / unmatched names are silently ignored at `go` (robustness).
     }
 
@@ -557,6 +562,9 @@ private:
         else
             bopts = "threads=" + std::to_string(std::max(1, backend_threads_));
         d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bopts);
+        // Passthrough options the backend reads at construction (nn-cache-size,
+        // nn-cache-compact, policy-softmax-temp) must be in place before it is built.
+        for (const auto& kv : search_opts_) ApplySearchOpt(d, kv.first, kv.second);
         if (injected_backend_) {   // tests: keep the injected backend
             backend_dirty_ = false;
             return true;

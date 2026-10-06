@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 
 import 'config/launch_config.dart';
 import 'domain/game_controller.dart';
@@ -59,6 +60,8 @@ class _BoardScreenState extends State<BoardScreen> {
     controller = GameController(
       engine: _makeEngine(widget.config),
       humanIsWhite: widget.config.humanPlaysWhite,
+      selfPlay: widget.config.selfPlay,
+      maxPlies: widget.config.selfPlay ? LaunchConfig.selfPlayMaxPlies : 0,
     );
     _start();
   }
@@ -88,85 +91,168 @@ class _BoardScreenState extends State<BoardScreen> {
     }
   }
 
+  /// Tự đấu: dòng trạng thái trên cùng (số nước, bên đang nghĩ, tạm dừng).
+  String _selfPlayLine() {
+    final c = controller;
+    final ply = c.moves.length;
+    final moveNo = ply ~/ 2 + 1;
+    final side = c.board.whiteToMove ? 'Trắng' : 'Đen';
+    if (c.gameOver) return 'Hết ván sau $ply nửa nước';
+    if (c.paused && !c.engineThinking) {
+      return 'Nước $moveNo · $side · tạm dừng (Space để tiếp)';
+    }
+    if (c.paused) {
+      return 'Nước $moveNo · $side đang nghĩ… (sẽ dừng sau nước này)';
+    }
+    return 'Nước $moveNo · $side đang nghĩ… (${widget.config.thinkSummary})';
+  }
+
+  /// Tự đấu: vài nước gần nhất, dạng "12. e3e4 e8e7".
+  String _recentMoves() {
+    final m = controller.moves;
+    final start = m.length > 10 ? (m.length - 10) & ~1 : 0;
+    final sb = StringBuffer();
+    for (int i = start; i < m.length; i++) {
+      if (i % 2 == 0) sb.write('${i ~/ 2 + 1}. ');
+      sb.write('${m[i]} ');
+    }
+    return sb.toString().trim();
+  }
+
   @override
   Widget build(BuildContext context) {
     final flipped = !widget.config.humanPlaysWhite;
+    final selfPlay = widget.config.selfPlay;
     return Scaffold(
       backgroundColor: const Color(0xFF302E2B),
-      body: ListenableBuilder(
-        listenable: controller,
-        builder: (context, _) {
-          return Stack(
-            children: [
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: BoardView(
-                      board: controller.board,
-                      flipped: flipped,
-                      selectedFlat: controller.selected?.flat,
-                      targetFlats: controller.targets,
-                      onTapSquare: controller.onTapSquare,
-                      promoSquare: controller.promoSquare,
-                      promoOptions: controller.promoOptions,
-                      playerIsWhite: widget.config.humanPlaysWhite,
-                      onPickPromotion: controller.choosePromotion,
-                      onDragStart: controller.beginDrag,
-                      onDragEnd: controller.endDrag,
-                      onDragCancel: controller.cancelDrag,
-                    ),
-                  ),
-                ),
-              ),
-              if (controller.engineThinking)
-                const Positioned(
-                  top: 10,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Text('Máy đang nghĩ…',
-                        style: TextStyle(color: Colors.white70, fontSize: 14)),
-                  ),
-                ),
-              if (controller.gameOver)
-                Positioned(
-                  top: 10,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _resultText(controller.result),
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ),
-              if (controller.status != null)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 8,
-                  child: Center(
-                    child: Text(controller.status!,
-                        style: const TextStyle(
-                            color: Colors.orangeAccent, fontSize: 12)),
-                  ),
-                ),
-            ],
-          );
+      body: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.space):
+              controller.togglePause,
         },
+        child: Focus(
+          autofocus: true,
+          child: ListenableBuilder(
+            listenable: controller,
+            builder: (context, _) {
+              return Stack(
+                children: [
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: BoardView(
+                          board: controller.board,
+                          flipped: flipped,
+                          selectedFlat: controller.selected?.flat,
+                          targetFlats: controller.targets,
+                          lastMoveFlats: controller.lastMoveFlats,
+                          onTapSquare: controller.onTapSquare,
+                          promoSquare: controller.promoSquare,
+                          promoOptions: controller.promoOptions,
+                          playerIsWhite: widget.config.humanPlaysWhite,
+                          onPickPromotion: controller.choosePromotion,
+                          onDragStart: controller.beginDrag,
+                          onDragEnd: controller.endDrag,
+                          onDragCancel: controller.cancelDrag,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (controller.engineThinking && !selfPlay)
+                    const Positioned(
+                      top: 10,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: Text(
+                          'Máy đang nghĩ…',
+                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                      ),
+                    ),
+                  if (selfPlay && !controller.gameOver)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: Text(
+                          _selfPlayLine(),
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (selfPlay &&
+                      controller.moves.isNotEmpty &&
+                      controller.status == null)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: Text(
+                          _recentMoves(),
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                            fontFamily: 'Consolas',
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (controller.gameOver)
+                    Positioned(
+                      top: 10,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            controller.plyCutoff
+                                ? 'Hòa (đủ ${LaunchConfig.selfPlayMaxPlies} nửa nước, như self-play)'
+                                : '${_resultText(controller.result)} · ${controller.moves.length} nửa nước',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (controller.status != null)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 8,
+                      child: Center(
+                        child: Text(
+                          controller.status!,
+                          style: const TextStyle(
+                            color: Colors.orangeAccent,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }

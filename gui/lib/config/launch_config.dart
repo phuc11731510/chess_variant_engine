@@ -14,6 +14,7 @@
 ///   --black             người chơi cầm Đen (lật bàn)       (mặc định cầm Trắng)
 ///   --white             người chơi cầm Trắng               (mặc định)
 ///   --start-fen <FEN>   thế cờ bắt đầu tuỳ chọn            (mặc định: startpos của biến thể)
+///   --self-play         máy tự đấu cả hai bên (người chỉ xem; Space = tạm dừng/tiếp)
 /// ```
 class LaunchConfig {
   /// Đường dẫn tới engine UCI (custom_engine.exe, chạy với --uci-nn).
@@ -40,6 +41,9 @@ class LaunchConfig {
   /// (Gỡ lỗi) Tự chơi một nước của NGƯỜI ngay khi mở app, vd "--demo-move b3b4".
   final String? demoMove;
 
+  /// Máy tự đấu cả hai bên; người chỉ xem.
+  final bool selfPlay;
+
   const LaunchConfig({
     required this.enginePath,
     this.modelPath,
@@ -49,7 +53,38 @@ class LaunchConfig {
     this.humanPlaysWhite = true,
     this.startFen,
     this.demoMove,
+    this.selfPlay = false,
   });
+
+  /// --self-play: cùng tham số tìm kiếm với lúc SINH DỮ LIỆU HUẤN LUYỆN (ô 04 +
+  /// mặc định self-play của engine, src/app/selfplay_mode.cc), chỉ khác giới hạn
+  /// suy nghĩ (--movetime thay cho 800 lượt tìm). Gửi bằng `setoption` trước isready.
+  static const List<(String, String)> trainingUciOptions = [
+    ('PolicySoftmaxTemp', '1.0'), // --policy-temp 1.0 (UCI mặc định 1.359)
+    ('Temperature', '1000'), // chọn nước theo tỉ lệ số lượt tìm (T = 1)...
+    (
+      'TempCutoffPly',
+      '32',
+    ), // ...trong 32 nửa nước đầu (--temp-cutoff 32), sau đó nước tốt nhất
+    (
+      'ReuseTree',
+      'false',
+    ), // cây mới mỗi nước (để nhiễu gốc đúng như self-play)
+    ('noise-epsilon', '0.25'), // nhiễu Dirichlet ở gốc
+    ('noise-alpha', '0.15'), // --noise-alpha 0.15
+    ('cpuct', '1.3'),
+    ('cpuct-factor', '0'),
+    ('fpu-value', '0'),
+    ('two-fold-draws', 'false'),
+    ('sticky-endgames', 'false'),
+    ('task-workers', '0'),
+    ('max-prefetch', '0'),
+    ('minibatch-size', '32'),
+    ('nn-cache-size', '2000000'),
+  ];
+
+  /// Self-play cắt ván ở 400 nửa nước = hoà (--max-moves 400).
+  static const int selfPlayMaxPlies = 400;
 
   static const String defaultEngine = 'engine/custom_engine.exe';
   static const int defaultMovetimeMs = 5000;
@@ -74,6 +109,7 @@ class LaunchConfig {
     bool humanWhite = true;
     String? fen;
     String? demo;
+    bool selfPlay = false;
 
     String? valueAfter(int i) => (i + 1 < args.length) ? args[i + 1] : null;
 
@@ -81,23 +117,38 @@ class LaunchConfig {
       switch (args[i]) {
         case '--engine':
           final v = valueAfter(i);
-          if (v != null) { engine = v; i++; }
+          if (v != null) {
+            engine = v;
+            i++;
+          }
           break;
         case '--model':
           final v = valueAfter(i);
-          if (v != null) { model = v; i++; }
+          if (v != null) {
+            model = v;
+            i++;
+          }
           break;
         case '--provider':
           final v = valueAfter(i);
-          if (v != null) { provider = v.toLowerCase(); i++; }
+          if (v != null) {
+            provider = v.toLowerCase();
+            i++;
+          }
           break;
         case '--movetime':
           final v = valueAfter(i);
-          if (v != null) { movetime = int.tryParse(v); i++; }
+          if (v != null) {
+            movetime = int.tryParse(v);
+            i++;
+          }
           break;
         case '--visits':
           final v = valueAfter(i);
-          if (v != null) { visits = int.tryParse(v); i++; }
+          if (v != null) {
+            visits = int.tryParse(v);
+            i++;
+          }
           break;
         case '--black':
           humanWhite = false;
@@ -107,11 +158,20 @@ class LaunchConfig {
           break;
         case '--start-fen':
           final v = valueAfter(i);
-          if (v != null) { fen = v; i++; }
+          if (v != null) {
+            fen = v;
+            i++;
+          }
+          break;
+        case '--self-play':
+          selfPlay = true;
           break;
         case '--demo-move':
           final v = valueAfter(i);
-          if (v != null) { demo = v; i++; }
+          if (v != null) {
+            demo = v;
+            i++;
+          }
           break;
         default:
           break; // bỏ qua đối số không nhận diện
@@ -131,6 +191,7 @@ class LaunchConfig {
       humanPlaysWhite: humanWhite,
       startFen: fen,
       demoMove: demo,
+      selfPlay: selfPlay,
     );
   }
 
@@ -141,12 +202,16 @@ class LaunchConfig {
 
   @override
   String toString() => [
-        'LaunchConfig:',
-        '  engine   = $enginePath',
-        '  model    = ${modelPath ?? "(chua dat --model)"}',
-        '  provider = $provider',
-        '  think    = $thinkSummary',
-        '  human    = ${humanPlaysWhite ? "White (quan o day)" : "Black (lat ban)"}',
-        '  startFen = ${startFen ?? "(startpos mac dinh)"}',
-      ].join('\n');
+    'LaunchConfig:',
+    '  engine   = $enginePath',
+    '  model    = ${modelPath ?? "(chua dat --model)"}',
+    '  provider = $provider',
+    '  think    = $thinkSummary',
+    '  human    = ${selfPlay
+        ? "(may tu dau ca hai ben)"
+        : humanPlaysWhite
+        ? "White (quan o day)"
+        : "Black (lat ban)"}',
+    '  startFen = ${startFen ?? "(startpos mac dinh)"}',
+  ].join('\n');
 }

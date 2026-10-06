@@ -16,6 +16,9 @@ class BoardView extends StatefulWidget {
   final Set<int> targetFlats;
   final void Function(int r, int f)? onTapSquare;
 
+  /// Ô đi và ô đến của nước vừa đi (flat), tô nhạt để mắt theo kịp.
+  final Set<int> lastMoveFlats;
+
   // Bảng chọn phong cấp.
   final int? promoSquare;
   final List<String> promoOptions;
@@ -34,6 +37,7 @@ class BoardView extends StatefulWidget {
     this.selectedFlat,
     this.targetFlats = const {},
     this.onTapSquare,
+    this.lastMoveFlats = const {},
     this.promoSquare,
     this.promoOptions = const [],
     this.playerIsWhite = true,
@@ -130,6 +134,7 @@ class _BoardViewState extends State<BoardView> {
                 board: board,
                 selectedFlat: widget.selectedFlat,
                 targets: widget.targetFlats,
+                lastMove: widget.lastMoveFlats,
                 flipped: flipped,
               ),
             ),
@@ -147,30 +152,36 @@ class _BoardViewState extends State<BoardView> {
             final row = flipped ? r : 9 - r;
             final col = flipped ? 9 - f : f;
             final royalLabel = PieceAssets.isRoyal(piece.letter)
-                ? (piece.isWhite ? board.whiteRoyalChecks : board.blackRoyalChecks)
+                ? (piece.isWhite
+                      ? board.whiteRoyalChecks
+                      : board.blackRoyalChecks)
                 : null;
-            children.add(Positioned(
-              left: col * cell,
-              top: row * cell,
-              width: cell,
-              height: cell,
-              child: PieceWidget(
-                piece: piece,
-                size: cell,
-                royalCheckLabel: royalLabel,
+            children.add(
+              Positioned(
+                left: col * cell,
+                top: row * cell,
+                width: cell,
+                height: cell,
+                child: PieceWidget(
+                  piece: piece,
+                  size: cell,
+                  royalCheckLabel: royalLabel,
+                ),
               ),
-            ));
+            );
           }
         }
 
         // Bảng chọn phong cấp (nổi trên bàn, cột chạy từ ô đích về phía người chơi).
         if (widget.promoSquare != null && widget.promoOptions.isNotEmpty) {
-          children.add(Positioned.fill(
-            child: GestureDetector(
-              onTap: () => widget.onPickPromotion?.call(''),
-              child: Container(color: const Color(0x88000000)),
+          children.add(
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => widget.onPickPromotion?.call(''),
+                child: Container(color: const Color(0x88000000)),
+              ),
             ),
-          ));
+          );
           final pr = widget.promoSquare! ~/ 10, pf = widget.promoSquare! % 10;
           final pcol = flipped ? 9 - pf : pf;
           final prow = flipped ? pr : 9 - pr;
@@ -181,28 +192,30 @@ class _BoardViewState extends State<BoardView> {
             final disp = widget.playerIsWhite
                 ? letter.toUpperCase()
                 : letter.toLowerCase();
-            children.add(Positioned(
-              left: pcol * cell,
-              top: (startRow + k) * cell,
-              width: cell,
-              height: cell,
-              child: GestureDetector(
-                onTap: () => widget.onPickPromotion?.call(letter),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.black26),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(cell * 0.06),
-                    child: SvgPicture.asset(
-                      PieceAssets.assetFor(disp),
-                      fit: BoxFit.contain,
+            children.add(
+              Positioned(
+                left: pcol * cell,
+                top: (startRow + k) * cell,
+                width: cell,
+                height: cell,
+                child: GestureDetector(
+                  onTap: () => widget.onPickPromotion?.call(letter),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.black26),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(cell * 0.06),
+                      child: SvgPicture.asset(
+                        PieceAssets.assetFor(disp),
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ));
+            );
           }
         }
 
@@ -210,21 +223,23 @@ class _BoardViewState extends State<BoardView> {
         if (_dragFrom != null) {
           final dp = board.at(_dragFrom!.r, _dragFrom!.f);
           if (dp != null) {
-            children.add(ValueListenableBuilder<Offset?>(
-              valueListenable: _dragPos,
-              builder: (context, pos, _) {
-                if (pos == null) return const SizedBox.shrink();
-                return Positioned(
-                  left: pos.dx - _grabOffset.dx,
-                  top: pos.dy - _grabOffset.dy,
-                  width: cell,
-                  height: cell,
-                  child: IgnorePointer(
-                    child: PieceWidget(piece: dp, size: cell),
-                  ),
-                );
-              },
-            ));
+            children.add(
+              ValueListenableBuilder<Offset?>(
+                valueListenable: _dragPos,
+                builder: (context, pos, _) {
+                  if (pos == null) return const SizedBox.shrink();
+                  return Positioned(
+                    left: pos.dx - _grabOffset.dx,
+                    top: pos.dy - _grabOffset.dy,
+                    width: cell,
+                    height: cell,
+                    child: IgnorePointer(
+                      child: PieceWidget(piece: dp, size: cell),
+                    ),
+                  );
+                },
+              ),
+            );
           }
         }
 
@@ -255,12 +270,14 @@ class HighlightPainter extends CustomPainter {
   final BoardState board;
   final int? selectedFlat;
   final Set<int> targets;
+  final Set<int> lastMove;
   final bool flipped;
 
   const HighlightPainter({
     required this.board,
     required this.selectedFlat,
     required this.targets,
+    this.lastMove = const {},
     required this.flipped,
   });
 
@@ -273,6 +290,13 @@ class HighlightPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final cell = size.width / 10;
+
+    for (final m in lastMove) {
+      canvas.drawRect(
+        _topLeft(m ~/ 10, m % 10, cell) & Size(cell, cell),
+        Paint()..color = const Color(0x66CDD26A),
+      );
+    }
 
     if (selectedFlat != null) {
       final r = selectedFlat! ~/ 10, f = selectedFlat! % 10;
@@ -303,6 +327,7 @@ class HighlightPainter extends CustomPainter {
   bool shouldRepaint(covariant HighlightPainter old) =>
       old.selectedFlat != selectedFlat ||
       old.targets != targets ||
+      old.lastMove != lastMove ||
       old.flipped != flipped ||
       !identical(old.board, board);
 }
@@ -348,10 +373,11 @@ class PieceWidget extends StatelessWidget {
                   fontSize: size * 0.52,
                   fontWeight: FontWeight.bold,
                   height: 1.0,
-                  color: (piece.isWhite
-                          ? const Color(0xFF333333)
-                          : const Color(0xFFCCCCCC))
-                      .withValues(alpha: 0.80),
+                  color:
+                      (piece.isWhite
+                              ? const Color(0xFF333333)
+                              : const Color(0xFFCCCCCC))
+                          .withValues(alpha: 0.80),
                 ),
               ),
             ),

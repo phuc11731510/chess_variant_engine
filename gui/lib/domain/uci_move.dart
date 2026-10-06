@@ -41,7 +41,9 @@ class UciMove {
 
     int? readRank() {
       final start = i;
-      while (i < s.length && s.codeUnitAt(i) >= 0x30 && s.codeUnitAt(i) <= 0x39) {
+      while (i < s.length &&
+          s.codeUnitAt(i) >= 0x30 &&
+          s.codeUnitAt(i) <= 0x39) {
         i++;
       }
       if (i == start) return null;

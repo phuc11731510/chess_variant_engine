@@ -84,6 +84,10 @@ const std::vector<SearchOpt>& SearchOptTable() {
         {"cpuct-factor-at-root", Kind::kFloat, &BP::kCpuctFactorAtRootId, 0.0, 1000.0, {}},
         {"fpu-value", Kind::kFloat, &BP::kFpuValueId, -100.0, 100.0, {}},
         {"fpu-value-at-root", Kind::kFloat, &BP::kFpuValueAtRootId, -100.0, 100.0, {}},
+        // Dirichlet noise at the root (self-play: 0.25 / 0.15). The UCI engine
+        // plays without noise unless these are set (GUI --self-play sets them).
+        {"noise-epsilon", Kind::kFloat, &BP::kNoiseEpsilonId, 0.0, 1.0, {}},
+        {"noise-alpha", Kind::kFloat, &BP::kNoiseAlphaId, 1e-6, 1e6, {}},
         {"draw-score", Kind::kFloat, &BP::kDrawScoreId, -1.0, 1.0, {}},
         {"temp-endgame", Kind::kFloat, &BP::kTemperatureEndgameId, 0.0, 100.0, {}},
         {"temp-value-cutoff", Kind::kFloat, &BP::kTemperatureWinpctCutoffId, 0.0, 100.0, {}},

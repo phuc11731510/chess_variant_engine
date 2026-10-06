@@ -14,7 +14,8 @@ class PieceAssets {
     'n': 'knight',
     'b': 'bishop',
     'r': 'rook',
-    'a': 'amazon',
+    'q': 'queen', // thế xuất phát hiện tại dùng Hậu (thay Amazon)
+    'a': 'amazon', // engine vẫn định nghĩa, không còn trong thế xuất phát
     'e': 'chancellor',
     'h': 'archbishop',
     'y': 'alibaba', // customPiece2 (AD)

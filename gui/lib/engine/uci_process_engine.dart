@@ -41,11 +41,9 @@ class UciProcessEngine implements EngineService {
     }
     // workingDirectory = thư mục engine để DLL (onnxruntime...) + model tương
     // đối resolve đúng.
-    _proc = await Process.start(
-      exeFile.absolute.path,
-      const ['--uci-nn'],
-      workingDirectory: exeFile.parent.absolute.path,
-    );
+    _proc = await Process.start(exeFile.absolute.path, const [
+      '--uci-nn',
+    ], workingDirectory: exeFile.parent.absolute.path);
 
     _outSub = _proc!.stdout
         .transform(const Utf8Decoder(allowMalformed: true))
@@ -55,14 +53,17 @@ class UciProcessEngine implements EngineService {
         .transform(const Utf8Decoder(allowMalformed: true))
         .transform(const LineSplitter())
         .listen((l) {
-      // ignore: avoid_print
-      print('[engine:stderr] $l');
-    });
+          // ignore: avoid_print
+          print('[engine:stderr] $l');
+        });
 
     // --- Handshake UCI ---
     _send('uci');
-    await _expect((l) => l.trim() == 'uciok',
-        timeout: const Duration(seconds: 10), what: 'uciok');
+    await _expect(
+      (l) => l.trim() == 'uciok',
+      timeout: const Duration(seconds: 10),
+      what: 'uciok',
+    );
 
     if (config.modelPath != null) {
       _send('setoption name WeightsFile value ${config.modelPath}');
@@ -71,11 +72,19 @@ class UciProcessEngine implements EngineService {
     if (config.visits != null) {
       _send('setoption name Visits value ${config.visits}');
     }
+    if (config.selfPlay) {
+      for (final (name, value) in LaunchConfig.trainingUciOptions) {
+        _send('setoption name $name value $value');
+      }
+    }
 
     // isready: engine (re)dựng backend nếu có model -> chờ lâu hơn.
     _send('isready');
-    await _expect((l) => l.trim() == 'readyok',
-        timeout: const Duration(seconds: 60), what: 'readyok');
+    await _expect(
+      (l) => l.trim() == 'readyok',
+      timeout: const Duration(seconds: 60),
+      what: 'readyok',
+    );
     _started = true;
   }
 
@@ -104,7 +113,10 @@ class UciProcessEngine implements EngineService {
   Future<List<String>> legalMoves() async {
     _ensureStarted();
     _send('legalmoves');
-    final line = await _expect((l) => l.startsWith('legalmoves'), what: 'legalmoves');
+    final line = await _expect(
+      (l) => l.startsWith('legalmoves'),
+      what: 'legalmoves',
+    );
     final parts = line.trim().split(RegExp(r'\s+'));
     return parts.length > 1 ? parts.sublist(1) : <String>[];
   }
@@ -140,10 +152,15 @@ class UciProcessEngine implements EngineService {
     if (config.visits != null) {
       _send('go nodes ${config.visits}');
     } else {
-      _send('go movetime ${config.movetimeMs ?? LaunchConfig.defaultMovetimeMs}');
+      _send(
+        'go movetime ${config.movetimeMs ?? LaunchConfig.defaultMovetimeMs}',
+      );
     }
-    final line = await _expect((l) => l.startsWith('bestmove'),
-        timeout: const Duration(minutes: 5), what: 'bestmove');
+    final line = await _expect(
+      (l) => l.startsWith('bestmove'),
+      timeout: const Duration(minutes: 5),
+      what: 'bestmove',
+    );
     final parts = line.trim().split(RegExp(r'\s+'));
     return parts.length > 1 ? parts[1] : '0000';
   }
@@ -182,8 +199,11 @@ class UciProcessEngine implements EngineService {
   /// để chắc engine đã xử lý xong trước khi đi tiếp.
   Future<void> _syncReady() async {
     _send('isready');
-    await _expect((l) => l.trim() == 'readyok',
-        timeout: const Duration(seconds: 30), what: 'readyok');
+    await _expect(
+      (l) => l.trim() == 'readyok',
+      timeout: const Duration(seconds: 30),
+      what: 'readyok',
+    );
   }
 
   void _send(String cmd) {
@@ -194,14 +214,20 @@ class UciProcessEngine implements EngineService {
     _proc?.stdin.writeln(cmd);
   }
 
-  Future<String> _expect(bool Function(String) match,
-      {Duration timeout = const Duration(seconds: 15), String what = ''}) {
+  Future<String> _expect(
+    bool Function(String) match, {
+    Duration timeout = const Duration(seconds: 15),
+    String what = '',
+  }) {
     final p = _Pending(match);
     _pending.add(p);
-    return p.completer.future.timeout(timeout, onTimeout: () {
-      _pending.remove(p);
-      throw EngineException('Engine khong phan hoi "$what" dung han');
-    });
+    return p.completer.future.timeout(
+      timeout,
+      onTimeout: () {
+        _pending.remove(p);
+        throw EngineException('Engine khong phan hoi "$what" dung han');
+      },
+    );
   }
 
   void _onLine(String line) {

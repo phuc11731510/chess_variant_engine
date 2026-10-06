@@ -11,7 +11,26 @@ class GameController extends ChangeNotifier {
   final EngineService engine;
   final bool humanIsWhite;
 
-  GameController({required this.engine, required this.humanIsWhite});
+  /// Máy tự đấu cả hai bên (--self-play): người chỉ xem, có thể tạm dừng.
+  final bool selfPlay;
+
+  GameController({
+    required this.engine,
+    required this.humanIsWhite,
+    this.selfPlay = false,
+    this.maxPlies = 0,
+  });
+
+  /// Nước vừa đi (để tô ô đi/đến) và toàn bộ nước đã đi (UCI thật).
+  UciMove? lastMove;
+  final List<String> moves = [];
+
+  /// Tự đấu: đang tạm dừng (nước đang nghĩ vẫn đi nốt, sau đó dừng).
+  bool paused = false;
+  bool _disposed = false;
+
+  Set<int> get lastMoveFlats =>
+      lastMove == null ? const {} : {lastMove!.from.flat, lastMove!.to.flat};
 
   BoardState board = BoardState.fromFen(kVariantStartposFen);
   List<String> legal = [];
@@ -25,12 +44,20 @@ class GameController extends ChangeNotifier {
   // Phong cấp đang chờ người chọn quân.
   List<UciMove> _promoCands = [];
 
-  bool get gameOver => result != GameResult.undecided;
-  bool get humansTurn => board.whiteToMove == humanIsWhite;
+  /// Tự đấu: số nửa nước tối đa, tới đó tính hoà như self-play (--max-moves).
+  /// 0 = không giới hạn.
+  final int maxPlies;
+
+  /// Ván bị cắt vì đủ [maxPlies] (kết quả hiển thị là hoà).
+  bool plyCutoff = false;
+
+  bool get gameOver => result != GameResult.undecided || plyCutoff;
+  bool get humansTurn => !selfPlay && board.whiteToMove == humanIsWhite;
   bool get busy => engineThinking;
 
   /// Ô đích phong cấp (flat) khi đang chờ chọn quân; null nếu không.
-  int? get promoSquare => _promoCands.isEmpty ? null : _promoCands.first.to.flat;
+  int? get promoSquare =>
+      _promoCands.isEmpty ? null : _promoCands.first.to.flat;
 
   /// Các ký tự quân được phép phong (theo thứ tự hiển thị).
   List<String> get promoOptions =>
@@ -155,8 +182,9 @@ class GameController extends ChangeNotifier {
     if (!legal.contains(u)) {
       final m = UciMove.tryParse(u);
       if (m == null) return;
-      final cand =
-          _legalParsed().where((x) => x.from == m.from && x.to == m.to).toList();
+      final cand = _legalParsed()
+          .where((x) => x.from == m.from && x.to == m.to)
+          .toList();
       if (cand.isEmpty) return;
       u = cand.first.uci;
     }
@@ -207,21 +235,59 @@ class GameController extends ChangeNotifier {
 
   Future<void> _playHuman(String uci) async {
     await engine.applyMove(uci);
+    _recordMove(uci);
     await _refresh();
     await _maybeEngineMove();
   }
 
+  void _recordMove(String uci) {
+    moves.add(uci);
+    lastMove = UciMove.tryParse(uci);
+  }
+
+  /// Máy đi khi tới lượt máy. Ở chế độ tự đấu: đi liên tục cả hai bên tới khi
+  /// hết ván, bị tạm dừng hoặc cửa sổ đóng.
   Future<void> _maybeEngineMove() async {
-    if (gameOver || humansTurn) return;
-    engineThinking = true;
-    notifyListeners();
-    try {
-      final mv = await engine.bestMove();
-      if (mv != '0000') await engine.applyMove(mv);
-    } finally {
-      engineThinking = false;
+    while (!_disposed && !gameOver && !humansTurn && !(selfPlay && paused)) {
+      engineThinking = true;
+      notifyListeners();
+      String mv;
+      try {
+        mv = await engine.bestMove();
+        if (_disposed) return;
+        if (mv != '0000') {
+          await engine.applyMove(mv);
+          _recordMove(mv);
+          if (selfPlay && maxPlies > 0 && moves.length >= maxPlies) {
+            plyCutoff = true;
+          }
+        }
+      } catch (e) {
+        if (_disposed) return;
+        status = 'Loi engine: $e';
+        engineThinking = false;
+        notifyListeners();
+        return;
+      } finally {
+        engineThinking = false;
+      }
+      try {
+        await _refresh();
+      } catch (e) {
+        if (_disposed) return; // cửa sổ đóng giữa chừng: engine đã tắt
+        rethrow;
+      }
+      if (mv == '0000') return; // engine không có nước (không nên xảy ra)
+      if (!selfPlay) return; // chơi với người: máy đi đúng một nước
     }
-    await _refresh();
+  }
+
+  /// Tự đấu: bật/tắt tạm dừng. Tiếp tục thì máy đi tiếp ngay.
+  void togglePause() {
+    if (!selfPlay || gameOver) return;
+    paused = !paused;
+    notifyListeners();
+    if (!paused && !engineThinking) _maybeEngineMove();
   }
 
   Future<void> _refresh() async {
@@ -235,7 +301,13 @@ class GameController extends ChangeNotifier {
   }
 
   @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
+  @override
   void dispose() {
+    _disposed = true;
     engine.dispose();
     super.dispose();
   }

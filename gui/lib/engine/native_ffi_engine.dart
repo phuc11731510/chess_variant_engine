@@ -90,12 +90,18 @@ class NativeFfiEngine implements EngineService {
 
     // Drain hàng đợi định kỳ (bestmove/info đến bất đồng bộ; phản hồi đồng bộ
     // như legalmoves cũng được nhặt ở nhịp kế).
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 15), (_) => _pump());
+    _pollTimer = Timer.periodic(
+      const Duration(milliseconds: 15),
+      (_) => _pump(),
+    );
 
     // --- Handshake UCI ---
     _send('uci');
-    await _expect((l) => l.trim() == 'uciok',
-        timeout: const Duration(seconds: 10), what: 'uciok');
+    await _expect(
+      (l) => l.trim() == 'uciok',
+      timeout: const Duration(seconds: 10),
+      what: 'uciok',
+    );
 
     // Tận dụng đa nhân điện thoại cho lượng giá NN (M2: 1→18, 4→62 nps).
     _send('setoption name BackendThreads value 4');
@@ -107,8 +113,11 @@ class NativeFfiEngine implements EngineService {
     // isready: EnsureBackend nạp model (ĐỒNG BỘ — block ngắn trên isolate lúc
     // khởi động). readyok được đẩy vào hàng đợi rồi timer nhặt.
     _send('isready');
-    await _expect((l) => l.trim() == 'readyok',
-        timeout: const Duration(seconds: 60), what: 'readyok');
+    await _expect(
+      (l) => l.trim() == 'readyok',
+      timeout: const Duration(seconds: 60),
+      what: 'readyok',
+    );
     _started = true;
   }
 
@@ -137,8 +146,10 @@ class NativeFfiEngine implements EngineService {
   Future<List<String>> legalMoves() async {
     _ensureStarted();
     _send('legalmoves');
-    final line =
-        await _expect((l) => l.startsWith('legalmoves'), what: 'legalmoves');
+    final line = await _expect(
+      (l) => l.startsWith('legalmoves'),
+      what: 'legalmoves',
+    );
     final parts = line.trim().split(RegExp(r'\s+'));
     return parts.length > 1 ? parts.sublist(1) : <String>[];
   }
@@ -174,10 +185,15 @@ class NativeFfiEngine implements EngineService {
     if (config.visits != null) {
       _send('go nodes ${config.visits}');
     } else {
-      _send('go movetime ${config.movetimeMs ?? LaunchConfig.defaultMovetimeMs}');
+      _send(
+        'go movetime ${config.movetimeMs ?? LaunchConfig.defaultMovetimeMs}',
+      );
     }
-    final line = await _expect((l) => l.startsWith('bestmove'),
-        timeout: const Duration(minutes: 5), what: 'bestmove');
+    final line = await _expect(
+      (l) => l.startsWith('bestmove'),
+      timeout: const Duration(minutes: 5),
+      what: 'bestmove',
+    );
     final parts = line.trim().split(RegExp(r'\s+'));
     return parts.length > 1 ? parts[1] : '0000';
   }
@@ -225,7 +241,8 @@ class NativeFfiEngine implements EngineService {
       final p = '$dir/model.onnx';
       if (File(p).existsSync()) return p;
       throw EngineException(
-          'Chua thay model: $p\n(adb push <net>.onnx vao thu muc nay)');
+        'Chua thay model: $p\n(adb push <net>.onnx vao thu muc nay)',
+      );
     }
     throw EngineException('Khong xac dinh duoc thu muc model tren thiet bi');
   }
@@ -241,8 +258,11 @@ class NativeFfiEngine implements EngineService {
 
   Future<void> _syncReady() async {
     _send('isready');
-    await _expect((l) => l.trim() == 'readyok',
-        timeout: const Duration(seconds: 30), what: 'readyok');
+    await _expect(
+      (l) => l.trim() == 'readyok',
+      timeout: const Duration(seconds: 30),
+      what: 'readyok',
+    );
   }
 
   void _send(String cmd) {
@@ -270,14 +290,20 @@ class NativeFfiEngine implements EngineService {
     }
   }
 
-  Future<String> _expect(bool Function(String) match,
-      {Duration timeout = const Duration(seconds: 15), String what = ''}) {
+  Future<String> _expect(
+    bool Function(String) match, {
+    Duration timeout = const Duration(seconds: 15),
+    String what = '',
+  }) {
     final p = _Pending(match);
     _pending.add(p);
-    return p.completer.future.timeout(timeout, onTimeout: () {
-      _pending.remove(p);
-      throw EngineException('Engine khong phan hoi "$what" dung han');
-    });
+    return p.completer.future.timeout(
+      timeout,
+      onTimeout: () {
+        _pending.remove(p);
+        throw EngineException('Engine khong phan hoi "$what" dung han');
+      },
+    );
   }
 
   void _onLine(String line) {

@@ -5,7 +5,7 @@ class Piece {
 
   bool get isWhite => letter == letter.toUpperCase();
 
-  /// Ký tự loại quân (luôn thường): p n b r k m a e h y s v.
+  /// Ký tự loại quân (luôn thường): p n b r q k m a e h y s v.
   String get type => letter.toLowerCase();
 }
 
@@ -24,8 +24,12 @@ class BoardState {
   /// Bên đi: true = Trắng (đọc từ FEN token 2). Dùng để biết tới lượt ai.
   final bool whiteToMove;
 
-  const BoardState(this.cells,
-      {this.checksWhite, this.checksBlack, this.whiteToMove = true});
+  const BoardState(
+    this.cells, {
+    this.checksWhite,
+    this.checksBlack,
+    this.whiteToMove = true,
+  });
 
   /// Số lần vua TRẮNG còn có thể BỊ CHIẾU trước khi THUA = checksRemaining[BLACK]
   /// (Đen thắng khi dùng hết số chiếu của mình). Hiển thị trên mặt vua Trắng.
@@ -42,8 +46,11 @@ class BoardState {
   factory BoardState.fromFen(String fen) {
     final placement = fen.trim().split(RegExp(r'\s+')).first;
     final rows = placement.split('/');
-    final cells =
-        List.generate(10, (_) => List<Piece?>.filled(10, null), growable: false);
+    final cells = List.generate(
+      10,
+      (_) => List<Piece?>.filled(10, null),
+      growable: false,
+    );
 
     for (int i = 0; i < rows.length && i < 10; i++) {
       // rows[0] = hàng 10 (đỉnh) ... rows[9] = hàng 1 (đáy) -> r = 9 - i.
@@ -56,7 +63,9 @@ class BoardState {
         if (code >= 48 && code <= 57) {
           // đọc trọn số (gộp các chữ số liên tiếp -> hỗ trợ "10")
           int num = 0;
-          while (k < s.length && s.codeUnitAt(k) >= 48 && s.codeUnitAt(k) <= 57) {
+          while (k < s.length &&
+              s.codeUnitAt(k) >= 48 &&
+              s.codeUnitAt(k) <= 57) {
             num = num * 10 + (s.codeUnitAt(k) - 48);
             k++;
           }
@@ -81,11 +90,16 @@ class BoardState {
         break;
       }
     }
-    return BoardState(cells,
-        checksWhite: cw, checksBlack: cb, whiteToMove: whiteToMove);
+    return BoardState(
+      cells,
+      checksWhite: cw,
+      checksBlack: cb,
+      whiteToMove: whiteToMove,
+    );
   }
 }
 
 /// FEN xuất phát của biến thể (dùng làm fallback khi engine chưa sẵn sàng).
+/// Phải khớp ChessBoard::kStartposFen của engine (src/lczero_chess/chess/board.cc).
 const String kVariantStartposFen =
-    'vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV w BIbi - 7+7 0 1';
+    'vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1';

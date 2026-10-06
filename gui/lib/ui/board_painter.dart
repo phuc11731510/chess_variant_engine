@@ -23,35 +23,59 @@ class BoardPainter extends CustomPainter {
         // a1 (default: row 9, col 0) -> (9+0) lẻ -> ô tối, đúng chess.com.
         final isDark = (row + col) % 2 == 1;
         paint.color = isDark ? dark : light;
-        canvas.drawRect(Rect.fromLTWH(col * cell, row * cell, cell, cell), paint);
+        canvas.drawRect(
+          Rect.fromLTWH(col * cell, row * cell, cell, cell),
+          paint,
+        );
 
         final labelColor = isDark ? light : dark; // tương phản với ô
 
         // Số HÀNG: cột ngoài cùng trái, góc trên-trái.
         if (col == 0) {
           final rank = flipped ? (row + 1) : (10 - row);
-          _text(canvas, '$rank', labelColor, fs,
-              Offset(col * cell + pad, row * cell + pad));
+          _text(
+            canvas,
+            '$rank',
+            labelColor,
+            fs,
+            Offset(col * cell + pad, row * cell + pad),
+          );
         }
         // Chữ CỘT: hàng dưới cùng, góc dưới-phải.
         if (row == 9) {
           final fileIdx = flipped ? (9 - col) : col;
           final letter = String.fromCharCode('a'.codeUnitAt(0) + fileIdx);
-          _text(canvas, letter, labelColor, fs,
-              Offset((col + 1) * cell - pad, (row + 1) * cell - pad),
-              rightAlign: true, bottomAlign: true);
+          _text(
+            canvas,
+            letter,
+            labelColor,
+            fs,
+            Offset((col + 1) * cell - pad, (row + 1) * cell - pad),
+            rightAlign: true,
+            bottomAlign: true,
+          );
         }
       }
     }
   }
 
-  void _text(Canvas canvas, String s, Color color, double fontSize, Offset at,
-      {bool rightAlign = false, bool bottomAlign = false}) {
+  void _text(
+    Canvas canvas,
+    String s,
+    Color color,
+    double fontSize,
+    Offset at, {
+    bool rightAlign = false,
+    bool bottomAlign = false,
+  }) {
     final tp = TextPainter(
       text: TextSpan(
         text: s,
         style: TextStyle(
-            color: color, fontSize: fontSize, fontWeight: FontWeight.bold),
+          color: color,
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+        ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
