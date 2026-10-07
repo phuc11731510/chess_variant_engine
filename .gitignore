@@ -75,3 +75,6 @@ Sổ tay colab/
 Ghi chú.txt
 implementation_plan_GUI.md
 implementation_plan_GUI_andorid.md
+
+# gprof output
+gmon.out
