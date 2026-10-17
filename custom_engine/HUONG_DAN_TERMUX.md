@@ -170,6 +170,7 @@ Mục `a` còn làm được:
 | `r` | Đổi tên (tên nội bộ để phân biệt, vd `phuc`, `phuc2`) — cả tài khoản chính (mặc định tên `chinh`). Chữ, số, `_`, `-`, tối đa 20 ký tự. Không đổi được khi tài khoản đang mở ở cửa sổ khác |
 | `x` | Đăng xuất một tài khoản (không được khi nó đang mở ở cửa sổ khác): hỏi trả máy `fz` của nó trước (nên trả — máy vẫn tiêu hạn mức tới khi Colab thu hồi), gõ `co` → xoá token; tài khoản phụ bị xoá khỏi danh sách |
 | `d` | **Dò tài khoản trùng token** (từ 2026-10-01): so tệp token của mọi tài khoản trên điện thoại -- hai tên cùng một tệp token (chép nhầm khi chuyển điện thoại) thì báo `[TRÙNG]`. Chỉ so tệp, không hỏi mạng, không đổi gì. Sửa: giữ một tên, xoá tên kia (`x`) rồi thêm lại bằng đúng tệp token của tài khoản còn thiếu (hoặc `n` đăng nhập lại) |
+| `t` | **Xuất token** (từ 2026-10-17) để chuẩn bị Colab trên máy tính: chọn số tài khoản → chép `token.json` của nó ra `Download/FairyZero/token_<tên>.json`. Chép tệp đó sang máy tính **bằng cáp USB**, đặt tên `D:\chess_variant\token.json` (Claude chép vào Colab CLI trong WSL rồi xoá). Tệp = mật khẩu tài khoản: không gửi qua chat/Zalo/email. Chép xong nhấn Enter → menu xoá tệp trên điện thoại (gõ `giu` nếu muốn giữ, rồi tự xoá sau) |
 
 Tài khoản đã "cất" bằng menu cũ (`~/.config/colab-cli/luu/<tên>/`) tự thành tài khoản phụ cùng tên
 khi mở `a`. Token hết hạn thì CLI hỏi đăng nhập lại như bình thường.

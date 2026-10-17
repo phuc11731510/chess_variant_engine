@@ -559,6 +559,7 @@ tai_khoan() {
     echo " ${M_DAM}r${M_HET}      đổi tên"
     echo " ${M_DAM}x${M_HET}      đăng xuất / xoá"
     echo " ${M_DAM}d${M_HET}      dò tài khoản trùng token"
+    echo " ${M_DAM}t${M_HET}      xuất token (chép sang máy tính)"
     echo " ${M_DAM}Enter${M_HET}  về menu"
     echo "${M_MO} Cùng lúc: cửa sổ Termux mới,${M_HET}"
     echo "${M_MO} gõ fz @<tên>${M_HET}"
@@ -581,6 +582,27 @@ tai_khoan() {
         muc+=("$(ten_tk "$ten")|$([ -n "$ten" ] && echo "$TKG/$ten" || echo "$HOME")")
       done
       python ~/fz_trung_tk.py "${muc[@]}"
+      dung ;;
+    t|T)
+      # Xuat token.json cua mot tai khoan ra Download/FairyZero de chep sang may tinh (Colab CLI tren
+      # PC/WSL dung dung tep nay). Tep = mat khau tai khoan: chep bang cap USB, khong gui qua
+      # chat/Zalo/email; Download doc duoc boi app khac nen menu xoa tep ngay khi chep xong.
+      read -rp "Số tài khoản cần xuất token: " i
+      [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ] || continue
+      ten=${ds[$((i - 1))]}
+      if ! tk_dang_nhap "$ten"; then echo "[!] $(ten_tk "$ten") chưa đăng nhập"; dung; continue; fi
+      x="$TAI/token_$(ten_tk "$ten").json"
+      mkdir -p "$TAI" &&
+        cp "$([ -n "$ten" ] && echo "$TKG/$ten" || echo "$HOME")/.config/colab-cli/token.json" "$x" ||
+        { dung; continue; }
+      echo "[đã xuất] Download/FairyZero/$(basename "$x")"
+      echo "${M_VANG}Tệp này = mật khẩu tài khoản.${M_HET}"
+      echo "Chép bằng cáp USB sang máy tính,"
+      echo "đặt tên D:\\chess_variant\\token.json."
+      echo "${M_DO}KHÔNG gửi qua chat/Zalo/email.${M_HET}"
+      read -rp "Chép xong Enter = xoá tệp trên ĐT (giu = giữ): " cu
+      if [ "$cu" = giu ]; then echo "[giữ] nhớ tự xoá $(basename "$x") sau khi chép"
+      else rm -f "$x" && echo "[đã xoá] $(basename "$x")"; fi
       dung ;;
     r|R)
       read -rp "Số tài khoản cần đổi tên: " i

@@ -78,3 +78,6 @@ implementation_plan_GUI_andorid.md
 
 # gprof output
 gmon.out
+
+# Tep dang nhap Colab (= mat khau), vd. token.json chep tu dien thoai (menu Termux a -> t)
+token*.json
