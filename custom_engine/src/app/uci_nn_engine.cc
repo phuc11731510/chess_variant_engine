@@ -572,7 +572,7 @@ private:
         lczero::classic::SearchParams::Populate(parser_.get());
         auto* d = parser_->GetMutableDefaultsOptions();
         d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, policy_temp_);
-        d->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+        d->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "fen_only");  // ghi lai cho dung; mang luon ma hoa FEN_ONLY (onnx_backend.cc)
         d->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);  // play hard: no noise
         d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_);
         std::string bopts;

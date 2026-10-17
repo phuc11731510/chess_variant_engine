@@ -74,6 +74,9 @@ public:
 
     const Position& Last() const { return last_position_; }
     const Position& Starting() const { return starting_position_; }
+    // Thế ban đầu (lúc Reset) KHÔNG phải thế xuất phát của biến thể (khác vị trí quân hoặc Đen đi trước):
+    // FillEmptyHistory::FEN_ONLY khi đó chép thế này vào các bàn lịch sử còn trống (như lc0).
+    bool StartingIsCustom() const { return starting_is_custom_; }
     int GetLength() const { return history_size_ + 1; }
     void Reserve(size_t) {}
     
@@ -102,6 +105,7 @@ private:
     std::array<LightweightPosition, 512> history_; // Mảng tĩnh tránh heap allocation
     std::array<Stockfish::StateInfo, 512> mcts_states_; // Stack lưu StateInfo dùng riêng cho MCTS
     size_t history_size_ = 0;
+    bool starting_is_custom_ = false;
 };
 
 } // namespace lczero

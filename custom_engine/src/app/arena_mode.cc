@@ -102,7 +102,7 @@ int run_arena(const EngineOptions& o) {
     auto build_opts = [&](lczero::OptionsParser& parser, const std::string& weights) {
         lczero::classic::SearchParams::Populate(&parser);
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, o.sp_policy_temp);
-        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "fen_only");  // ghi lai cho dung; mang luon ma hoa FEN_ONLY (onnx_backend.cc)
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);
         if (o.sp_cpuct >= 0.0f)
             parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_cpuct);

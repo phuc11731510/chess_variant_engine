@@ -88,7 +88,7 @@ void run_play(const std::string& weights, const std::string& provider, int fixed
     lczero::classic::SearchParams::Populate(&parser);
     auto* d = parser.GetMutableDefaultsOptions();
     d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.359f);  // lc0 default
-    d->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "no");
+    d->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "fen_only");  // ghi lai cho dung; mang luon ma hoa FEN_ONLY (onnx_backend.cc)
     d->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);
     d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights);
     std::string play_bopts;

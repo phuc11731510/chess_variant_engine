@@ -46,6 +46,7 @@ Position Position::FromFen(std::string_view fen) {
 PositionHistory::PositionHistory(const PositionHistory& other) {
     starting_position_ = other.starting_position_;
     history_size_ = other.history_size_;
+    starting_is_custom_ = other.starting_is_custom_;
     std::copy_n(other.history_.begin(), history_size_, history_.begin());
     
     if (history_size_ > 0) {
@@ -64,6 +65,7 @@ PositionHistory& PositionHistory::operator=(const PositionHistory& other) {
     if (this != &other) {
         starting_position_ = other.starting_position_;
         history_size_ = other.history_size_;
+        starting_is_custom_ = other.starting_is_custom_;
         std::copy_n(other.history_.begin(), history_size_, history_.begin());
         
         if (history_size_ > 0) {
@@ -107,16 +109,36 @@ void PositionHistory::TrimHistory(size_t keep_count) {
     }
 }
 
+namespace {
+// Khác thế xuất phát của biến thể: khác vị trí quân, hoặc Đen đi trước.
+bool IsCustomStart(const ChessBoard& board) {
+    static const std::array<uint8_t, 120> kStart = [] {
+        const ChessBoard start;   // ChessBoard() = thế xuất phát
+        std::array<uint8_t, 120> b;
+        for (int s = 0; s < 120; ++s)
+            b[s] = static_cast<uint8_t>(start.GetRawPosition().piece_on(Stockfish::Square(s)));
+        return b;
+    }();
+    if (board.flipped()) return true;
+    const auto& raw = board.GetRawPosition();
+    for (int s = 0; s < 120; ++s)
+        if (static_cast<uint8_t>(raw.piece_on(Stockfish::Square(s))) != kStart[s]) return true;
+    return false;
+}
+}  // namespace
+
 void PositionHistory::Reset(const ChessBoard& board, int rule50_ply, int game_ply) {
     starting_position_ = Position(board, rule50_ply, game_ply);
     last_position_ = starting_position_;
     history_size_ = 0;
+    starting_is_custom_ = IsCustomStart(board);
 }
 
 void PositionHistory::Reset(const Position& pos) {
     starting_position_ = pos;
     last_position_ = pos;
     history_size_ = 0;
+    starting_is_custom_ = IsCustomStart(pos.GetBoard());
 }
 
 void PositionHistory::Append(Move m) {

@@ -434,6 +434,8 @@ int nn_index(const OMove& m, bool black) {
     return type * 100 + r0 * 10 + f0;
 }
 
+bool parse_fen(const std::string& fen, OState& st);
+
 // Dense [226][100] NN input for the current position, lc0 layout (see encoder.h).
 void planes_of(const std::vector<OState>& hist, const std::vector<int>& reps, float* dense) {
     std::fill(dense, dense + 226 * 100, 0.0f);
@@ -442,15 +444,23 @@ void planes_of(const std::vector<OState>& hist, const std::vector<int>& reps, fl
     auto canon = [&](int s) { return (us == kB ? 9 - rk(s) : rk(s)) * 10 + fl(s); };
     static const int plane_of_type[NPT] = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
     const int n = static_cast<int>(hist.size());
-    for (int d = 0; d < 8 && d < n; ++d) {
-        const OState& h = hist[n - 1 - d];
+    // lc0 FEN_ONLY: an empty history board is a copy of the first position, unless that is the variant start.
+    static const OState kStartState = [] {
+        OState s;
+        parse_fen(lczero::ChessBoard::kStartposFen, s);
+        return s;
+    }();
+    const bool custom = hist[0].stm != kStartState.stm ||
+                        !std::equal(hist[0].b, hist[0].b + 100, kStartState.b);
+    for (int d = 0; d < 8 && (d < n || custom); ++d) {
+        const OState& h = hist[d < n ? n - 1 - d : 0];
         for (int s = 0; s < 100; ++s) {
             const int8_t pc = h.b[s];
             if (!pc) continue;
             const int pl = d * 27 + (col(pc) == us ? 0 : 13) + plane_of_type[typ(pc)];
             dense[pl * 100 + canon(s)] = 1.0f;
         }
-        if (reps[n - 1 - d] >= 1)
+        if (reps[d < n ? n - 1 - d : 0] >= 1)
             std::fill(dense + (d * 27 + 26) * 100, dense + (d * 27 + 27) * 100, 1.0f);
     }
     auto set = [&](int p, int s) { dense[(216 + p) * 100 + canon(s)] = 1.0f; };

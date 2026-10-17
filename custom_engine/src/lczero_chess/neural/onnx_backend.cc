@@ -214,7 +214,10 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
         position_moves_[slot][i] = pos.legal_moves[i];
     }
 
-    // Encode board features using position history
+    // Encode board features using position history. FEN_ONLY is fixed here (lc0 default): the
+    // HistoryFill option is NOT read. Before 2026-10-17 the encoder treated FEN_ONLY as NO, so a
+    // position given as a bare FEN (no moves) reached the net with 7 all-zero history boards --
+    // never seen in training -- and gen79's raw value was off by 0.87 on average (do_lich_su.py).
     alignas(64) InputPlanes planes;
     int transform = 0;
     EncodePositionForNN(*pos.history, kMoveHistory, FillEmptyHistory::FEN_ONLY, &planes, &transform);

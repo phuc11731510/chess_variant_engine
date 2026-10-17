@@ -95,15 +95,15 @@ void EncodePositionForNN(
             hist_board_ptr = hist_pos.board.data();
             rep = hist_pos.repetitions;
             has_board = true;
-        } else if (fill_empty_history == FillEmptyHistory::ALWAYS) {
-            // Điền bàn cờ xuất phát nếu lịch sử chưa đủ sâu
+        } else if (fill_empty_history == FillEmptyHistory::ALWAYS ||
+                   (fill_empty_history == FillEmptyHistory::FEN_ONLY && history.StartingIsCustom())) {
+            // Lịch sử chưa đủ sâu: chép thế ban đầu vào các bàn còn trống. FEN_ONLY (như lc0) chỉ làm
+            // vậy khi thế ban đầu không phải thế xuất phát (vd. FEN tự đặt): ván tự chơi luôn bắt đầu
+            // từ thế xuất phát nên dữ liệu huấn luyện không đổi (các bàn trước nước đầu vẫn để trống).
             raw_board_ptr = &starting_position.GetBoard().GetRawPosition();
             rep = starting_position.GetRepetitions();
             has_board = true;
         }
-        // Chú ý: FillEmptyHistory::FEN_ONLY hiện tại chưa được xử lý riêng biệt
-        // và sẽ rơi xuống nhánh mặc định (để trống lịch sử, tương đương với NO).
-        // Điều này là tự nhất quán cho cả sinh dữ liệu tự chơi và suy luận.
         
         if (!has_board) {
             continue;

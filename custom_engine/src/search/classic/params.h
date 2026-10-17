@@ -103,6 +103,7 @@ class BaseSearchParams {
   std::string GetScoreType() const {
     return options_.Get<std::string>(kScoreTypeId);
   }
+  // Not used: the backend always encodes with FEN_ONLY (onnx_backend.cc).
   FillEmptyHistory GetHistoryFill() const { return kHistoryFill; }
   float GetMovesLeftMaxEffect() const { return kMovesLeftMaxEffect; }
   float GetMovesLeftThreshold() const { return kMovesLeftThreshold; }
