@@ -33,6 +33,10 @@ class Uci:
         self.send("uci"); self.wait("uciok")
         self.send(f"setoption name WeightsFile value {model}")
         self.send(f"setoption name Provider value {provider}")
+        self.send("setoption name ReuseTree value false")   # moi lan go la cay moi: so lieu khong lay tu lan tim truoc
+        # Khong bo nho dem: khoa dem chi gom the co (khong gom lich su), nen cung the co dua kem lich su
+        # khac nhau se lay lai ket qua cu.
+        self.send("setoption name nn-cache-size value 0")
         self.send("isready"); self.wait("readyok")
 
     def send(self, s):
@@ -56,15 +60,10 @@ class Uci:
         return self.wait("fen ")[-1][4:].strip()
 
     def value(self):
-        """q (Thang-Thua) cua mang cho ben di o the hien tai, khong tim kiem."""
-        self.send("go nodes 1")
-        q = None
-        for l in self.wait("bestmove"):
-            t = l.split()
-            if t[:1] == ["info"] and "multipv" in t and t[t.index("multipv") + 1] == "1" and "wdl" in t:
-                i = t.index("wdl"); w, _, lo = (int(x) for x in t[i + 1:i + 4])
-                q = (w - lo) / 1000.0
-        return q
+        """q (Thang-Thua) cua mang cho ben di o the hien tai, khong tim kiem (lenh UCI `nneval`)."""
+        self.send("nneval")
+        t = self.wait("nneval")[-1].split()
+        return float(t[2]) if len(t) >= 3 and t[1] == "q" else None
 
     def play_game(self, max_ply, nodes, cutoff):
         """Mang tu choi (Temperature 1.0 trong `cutoff` nua nuoc dau, 0 = ca van), tra ve danh sach nuoc."""

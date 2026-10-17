@@ -225,6 +225,27 @@ public:
                 } else {
                     Send("info string no position set (send 'position ...' first)");
                 }
+            } else if (cmd == "nneval") {
+                // Gỡ lỗi / đo mạng: giá trị THÔ của mạng (một lần chạy, không tìm
+                // kiếm) cho bên đi ở thế hiện tại, với đúng lịch sử đã đặt.
+                // "nneval q <Thắng-Thua> d <Hoà>". `go nodes 1` không thay được:
+                // tìm kiếm chạy lố vài lượt và báo điểm nước con.
+                if (searching_.load() || !tree_ || !EnsureBackend()) {
+                    Send("nneval none");
+                } else {
+                    const auto& hist = tree_->GetPositionHistory();
+                    const lczero::MoveList legal = hist.Last().GetBoard().GenerateLegalMoves();
+                    lczero::EvalResult r{};
+                    r.p.resize(legal.size());
+                    auto comp = backend_->CreateComputation();
+                    comp->AddInput(lczero::EvalPosition{
+                                       &hist, std::span<const lczero::Move>(legal.begin(), legal.size())},
+                                   r.AsPtr());
+                    comp->ComputeBlocking();
+                    std::ostringstream os;
+                    os << "nneval q " << r.q << " d " << r.d;
+                    Send(os.str());
+                }
             } else if (cmd == "debug" || cmd == "register") {
                 // Accept & ignore (robustness).
             } else if (cmd == "quit") {
