@@ -1,8 +1,8 @@
 """Do mang hieu gia tri quan den dau: bo 1 quan cua ben di, xem dau gia tri (value head) doi bao nhieu.
 
 Moi the co duoc dua cho engine UCI (--uci-nn) duoi dang `position fen <the cach 8 nua nuoc> moves <8 nuoc>`,
-roi `go nodes 1` = chi danh gia goc bang mang, khong tim kiem; diem cua nuoc chua tham = gia tri mang cho
-ben di (q = Thang - Thua, trong [-1,1]).
+roi lenh UCI `nneval` = gia tri tho cua mang cho ben di (q = Thang - Thua, trong [-1,1]), khong tim kiem.
+(`go nodes 1` khong dung duoc: engine di qua 1 nut va bao q cua nut con.) Tat ReuseTree va bo nho dem cua mang.
 
 Vi sao phai co 8 nuoc lich su: mang nhan 8 ban co gan nhat. Dua the co bang FEN tron thi 6 ban lich su bi
 trong -- kieu dau vao chi gap o nuoc dau van khi huan luyen (o the xuat phat mang tra ve gia tri xuat phat
