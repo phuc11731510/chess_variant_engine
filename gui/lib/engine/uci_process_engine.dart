@@ -73,7 +73,7 @@ class UciProcessEngine implements EngineService {
       _send('setoption name Visits value ${config.visits}');
     }
     if (config.selfPlay) {
-      for (final (name, value) in LaunchConfig.trainingUciOptions) {
+      for (final (name, value) in config.selfPlayUciOptions) {
         _send('setoption name $name value $value');
       }
     }

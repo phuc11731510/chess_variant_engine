@@ -15,6 +15,8 @@
 ///   --white             người chơi cầm Trắng               (mặc định)
 ///   --start-fen <FEN>   thế cờ bắt đầu tuỳ chọn            (mặc định: startpos của biến thể)
 ///   --self-play         máy tự đấu cả hai bên (người chỉ xem; Space = tạm dừng/tiếp)
+///   --temperature <T>   (tự đấu) nhiệt độ chọn nước, vd 0.5 (mặc định 1.0 như sinh dữ liệu)
+///   --temp-cutoff <N>   (tự đấu) chỉ dùng nhiệt độ trong N nửa nước đầu; 0 = cả ván (mặc định 32)
 /// ```
 class LaunchConfig {
   /// Đường dẫn tới engine UCI (custom_engine.exe, chạy với --uci-nn).
@@ -44,6 +46,11 @@ class LaunchConfig {
   /// Máy tự đấu cả hai bên; người chỉ xem.
   final bool selfPlay;
 
+  /// Tự đấu: ghi đè Temperature (‰, engine nhận số nghìn) và TempCutoffPly
+  /// của [trainingUciOptions]. Null = giữ như sinh dữ liệu.
+  final int? temperaturePermille;
+  final int? tempCutoffPly;
+
   const LaunchConfig({
     required this.enginePath,
     this.modelPath,
@@ -54,7 +61,20 @@ class LaunchConfig {
     this.startFen,
     this.demoMove,
     this.selfPlay = false,
+    this.temperaturePermille,
+    this.tempCutoffPly,
   });
+
+  /// [trainingUciOptions] sau khi áp --temperature / --temp-cutoff.
+  List<(String, String)> get selfPlayUciOptions => [
+    for (final (name, value) in trainingUciOptions)
+      if (name == 'Temperature' && temperaturePermille != null)
+        (name, '$temperaturePermille')
+      else if (name == 'TempCutoffPly' && tempCutoffPly != null)
+        (name, '$tempCutoffPly')
+      else
+        (name, value),
+  ];
 
   /// --self-play: cùng tham số tìm kiếm với lúc SINH DỮ LIỆU HUẤN LUYỆN (ô 04 +
   /// mặc định self-play của engine, src/app/selfplay_mode.cc), chỉ khác giới hạn
@@ -110,6 +130,8 @@ class LaunchConfig {
     String? fen;
     String? demo;
     bool selfPlay = false;
+    int? tempPermille;
+    int? tempCutoff;
 
     String? valueAfter(int i) => (i + 1 < args.length) ? args[i + 1] : null;
 
@@ -166,6 +188,22 @@ class LaunchConfig {
         case '--self-play':
           selfPlay = true;
           break;
+        case '--temperature':
+          final v = valueAfter(i);
+          if (v != null) {
+            final t = double.tryParse(v);
+            if (t != null && t >= 0) tempPermille = (t * 1000).round();
+            i++;
+          }
+          break;
+        case '--temp-cutoff':
+          final v = valueAfter(i);
+          if (v != null) {
+            final n = int.tryParse(v);
+            if (n != null && n >= 0) tempCutoff = n;
+            i++;
+          }
+          break;
         case '--demo-move':
           final v = valueAfter(i);
           if (v != null) {
@@ -192,6 +230,8 @@ class LaunchConfig {
       startFen: fen,
       demoMove: demo,
       selfPlay: selfPlay,
+      temperaturePermille: tempPermille,
+      tempCutoffPly: tempCutoff,
     );
   }
 
