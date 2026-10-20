@@ -16,10 +16,18 @@ SECS = 0            # > 0: dừng MỀM sau chừng này giây (ván dở chơi 
 A_ONNX = NEXT_ONNX      # mạng A (kết quả "A wins" = A thắng)
 B_ONNX = CURRENT_ONNX   # mạng B
 
+# Mạng .onnx của hai bên: máy chưa có thì lấy từ Release NN_Model. Release chỉ giữ .onnx của đời MỚI NHẤT
+# (từ 2026-10-20, vì một Release chứa tối đa 1000 tệp); đời cũ hơn thì python/lay_mang.py tải .pt đời đó rồi
+# chuyển sang .onnx ngay trên máy (~1-3 phút, CPU), nên đấu hai đời bất kỳ đều được. Đã có sẵn thì bỏ qua.
+import os
+for _f in (A_ONNX, B_ONNX):
+    if not (os.path.exists(_f) and os.path.getsize(_f) > 0):
+        !python {E}/python/lay_mang.py onnx {_f} --rel {REL_NN}
+_thieu = [_f for _f in (A_ONNX, B_ONNX) if not (os.path.exists(_f) and os.path.getsize(_f) > 0)]
+
 # Dừng MỀM theo lệnh (như ô 04): có tệp DUNG_MEM thì không nhận ván mới, ván đang chơi chơi nốt, in
 # kết quả của các ván đã xong. Cần binary có arena dừng mềm (dòng FZ_ARENA, từ 2026-09-30).
 DUNG_MEM = "/content/fz_log/dung_mem"
-import os
 if os.path.exists(DUNG_MEM):
     os.remove(DUNG_MEM)   # tệp của lần dừng trước: để lại thì engine dừng ngay từ ván đầu
 try:
@@ -38,5 +46,8 @@ cmd = f"""bash {E}/run.sh --arena \
 if co_dung_mem:
     cmd += f" --stop-file {DUNG_MEM}" + (f" --max-seconds {SECS}" if SECS > 0 else "")
 
-print(cmd)
-!{cmd}
+if _thieu:
+    print(f"[!] Thiếu mạng {_thieu} (không tải / chuyển được từ Release NN_Model) -- không chạy arena")
+else:
+    print(cmd)
+    !{cmd}

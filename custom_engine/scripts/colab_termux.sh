@@ -18,7 +18,8 @@ GPU=${GPU:-T4}             # T4 (mien phi) | L4 | A100 | H100 | G4 (can Colab Pr
 GEN=${GEN:-0}
 NEXT=$((GEN + 1))
 E=/content/chess_variant_engine/custom_engine
-REL=https://github.com/phuc11731510/chess_variant_engine/releases/download/v3.0.0
+REL=https://github.com/phuc11731510/chess_variant_engine/releases/download/v3.0.0          # binary + ONNX Runtime
+REL_NN=https://github.com/phuc11731510/chess_variant_engine/releases/download/NN_Model     # mang: .pt moi doi, .onnx doi moi nhat
 LOCAL=${LOCAL:-$HOME/storage/downloads/FairyZero}
 mkdir -p "$LOCAL"
 
@@ -63,7 +64,8 @@ EOF
       [ "$x" = onnx ] && echo "!cd $E/python && python make_seed.py --channels 144 --blocks 12 --se-ratio 8 --out /content/gen0.onnx" | rx
       colab download -s "$S" "/content/gen0.$x" "$LOCAL/gen0.$x"
     else
-      echo "!wget -q -O /content/gen$GEN.$x $REL/gen$GEN.$x" | rx
+      # .onnx doi cu khong con tren Release: lay_mang.py tai .pt roi chuyen sang .onnx tren VM
+      echo "!python $E/python/lay_mang.py $x /content/gen$GEN.$x --rel $REL_NN" | rx
     fi
   done
   echo "!ls -la /content/gen$GEN.*" | rx

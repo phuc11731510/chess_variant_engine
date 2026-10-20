@@ -332,8 +332,8 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 |---|---|---|---|
 | 00 | `00_cau_hinh.py` | Cấu hình | `GEN_CURRENT` và mọi đường dẫn — **tự ghép vào đầu mọi ô** |
 | 01 | `01_kiem_gpu.py` | 0 | `nvidia-smi` |
-| 02 | `02_khoi_dong.py` | 1 | clone mã, binary từ Release, ONNX Runtime, tải `gen<N>.onnx` từ Release |
-| 02c | `02c_chuan_bi_huan_luyen.py` | 5a | chỉ máy sắp huấn luyện: `gen<N>.pt` từ Release + `pip install onnx…` (chạy trước 07) |
+| 02 | `02_khoi_dong.py` | 1 | clone mã, binary + ONNX Runtime từ Release `v3.0.0`, `gen<N>.onnx` từ Release `NN_Model` (đời cũ: chuyển từ `.pt`) |
+| 02c | `02c_chuan_bi_huan_luyen.py` | 5a | chỉ máy sắp huấn luyện: `gen<N>.pt` từ Release `NN_Model` + `pip install onnx…` (chạy trước 07) |
 | 02b | `02b_bien_dich.py` | 1b | biên dịch lại (chỉ khi cần) |
 | 03 | `03_tao_gen0.py` | 2 | tạo mạng đời 0 mới (ghi đè gen0) |
 | 04 | `04_sinh_du_lieu.py` | 3 | sinh dữ liệu (dừng mềm được bằng 09b / vòng lặp tự động) |
@@ -544,8 +544,7 @@ Phải thấy `Tesla T4, 15360 MiB`. Không thấy → máy CPU, xem mục 4.
 Mở xem trước bằng MT Manager (`02_khoi_dong.py`). Cuối ô có:
 
 ```python
-TAI_ONNX = True     # tải gen{GEN_CURRENT}.onnx từ GitHub Release v3.0.0
-TAI_PT = True       # tải gen{GEN_CURRENT}.pt   từ GitHub Release v3.0.0
+TAI_ONNX = True     # lấy gen{GEN_CURRENT}.onnx từ GitHub Release NN_Model (REL_NN ở ô 00)
 ```
 
 Đặt `False` cho tệp nào bạn định **tự tải lên từ điện thoại** (mục 8) hoặc **tự tạo** (ô 03).
@@ -553,12 +552,16 @@ TAI_PT = True       # tải gen{GEN_CURRENT}.pt   từ GitHub Release v3.0.0
 Menu `fz` → chọn **`02`** (gõ tắt: `o 02`).
 
 Phải thấy `[quick] OK -- engine chay duoc tren Colab image nay.` và cuối cùng danh sách
-`/content/gen0.onnx`, `/content/gen0.pt`. Nếu một tệp không có trên Release, ô in
-`[!] Release KHONG co …` và **không để lại tệp rỗng**.
+`/content/gen0.onnx`, `/content/gen0.pt`. Nếu mạng không lấy được từ Release, ô in
+`[!] Khong lay duoc …` và **không để lại tệp rỗng**.
 
-> Lưu ý: Release v3.0.0 hiện có `gen0.onnx` nhưng **chưa có `gen0.pt`**. Huấn luyện (ô 07) cần
-> `gen0.pt` → hoặc đưa `gen0.pt` lên Release, hoặc tải lên từ điện thoại:
-> `colab upload -s fz ~/storage/downloads/FairyZero/gen0.pt /content/gen0.pt`
+> Mạng nằm ở Release **`NN_Model`** (tên "NN Models", `REL_NN` trong ô 00), không còn ở `v3.0.0`
+> (`REL`: chỉ còn binary `custom_engine` và ONNX Runtime). `NN_Model` giữ **`.pt` của mọi đời** nhưng
+> **chỉ `.onnx` của đời mới nhất** (một Release chứa tối đa 1000 tệp). Ô 02 cần `gen{GEN_CURRENT}.onnx`:
+> có trên Release thì tải; đời cũ hơn thì tự tải `gen{GEN_CURRENT}.pt` rồi **chuyển sang `.onnx` ngay
+> trên máy** (`python/lay_mang.py`, ~20 giây trên máy có sẵn PyTorch). Không có cả hai trên Release thì
+> `[!] Khong lay duoc …` và không để lại tệp rỗng; khi đó tải lên từ điện thoại:
+> `colab upload -s fz ~/storage/downloads/FairyZero/gen0.onnx /content/gen0.onnx`
 
 Cảnh báo `protobuf ... incompatible` khi `pip install` là của các gói khác của Colab, không ảnh hưởng
 FairyZero.
@@ -701,9 +704,9 @@ colab ls -s fz /content
 
 | Muốn | Làm |
 |---|---|
-| Lấy từ GitHub Release | `TAI_ONNX` / `TAI_PT = True` trong ô 02 (mặc định) |
-| Lấy từ điện thoại | `TAI_… = False` trong ô 02, rồi `colab upload` như trên |
-| Tạo mới (đời 0) | `TAI_… = False` trong ô 02, rồi `o 03` |
+| Lấy từ GitHub Release | `TAI_ONNX = True` trong ô 02 (mặc định) |
+| Lấy từ điện thoại | `TAI_ONNX = False` trong ô 02, rồi `colab upload` như trên |
+| Tạo mới (đời 0) | `TAI_ONNX = False` trong ô 02, rồi `o 03` |
 
 ---
 
@@ -711,8 +714,8 @@ colab ls -s fz /content
 
 1. MT Manager: `00_cau_hinh.py` → `GEN_CURRENT = 1`, lưu.
 2. Menu `fz`: `m` (nếu đã trả máy), rồi `01 02`.
-3. Mạng đời 1: có trên Release thì ô 02 tự tải; không thì `TAI_… = False` và `colab upload` từ
-   `Download/FairyZero/`.
+3. Mạng đời 1: có trên Release `NN_Model` thì ô 02 tự tải (`.onnx` chỉ có đời mới nhất, đời cũ hơn tự
+   chuyển từ `.pt`); không có thì `TAI_ONNX = False` và `colab upload` từ `Download/FairyZero/`.
 4. Ô `04` → `05` → `06` → `07` → …
 
 Kiến trúc `144 × 12` SE-8 phải giữ nguyên suốt chuỗi warm-start.
@@ -747,6 +750,9 @@ sau, lặp lại. Mở bằng menu **`v`** hoặc gõ thẳng **`fz tu_dong`**.
    ```
    (tệp tải về mang tên khác, vd `custom_engine (2)`, thì đổi tên thành `custom_engine` trước).
 3. Ô 04 bản mới (có `DUNG_MEM`): `bash ~/lay_ve.sh 04` (ghi đè ô 04; tham số bạn đã sửa thì sửa lại).
+   Từ 2026-10-20 mạng nằm ở Release `NN_Model`: `bash ~/lay_ve.sh 02 02c 08` (ô 02, 02c, 08 mới) — **đừng**
+   tải lại ô 00 bằng `-f`/`00` (GEN_CURRENT về 0); vòng lặp tự thêm dòng `REL_NN` vào ô 00 của bạn
+   nếu thiếu và giữ nguyên `GEN_CURRENT`.
 4. Đặt đúng đời trong ô 00 (`g`) — vòng lặp **bắt đầu từ `GEN_CURRENT`** (đổi điện thoại thì đặt lại).
 5. Thư mục dữ liệu các đời trước trong `Download/FairyZero/`: `games_gen<N-1>/`, `games_gen<N-2>/`
    (mỗi thư mục chứa thẳng các tệp `.gz`). Thiếu thì vòng lặp hỏi có chạy tiếp không.
@@ -763,10 +769,30 @@ hạn mức (như ô 04), rồi in đời đang ở giai đoạn nào (vd `Đã 
 | 1. Xin máy | Thử T4 lần lượt: tài khoản **đã tới giờ nạp lại** → **xanh** (≥ 1 giờ T4, nhiều trước) → chưa chụp hạn mức. Bỏ qua: vàng (< 1 giờ), HẾT chờ giờ nạp lại, tài khoản đang mở ở cửa sổ khác hoặc đang giữ máy không phải của vòng lặp. Không xin được máy nào → **lịch xin chung** cho mọi cửa sổ (từ 2026-10-01): xin lại đúng lúc **giờ nạp lại sớm nhất đã biết** của các tài khoản; tài khoản HẾT mà không rõ giờ nạp lại thì mỗi giờ thử một lần (xin được mới biết giờ nạp); tài khoản còn hạn mức mà Colab từ chối (hết T4 tạm thời) thì 10 phút. Trước lúc đó **không cửa sổ nào xin** — chỉ một cửa sổ xin mỗi lần; log in `xin lại lúc HH:MM (lý do)`. |
 | 2. Sinh dữ liệu | Máy mới: `02`. Rồi `04` với `SECS` = hạn mức T4 − số phút chừa, `GAMES` = số ván còn thiếu → `06` → tải về với tên tích luỹ `games_genG_<tổng>.zip`. **Tổng** = số lớn nhất trong tên gói + số ván đã xong trên các máy đang chạy. Đủ mục tiêu → mỗi cửa sổ **dừng mềm** máy của mình (ván dở chơi nốt). Máy hết lượt mà chưa đủ → tải về, trả máy, xin tài khoản khác. |
 | 3. Huấn luyện | Khi mọi máy đã tải về: cửa sổ có máy **nhiều hạn mức nhất** huấn luyện, cửa sổ kia trả máy và chờ (không xin máy trong lúc chờ). Gộp mọi `games_genG_*.zip` vào thư mục `games_genG/`, gói `games_genG/`, `games_gen(G-1)/`, `games_gen(G-2)/` thành `games_genG.zip`. Máy phải còn **≥ 20 phút T4 lúc sắp tải dữ liệu lên** (không thì trả, xin máy khác), tải lên, `07`, tải `gen(G+1).onnx` + `.pt` về. Máy mất giữa chừng → xin máy mới ngay, rồi 10 phút một lần, làm lại. |
-| 4. Lên đời | `gh release upload` hai tệp mạng lên Release (theo `REL` ô 00), `GEN_CURRENT` + 1, sang đời mới — máy vừa huấn luyện (đã có mạng mới) sinh dữ liệu tiếp luôn. |
+| 4. Lên đời | `gh release upload` `gen(G+1).onnx` + `.pt` lên Release **`NN_Model`** (`REL_NN` ô 00), đối chiếu sha256 trên GitHub với tệp trên điện thoại, **xoá `.onnx` các đời trước trên Release** (Release giữ `.pt` mọi đời, `.onnx` chỉ đời mới nhất), `GEN_CURRENT` + 1, **dọn điện thoại** (xem dưới), sang đời mới — máy vừa huấn luyện (đã có mạng mới) sinh dữ liệu tiếp luôn. Ra **đời 990 thì dừng cả vòng lặp** (xem dưới). |
 | 0. Arena (tuỳ chọn) | Xem dưới. Nếu đời mới là một số trong **dãy đời arena**, nó đấu đời đứng ngay trước nó trong dãy **trước khi** sinh dữ liệu (giai đoạn 2). |
 
-**Lỗi tải tạm thời** (từ 2026-10-01): máy không tải được `gen<G>.onnx` / `.pt` từ Release (vd GitHub trả
+**Dọn điện thoại** (từ 2026-10-20) — lúc **bắt đầu vòng lặp** (sau khi bạn bấm Enter) và **sau mỗi lần lên đời**
+(trước khi sinh dữ liệu đời G, vd G = 91), vòng lặp xoá những gì không còn dùng trong `Download/FairyZero/`
+(lệnh `python ~/fz_tu_dong.py don_dep …`, in từng tệp bị xoá):
+
+- **Gói ván** `games_gen<k>_<N>.zip` và `games_gen<k>.zip` của mọi đời `k < G` (91 → xoá đời ≤ 90; ván
+  của chúng đã nằm trong thư mục `games_gen<k>/`). Đời `k` còn nằm trong cửa sổ huấn luyện mà **chưa có**
+  thư mục `games_gen<k>/` thì **giữ** gói và báo `giữ gói …` (xoá là mất ván).
+- **Thư mục ván** `games_gen<k>/` của các đời ra khỏi cửa sổ 4 đời (G = 91 → giữ 88..91, xoá ≤ 87).
+- **Mạng** `gen<k>.onnx` / `gen<k>.pt` đã lên GitHub: chỉ xoá khi **sha256 của tệp trên điện thoại khớp
+  sha256 trên Release** (tệp khác bản trên GitHub, hoặc chưa lên GitHub → giữ). Mạng đời G+1 vừa huấn
+  luyện mà chưa lên GitHub được giữ lại để tải lên.
+
+**Giới hạn Release** — một Release GitHub chứa tối đa **1000 tệp**. `NN_Model` có `.pt` của mọi đời + 1
+`.onnx` (đời 990: 991 `.pt` + 1 `.onnx` = 992 tệp). Vòng lặp: (1) trước mỗi lần tải lên đếm số tệp, thêm
+tệp mới mà vượt 1000 thì **không tải, dừng vòng lặp báo lỗi**; (2) khi huấn luyện ra **đời 990**, tải
+`gen990` lên rồi **dừng mềm cả vòng lặp** (trả máy, mọi cửa sổ thoát); (3) `GEN_CURRENT` ≥ 990 lúc mở
+vòng lặp → từ chối chạy. Muốn chạy tiếp cần Release mới (đổi `REL_NN` ở ô 00 và `TD_GEN_CUOI` đầu
+`fz_tu_dong.sh`).
+
+**Lỗi tải tạm thời** (từ 2026-10-01)
+: máy không tải được `gen<G>.onnx` / `.pt` từ Release (vd GitHub trả
 `ERROR 500`) → vòng lặp chạy lại 02 sau 5 phút, tối đa 6 lần liền rồi mới dừng (wget tự thử 4 lần mỗi
 lượt). Vòng lặp **dừng vì lỗi** mà còn giữ máy → nếu máy còn ván chưa tải về thì gom + tải về trước, rồi
 **trả máy** (tải về không được thì giữ máy để lấy tay `d`).
@@ -781,8 +807,12 @@ Lúc bắt đầu, sau số phút chừa, vòng lặp hỏi:
 
 Arena chạy như sinh dữ liệu: **mọi cửa sổ** cùng đấu (mỗi máy ô 08 với `GAMES` = số ván còn thiếu,
 `SECS` theo hạn mức), tổng tính cả ván đang dở, đủ số thì **dừng mềm** (không thừa cả loạt ván song
-song). Mạng đời cũ: có trên Release thì máy Colab tự tải, không thì tải từ `Download/FairyZero/gen<a>.onnx`
-lên (giữ các tệp `.onnx` đời cũ trên điện thoại!). Kết quả từng máy cộng vào
+song). Mạng `.onnx` của hai đời: máy Colab đã có thì dùng; chưa có thì ô 08 lấy từ Release `NN_Model`
+(`.onnx` đời mới nhất tải thẳng) hoặc, với đời cũ hơn (Release không còn `.onnx` của đời đó), **tự tải
+`gen<a>.pt` rồi chuyển sang `.onnx` ngay trên máy** (`python/lay_mang.py`, ~20 giây, cần PyTorch có sẵn
+trên Colab; vòng lặp làm bước này trước khi tính `SECS`). Release không có cả `.onnx` lẫn `.pt` của đời
+đó thì thử `Download/FairyZero/gen<a>.onnx` (hoặc `.pt`) trên điện thoại, không có nữa → `BO_QUA`. Ô 08
+chạy tay cũng tự lấy đủ mạng hai bên như vậy. Kết quả từng máy cộng vào
 **`Download/FairyZero/arena/gen<b>_vs_gen<a>.txt`** (mỗi máy một dòng `W= D= L= N=`, W = đời mới
 thắng); đủ số ván → dòng **`XONG`** kèm tỉ lệ thắng, khoảng tin cậy 95%, Elo. Có `XONG` = arena đó
 **đã xong, vòng lặp không làm lại** (mở lại vòng lặp bao nhiêu lần cũng vậy). Dừng mềm giữa arena → các
@@ -897,7 +927,7 @@ bash colab_termux.sh stop
 
 1. Có `Download/FairyZero/genN.onnx` / `.pt` trên điện thoại → **tải lên tệp đó**.
 2. Không có, `GEN=0` → **tạo mạng đời 0 mới** rồi tải về điện thoại.
-3. Không có, `GEN>0` → tải từ Release v3.0.0.
+3. Không có, `GEN>0` → tải từ Release `NN_Model` (`colab_termux.sh` dùng `python/lay_mang.py`: `.onnx` đời cũ tự chuyển từ `.pt`).
 
 Muốn chắc chắn dùng mạng trên Release thì dùng cách A.
 

@@ -19,9 +19,25 @@
       định), rồi gói games_gen<G>/, games_gen<G-1>/ ... (<so doi> đời, đời nào có) thành
       games_gen<G>.zip (ZIP_STORED, bên trong giữ thư mục games_gen<k>/). Ghi qua tệp tạm rồi mới
       đổi tên: gộp dở (mất điện, bị giết) không để lại gói hỏng. In "FZ_GOP_XONG <so van>".
+  python ~/fz_tu_dong.py don_dep <thu muc FairyZero> <doi G> <so doi> [<tep mang tren GitHub>] [--thu]
+      Dọn điện thoại lúc CHUẨN BỊ SINH DỮ LIỆU đời G (đầu vòng lặp, và sau khi huấn luyện xong đời G-1
+      rồi lên đời G): xoá những gì đời G trở đi không còn dùng.
+        - gói ván của các đời < G: games_gen<k>_<N>.zip và games_gen<k>.zip (kể cả bản "(2)").
+          Ván của chúng đã nằm trong thư mục games_gen<k>/. Đời k còn trong cửa sổ huấn luyện mà
+          KHÔNG có thư mục games_gen<k>/ thì GIỮ gói (xoá là mất ván).
+        - thư mục ván games_gen<k>/ của các đời k < G - (<so doi> - 1) (ra khỏi cửa sổ huấn luyện:
+          đời 91, 4 đời -> giữ 88..91, xoá <= 87) và thư mục gộp dở .games_gen<k>.dang_gom.
+        - mạng gen<k>.onnx / gen<k>.pt (kể cả "gen<k> (2).pt") đã LÊN GITHUB: <tep mang tren GitHub> là
+          các dòng "ten<TAB>kich thuoc<TAB>sha256:..." của Release; chỉ xoá khi sha256 của tệp trên
+          điện thoại KHỚP sha256 trên GitHub (không có sha256 hoặc lệch -> giữ). Không đưa tệp đó
+          vào thì không động tới mạng.
+      In "XOA <loai> <ten> <MB>" / "GIU <ly do>" và cuối cùng "FZ_DON_XONG <so muc> <MB>". --thu: chỉ in,
+      không xoá.
 """
+import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -204,6 +220,83 @@ def gop(tai, g, so_doi):
     print(f"FZ_GOP_XONG {tong}")
 
 
+RE_GOI = re.compile(r"games_gen(\d+)(?:_(\d+))?(?: \(\d+\))?\.zip")
+RE_THU_MUC = re.compile(r"games_gen(\d+)(?: \(\d+\))?")
+RE_TAM = re.compile(r"\.games_gen(\d+)\.(?:dang_gom|zip\.dang_goi)")
+RE_MANG = re.compile(r"gen(\d+)(?: \(\d+\))?\.(onnx|pt)")
+
+
+def kich_thuoc(p):
+    if os.path.isdir(p):
+        return sum(os.path.getsize(os.path.join(g, t)) for g, _, ts in os.walk(p) for t in ts)
+    return os.path.getsize(p)
+
+
+def sha256(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for khoi in iter(lambda: f.read(1 << 20), b""):
+            h.update(khoi)
+    return h.hexdigest()
+
+
+def doc_github(tep):
+    """{ten: (kich thuoc, sha256 hex hoặc '')} từ các dòng 'ten<TAB>kich thuoc<TAB>sha256:...'."""
+    gh = {}
+    with open(tep, encoding="utf-8") as f:
+        for dong in f:
+            p = dong.rstrip("\r\n").split("\t")
+            if len(p) >= 2 and p[1].isdigit():
+                gh[p[0]] = (int(p[1]), p[2].removeprefix("sha256:") if len(p) > 2 else "")
+    return gh
+
+
+def don_dep(tai, g, so_doi, tep_github=None, thu=False):
+    g, so_doi = int(g), int(so_doi)
+    dau_cua_so = g - (so_doi - 1)          # đời nhỏ nhất còn trong cửa sổ huấn luyện của đời g
+    xoa, giu = [], []                      # (loai, ten, byte)
+    gh = doc_github(tep_github) if tep_github else None
+    ten_tep = sorted(os.listdir(tai))
+    co_thu_muc = {int(m.group(1)) for t in ten_tep
+                  if (m := RE_THU_MUC.fullmatch(t)) and os.path.isdir(os.path.join(tai, t))}
+    for t in ten_tep:
+        p = os.path.join(tai, t)
+        if m := RE_GOI.fullmatch(t):
+            k = int(m.group(1))
+            if k >= g or not os.path.isfile(p):
+                continue
+            if k >= dau_cua_so and k not in co_thu_muc:
+                giu.append(f"gói {t}: đời {k} còn trong cửa sổ huấn luyện mà chưa có thư mục games_gen{k}/")
+                continue
+            xoa.append(("goi", t, kich_thuoc(p)))
+        elif m := RE_TAM.fullmatch(t):          # gộp / gói dở của đời trước (đời g có thể đang gộp: giữ)
+            if int(m.group(1)) < g:
+                xoa.append(("tam", t, kich_thuoc(p)))
+        elif (m := RE_THU_MUC.fullmatch(t)) and os.path.isdir(p):
+            if int(m.group(1)) < dau_cua_so:
+                xoa.append(("thu_muc", t, kich_thuoc(p)))
+        elif gh is not None and (m := RE_MANG.fullmatch(t)) and os.path.isfile(p):
+            tren = gh.get(f"gen{m.group(1)}.{m.group(2)}")
+            if tren is None:
+                giu.append(f"mạng {t}: chưa có trên GitHub")
+            elif not tren[1]:
+                giu.append(f"mạng {t}: GitHub không ghi sha256 -> không chắc giống, giữ")
+            elif os.path.getsize(p) != tren[0] or sha256(p) != tren[1]:
+                giu.append(f"mạng {t}: khác bản trên GitHub, giữ")
+            else:
+                xoa.append(("mang", t, kich_thuoc(p)))
+    tong = 0
+    for loai, t, byte in xoa:
+        p = os.path.join(tai, t)
+        print(f"XOA {loai} {t} {byte / 1e6:.1f}", flush=True)
+        if not thu:
+            shutil.rmtree(p) if os.path.isdir(p) else os.remove(p)
+        tong += byte
+    for ly_do in giu:
+        print(f"GIU {ly_do}")
+    print(f"FZ_DON_XONG {len(xoa)} {tong / 1e6:.1f}")
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a and a[0] == "xep":
@@ -212,5 +305,7 @@ if __name__ == "__main__":
         hen(a[1:])
     elif len(a) == 4 and a[0] == "gop":
         gop(a[1], a[2], a[3])
+    elif a and a[0] == "don_dep" and 4 <= len(a) <= 6:
+        don_dep(a[1], a[2], a[3], next((x for x in a[4:] if x != "--thu"), None), "--thu" in a[4:])
     else:
         sys.exit(__doc__)

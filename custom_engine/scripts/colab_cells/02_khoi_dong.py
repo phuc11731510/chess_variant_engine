@@ -6,12 +6,14 @@
 !git clone -q --depth 1 -b main https://github.com/phuc11731510/chess_variant_engine.git
 !BIN_URL={REL}/custom_engine bash {E}/scripts/colab_quickstart.sh
 
-# Tải mạng đời hiện tại (.onnx) từ GitHub Release. Đặt False nếu bạn tự tải lên từ điện thoại
-# (colab upload) hoặc tự tạo (ô 03, đời 0). .pt + thư viện huấn luyện: ô 02c (chỉ máy huấn luyện).
+# Tải mạng đời hiện tại (.onnx) từ GitHub Release NN_Model (REL_NN). Release chỉ giữ .onnx của đời mới nhất:
+# đời cũ hơn thì tự tải .pt rồi chuyển sang .onnx ngay trên máy (python/lay_mang.py). Đặt False nếu bạn tự
+# tải lên từ điện thoại (colab upload) hoặc tự tạo (ô 03, đời 0). .pt + thư viện huấn luyện: ô 02c
+# (chỉ máy huấn luyện).
 TAI_ONNX = True
 for tai, f in [(TAI_ONNX, CURRENT_ONNX)]:
     if tai:
+        # lay_mang.py không để lại tệp rỗng/dở khi lỗi; thử lại 4 lần với HTTP 429/5xx
         name = f.split("/")[-1]
-        # wget hỏng vẫn để lại tệp rỗng -> xoá để không nhầm là đã có
-        !wget -nv --tries=4 --waitretry=15 --retry-on-http-error=429,500,502,503,504 -O {f} {REL}/{name} || (echo "[!] Khong tai duoc {name} tu Release (thu 4 lan)"; rm -f {f})
+        !python {E}/python/lay_mang.py onnx {f} --rel {REL_NN} || echo "[!] Khong lay duoc {name} tu Release NN_Model"
 !ls -la /content/gen*.onnx /content/gen*.pt 2>/dev/null

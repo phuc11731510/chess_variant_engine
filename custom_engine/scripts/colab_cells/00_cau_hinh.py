@@ -6,7 +6,12 @@ GEN_CURRENT = 0  # <--- Thay đổi số này (0, 1, 2,...) khi chuyển đời
 # ====================================================================
 
 E = "/content/chess_variant_engine/custom_engine"
+# Release v3.0.0: binary custom_engine + ONNX Runtime (colab_quickstart.sh).
 REL = "https://github.com/phuc11731510/chess_variant_engine/releases/download/v3.0.0"
+# Release NN_Model (tên "NN Models"): mạng. .pt của MỌI đời; .onnx chỉ của đời MỚI NHẤT (vòng lặp tự
+# động tải .onnx đời mới lên, xoá .onnx đời trước; một Release chứa tối đa 1000 tệp nên vòng lặp dừng ở
+# đời 990). Cần .onnx đời cũ (arena): python/lay_mang.py tải .pt đời đó rồi chuyển sang .onnx trên máy.
+REL_NN = "https://github.com/phuc11731510/chess_variant_engine/releases/download/NN_Model"
 
 GEN_NEXT = GEN_CURRENT + 1
 
