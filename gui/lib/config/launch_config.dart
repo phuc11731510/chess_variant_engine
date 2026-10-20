@@ -14,7 +14,9 @@
 ///   --black             người chơi cầm Đen (lật bàn)       (mặc định cầm Trắng)
 ///   --white             người chơi cầm Trắng               (mặc định)
 ///   --start-fen <FEN>   thế cờ bắt đầu tuỳ chọn            (mặc định: startpos của biến thể)
-///   --self-play         máy tự đấu cả hai bên (người chỉ xem; Space = tạm dừng/tiếp)
+///   --self-play         máy tự đấu cả hai bên (người chỉ xem; Space = tạm dừng/tiếp;
+///                       xem lại nước đã đi: ← → / lăn chuột / bấm nước ở thanh dưới bàn,
+///                       Home = về đầu, End = về nước mới nhất, PageUp/PageDown = 10 nước)
 ///   --temperature <T>   (tự đấu) nhiệt độ chọn nước, vd 0.5 (mặc định 1.0 như sinh dữ liệu)
 ///   --temp-cutoff <N>   (tự đấu) chỉ dùng nhiệt độ trong N nửa nước đầu; 0 = cả ván (mặc định 32)
 /// ```

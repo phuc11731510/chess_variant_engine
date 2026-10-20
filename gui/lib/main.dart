@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 
 import 'config/launch_config.dart';
@@ -9,6 +10,7 @@ import 'engine/engine_service.dart';
 import 'engine/uci_process_engine.dart';
 import 'engine/native_ffi_engine.dart';
 import 'ui/board_view.dart';
+import 'ui/move_strip.dart';
 
 /// Chọn engine theo nền tảng: desktop spawn tiến trình UCI; Android nạp
 /// libfairyzero.so qua dart:ffi ([NativeFfiEngine], M4) — chơi ngay trên máy.
@@ -45,7 +47,10 @@ class FairyZeroApp extends StatelessWidget {
 
 class BoardScreen extends StatefulWidget {
   final LaunchConfig config;
-  const BoardScreen({super.key, required this.config});
+
+  /// Tạo engine (mặc định theo nền tảng, [_makeEngine]); test truyền engine giả.
+  final EngineService Function(LaunchConfig)? engineFactory;
+  const BoardScreen({super.key, required this.config, this.engineFactory});
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
@@ -58,7 +63,7 @@ class _BoardScreenState extends State<BoardScreen> {
   void initState() {
     super.initState();
     controller = GameController(
-      engine: _makeEngine(widget.config),
+      engine: (widget.engineFactory ?? _makeEngine)(widget.config),
       humanIsWhite: widget.config.humanPlaysWhite,
       selfPlay: widget.config.selfPlay,
       maxPlies: widget.config.selfPlay ? LaunchConfig.selfPlayMaxPlies : 0,
@@ -98,6 +103,10 @@ class _BoardScreenState extends State<BoardScreen> {
     final moveNo = ply ~/ 2 + 1;
     final side = c.board.whiteToMove ? 'Trắng' : 'Đen';
     if (c.gameOver) return 'Hết ván sau $ply nửa nước';
+    if (c.inReview) {
+      return 'Đang xem lại: sau nửa nước ${c.shownPly}/$ply · ván vẫn tiếp tục '
+          '(End = về nước mới nhất, Space = tạm dừng)';
+    }
     if (c.paused && !c.engineThinking) {
       return 'Nước $moveNo · $side · tạm dừng (Space để tiếp)';
     }
@@ -107,17 +116,8 @@ class _BoardScreenState extends State<BoardScreen> {
     return 'Nước $moveNo · $side đang nghĩ… (${widget.config.thinkSummary})';
   }
 
-  /// Tự đấu: vài nước gần nhất, dạng "12. e3e4 e8e7".
-  String _recentMoves() {
-    final m = controller.moves;
-    final start = m.length > 10 ? (m.length - 10) & ~1 : 0;
-    final sb = StringBuffer();
-    for (int i = start; i < m.length; i++) {
-      if (i % 2 == 0) sb.write('${i ~/ 2 + 1}. ');
-      sb.write('${m[i]} ');
-    }
-    return sb.toString().trim();
-  }
+  void _back10() => controller.goToPly(controller.shownPly - 10);
+  void _forward10() => controller.goToPly(controller.shownPly + 10);
 
   @override
   Widget build(BuildContext context) {
@@ -126,36 +126,64 @@ class _BoardScreenState extends State<BoardScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF302E2B),
       body: CallbackShortcuts(
-        bindings: {
+        bindings: <ShortcutActivator, VoidCallback>{
           const SingleActivator(LogicalKeyboardKey.space):
               controller.togglePause,
+          // Tự đấu: xem lại các nước đã đi trong khi ván vẫn tiếp tục.
+          if (selfPlay) ...{
+            const SingleActivator(LogicalKeyboardKey.arrowLeft):
+                controller.stepBack,
+            const SingleActivator(LogicalKeyboardKey.arrowRight):
+                controller.stepForward,
+            const SingleActivator(LogicalKeyboardKey.arrowUp):
+                controller.stepBack,
+            const SingleActivator(LogicalKeyboardKey.arrowDown):
+                controller.stepForward,
+            const SingleActivator(LogicalKeyboardKey.home): controller.goStart,
+            const SingleActivator(LogicalKeyboardKey.end): controller.goLive,
+            const SingleActivator(LogicalKeyboardKey.pageUp): _back10,
+            const SingleActivator(LogicalKeyboardKey.pageDown): _forward10,
+          },
         },
         child: Focus(
           autofocus: true,
           child: ListenableBuilder(
             listenable: controller,
             builder: (context, _) {
-              return Stack(
+              final stack = Stack(
                 children: [
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.all(12),
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: BoardView(
-                          board: controller.board,
-                          flipped: flipped,
-                          selectedFlat: controller.selected?.flat,
-                          targetFlats: controller.targets,
-                          lastMoveFlats: controller.lastMoveFlats,
-                          onTapSquare: controller.onTapSquare,
-                          promoSquare: controller.promoSquare,
-                          promoOptions: controller.promoOptions,
-                          playerIsWhite: widget.config.humanPlaysWhite,
-                          onPickPromotion: controller.choosePromotion,
-                          onDragStart: controller.beginDrag,
-                          onDragEnd: controller.endDrag,
-                          onDragCancel: controller.cancelDrag,
+                      // Tự đấu: lăn chuột trên bàn = lùi / tiến từng nước.
+                      child: Listener(
+                        onPointerSignal: selfPlay
+                            ? (e) {
+                                if (e is PointerScrollEvent &&
+                                    e.scrollDelta.dy != 0) {
+                                  e.scrollDelta.dy > 0
+                                      ? controller.stepForward()
+                                      : controller.stepBack();
+                                }
+                              }
+                            : null,
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: BoardView(
+                            board: controller.shownBoard,
+                            flipped: flipped,
+                            selectedFlat: controller.selected?.flat,
+                            targetFlats: controller.targets,
+                            lastMoveFlats: controller.shownLastMoveFlats,
+                            onTapSquare: controller.onTapSquare,
+                            promoSquare: controller.promoSquare,
+                            promoOptions: controller.promoOptions,
+                            playerIsWhite: widget.config.humanPlaysWhite,
+                            onPickPromotion: controller.choosePromotion,
+                            onDragStart: controller.beginDrag,
+                            onDragEnd: controller.endDrag,
+                            onDragCancel: controller.cancelDrag,
+                          ),
                         ),
                       ),
                     ),
@@ -183,24 +211,6 @@ class _BoardScreenState extends State<BoardScreen> {
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (selfPlay &&
-                      controller.moves.isNotEmpty &&
-                      controller.status == null)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: Center(
-                        child: Text(
-                          _recentMoves(),
-                          style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 12,
-                            fontFamily: 'Consolas',
                           ),
                         ),
                       ),
@@ -248,6 +258,23 @@ class _BoardScreenState extends State<BoardScreen> {
                         ),
                       ),
                     ),
+                ],
+              );
+              if (!selfPlay) return stack;
+              // Tự đấu: bàn ở trên, thanh nước đi (bấm / mũi tên / lăn chuột để xem lại) ở dưới.
+              return Column(
+                children: [
+                  Expanded(child: stack),
+                  MoveStrip(
+                    moves: controller.moves,
+                    shownPly: controller.shownPly,
+                    live: !controller.inReview,
+                    onSelect: controller.goToPly,
+                    onFirst: controller.goStart,
+                    onPrev: controller.stepBack,
+                    onNext: controller.stepForward,
+                    onLast: controller.goLive,
+                  ),
                 ],
               );
             },

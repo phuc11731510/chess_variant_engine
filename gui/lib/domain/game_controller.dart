@@ -25,12 +25,61 @@ class GameController extends ChangeNotifier {
   UciMove? lastMove;
   final List<String> moves = [];
 
+  /// FEN sau mỗi nửa nước: fens[0] = thế xuất phát, fens[k] = thế sau nước thứ k
+  /// (độ dài = moves.length + 1). Để XEM LẠI các nước trước trong khi ván vẫn tiếp tục.
+  final List<String> fens = [];
+
+  /// Nửa nước đang xem lại (0 = thế xuất phát); null = xem trực tiếp (thế mới nhất).
+  /// Xem lại chỉ đổi cái HIỆN trên bàn: engine và ván vẫn đi tiếp.
+  int? viewPly;
+  BoardState? _viewBoard;
+  int _viewBoardPly = -1;
+
   /// Tự đấu: đang tạm dừng (nước đang nghĩ vẫn đi nốt, sau đó dừng).
   bool paused = false;
   bool _disposed = false;
 
   Set<int> get lastMoveFlats =>
       lastMove == null ? const {} : {lastMove!.from.flat, lastMove!.to.flat};
+
+  /// Đang xem lại một thế cũ (không phải thế mới nhất).
+  bool get inReview => viewPly != null;
+
+  /// Nửa nước đang hiện trên bàn (0 = thế xuất phát).
+  int get shownPly => viewPly ?? moves.length;
+
+  /// Bàn đang hiện: thế mới nhất, hoặc thế đang xem lại.
+  BoardState get shownBoard {
+    final v = viewPly;
+    if (v == null || v >= fens.length) return board;
+    if (_viewBoardPly != v) {
+      _viewBoard = BoardState.fromFen(fens[v]);
+      _viewBoardPly = v;
+    }
+    return _viewBoard!;
+  }
+
+  /// Ô đi/đến của nước dẫn tới thế đang hiện (để tô).
+  Set<int> get shownLastMoveFlats {
+    final v = viewPly;
+    if (v == null) return lastMoveFlats;
+    if (v == 0 || v > moves.length) return const {};
+    final m = UciMove.tryParse(moves[v - 1]);
+    return m == null ? const {} : {m.from.flat, m.to.flat};
+  }
+
+  /// Xem thế sau [ply] nửa nước (0 = xuất phát). Tới nước mới nhất thì quay về xem trực tiếp.
+  void goToPly(int ply) {
+    final n = moves.length;
+    final p = ply < 0 ? 0 : (ply > n ? n : ply);
+    viewPly = p >= n ? null : p;
+    notifyListeners();
+  }
+
+  void stepBack() => goToPly(shownPly - 1);
+  void stepForward() => goToPly(shownPly + 1);
+  void goStart() => goToPly(0);
+  void goLive() => goToPly(moves.length);
 
   BoardState board = BoardState.fromFen(kVariantStartposFen);
   List<String> legal = [];
@@ -79,7 +128,9 @@ class GameController extends ChangeNotifier {
   // --- xử lý chạm ---
 
   void onTapSquare(int r, int f) {
-    if (busy || gameOver || !humansTurn || _promoCands.isNotEmpty) return;
+    if (busy || gameOver || !humansTurn || inReview || _promoCands.isNotEmpty) {
+      return;
+    }
     final tapped = Sq(f, r);
     final piece = board.at(r, f);
 
@@ -122,7 +173,9 @@ class GameController extends ChangeNotifier {
 
   /// Nhấc quân ở (r,f) để kéo. true nếu được phép (quân mình + có nước hợp lệ).
   bool beginDrag(int r, int f) {
-    if (busy || gameOver || !humansTurn || _promoCands.isNotEmpty) return false;
+    if (busy || gameOver || !humansTurn || inReview || _promoCands.isNotEmpty) {
+      return false;
+    }
     _trySelect(Sq(f, r), board.at(r, f));
     return selected == Sq(f, r);
   }
@@ -292,6 +345,9 @@ class GameController extends ChangeNotifier {
 
   Future<void> _refresh() async {
     final fen = await engine.currentFen();
+    if (fens.length == moves.length) {
+      fens.add(fen); // thế vừa tới (hoặc thế xuất phát)
+    }
     board = BoardState.fromFen(fen);
     legal = await engine.legalMoves();
     result = await engine.gameResult();
