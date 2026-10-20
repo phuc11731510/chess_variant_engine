@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../config/launch_config.dart';
 import 'engine_service.dart';
+import 'self_play_log.dart';
 
 /// Hiện thực [EngineService] cho DESKTOP: spawn `custom_engine.exe --uci-nn`,
 /// trao đổi bằng văn bản UCI qua stdin/stdout (Kiểu A trong kế hoạch).
@@ -29,6 +30,11 @@ class UciProcessEngine implements EngineService {
 
   /// Bật để in mọi dòng engine ra log khi gỡ lỗi.
   final bool verbose;
+
+  /// Tự đấu: nhật ký từng nước (lệnh position, số lượt tìm, các nước engine cân nhắc).
+  SelfPlayLog? _log;
+  String _goPosition = '';
+  final Map<int, String> _lastInfo = {};
 
   UciProcessEngine(this.config, {this.verbose = false});
 
@@ -76,6 +82,13 @@ class UciProcessEngine implements EngineService {
       for (final (name, value) in config.selfPlayUciOptions) {
         _send('setoption name $name value $value');
       }
+      // Chỉ để ghi nhật ký: engine báo 5 nước nhiều lượt tìm nhất (không đổi cách chọn nước).
+      _send('setoption name MultiPV value 5');
+      _log = SelfPlayLog(
+        '# tự đấu ${DateTime.now().toIso8601String()} · model ${config.modelPath} · '
+        'provider ${config.provider} · movetime ${config.movetimeMs ?? LaunchConfig.defaultMovetimeMs} ms · '
+        'options ${config.selfPlayUciOptions.map((o) => "${o.$1}=${o.$2}").join(" ")}',
+      );
     }
 
     // isready: engine (re)dựng backend nếu có model -> chờ lâu hơn.
@@ -149,6 +162,8 @@ class UciProcessEngine implements EngineService {
   @override
   Future<String> bestMove() async {
     _ensureStarted();
+    _goPosition = _positionCmd();
+    _lastInfo.clear();
     if (config.visits != null) {
       _send('go nodes ${config.visits}');
     } else {
@@ -162,7 +177,14 @@ class UciProcessEngine implements EngineService {
       what: 'bestmove',
     );
     final parts = line.trim().split(RegExp(r'\s+'));
-    return parts.length > 1 ? parts[1] : '0000';
+    final best = parts.length > 1 ? parts[1] : '0000';
+    _log?.entry(
+      ply: _moves.length,
+      positionCmd: _goPosition,
+      infos: Map.of(_lastInfo),
+      bestmove: best,
+    );
+    return best;
   }
 
   @override
@@ -190,10 +212,12 @@ class UciProcessEngine implements EngineService {
     if (!_started) throw EngineException('Engine chua start()');
   }
 
-  void _sendPosition() {
+  String _positionCmd() {
     final mv = _moves.isEmpty ? '' : ' moves ${_moves.join(' ')}';
-    _send('$_basePositionCmd$mv');
+    return '$_basePositionCmd$mv';
   }
+
+  void _sendPosition() => _send(_positionCmd());
 
   /// Rào đồng bộ: `position`/`ucinewgame` không có phản hồi, dùng isready/readyok
   /// để chắc engine đã xử lý xong trước khi đi tiếp.
@@ -234,6 +258,10 @@ class UciProcessEngine implements EngineService {
     if (verbose) {
       // ignore: avoid_print
       print('[engine:>>] $line');
+    }
+    if (_log != null && line.startsWith('info depth ')) {
+      final m = RegExp(r'multipv (\d+)').firstMatch(line);
+      if (m != null) _lastInfo[int.parse(m.group(1)!)] = line.substring(5);
     }
     for (var i = 0; i < _pending.length; i++) {
       if (_pending[i].match(line)) {

@@ -81,3 +81,4 @@ gmon.out
 
 # Tep dang nhap Colab (= mat khau), vd. token.json chep tu dien thoai (menu Termux a -> t)
 token*.json
+tu_dau_log/
