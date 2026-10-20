@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 
 import 'config/launch_config.dart';
+import 'config/replay_loader.dart';
 import 'domain/game_controller.dart';
 import 'engine/engine_service.dart';
 import 'engine/uci_process_engine.dart';
@@ -66,12 +67,24 @@ class _BoardScreenState extends State<BoardScreen> {
       engine: (widget.engineFactory ?? _makeEngine)(widget.config),
       humanIsWhite: widget.config.humanPlaysWhite,
       selfPlay: widget.config.selfPlay,
+      replay: widget.config.replayPath != null,
       maxPlies: widget.config.selfPlay ? LaunchConfig.selfPlayMaxPlies : 0,
     );
     _start();
   }
 
   Future<void> _start() async {
+    final path = widget.config.replayPath;
+    if (path != null) {
+      try {
+        final g = readReplayFile(path);
+        await controller.initReplay(g.moves, startFen: g.startFen);
+      } catch (e) {
+        controller.status = 'Không đọc được biên bản $path: $e';
+        controller.notifyListeners();
+      }
+      return;
+    }
     await controller.init();
     final demo = widget.config.demoMove;
     if (demo != null) await controller.playHumanUci(demo);
@@ -101,6 +114,11 @@ class _BoardScreenState extends State<BoardScreen> {
     final c = controller;
     final ply = c.moves.length;
     final moveNo = ply ~/ 2 + 1;
+    if (widget.config.replayPath != null) {
+      return 'Xem lại ván: nửa nước ${c.shownPly}/$ply · '
+          '${c.autoPlaying ? "đang tự chạy (Space = dừng)" : "Space = tự chạy"} '
+          '· ← → / lăn chuột / bấm nước';
+    }
     final side = c.board.whiteToMove ? 'Trắng' : 'Đen';
     if (c.gameOver) return 'Hết ván sau $ply nửa nước';
     if (c.inReview) {
@@ -122,7 +140,8 @@ class _BoardScreenState extends State<BoardScreen> {
   @override
   Widget build(BuildContext context) {
     final flipped = !widget.config.humanPlaysWhite;
-    final selfPlay = widget.config.selfPlay;
+    final replay = widget.config.replayPath != null;
+    final selfPlay = widget.config.selfPlay || replay; // giao diện xem lại nước đi dùng chung
     return Scaffold(
       backgroundColor: const Color(0xFF302E2B),
       body: CallbackShortcuts(
@@ -200,7 +219,10 @@ class _BoardScreenState extends State<BoardScreen> {
                         ),
                       ),
                     ),
-                  if (selfPlay && !controller.gameOver)
+                  if (selfPlay &&
+                      (replay
+                          ? !(controller.gameOver && !controller.inReview)
+                          : !controller.gameOver))
                     Positioned(
                       top: 0,
                       left: 0,
@@ -215,7 +237,7 @@ class _BoardScreenState extends State<BoardScreen> {
                         ),
                       ),
                     ),
-                  if (controller.gameOver)
+                  if (controller.gameOver && !(replay && controller.inReview))
                     Positioned(
                       top: 10,
                       left: 0,

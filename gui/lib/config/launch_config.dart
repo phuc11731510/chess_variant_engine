@@ -17,6 +17,9 @@
 ///   --self-play         máy tự đấu cả hai bên (người chỉ xem; Space = tạm dừng/tiếp;
 ///                       xem lại nước đã đi: ← → / lăn chuột / bấm nước ở thanh dưới bàn,
 ///                       Home = về đầu, End = về nước mới nhất, PageUp/PageDown = 10 nước)
+///   --replay <tệp>      chỉ XEM LẠI một ván (không chơi, không tìm kiếm): tệp nhật ký tu_dau_log/*.txt
+///                       hoặc tệp các nước UCI. Space = tự chạy, phím/lăn chuột/bấm nước như tự đấu.
+///                       (đường dẫn không được có khoảng trắng)
 ///   --temperature <T>   (tự đấu) nhiệt độ chọn nước, vd 0.5 (mặc định 1.0 như sinh dữ liệu)
 ///   --temp-cutoff <N>   (tự đấu) chỉ dùng nhiệt độ trong N nửa nước đầu; 0 = cả ván (mặc định 32)
 /// ```
@@ -48,6 +51,9 @@ class LaunchConfig {
   /// Máy tự đấu cả hai bên; người chỉ xem.
   final bool selfPlay;
 
+  /// Chỉ xem lại ván đã lưu trong tệp này (null = không phải chế độ xem lại).
+  final String? replayPath;
+
   /// Tự đấu: ghi đè Temperature (‰, engine nhận số nghìn) và TempCutoffPly
   /// của [trainingUciOptions]. Null = giữ như sinh dữ liệu.
   final int? temperaturePermille;
@@ -63,6 +69,7 @@ class LaunchConfig {
     this.startFen,
     this.demoMove,
     this.selfPlay = false,
+    this.replayPath,
     this.temperaturePermille,
     this.tempCutoffPly,
   });
@@ -132,6 +139,7 @@ class LaunchConfig {
     String? fen;
     String? demo;
     bool selfPlay = false;
+    String? replayPath;
     int? tempPermille;
     int? tempCutoff;
 
@@ -190,6 +198,13 @@ class LaunchConfig {
         case '--self-play':
           selfPlay = true;
           break;
+        case '--replay':
+          final v = valueAfter(i);
+          if (v != null) {
+            replayPath = v;
+            i++;
+          }
+          break;
         case '--temperature':
           final v = valueAfter(i);
           if (v != null) {
@@ -232,6 +247,7 @@ class LaunchConfig {
       startFen: fen,
       demoMove: demo,
       selfPlay: selfPlay,
+      replayPath: replayPath,
       temperaturePermille: tempPermille,
       tempCutoffPly: tempCutoff,
     );

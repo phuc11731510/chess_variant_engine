@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../engine/engine_service.dart';
@@ -14,10 +16,15 @@ class GameController extends ChangeNotifier {
   /// Máy tự đấu cả hai bên (--self-play): người chỉ xem, có thể tạm dừng.
   final bool selfPlay;
 
+  /// Chỉ xem lại một ván đã có ([initReplay]): không chơi, không tìm kiếm; engine chỉ để áp
+  /// từng nước và cho thế cờ sau nước đó.
+  final bool replay;
+
   GameController({
     required this.engine,
     required this.humanIsWhite,
     this.selfPlay = false,
+    this.replay = false,
     this.maxPlies = 0,
   });
 
@@ -101,7 +108,8 @@ class GameController extends ChangeNotifier {
   bool plyCutoff = false;
 
   bool get gameOver => result != GameResult.undecided || plyCutoff;
-  bool get humansTurn => !selfPlay && board.whiteToMove == humanIsWhite;
+  bool get humansTurn =>
+      !selfPlay && !replay && board.whiteToMove == humanIsWhite;
   bool get busy => engineThinking;
 
   /// Ô đích phong cấp (flat) khi đang chờ chọn quân; null nếu không.
@@ -335,8 +343,70 @@ class GameController extends ChangeNotifier {
     }
   }
 
+  /// Xem lại: đang tự chạy tiến từng nước (mỗi [autoStep]).
+  Timer? _autoTimer;
+  static const autoStep = Duration(milliseconds: 1000);
+  bool get autoPlaying => _autoTimer != null;
+
+  /// Xem lại: nạp [replayMoves] (từ thế [startFen], null = thế đầu của biến thể) và dừng ở thế xuất phát.
+  /// Mỗi nước được kiểm là hợp lệ; gặp nước sai thì dừng ở đó và báo ở [status].
+  Future<void> initReplay(List<String> replayMoves, {String? startFen}) async {
+    try {
+      await engine.start();
+      await engine.newGame(fen: startFen);
+      fens.add(await engine.currentFen());
+      for (final m in replayMoves) {
+        final lg = await engine.legalMoves();
+        if (_disposed) return;
+        if (!lg.contains(m)) {
+          status =
+              'Nước thứ ${moves.length + 1} ($m) không hợp lệ trong thế này — chỉ xem được ${moves.length} nước đầu';
+          break;
+        }
+        await engine.applyMove(m);
+        _recordMove(m);
+        fens.add(await engine.currentFen());
+      }
+      board = BoardState.fromFen(fens.last);
+      legal = [];
+      result = await engine.gameResult();
+      goToPly(0);
+    } catch (e) {
+      if (_disposed) return;
+      status = 'Loi engine: $e';
+      notifyListeners();
+    }
+  }
+
+  /// Xem lại: bật/tắt tự chạy. Đang ở nước cuối thì chạy lại từ đầu.
+  void toggleAutoPlay() {
+    if (_autoTimer != null) {
+      _stopAuto();
+      notifyListeners();
+      return;
+    }
+    if (shownPly >= moves.length) goToPly(0);
+    _autoTimer = Timer.periodic(autoStep, (_) {
+      stepForward();
+      if (shownPly >= moves.length) {
+        _stopAuto();
+        notifyListeners();
+      }
+    });
+    notifyListeners();
+  }
+
+  void _stopAuto() {
+    _autoTimer?.cancel();
+    _autoTimer = null;
+  }
+
   /// Tự đấu: bật/tắt tạm dừng. Tiếp tục thì máy đi tiếp ngay.
   void togglePause() {
+    if (replay) {
+      toggleAutoPlay();
+      return;
+    }
     if (!selfPlay || gameOver) return;
     paused = !paused;
     notifyListeners();
@@ -364,6 +434,7 @@ class GameController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _stopAuto();
     engine.dispose();
     super.dispose();
   }
