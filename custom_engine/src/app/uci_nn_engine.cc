@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <iomanip>
 #include <sstream>
 #include <cassert>
 
@@ -298,6 +299,7 @@ private:
         Send("option name Temperature type spin default 0 min 0 max 10000");   // permille; difficulty
         Send("option name TempCutoffPly type spin default 0 min 0 max 1000");   // temp only first N plies (0=always)
         Send("option name ReuseTree type check default true");                  // keep MCTS tree across moves
+        Send("option name RootStats type check default false");                 // after each search: `info string stat` per root move (N, P, Q)
         // Plus any lc0 search param by its native name (T8.3 passthrough), e.g.:
         // setoption name cpuct value 2.0 ; setoption name draw-score value -0.2
         Send("uciok");
@@ -327,6 +329,7 @@ private:
         else if (name == "Temperature") { temperature_ = std::max(0, to_int(temperature_)); }
         else if (name == "TempCutoffPly") { temp_cutoff_ply_ = std::max(0, to_int(temp_cutoff_ply_)); }
         else if (name == "ReuseTree") { reuse_tree_ = (value == "true" || value == "1"); }
+        else if (name == "RootStats") { root_stats_ = (value == "true" || value == "1"); }
         else if (!name.empty()) {   // lc0 search-param passthrough (applied at `go`)
             search_opts_[name] = value;
             // Read when the backend/cache is built, not by the search: rebuild.
@@ -543,6 +546,21 @@ private:
             Send(os.str());
         }
 
+        // RootStats: for the same K moves, how the search spent its visits. N = visits,
+        // P = prior as stored in the tree (after policy softmax temperature and, when
+        // noise is on, after Dirichlet noise), Q = value of playing the move from the
+        // root's side (what `score cp` reports). A move with high Q but few N was
+        // under-explored: PUCT only visits a child in proportion to Q + U(P, N).
+        if (root_stats_) {
+            for (int i = 0; i < K; ++i) {
+                std::ostringstream os;
+                os << "info string stat " << CanonicalMoveToUci(edges[i].GetMove(), root_black)
+                   << " N " << edges[i].GetN() << " P " << std::fixed << std::setprecision(4) << edges[i].GetP()
+                   << " Q " << std::setprecision(3) << edges[i].GetWL(static_cast<float>(-root->GetWL()));
+                Send(os.str());
+            }
+        }
+
         // Move selection: greedy (best) by default; with Temperature>0 (and within
         // TempCutoffPly) sample by visit counts -> weaker/more varied (difficulty).
         lczero::classic::EdgeAndNode chosen = edges[0];
@@ -626,6 +644,7 @@ private:
     int default_visits_ = 800, move_overhead_ms_ = 30, multipv_ = 1;
     int temperature_ = 0, temp_cutoff_ply_ = 0;   // difficulty: move-selection temperature (permille)
     bool reuse_tree_ = true;                       // keep MCTS tree across moves (T8.x)
+    bool root_stats_ = false;                      // RootStats: per-root-move N / P / Q after each search (debug)
     float policy_temp_ = 1.359f;                    // lc0 default (PolicySoftmaxTemp)
     bool backend_dirty_ = true;
     bool injected_backend_ = false;                // see InjectBackend (tests only)

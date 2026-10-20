@@ -19,6 +19,7 @@ class SelfPlayLog {
     required int ply,
     required String positionCmd,
     required Map<int, String> infos,
+    required List<String> stats,
     required String bestmove,
   }) {
     if (_failed) return;
@@ -29,6 +30,10 @@ class SelfPlayLog {
         ..writeln(positionCmd);
       for (final k in (infos.keys.toList()..sort())) {
         b.writeln('  ${infos[k]}');
+      }
+      // N = số lượt tìm, P = xác suất ban đầu (prior) của mạng, Q = giá trị nước đó từ phía người đi.
+      for (final s in stats) {
+        b.writeln('    $s');
       }
       _file!.writeAsStringSync(b.toString(), mode: FileMode.append, flush: true);
     } catch (_) {

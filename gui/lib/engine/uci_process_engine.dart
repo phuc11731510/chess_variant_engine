@@ -35,6 +35,7 @@ class UciProcessEngine implements EngineService {
   SelfPlayLog? _log;
   String _goPosition = '';
   final Map<int, String> _lastInfo = {};
+  final List<String> _lastStats = [];
 
   UciProcessEngine(this.config, {this.verbose = false});
 
@@ -82,8 +83,9 @@ class UciProcessEngine implements EngineService {
       for (final (name, value) in config.selfPlayUciOptions) {
         _send('setoption name $name value $value');
       }
-      // Chỉ để ghi nhật ký: engine báo 5 nước nhiều lượt tìm nhất (không đổi cách chọn nước).
-      _send('setoption name MultiPV value 5');
+      // Chỉ để ghi nhật ký: engine báo 8 nước nhiều lượt tìm nhất (không đổi cách chọn nước).
+      _send('setoption name MultiPV value 8');
+      _send('setoption name RootStats value true');
       _log = SelfPlayLog(
         '# tự đấu ${DateTime.now().toIso8601String()} · model ${config.modelPath} · '
         'provider ${config.provider} · movetime ${config.movetimeMs ?? LaunchConfig.defaultMovetimeMs} ms · '
@@ -164,6 +166,7 @@ class UciProcessEngine implements EngineService {
     _ensureStarted();
     _goPosition = _positionCmd();
     _lastInfo.clear();
+    _lastStats.clear();
     if (config.visits != null) {
       _send('go nodes ${config.visits}');
     } else {
@@ -182,6 +185,7 @@ class UciProcessEngine implements EngineService {
       ply: _moves.length,
       positionCmd: _goPosition,
       infos: Map.of(_lastInfo),
+      stats: List.of(_lastStats),
       bestmove: best,
     );
     return best;
@@ -259,7 +263,9 @@ class UciProcessEngine implements EngineService {
       // ignore: avoid_print
       print('[engine:>>] $line');
     }
-    if (_log != null && line.startsWith('info depth ')) {
+    if (_log != null && line.startsWith('info string stat ')) {
+      _lastStats.add(line.substring(17));
+    } else if (_log != null && line.startsWith('info depth ')) {
       final m = RegExp(r'multipv (\d+)').firstMatch(line);
       if (m != null) _lastInfo[int.parse(m.group(1)!)] = line.substring(5);
     }
