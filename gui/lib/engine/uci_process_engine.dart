@@ -88,7 +88,7 @@ class UciProcessEngine implements EngineService {
       _send('setoption name RootStats value true');
       _log = SelfPlayLog(
         '# tự đấu ${DateTime.now().toIso8601String()} · model ${config.modelPath} · '
-        'provider ${config.provider} · movetime ${config.movetimeMs ?? LaunchConfig.defaultMovetimeMs} ms · '
+        'provider ${config.provider} · ${config.thinkSummary} · '
         'options ${config.selfPlayUciOptions.map((o) => "${o.$1}=${o.$2}").join(" ")}',
       );
     }
