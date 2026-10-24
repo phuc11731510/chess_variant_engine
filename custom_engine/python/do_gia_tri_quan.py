@@ -82,8 +82,9 @@ def pct(v, p):
 def main():
     global G_GOC
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", required=True)
-    ap.add_argument("--data", required=True, help="thư mục chứa games_gen*/ (các tệp .xz)")
+    ap.add_argument("--model", default="")
+    ap.add_argument("--data", default="", help="thư mục chứa games_gen*/ (các tệp .xz)")
+    ap.add_argument("--from-raw", default="", help="không chạy mạng: đọc lại tệp .npz do --raw ghi và chỉ in các bảng")
     ap.add_argument("--keep", type=float, default=0.04, help="xác suất giữ mỗi thế")
     ap.add_argument("--max-positions", type=int, default=0, help="giới hạn số thế (0 = không)")
     ap.add_argument("--seed", type=int, default=1)
@@ -91,6 +92,11 @@ def main():
     ap.add_argument("--batch", type=int, default=256)
     ap.add_argument("--raw", default="", help="ghi mọi lần xoá ra tệp .npz để phân tích thêm")
     a = ap.parse_args()
+    if a.from_raw:
+        in_bang(np.load(a.from_raw)["rows"])
+        return
+    if not a.model or not a.data:
+        ap.error("cần --model và --data (hoặc --from-raw)")
 
     import onnxruntime as ort
     so = ort.SessionOptions()
@@ -164,25 +170,42 @@ def main():
     R = np.array(rows, dtype=np.float64)
     if a.raw:
         np.savez_compressed(a.raw, rows=R)
-    t_, o_, q0_, dl_, ply_ = R[:, 0].astype(int), R[:, 1].astype(int), R[:, 2], R[:, 3], R[:, 4]
+    in_bang(R)
+
+
+def cp(q):
+    """centipawn theo công thức của engine (score cp); kẹp |q| để không ra vô cực."""
+    return 111.714640912 * np.tan(1.5620688421 * np.clip(q, -0.9999, 0.9999))
+
+
+def in_bang(R):
+    """R: mỗi hàng = (loại, chủ, q trước, lệch q, ply, W,D,L trước, W,D,L sau). Ba thang đo của cùng một độ lệch:
+    q (Thắng-Thua, -1..1), centipawn (công thức của engine) và ĐIỂM KỲ VỌNG (Thắng + Hoà/2, tính bằng %)."""
+    t_, o_, q0_, dq_ = R[:, 0].astype(int), R[:, 1].astype(int), R[:, 2], R[:, 3]
+    w0, d0, l0, w1, d1, l1 = R[:, 5:11].T
+    sg = np.where(o_ == 0, 1.0, -1.0)
+    dcp_ = sg * (cp(w0 - l0) - cp(w1 - l1))
+    e0 = np.where(o_ == 0, w0 + d0 / 2, l0 + d0 / 2)
+    e1 = np.where(o_ == 0, w1 + d1 / 2, l1 + d1 / 2)
+    de_ = (e0 - e1) * 100.0
+    THANG = [("q (Thắng-Thua, thang -1..1)", dq_, 3), ("centipawn (công thức của engine)", dcp_, 0),
+             ("điểm kỳ vọng Thắng+Hoà/2, đơn vị % (100 = mất hẳn một ván thắng)", de_, 1)]
 
     def bang(mask, tieu_de):
         print(tieu_de)
-        print(f"{'quân':<24}{'số lần':>9}{'p40':>8}{'p25':>8}{'trung vị':>9}{'p75':>8}{'TB':>8}{'tỉ lệ lệch>0':>14}")
-        ds = []
-        for t in range(13):
-            m = mask & (t_ == t)
-            if m.sum() == 0:
-                continue
-            v = dl_[m]
-            ds.append((pct(v, 40), t, len(v), pct(v, 25), pct(v, 50), pct(v, 75), float(v.mean()), float((v > 0).mean())))
-        for p40, t, n, p25, p50, p75, mean, pos in sorted(ds, key=lambda x: -x[0]):
-            print(f"{TEN[LOAI[t]]:<24}{n:>9}{p40:>+8.3f}{p25:>+8.3f}{p50:>+9.3f}{p75:>+8.3f}{mean:>+8.3f}{pos * 100:>13.1f}%")
-        pawn = [x for x in ds if x[1] == 0]
-        if pawn and pawn[0][0] > 1e-6:
-            print("  (p40 so với p40 của Tốt: " +
-                  ", ".join(f"{TEN[LOAI[t]].split()[0]} {p40 / pawn[0][0]:.1f}" for p40, t, *_ in
-                            sorted(ds, key=lambda x: -x[0]) if t not in (0, 5)) + ")")
+        for ten, dl_, nd in THANG:
+            print(f"  -- đo bằng {ten}")
+            print(f"  {'quân':<24}{'số lần':>9}{'p40':>9}{'p25':>9}{'trung vị':>10}{'p75':>9}{'TB':>9}{'lệch>0':>9}")
+            ds = []
+            for t in range(13):
+                m = mask & (t_ == t)
+                if m.sum() == 0:
+                    continue
+                v = dl_[m]
+                ds.append((pct(v, 40), t, len(v), pct(v, 25), pct(v, 50), pct(v, 75), float(v.mean()), float((v > 0).mean())))
+            for p40, t, n, p25, p50, p75, mean, pos in sorted(ds, key=lambda x: -x[0]):
+                print(f"  {TEN[LOAI[t]]:<24}{n:>9}{p40:>+9.{nd}f}{p25:>+9.{nd}f}{p50:>+10.{nd}f}{p75:>+9.{nd}f}"
+                      f"{mean:>+9.{nd}f}{pos * 100:>8.1f}%")
         print()
 
     tat = np.ones(len(R), dtype=bool)
@@ -191,14 +214,15 @@ def main():
     bang(cb, f"Thế CÒN CÂN BẰNG theo mạng (|q trước| < 0.5): {cb.sum()} lần xoá")
     bang((np.abs(q0_) < 0.9), f"Thế chưa quá nghiêng (|q trước| < 0.9): {(np.abs(q0_) < 0.9).sum()} lần xoá")
 
-    print("Tách theo chủ quân, thế còn cân bằng (|q trước| < 0.5), p40 của độ lệch:")
-    print(f"{'quân':<24}{'quân của bên ĐI':>18}{'quân của bên KIA':>18}")
+    print("Tách theo chủ quân, thế còn cân bằng (|q trước| < 0.5), p40 của độ lệch (cp | %):")
+    print(f"{'quân':<24}{'quân của bên ĐI':>24}{'quân của bên KIA':>24}")
     for t in range(13):
         m0 = cb & (t_ == t) & (o_ == 0)
         m1 = cb & (t_ == t) & (o_ == 1)
         if m0.sum() + m1.sum() == 0:
             continue
-        print(f"{TEN[LOAI[t]]:<24}{pct(dl_[m0], 40):>+13.3f} ({m0.sum():>4}){pct(dl_[m1], 40):>+12.3f} ({m1.sum():>4})")
+        print(f"{TEN[LOAI[t]]:<24}{pct(dcp_[m0], 40):>+13.0f} |{pct(de_[m0], 40):>+6.1f}%"
+              f"{pct(dcp_[m1], 40):>+14.0f} |{pct(de_[m1], 40):>+6.1f}%   (n={m0.sum()}/{m1.sum()})")
 
 
 if __name__ == "__main__":
