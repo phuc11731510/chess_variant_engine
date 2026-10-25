@@ -76,6 +76,32 @@ cua_so_khac() {
     else [ "${g%%:*}" = "@$1" ] && echo "$pid"; fi
   done
 }
+# Tai khoan $1 bi danh dau "dang mo o cua so khac" (tien trinh menu do con song -- ke ca cua so da TREO hoac da vuot
+# bo khoi man hinh Termux ma tien trinh con ton tai): cho go 'xoa' de bo dau hieu. 0 = tai khoan trong / da bo.
+cua_so_ket() {
+  local p ps x
+  ps=$(cua_so_khac "$1")
+  [ -z "$ps" ] && return 0
+  echo "[!] Tài khoản $(ten_tk "$1") đang mở ở cửa sổ khác (pid: $(echo $ps))."
+  echo "    Nếu cửa sổ đó đã TREO, hoặc bạn đã đóng nó mà tiến trình còn lại:"
+  read -rp "    gõ 'xoa' để bỏ dấu hiệu đó và tiếp tục (Enter = thôi): " x
+  [ "$x" = xoa ] || return 1
+  for p in $ps; do rm -f "$CS/$p"; done
+  return 0
+}
+# Ctrl+D o menu chinh: thoat menu fz co hoi. Thoat menu KHONG tra may Colab -- nhac neu tai khoan dang giu may.
+thoat_hoi() {
+  local ds x
+  echo "Thoát menu fz?"
+  mapfile -t ds < <(KHONG_HOI=1 COLAB_TO=20 colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]')
+  if [ ${#ds[@]} -gt 0 ]; then
+    echo "${M_VANG}Tài khoản $(ten_tk "$TK") đang giữ ${#ds[@]} máy: thoát menu KHÔNG trả máy"
+    echo "(máy vẫn tiêu hạn mức; trả máy: t).${M_HET}"
+  fi
+  read -rp "Gõ 'co' để thoát (Enter hoặc Ctrl+D lần nữa = ở lại): " x || x=
+  [ "$x" = co ] && exit 0
+  return 0
+}
 # Hoi truoc khi dung may $2 cua tai khoan $1 neu cua so khac dang dung dung may do. 0 = dung duoc.
 hoi_trung() {
   local x
@@ -112,14 +138,25 @@ fi
 [ -n "$LE$TUDONG" ] || hoi_trung "$TK" "$S" || exit 1
 dat_tk "$TK"
 [ -n "$LE" ] || ghi_cua_so
-colab() { HOME=$TKH command colab "$@"; }
+# fz_colab.py = Colab CLI da sua loi lam moi token (invalid_scope -> doi dang nhap lai moi gio). KHONG_HOI=1:
+# KHONG BAO GIO hoi ma dang nhap (thoat ma 75, in FZ_CAN_DANG_NHAP) -- bat buoc khi dau ra bi bat (out=$(...))
+# hoac chay nen, neu khong cua so "dung hinh" cho mot ma khong ai thay loi nhac. COLAB_TO=<giay>: gioi han thoi gian.
+colab() {
+  if [ -f ~/fz_colab.py ]; then
+    HOME=$TKH FZ_KHONG_HOI=${KHONG_HOI:-} ${COLAB_TO:+timeout "$COLAB_TO"} python ~/fz_colab.py "$@"
+  else
+    HOME=$TKH command colab "$@"
+  fi
+}
 py_colab() { HOME=$TKH python "$@"; }
 
 # Ctrl+C: dung lenh dang chay (ssh xem log), KHONG thoat menu. Handler (khong phai bo qua)
 # de tien trinh con van nhan Ctrl+C binh thuong. NGAT=1: nguoi dung vua bam Ctrl+C (ssh tra 255
 # ca khi bi Ctrl+C lan khi rot mang -- xem() dua vao co nay de phan biet).
 NGAT=0
-trap 'NGAT=1' INT
+# Ctrl+C: vong lap v (KHONG_HOI=1) dung td_int (2 lan lien tiep = thoat ngay), menu thuong chi dat co NGAT.
+bat_ctrl_c() { if [ -n "${KHONG_HOI:-}" ]; then trap 'td_int' INT; else trap 'NGAT=1' INT; fi; }
+bat_ctrl_c
 
 # Doc tep o: bo BOM va \r ma trinh sua tep tren dien thoai co the them vao.
 doc() { sed 's/^\xEF\xBB\xBF//; s/\r$//' "$@"; }
@@ -145,7 +182,7 @@ ssh_colab() {
   [ -f ~/fz_giu_may.py ] && px="$(type -P python) $HOME/fz_giu_may.py proxy $S"
   ssh -o ProxyCommand="env HOME=$TKH $px" \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
-      -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+      -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=45 \
       "root@colab-$S" "$@"
 }
 
@@ -326,7 +363,7 @@ hoi_tham_so() {
       echo " 3  Tự đặt cả số ván và SECS"
       echo " Enter = dùng số trong tệp"
     } >&2
-    read -rp "Chọn: " x
+    read -rp "Chọn: " x || { echo >&2; return 1; }      # Ctrl+D = huy
     case "$x" in
       1) hoi_chua_phut || return 1
          ra+=(GAMES=1000 SECS=@T4) ;;
@@ -377,7 +414,7 @@ doi_doi() {
   echo " -      = giảm xuống $((gen - 1))"
   echo " <số>   = đặt đúng số đó"
   echo " Enter  = giữ nguyên"
-  read -rp "Chọn: " x
+  read -rp "Chọn: " x || return                          # Ctrl+D = giu nguyen
   case "$x" in
     "") return ;;
     +) moi=$((gen + 1)) ;;
@@ -482,7 +519,7 @@ log_truc_tiep() {
     if [ -n "$con" ]; then
       rm -f "$(CHUOI)"
       echo
-      read -rp "Ô $id xong. Chạy tiếp chuỗi: $con? (Enter = chạy, n = bỏ): " x
+      read -rp "Ô $id xong. Chạy tiếp chuỗi: $con? (Enter = chạy, n = bỏ): " x || x=n   # Ctrl+D = bo
       if [ "$x" != n ]; then chay_cac_o $con; fi
     fi
   fi
@@ -504,7 +541,7 @@ kiem_secs() {
   echo "  1   Dùng SECS = $goi (vừa hạn mức) -- lưu vào ô"
   echo "  co  Vẫn chạy với SECS = $secs"
   echo "  Enter = huỷ"
-  read -rp "  Chọn: " x
+  read -rp "  Chọn: " x || return 1                      # Ctrl+D = huy
   case "$x" in
     1) ghi_bien "$1" SECS "$goi" && echo "[đã lưu] SECS = $goi" ;;
     co) return 0 ;;
@@ -546,7 +583,7 @@ tai_khoan() {
       [ "$ten" = "$TK" ] && x=" ${M_LAM}◀ đang dùng${M_HET}"
       printf ' %s%d  %s%s%s\n' "$M_DAM" $((i + 1)) "$(ten_tk "$ten")" "$M_HET" \
         "$([ -z "$ten" ] && echo " ${M_MO}(chính)${M_HET}")$x"
-      [ -n "$(cua_so_khac "$ten")" ] && echo "    ${M_VANG}đang mở ở cửa sổ khác${M_HET}"
+      [ -n "$(cua_so_khac "$ten")" ] && echo "    ${M_VANG}đang mở ở cửa sổ khác (pid $(echo $(cua_so_khac "$ten")))${M_HET}"
       if tk_dang_nhap "$ten"; then khoi_han_muc "$ten" | sed 's/^   /    /'
       else echo "    ${M_DO}CHƯA đăng nhập${M_HET}"; fi
     done
@@ -608,10 +645,7 @@ tai_khoan() {
       read -rp "Số tài khoản cần đổi tên: " i
       [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ] || continue
       ten=${ds[$((i - 1))]}
-      if [ -n "$(cua_so_khac "$ten")" ]; then
-        echo "[!] Tài khoản $(ten_tk "$ten") đang mở ở cửa sổ khác -- thoát menu bên đó (q) rồi đổi tên."
-        dung; continue
-      fi
+      cua_so_ket "$ten" || { dung; continue; }
       read -rp "Tên mới cho $(ten_tk "$ten") (chữ/số/_/-, tối đa 20): " x
       tk_hop_le "$x" || { echo "[!] Tên không hợp lệ"; dung; continue; }
       cu=$(ten_tk "$ten"); [ "$x" = "$cu" ] && continue
@@ -628,16 +662,18 @@ tai_khoan() {
       read -rp "Số tài khoản cần đăng xuất: " i
       [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#ds[@]} ] || continue
       ten=${ds[$((i - 1))]}; cu=$TK
-      if [ -n "$(cua_so_khac "$ten")" ]; then
-        echo "[!] Tài khoản $(ten_tk "$ten") đang mở ở cửa sổ khác -- thoát menu bên đó (q) trước."
-        dung; continue
-      fi
+      cua_so_ket "$ten" || { dung; continue; }
       dat_tk "$ten"
       if tk_dang_nhap "$ten"; then
         echo "Máy tài khoản $(ten_tk "$ten") đang giữ (đăng xuất rồi vẫn tính hạn mức tới khi Colab thu hồi):"
-        colab sessions
-        read -rp "Trả máy '$S' của tài khoản này trước? (co = trả, Enter = không): " x
-        [ "$x" = co ] && colab stop -s "$S"
+        # Token hong cung phai xoa duoc: khong hoi ma dang nhap o day (KHONG_HOI), loi thi bo qua buoc tra may.
+        if KHONG_HOI=1 COLAB_TO=60 colab sessions; then
+          read -rp "Trả máy '$S' của tài khoản này trước? (co = trả, Enter = không): " x
+          [ "$x" = co ] && { KHONG_HOI=1 COLAB_TO=60 colab stop -s "$S" || echo "[!] chưa trả được máy -- Colab tự thu hồi khi hết hạn mức"; }
+        else
+          echo "${M_VANG}[!] Token không dùng được -- bỏ qua bước trả máy (xoá vẫn làm được;${M_HET}"
+          echo "${M_VANG}    máy của tài khoản này, nếu còn, tự mất khi Colab thu hồi).${M_HET}"
+        fi
       fi
       read -rp "Đăng xuất $(ten_tk "$ten")$([ -n "$ten" ] && echo " và xoá khỏi danh sách")? Gõ 'co': " x
       if [ "$x" = co ]; then
@@ -653,8 +689,13 @@ tai_khoan() {
       tk_dang_nhap "$TK" && { tra_het_khi_doi "$TK" || continue; }
       dat_tk "${ds[$((x - 1))]}"; ghi_cua_so
       echo "[cửa sổ này dùng tài khoản $(ten_tk "$TK")]"
-      tk_dang_nhap "$TK" || echo "Chưa đăng nhập -- mở link dưới đây:"
-      colab sessions
+      if tk_dang_nhap "$TK"; then
+        KHONG_HOI=1 COLAB_TO=60 colab sessions ||
+          echo "${M_VANG}[!] Token không làm mới được -- đăng nhập lại: a -> x (xoá) -> n (thêm)${M_HET}"
+      else
+        echo "Chưa đăng nhập -- mở link dưới đây:"
+        colab sessions
+      fi
       dung; return ;;
     esac
   done
@@ -737,7 +778,7 @@ han_muc() {
 do_han_muc() {
   local ten="fzhm$$"
   echo "[xin tạm máy CPU '$ten'...]"
-  if ! colab new -s "$ten" >/dev/null 2>&1; then
+  if ! KHONG_HOI=1 COLAB_TO=120 colab new -s "$ten" >/dev/null 2>&1; then
     echo "[!] Không xin được cả máy CPU -- Colab đang từ chối tài khoản này (thử lại sau)."
     return 1
   fi
@@ -746,7 +787,7 @@ do_han_muc() {
   else py_colab ~/fz_han_muc.py --may TAM; fi
   if colab stop -s "$ten" >/dev/null 2>&1; then echo "[đã trả máy tạm '$ten']"
   else echo "[!] Chưa trả được máy tạm '$ten' -- trả ở mục t"; fi
-  trap 'NGAT=1' INT        # tra lai bat Ctrl+C cua menu (trap - INT thi Ctrl+C sau do giet ca menu)
+  bat_ctrl_c               # tra lai bat Ctrl+C cua menu (trap - INT thi Ctrl+C sau do giet ca menu)
 }
 
 # Chup han muc (neu dang giu may) cua tai khoan $1 ("" = chinh) -- im lang, toi da 20 giay.
@@ -771,13 +812,23 @@ khoi_han_muc() {
 # nap lai va doi tai khoan.
 xin_may() {
   local out rc loi
-  out=$(colab new -s "$S" ${1:+--gpu "$1"} 2>&1); rc=$?
+  # KHONG_HOI: dau ra bi bat o day, loi nhac dang nhap khong ai thay (cua so dung hinh) -> khong hoi.
+  # COLAB_TO: xin may khong lau qua 3 phut (treo thi bo, vong lap thu tai khoan khac).
+  out=$(KHONG_HOI=1 COLAB_TO=180 colab new -s "$S" ${1:+--gpu "$1"} 2>&1); rc=$?
   grep '^\[colab\]' <<<"$out"
   if [ $rc = 0 ] && colab status -s "$S" 2>/dev/null; then
     kiem_may >/dev/null
     chup_han_muc "$TK" &          # dang giu may -> may chu tra han muc: chup nen
     return 0
   fi
+  if grep -q FZ_CAN_DANG_NHAP <<<"$out"; then
+    echo "${M_DO}[!] Tài khoản $(ten_tk "$TK"): Colab CLI đòi đăng nhập lại${M_HET}"
+    [ -f ~/fz_colab.py ] && py_colab ~/fz_colab.py --token 2>&1 | sed 's/^/    /'
+    echo "    FZ_TOKEN=mang -> chỉ là mạng chập chờn, thử lại sau"
+    echo "    FZ_TOKEN=hong / thieu -> đăng nhập lại: a -> x (xoá) -> n (thêm lại)"
+    return 1
+  fi
+  [ $rc = 124 ] && { echo "${M_DO}[!] Xin máy treo quá 3 phút -- bỏ (thử lại sau)${M_HET}"; return 1; }
   loi=$(grep -o 'Service Unavailable\|Too Many Requests\|Forbidden\|Unauthorized\|precondition failed\|Backend rejected accelerator\|Max retries exceeded\|Name or service not known' <<<"$out" | head -1)
   echo "${M_DO}[!] Không xin được máy ${1:-CPU}${M_HET}"
   [ -n "$loi" ] && echo "    máy chủ trả: $loi"
@@ -1170,7 +1221,7 @@ tra_het_khi_doi() {
   echo "        ${M_MO} đã tải về chưa?)${M_HET}"
   echo " ${M_DAM}giu${M_HET}    đổi, GIỮ máy (vẫn tiêu hạn mức)"
   echo " ${M_DAM}Enter${M_HET}  huỷ, không đổi"
-  read -rp "Chọn: " x
+  read -rp "Chọn: " x || return 1                        # Ctrl+D = huy
   case "$x" in
   co)
     chup_han_muc "$1" && { echo "[đã chụp hạn mức]"; khoi_han_muc "$1"; }
@@ -1271,7 +1322,7 @@ while true; do
   echo " q    Thoát"
   echo "--------------------------------------"
   echo " Nhiều ô liền nhau: gõ cách nhau, vd: 01 02"
-  read -rp "Chọn: " -a chon || continue
+  read -rp "Chọn: " -a chon || { echo; thoat_hoi; continue; }   # Ctrl+D: hoi thoat
   [ ${#chon[@]} -eq 0 ] && continue
 
   case "${chon[0]}" in

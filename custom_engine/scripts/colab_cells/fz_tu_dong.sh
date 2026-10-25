@@ -36,6 +36,7 @@ TD=$TKG/.tu_dong
 TD_W=$TD/w_$$
 TD_MUC_F=$TD/.muc_tieu
 TD_DUNG=$TD/dung_tay
+TD_DUNG_RIENG=$TD/dung_cs_$$   # dung mem RIENG cua so nay (d trong menu Ctrl+C); TD_DUNG = dung ca vong lap
 TD_PHUT_HL=20      # phut T4 toi thieu luc sap tai du lieu len de huan luyen
 TD_PHUT_SINH=20    # sau khi tru so phut chua, con it hon chung nay phut choi thi khong chay 04, tra may
 TD_SO_DOI=4        # so doi du lieu moi lan huan luyen: doi hien tai + 3 doi truoc (tu doi 12, 2026-09-29; truoc la 3)
@@ -142,31 +143,71 @@ td_toi_luot_hl() {
   td_co_mang $(($1 + 1)) || [ -f "$TAI/games_gen$1.zip" ] || [ "$(tong_tich_luy "$1")" -ge "$(td_muc)" ]
 }
 
-# Ngu $1 giay, Ctrl+C -> hoi (s / q / Enter). 1 = nguoi dung chon q.
+# Ctrl+D (EOF tren ban phim) trong luc vong lap dang chay = nhu Ctrl+C: mo menu thoat co hoi (d / s / q). Doc
+# terminal khong chan (toi da 0.05 giay); chi tinh EOF (read tra 1), phim khac bi nuot + bo.
+td_ctrl_d() {
+  local k rc
+  [ -t 0 ] || return 0
+  IFS= read -rs -t 0.05 -N 1 k 2>/dev/null; rc=$?
+  if [ $rc = 1 ]; then NGAT=1
+  elif [ $rc = 0 ]; then while IFS= read -rs -t 0.01 -N 1 k 2>/dev/null; do :; done
+  fi
+  return 0
+}
+# Ngu $1 giay, Ctrl+C / Ctrl+D -> hoi (d / s / q / Enter). 1 = nguoi dung chon q.
 td_ngu() {
   local i
   for ((i = 0; i < $1; i++)); do
-    sleep 1
+    sleep 1; td_ctrl_d
     if [ $NGAT = 1 ]; then td_hoi_ngat; [ $TD_THOAT = 1 ] && return 1; fi
   done
   return 0
+}
+# Dung mem (cua so nay HOAC ca vong lap)?
+td_dung_ca() { [ -f "$TD_DUNG" ] || [ -f "$TD_DUNG_RIENG" ]; }
+# Ctrl+C trong vong lap: bam MOT lan = menu thoat (hien o cho kiem tra ke tiep); bam HAI lan trong 3 giay = thoat
+# ngay du cua so dang ket o dau (lenh treo khong kiem co NGAT). Co may thi may VAN CHAY, nhac cach tra.
+TD_INT_LUC=-99
+td_int() {
+  NGAT=1
+  if [ $((SECONDS - TD_INT_LUC)) -le 3 ]; then
+    echo; echo "${M_DO}[thoát ngay]${M_HET}"
+    [ "${TD_CO_MAY:-0}" = 1 ] && echo "${M_VANG}máy của $(ten_tk "$TK") VẪN CHẠY (tiêu hạn mức): mở lại v để nhận lại, hoặc menu t để trả${M_HET}"
+    [ "$(cat "$TD/.khoa_chon/pid" 2>/dev/null)" = $$ ] && rm -rf "$TD/.khoa_chon"
+    rm -f "$TD_DUNG_RIENG"
+    exit 130
+  fi
+  TD_INT_LUC=$SECONDS
 }
 td_hoi_ngat() {
   local x
   NGAT=0
   echo
   echo "${M_DAM}== Vòng lặp tự động ==${M_HET}"
-  echo " ${M_DAM}s${M_HET}      dừng mềm CẢ vòng lặp (mọi"
-  echo "        cửa sổ): chơi nốt ván dở, gom,"
-  echo "        tải về, trả máy"
-  echo " ${M_DAM}q${M_HET}      thoát ở cửa sổ này -- máy"
-  echo "        và ô trên Colab VẪN CHẠY (tiêu"
-  echo "        hạn mức); mở lại v để nhận lại"
+  echo " ${M_DAM}d${M_HET}      dừng mềm CỬA SỔ NÀY (cửa sổ"
+  echo "        khác vẫn chạy): chơi nốt ván"
+  echo "        dở, gom, tải về, trả máy, thoát."
+  echo "        Chưa có máy -> thoát ngay"
+  echo " ${M_DAM}s${M_HET}      dừng mềm CẢ vòng lặp (mọi cửa sổ)"
+  echo " ${M_DAM}q${M_HET}      thoát NGAY -- máy và ô trên"
+  echo "        Colab VẪN CHẠY (tiêu hạn mức);"
+  echo "        mở lại v để nhận lại"
   echo " ${M_DAM}Enter${M_HET}  tiếp tục"
+  echo "${M_MO}(Ctrl+C 2 lần liền = thoát ngay)${M_HET}"
   read -rp "Chọn: " x
   case "$x" in
+    d|D)
+      if [ $TD_CO_MAY = 1 ]; then : > "$TD_DUNG_RIENG"; td_in "đã yêu cầu dừng mềm RIÊNG cửa sổ này"
+      else TD_THOAT=1; fi ;;
     s|S) : > "$TD_DUNG"; td_in "đã yêu cầu dừng mềm" ;;
-    q|Q) TD_THOAT=1 ;;
+    q|Q)
+      if [ $TD_CO_MAY = 1 ]; then
+        echo "${M_VANG}Máy của $(ten_tk "$TK") VẪN CHẠY và tiêu hạn mức tới khi bạn trả (menu t) hoặc Colab thu hồi.${M_HET}"
+        read -rp "Thoát thật? Gõ 'co' (Enter = ở lại): " x || x=
+        [ "$x" = co ] && TD_THOAT=1
+      else
+        TD_THOAT=1
+      fi ;;
   esac
   NGAT=0
 }
@@ -179,7 +220,24 @@ td_giay_t4() {
   [[ "$g" =~ ^[0-9]+$ ]] && echo "$g"
 }
 # 0 = may cua cua so nay con (hoac mat mang, khong biet), 1 = da mat.
-td_con_may() { py_colab ~/fz_nhan_may.py con "$S" >/dev/null 2>&1; [ $? != 1 ]; }
+# rc 1 = may mat; 0 = con; khac (2 = loi mang / dang nhap, 75 = can dang nhap, 124 = treo) = khong biet. Truoc day
+# "khong biet" tinh la CON mai mai: may da bi Colab thu hoi ma vong lap van "noi lai sau 30 giay" voi tai
+# khoan hong token. Gio 6 lan "khong biet" lien (~vai phut) -> coi nhu MAT de cua so tiep tuc xin may khac.
+TD_CON_KB=0
+td_con_may() {
+  local rc
+  HOME=$TKH timeout 60 python ~/fz_nhan_may.py con "$S" >/dev/null 2>&1; rc=$?
+  case $rc in
+    0) TD_CON_KB=0; return 0 ;;
+    1) TD_CON_KB=0; return 1 ;;
+  esac
+  TD_CON_KB=$((TD_CON_KB + 1))
+  if [ $TD_CON_KB -ge 6 ]; then
+    td_in "${M_DO}không xác minh được máy của $(ten_tk "$TK") $TD_CON_KB lần liền (mạng / đăng nhập)${M_HET} -> coi như đã mất"
+    TD_CON_KB=0; return 1
+  fi
+  return 0
+}
 td_mat_may() {
   td_in "${M_DO}máy của $(ten_tk "$TK") đã mất${M_HET}"
   td_in "(Colab thu hồi / hết hạn mức -- ván chưa tải về của máy đó mất)"
@@ -204,14 +262,25 @@ td_tra() {
 }
 
 # Khoa chon tai khoan: hai cua so khong cung luc chon (khong xin trung mot tai khoan).
+# Cho khoa: Ctrl+C thoat duoc (return 1); nguoi giu khoa treo qua 20 phut (mot vong xin toi da ~10 phut: moi lenh
+# colab co gioi han thoi gian) -> pha khoa. Truoc day vong cho `sleep 1` mai mai khong nhin Ctrl+C: mot cua so
+# ket o lenh xin may giu khoa thi cua so kia (tai khoan lanh lan) dung hinh theo.
 td_khoa_chon() {
-  local p
+  local p t i=0
   while ! mkdir "$TD/.khoa_chon" 2>/dev/null; do
     p=$(cat "$TD/.khoa_chon/pid" 2>/dev/null)
     if [ -n "$p" ] && ! td_song "$p"; then rm -rf "$TD/.khoa_chon"; continue; fi
-    sleep 1
+    t=$(stat -c %Y "$TD/.khoa_chon" 2>/dev/null || echo 0)
+    if [ "$t" -gt 0 ] && [ $(( $(date +%s) - t )) -gt 1200 ]; then
+      td_in "${M_VANG}khoá chọn tài khoản treo > 20 phút (cửa sổ giữ khoá không phản hồi) -> phá khoá${M_HET}"
+      rm -rf "$TD/.khoa_chon"; continue
+    fi
+    sleep 1; td_ctrl_d; i=$((i + 1))
+    [ $((i % 30)) = 0 ] && td_in "chờ cửa sổ khác chọn tài khoản xong ($i giây)..."
+    if [ $NGAT = 1 ]; then td_hoi_ngat; [ $TD_THOAT = 1 ] && return 1; fi
   done
   echo $$ > "$TD/.khoa_chon/pid"
+  return 0
 }
 td_mo_khoa_chon() { rm -rf "$TD/.khoa_chon"; }
 
@@ -242,10 +311,23 @@ td_ds_tk() { mapfile -t ds < <(echo; for tk in "$TKG"/*/; do [ -d "$tk" ] && bas
 # tai khoan thu duoc: 10 phut). Cac cua so khac cho dung luc do -> chi MOT cua so xin moi lan.
 TD_XIN_SAU=$TD/.xin_sau
 td_lich() { local t; t=$(cut -f1 "$TD_XIN_SAU" 2>/dev/null); [[ "$t" =~ ^[0-9]+$ ]] && echo "$t" || echo 0; }
+# Token cua tai khoan dang dat (dat_tk) dung duoc khong? Lam moi truoc (nguyen tu, co thu lai) de lenh colab sau do
+# khong phai tu lam moi. 0 = dung duoc. Tai khoan hong / mang chap chon -> bo qua tai khoan do, KHONG treo.
+td_token_ok() {
+  local kq rc
+  [ -f ~/fz_colab.py ] || return 0
+  kq=$(HOME=$TKH timeout 90 python ~/fz_colab.py --token 2>&1); rc=$?
+  case $rc in
+    0) return 0 ;;
+    3|124) td_in "${M_VANG}bỏ qua $1: mạng chập chờn khi làm mới token${M_HET} (thử lại sau, KHÔNG cần đăng nhập lại)" ;;
+    *) td_in "${M_DO}bỏ qua $1: token không dùng được${M_HET} (${kq##*FZ_TOKEN=}) -- đăng nhập lại: fz -> a -> x (xoá) -> n (thêm)" ;;
+  esac
+  return 1
+}
 td_xin_mot_vong() {
   local ds=() muc=() tk ten loai mo_ta rc
   mkdir -p "$TD"
-  td_khoa_chon
+  td_khoa_chon || return 1
   td_ds_tk
   if td_nhan_lai; then td_mo_khoa_chon; return 0; fi
   # Chua toi lich (cua so khac vua xin khong duoc): khong xin.
@@ -258,7 +340,8 @@ td_xin_mot_vong() {
     tk=$(tim_tk "$ten")
     if [ -n "$(cua_so_khac "$tk")" ]; then echo "   ${M_MO}bỏ qua $ten: đang mở ở cửa sổ khác${M_HET}"; continue; fi
     dat_tk "$tk"
-    if [ -n "$(colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]')" ]; then
+    td_token_ok "$ten" || { td_ranh; continue; }
+    if [ -n "$(COLAB_TO=60 colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]')" ]; then
       echo "   ${M_MO}bỏ qua $ten: đang giữ máy (không phải của vòng lặp)${M_HET}"; continue
     fi
     ghi_cua_so                                  # danh dau truoc: cua so khac bo qua tai khoan nay
@@ -270,6 +353,7 @@ td_xin_mot_vong() {
       td_mo_khoa_chon; return 0
     fi
     td_ranh
+    if [ $NGAT = 1 ]; then td_hoi_ngat; [ $TD_THOAT = 1 ] && { td_mo_khoa_chon; return 1; }; fi
   done 3< <(python ~/fz_tu_dong.py xep "${muc[@]}")
   # Ca vong khong xin duoc: dat lich chung (thu_<ten> vua ghi o tren -> moc "moi gio" dung).
   muc=()
@@ -287,6 +371,7 @@ td_xin_mot_vong() {
 td_cho_lich() {
   local t bao=0
   while :; do
+    [ $TD_THOAT = 1 ] && return 1
     t=$(td_lich)
     [ "$(date +%s)" -ge "$t" ] && return 0
     if [ $bao = 0 ]; then
@@ -304,7 +389,7 @@ td_cho_lich() {
 # 0 = o ket thuc, 3 = mat may, 4 = nguoi dung chon q.
 td_xem() {
   local o=$1 pid=$2 them=${3:-} fifo=$TD/.luong_$$ sp fd dong rc t=$SECONDS lan=0 bd=0 ly_do cho
-  local da_dung=0
+  local da_dung=0 sil=$SECONDS nhac=$SECONDS ctl=$SECONDS
   while :; do
     rm -f "$fifo"; mkfifo "$fifo" || return 1
     NGAT=0
@@ -314,7 +399,7 @@ td_xem() {
     ly_do=het
     while :; do
       if IFS= read -r -t 15 -u "$fd" dong; then
-        printf '%s\n' "$dong"; lan=0
+        printf '%s\n' "$dong"; lan=0; sil=$SECONDS; nhac=$SECONDS
         [ "$o" = 04 ] && [[ "$dong" =~ ^\[selfplay\]\ ([0-9]+)/ ]] && td_ghi van="${BASH_REMATCH[1]}"
         [ "$o" = 08 ] && [[ "$dong" =~ ^\ \ game\ ([0-9]+)/ ]] && td_ghi van="${BASH_REMATCH[1]}"
       else
@@ -322,7 +407,17 @@ td_xem() {
         [ -n "$dong" ] && printf '%s' "$dong"
         [ $NGAT = 1 ] && { ly_do=ngat; break; }
         [ $rc -gt 128 ] || break                      # het du lieu: ssh da thoat
+        # Im lang lau: ssh co the da treo (mang chet, proxy treo) -> bao, roi noi lai luong log (ô tren may van chay).
+        if [ $((SECONDS - sil)) -ge 600 ]; then
+          td_in "${M_VANG}10 phút không có dòng log mới${M_HET} -- nối lại luồng log (ô trên máy vẫn chạy)"
+          ly_do=tre; break
+        elif [ $((SECONDS - sil)) -ge 180 ] && [ $((SECONDS - nhac)) -ge 180 ]; then
+          td_in "chưa có dòng log mới sau $((SECONDS - sil)) giây (ô vẫn chạy trên máy; Ctrl+C = menu thoát)"
+          nhac=$SECONDS
+        fi
       fi
+      if [ $((SECONDS - ctl)) -ge 1 ]; then ctl=$SECONDS; td_ctrl_d; fi     # Ctrl+D = nhu Ctrl+C
+      [ $NGAT = 1 ] && { ly_do=ngat; break; }
       if { [ "$o" = 04 ] || [ "$o" = 08 ]; } && [ $da_dung = 0 ] && [ $((SECONDS - t)) -ge 15 ]; then
         t=$SECONDS
         td_can_dung && { ly_do=dung; break; }
@@ -342,6 +437,10 @@ td_xem() {
     case $ly_do in
       ngat) td_hoi_ngat; [ $TD_THOAT = 1 ] && return 4 ;;
       dung) td_gui_dung && da_dung=1 ;;
+      tre)
+        them=20
+        td_con_may || return 3
+        td_ngu 5 || return 4 ;;
       het)
         them=20
         td_con_may || return 3
@@ -366,7 +465,7 @@ td_giet() {
 # Nen dung mem 04 chua (goi trong luc xem log): dung tay, hoac tong du muc tieu. In tong moi phut.
 td_can_dung() {
   local tong muc
-  [ -f "$TD_DUNG" ] && return 0
+  td_dung_ca && return 0
   if [ "$TD_KIEU" = arena ]; then
     tong=$(td_ar_tong "$TD_G" "$TD_AR_A"); muc=$(td_ar_van)
     if [ "$tong" != "${TD_TONG_IN:-}" ] && [ $((SECONDS - ${TD_LUC_IN:-0})) -ge 60 ]; then
@@ -389,7 +488,7 @@ td_gui_dung() {
     out=$(ssh_colab "p=\$(pgrep -af '[c]ustom_engine.* --(selfplay|arena)' | sed -n 's/.* --stop-file \([^ ]*\).*/\1/p' | head -1); if [ -n \"\$p\" ]; then touch \"\$p\" && echo FZ_DA_DUNG; else echo FZ_KHONG_CHAY; fi" 2>/dev/null)
     if grep -q FZ_DA_DUNG <<<"$out"; then
       td_ghi dung_van="$(td_doc "$TD_W" van)" dung_dang="$(td_dang_do "$TD_W")"
-      td_in "${M_VANG}dừng mềm máy $(ten_tk "$TK")${M_HET}: $([ -f "$TD_DUNG" ] && echo "dừng tay" || { [ "$TD_KIEU" = arena ] && echo "đủ $(td_ar_van) ván arena" || echo "đủ $(td_muc) ván"; }) -- ván dở chơi nốt"
+      td_in "${M_VANG}dừng mềm máy $(ten_tk "$TK")${M_HET}: $(td_dung_ca && echo "dừng tay" || { [ "$TD_KIEU" = arena ] && echo "đủ $(td_ar_van) ván arena" || echo "đủ $(td_muc) ván"; }) -- ván dở chơi nốt"
       return 0
     fi
     grep -q FZ_KHONG_CHAY <<<"$out" && return 0         # engine vua xong
@@ -479,12 +578,23 @@ td_chuan_bi() {
   return 0
 }
 
+# Chuan bi may (02...) loi nhieu lan lien: TRA may thay vi giu may khong lam gi (vua tieu han muc tai khoan, vua
+# khong ai thay -- cua so ghi "dang chay o" ma khong co log).
+TD_CB_LOI=0
+td_chuan_bi_loi() {
+  TD_CB_LOI=$((TD_CB_LOI + 1))
+  if [ $TD_CB_LOI -ge 10 ]; then
+    td_in "${M_DO}[!] chuẩn bị máy lỗi $TD_CB_LOI lần liền -> trả máy, xin lại${M_HET}"
+    TD_CB_LOI=0; td_tra; return
+  fi
+  td_ngu 30
+}
 # Giai doan 2 tren may cua cua so nay: 04 (tran theo han muc) -> 06 -> tai ve.
 td_sinh() {
   local g=$1 rc secs muc tong so f o04 par duoi
   td_chuan_bi "$g"; rc=$?
-  case $rc in 0) ;; 2) TD_LOI=1; return ;; 3) td_mat_may; return ;; 4) return ;; *) td_ngu 30; return ;; esac
-  [ -f "$TD_DUNG" ] && return
+  case $rc in 0) TD_CB_LOI=0 ;; 2) TD_LOI=1; return ;; 3) td_mat_may; return ;; 4) return ;; *) td_chuan_bi_loi; return ;; esac
+  td_dung_ca && return
   secs=$(td_giay_t4)
   if [ -z "$secs" ]; then td_in "không đọc được hạn mức -- thử lại sau 1 phút"; td_ngu 60; return; fi
   o04=$(ls "$D"/04_*.py | head -1)
@@ -644,8 +754,8 @@ td_arena() {
   local g=$1 a rc secs par duoi so f o08 muc tong
   a=$(td_ar_doi_thu "$g")
   td_chuan_bi "$g"; rc=$?
-  case $rc in 0) ;; 2) TD_LOI=1; return ;; 3) td_mat_may; return ;; 4) return ;; *) td_ngu 30; return ;; esac
-  [ -f "$TD_DUNG" ] && return
+  case $rc in 0) TD_CB_LOI=0 ;; 2) TD_LOI=1; return ;; 3) td_mat_may; return ;; 4) return ;; *) td_chuan_bi_loi; return ;; esac
+  td_dung_ca && return
   # Binary / o 08 cu: DUNG vong lap (khong ghi BO_QUA -- cap nhat xong mo lai thi arena van con).
   if ! grep -q '^BINA_[1-9]' <<<"$(td_kiem_may_cl "$g")"; then
     td_in "${M_DO}[!] binary trên Release chưa có arena dừng mềm (cần bản từ 2026-09-30)${M_HET}"
@@ -789,7 +899,7 @@ td_giai_doan_3() {
         td_in "cửa sổ khác huấn luyện đời $g -> trả máy, chờ"
         td_tra; td_ghi buoc=cho han=0
       fi
-      [ -f "$TD_DUNG" ] && return 0
+      td_dung_ca && return 0
       [ $da_bao = 0 ] && { td_in "chờ cửa sổ khác huấn luyện xong đời $g..."; da_bao=1; }
     elif [ -z "$chu" ]; then
       # So van tut duoi muc tieu (may cua so khac mat giua chung) -> quay lai sinh tiep.
@@ -966,7 +1076,7 @@ td_len_doi() {
 
 # Chua xin duoc may: cho toi lich xin chung (thoi som khi den luot huan luyen / du van / dung / doi doi).
 td_cx_thoi() {
-  [ -f "$TD_DUNG" ] || [ "$(td_gen)" != "$TD_CX_G" ] || td_toi_luot_hl "$TD_CX_G" ||
+  td_dung_ca || [ "$(td_gen)" != "$TD_CX_G" ] || td_toi_luot_hl "$TD_CX_G" ||
     [ "$(td_tong "$TD_CX_G")" -ge "$(td_muc)" ]
 }
 td_cho_xin() { TD_CX_G=$1; td_cho_lich td_cx_thoi; }
@@ -1050,7 +1160,7 @@ td_bat_dau() {
     echo "    dừng mềm được): bash ~/lay_ve.sh 04"
     return 1
   fi
-  for f in ~/fz_tu_dong.py ~/fz_han_muc.py ~/fz_nhan_may.py ~/fz_giu_may.py; do
+  for f in ~/fz_tu_dong.py ~/fz_han_muc.py ~/fz_nhan_may.py ~/fz_giu_may.py ~/fz_colab.py; do
     [ -f "$f" ] || { echo "[!] Thiếu $f -- chạy: bash ~/lay_ve.sh"; return 1; }
   done
   for f in $(td_cac_cua_so); do [ "$f" = "$TD_W" ] || khac+=("${f##*/w_}"); done
@@ -1091,7 +1201,7 @@ td_bat_dau() {
     if [ "$n" -ge "$(td_muc)" ]; then echo "Đã đủ $n/$(td_muc) ván -> gộp, huấn luyện"
     else echo "Đã có $n/$(td_muc) ván đời $g -> sinh tiếp"; fi
   fi
-  read -rp "Enter = bắt đầu, n = thôi: " x
+  read -rp "Enter = bắt đầu, n = thôi: " x || { echo; return 1; }      # Ctrl+D = thoi
   [ -z "$x" ] || return 1
   td_don_dep "$g"                 # don dien thoai (goi van / thu muc van cu, mang da len GitHub) truoc khi sinh doi $g
   td_xoa_onnx_thua "$g"           # Release chi giu .onnx doi moi nhat: xoa phan con sot (lan xoa truoc bi loi)
@@ -1101,10 +1211,20 @@ td_bat_dau() {
   return 0
 }
 
+# Vong lap chay voi KHONG_HOI=1: moi lenh colab cua vong lap KHONG BAO GIO hoi ma dang nhap (loi nhac bi bat vao
+# bien nen khong ai thay -> cua so "dung hinh"); Ctrl+C = td_int.
 td_vong() {
+  local rc
+  KHONG_HOI=1; bat_ctrl_c
+  td_vong_chinh "$@"; rc=$?
+  KHONG_HOI=; bat_ctrl_c
+  return $rc
+}
+td_vong_chinh() {
   local g
   TD_THOAT=0; TD_LOI=0; TD_VAI=; TD_NHAN_LAI=0
-  trap 'rm -f "$CS/$$" "$TD_W" "$TD/.w_$$.tmp" "$TD/.luong_$$"; rm -rf "$TD/o_$$"' EXIT
+  rm -f "$TD_DUNG_RIENG"
+  trap 'rm -f "$CS/$$" "$TD_W" "$TD/.w_$$.tmp" "$TD/.luong_$$" "$TD_DUNG_RIENG"; rm -rf "$TD/o_$$"' EXIT
   td_bat_dau || return
   td_ranh
   td_ghi gen="$(td_gen)" buoc=xin van=0
@@ -1118,12 +1238,14 @@ td_vong() {
       td_in "${M_VANG}đã tới đời $g (giới hạn $TD_GEN_CUOI)${M_HET}: Release GitHub chứa tối đa $TD_REL_TOI_DA tệp -> dừng vòng lặp"
       : > "$TD_DUNG"
     fi
-    if [ -f "$TD_DUNG" ] && [ "$TD_VAI" != huan_luyen ]; then
-      td_in "dừng mềm: trả máy, thoát vòng lặp"
+    if td_dung_ca && [ "$TD_VAI" != huan_luyen ]; then
+      if [ -f "$TD_DUNG" ]; then td_in "dừng mềm: trả máy, thoát vòng lặp"
+      else td_in "dừng mềm RIÊNG cửa sổ này: trả máy, thoát (cửa sổ khác vẫn chạy)"; fi
       td_tra
       # May cua vong lap ma cua so lo no da chet (vd Termux bi giet): nhan lai, dung mem, tai ve, tra.
+      # Chi khi dung CA vong lap -- dung rieng cua so nay khong dong den may cua cua so khac.
       local ds=()
-      while :; do
+      while [ -f "$TD_DUNG" ]; do
         td_khoa_chon; td_ds_tk
         if ! td_nhan_lai; then td_mo_khoa_chon; break; fi
         td_mo_khoa_chon

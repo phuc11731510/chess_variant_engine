@@ -1011,6 +1011,21 @@ chạy lại sau vài phút (GitHub API giới hạn 60 lần/giờ, quá thì q
 
 **Đăng nhập hết hạn / lỗi quyền** — chạy `colab sessions` để nó in lại link đăng nhập, làm lại mục 3.
 
+**Cửa sổ "đứng hình", đòi mã đăng nhập dù vừa đăng nhập / tệp token vẫn tốt** (đo 2026-10-26) — hai nguyên nhân:
+1. Colab CLI 0.7.x xin làm mới token (mỗi giờ) kèm 6 quyền; có tài khoản Google chỉ cấp 3 quyền cơ bản
+   (openid, email, profile) thì Google trả `invalid_scope`, CLI tưởng token hỏng và hỏi lại mã -- trong khi
+   `refresh_token` vẫn hiệu lực và API Colab chấp nhận token 3 quyền. `~/fz_colab.py` (tải bằng `bash ~/lay_ve.sh`)
+   làm lại bước làm mới cho đúng; menu và vòng lặp tự dùng nó. Kiểm tra: `python ~/fz_colab.py --token`
+   (chạy với `HOME=~/.fz_tk/<tên>` cho tài khoản phụ): `FZ_TOKEN=ok` / `hong` / `thieu` / `mang`.
+2. Lệnh chạy nền bị bắt đầu ra thì lời nhắc "Enter the authorization code" không ai thấy mà vẫn chờ bạn gõ.
+   Vòng lặp v và các lệnh nền giờ **không bao giờ hỏi mã** (thoát ngay, báo tài khoản nào cần đăng nhập lại:
+   `fz` → `a` → `x` → `n`). Xoá tài khoản ở `a` → `x` không cần token dùng được.
+
+**Thoát khỏi vòng lặp v** — `Ctrl+C` hoặc `Ctrl+D` (một lần) mở menu: `d` dừng mềm CHỈ cửa sổ này (chơi nốt ván dở,
+tải về, trả máy; cửa sổ khác không bị ảnh hưởng), `s` dừng mềm cả vòng lặp, `q` thoát ngay (máy VẪN CHẠY, hỏi lại
+để chắc). `Ctrl+C` hai lần liền (trong 3 giây) = thoát ngay kể cả khi đang kẹt. `Ctrl+D` ở menu chính `fz` = hỏi
+thoát; ở các lời nhắc khác = huỷ.
+
 **`$'\r': command not found`** — tệp mang xuống dòng kiểu Windows: `sed -i 's/\r$//' <tệp>`.
 
 ---

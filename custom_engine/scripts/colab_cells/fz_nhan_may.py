@@ -27,6 +27,11 @@ try:
     from colab_cli.state import SessionState
 except ImportError as e:
     sys.exit(f"[!] Colab CLI thieu thanh phan: {e}")
+try:        # fz_colab.py (cung thu muc): lam moi token khong gui scope; KHONG BAO GIO hoi ma dang nhap (thoat ma 75)
+    import fz_colab
+    fz_colab.va(True)
+except ImportError:
+    pass
 try:        # Colab CLI <= 0.7.2: tien trinh keep-alive tren dien thoai giu may
     from colab_cli.commands.session import spawn_keep_alive
 except ImportError:

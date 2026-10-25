@@ -160,6 +160,11 @@ try:
 except ImportError:
     sys.exit("[!] Không tìm thấy Colab CLI (colab_cli) trong Python này.")
 
+try:        # fz_colab.py (cung thu muc): lam moi token khong gui scope; KHONG BAO GIO hoi ma dang nhap (thoat ma 75)
+    import fz_colab
+    fz_colab.va(True)
+except ImportError:
+    pass
 c = state.client
 web = getattr(c, "colab_domain", None) or "https://colab.research.google.com"
 api = getattr(c, "colab_api_domain", None) or "https://colab.pa.googleapis.com"

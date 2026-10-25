@@ -84,6 +84,11 @@ def proxy(ten):
     -- vd may vua bi tra / thu hoi va mot lenh `colab sessions` da xoa phien (da xay ra 2026-09-26:
     tien trinh giu may kiem phien xong thi phien bi xoa, CLI khoi dong vai giay sau va xin may moi).
     O day thay ham tu xin may cua CLI ngay trong CUNG tien trinh -> khong con khe ho thoi gian."""
+    try:    # ProxyCommand: stdin la luong ssh -- hoi ma dang nhap o day thi ssh treo mai (khong ConnectTimeout nao cuu duoc)
+        import fz_colab
+        fz_colab.va(True)
+    except ImportError:
+        pass
     from colab_cli.commands import ssh as m
 
     def khong_xin(*_a, **_k):
@@ -118,6 +123,11 @@ def ping_ssh(ten):
 
 
 def chay(endpoint, ten):
+    try:
+        import fz_colab
+        fz_colab.va(True)
+    except ImportError:
+        pass
     from colab_cli.common import state
     # tat (SIGTERM) -> SystemExit: cac khoi finally chay -> xoa tep khoa ssh va tep pid.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
