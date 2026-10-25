@@ -3,7 +3,7 @@
 # ssh_colab, tai_ve, tai_len, tai_theo_o, ...). Tinh toan (xep tai khoan, gop du lieu): ~/fz_tu_dong.py.
 #
 # Moi cua so Termux chay vong lap = lo tron MOT may (mot tai khoan -- Colab mien phi khong cho hai may
-# mot tai khoan). Hai cua so = toi da hai may, phoi hop qua tep tren dien thoai:
+# mot tai khoan). N cua so = toi da N may (da dung toi 4), phoi hop qua tep tren dien thoai:
 #   ~/.fz_tk/.tu_dong/w_<pid>     trang thai tung cua so (doi, buoc, so van da xong tren may cua no)
 #   ~/.fz_tk/.tu_dong/may_<tk>    may cua vong lap dang giu o tai khoan <tk> (mo lai vong lap -> nhan lai)
 #   ~/.fz_tk/.tu_dong/hl_<G>/     khoa "cua so dang huan luyen doi G"
