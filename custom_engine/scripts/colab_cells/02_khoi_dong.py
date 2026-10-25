@@ -2,8 +2,15 @@
 # Mục 1 của sổ tay: tải mã nguồn, binary dựng sẵn từ Release + ONNX Runtime, sinh run.sh.
 # Phải thấy "[quick] OK". Báo lỗi -> chạy ô 02b (biên dịch lại).
 %cd /content
-!rm -rf chess_variant_engine
-!git clone -q --depth 1 -b main https://github.com/phuc11731510/chess_variant_engine.git
+# git clone co gioi han 2 phut moi lan, toi da 3 lan (truoc day mang chap chon thi treo im lang, khong log).
+import subprocess, time
+for lan in (1, 2, 3):
+    r = subprocess.run("rm -rf chess_variant_engine; timeout 120 git clone -q --depth 1 -b main "
+                       "https://github.com/phuc11731510/chess_variant_engine.git", shell=True)
+    if r.returncode == 0:
+        break
+    print(f"[02] git clone lan {lan} that bai hoac treo -- thu lai", flush=True)
+    time.sleep(5)
 !BIN_URL={REL}/custom_engine bash {E}/scripts/colab_quickstart.sh
 
 # Tải mạng đời hiện tại (.onnx) từ GitHub Release NN_Model (REL_NN). Release chỉ giữ .onnx của đời mới nhất:

@@ -56,7 +56,13 @@ TD_AR_A=           # doi doi thu cua arena dang chay
 E_CL=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^E *= *"\([^"]*\)".*/\1/p')
 E_CL=${E_CL:-/content/chess_variant_engine/custom_engine}
 
-td_in() { echo "${M_LAM}[tự động $(date +%H:%M)]${M_HET} $*"; }
+# Moi dong thong bao cua vong lap cung duoc ghi vao $TD/nhat_ky.txt (pid cua so, ngay gio, noi dung; bo mau): sau
+# khi cua so treo / bi dong van xem lai duoc no da lam gi (Download/FairyZero khong chua; o ~/.fz_tk/.tu_dong/).
+td_in() {
+  echo "${M_LAM}[tự động $(date +%H:%M)]${M_HET} $*"
+  printf '%s %s %s\n' "$$" "$(date '+%d/%m %H:%M:%S')" "$*" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' >> "$TD/nhat_ky.txt" 2>/dev/null
+  return 0
+}
 td_gen() { doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^GEN_CURRENT *= *\([0-9]*\).*/\1/p' | head -1; }
 td_muc() { local n; n=$(cat "$TD_MUC_F" 2>/dev/null); so_nguyen "$n" && echo $((10#$n)) || echo 1000; }
 td_home() { if [ -n "$1" ]; then echo "$TKG/$1"; else echo "$HOME"; fi; }
@@ -412,8 +418,7 @@ td_xem() {
           td_in "${M_VANG}10 phút không có dòng log mới${M_HET} -- nối lại luồng log (ô trên máy vẫn chạy)"
           ly_do=tre; break
         elif [ $((SECONDS - sil)) -ge 180 ] && [ $((SECONDS - nhac)) -ge 180 ]; then
-          td_in "chưa có dòng log mới sau $((SECONDS - sil)) giây (ô vẫn chạy trên máy; Ctrl+C = menu thoát)"
-          nhac=$SECONDS
+          ly_do=soi; break
         fi
       fi
       if [ $((SECONDS - ctl)) -ge 1 ]; then ctl=$SECONDS; td_ctrl_d; fi     # Ctrl+D = nhu Ctrl+C
@@ -437,6 +442,12 @@ td_xem() {
     case $ly_do in
       ngat) td_hoi_ngat; [ $TD_THOAT = 1 ] && return 4 ;;
       dung) td_gui_dung && da_dung=1 ;;
+      soi)
+        # Colab chi cho MOT ssh moi may: luong log da bi ngat o tren, hoi nhanh may dang chay gi roi noi lai.
+        them=3; nhac=$SECONDS
+        td_in "${M_VANG}chưa có dòng log mới sau $((SECONDS - sil)) giây${M_HET} -- các tiến trình đang chạy trên máy (thời gian chạy · lệnh):"
+        ssh_colab "ps -eo etime,args | grep -E 'git |wget|curl|pip |lay_mang|custom_engine|train.py|IPython' | grep -v grep | tail -4 | cut -c1-140" 2>&1 | sed 's/^/    /'
+        td_con_may || return 3 ;;
       tre)
         them=20
         td_con_may || return 3
@@ -1224,6 +1235,8 @@ td_vong_chinh() {
   local g
   TD_THOAT=0; TD_LOI=0; TD_VAI=; TD_NHAN_LAI=0
   rm -f "$TD_DUNG_RIENG"
+  [ -s "$TD/nhat_ky.txt" ] && [ "$(wc -l < "$TD/nhat_ky.txt")" -gt 4000 ] &&
+    { tail -n 2000 "$TD/nhat_ky.txt" > "$TD/nhat_ky.tmp" && mv "$TD/nhat_ky.tmp" "$TD/nhat_ky.txt"; }
   trap 'rm -f "$CS/$$" "$TD_W" "$TD/.w_$$.tmp" "$TD/.luong_$$" "$TD_DUNG_RIENG"; rm -rf "$TD/o_$$"' EXIT
   td_bat_dau || return
   td_ranh
