@@ -82,8 +82,40 @@ td_tep_release() {
 td_ghi() {
   local kv t=$TD/.w_$$.tmp
   cat "$TD_W" > "$t" 2>/dev/null || : > "$t"
-  for kv in "$@"; do sed -i "/^${kv%%=*}=/d" "$t"; echo "$kv" >> "$t"; done
+  for kv in "$@"; do
+    sed -i "/^${kv%%=*}=/d" "$t"; echo "$kv" >> "$t"
+    [ "${kv%%=*}" = buoc ] && td_pha "${kv#*=}"
+  done
   mv "$t" "$TD_W"
+}
+# ---- Ke toan THOI GIAN GIU MAY: may dang giu (tieu han muc) thi moi buoc mat bao lau. In luc tra / mat may, de
+# thay "thoi gian chet" (giu may ma khong chay 04 / 07 / 08) nam o dau thay vi doan.
+declare -gA TD_PH_TONG=()
+TD_PH=; TD_PH_T=$SECONDS; TD_MAY_T=
+td_may_bat_dau() { TD_PH_TONG=(); TD_PH=; TD_PH_T=$SECONDS; TD_MAY_T=$SECONDS; }
+td_pha() {
+  local moi=$1
+  [ -n "$TD_MAY_T" ] && [ -n "$TD_PH" ] && TD_PH_TONG[$TD_PH]=$(( ${TD_PH_TONG[$TD_PH]:-0} + SECONDS - TD_PH_T ))
+  TD_PH=$moi; TD_PH_T=$SECONDS
+}
+# Tong ket (goi truoc khi tra / khi mat may). Doc: "sinh" va "huan luyen"/"arena" la thoi gian co ich; con lai la cho.
+td_may_tong_ket() {
+  local k v out= tong
+  [ -n "$TD_MAY_T" ] || return 0
+  td_pha "$TD_PH"
+  tong=$((SECONDS - TD_MAY_T))
+  for k in sinh huan_luyen arena chuan_bi tai xong cho_hl xin; do
+    v=${TD_PH_TONG[$k]:-0}; [ "$v" -ge 60 ] || continue
+    case $k in
+      sinh) k="sinh dữ liệu (04)" ;; huan_luyen) k="huấn luyện (tải lên + 07 + tải mạng)" ;; arena) k="arena (08)" ;;
+      chuan_bi) k="chuẩn bị (02)" ;; tai) k="gom + tải ván về (06)" ;; xong) k="rảnh giữa các bước" ;;
+      cho_hl) k="chờ tới lượt huấn luyện" ;; xin) k="xin máy" ;;
+    esac
+    out+=" · $k $((v / 60)) phút"
+  done
+  [ -n "$out" ] && out=${out# · } || out="(dưới 1 phút mỗi bước)"
+  td_in "giữ máy $(ten_tk "$TK") $((tong / 60)) phút: $out"
+  TD_MAY_T=; TD_PH=; TD_PH_TONG=()
 }
 td_doc() { sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -1; }
 # Tep trang thai cua cac cua so vong lap CON SONG (don tep cua cua so da dong).
@@ -245,6 +277,7 @@ td_con_may() {
   return 0
 }
 td_mat_may() {
+  td_may_tong_ket
   td_in "${M_DO}máy của $(ten_tk "$TK") đã mất${M_HET}"
   td_in "(Colab thu hồi / hết hạn mức -- ván chưa tải về của máy đó mất)"
   td_ghi van=0 buoc=xin
@@ -255,6 +288,7 @@ td_mat_may() {
 td_tra() {
   local ds x ep
   [ $TD_CO_MAY = 1 ] || return 0
+  td_may_tong_ket
   chup_han_muc "$TK"
   mapfile -t ds < <(colab sessions 2>/dev/null | grep "^\[$S\]")
   if [ ${#ds[@]} -eq 0 ]; then       # phien bi CLI xoa ma may con: tra theo endpoint da ghi
@@ -302,7 +336,7 @@ td_nhan_lai() {
     dat_tk "$tk"
     py_colab ~/fz_nhan_may.py kiem "$S" >/dev/null 2>&1; rc=$?
     if [ $rc = 0 ]; then
-      ghi_cua_so; TD_CO_MAY=1; TD_NHAN_LAI=1
+      ghi_cua_so; TD_CO_MAY=1; TD_NHAN_LAI=1; td_may_bat_dau
       td_in "nhận lại máy của vòng lặp trước: $ten"
       return 0
     fi
@@ -354,7 +388,7 @@ td_xin_mot_vong() {
     date +%s > "$TD/thu_$ten"
     td_in "xin T4: ${M_DAM}$ten${M_HET} ($mo_ta)"
     if xin_may T4; then
-      TD_CO_MAY=1
+      TD_CO_MAY=1; td_may_bat_dau
       date +%s > "$TD/may_$ten"
       td_mo_khoa_chon; return 0
     fi
