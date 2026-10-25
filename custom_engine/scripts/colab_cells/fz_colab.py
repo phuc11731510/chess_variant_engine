@@ -15,7 +15,7 @@ Chay nhu `colab` (cung doi so), nhung sua hai loi cua Colab CLI 0.7.x ma menu va
 
   python ~/fz_colab.py <lenh colab ...>   # nhu `colab <lenh ...>`
   python ~/fz_colab.py --ai               # DOC EMAIL cua tai khoan Google dang dung token nay (userinfo), ghi
-                                          # <HOME>/.config/colab-cli/fz_email.txt, in FZ_EMAIL=<email che bot>
+                                          # <HOME>/.config/colab-cli/fz_email.txt, in FZ_EMAIL=<email>
   python ~/fz_colab.py --token            # kiem tra / lam moi token.json (luu nguyen tu), in FZ_TOKEN=...
       0 = ok (con han hoac da lam moi), 2 = phai dang nhap lai (khong co tep / refresh_token bi tu choi),
       3 = loi mang (thu lai sau, KHONG can dang nhap lai)
@@ -127,11 +127,6 @@ def kiem_token():
     return 0
 
 
-def che_email(e):
-    u, _, d = e.partition("@")
-    return (u[:3] + "***" + u[-2:] if len(u) >= 7 else u[:2] + "***") + "@" + d
-
-
 def doc_email():
     """Token.json KHONG ghi tai khoan nao (truong "account" rong, khong co id_token). Hoi Google (userinfo, quyen email
     da cap) ai la chu token -> luu de menu hien ten + canh bao hai ten Termux tro ve MOT tai khoan Google."""
@@ -153,7 +148,7 @@ def doc_email():
         print("FZ_EMAIL=khong co email")
         return 2
     _ghi_nguyen_tu(os.path.join(os.path.dirname(auth.TOKEN_CONFIG_PATH), "fz_email.txt"), email + "\n")
-    print("FZ_EMAIL=" + che_email(email))
+    print("FZ_EMAIL=" + email)
     return 0
 
 

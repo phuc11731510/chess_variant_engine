@@ -92,10 +92,6 @@ cua_so_ket() {
 # Email Google cua tai khoan $1 ("" = chinh): token.json KHONG ghi tai khoan (truong account rong), nen doc bang
 # `fz_colab.py --ai` (userinfo) va nho trong fz_email.txt cung thu muc token. Rong = chua doc.
 email_tk() { cat "$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME")/.config/colab-cli/fz_email.txt" 2>/dev/null; }
-che_email() {
-  local u=${1%%@*} d=${1#*@}
-  if [ ${#u} -ge 7 ]; then echo "${u:0:3}***${u: -2}@$d"; else echo "${u:0:2}***@$d"; fi
-}
 doc_email() {
   [ -f ~/fz_colab.py ] || return 1
   HOME=$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME") timeout 40 python ~/fz_colab.py --ai >/dev/null 2>&1
@@ -592,9 +588,7 @@ tai_khoan() {
     if [ $chup = 1 ]; then
       # Tai khoan nao dang giu may thi may chu tra han muc -> chup lai (song song, <= 20 giay).
       echo "[đang chụp hạn mức các tài khoản...]"
-      for ten in "${ds[@]}"; do
-        tk_dang_nhap "$ten" && { chup_han_muc "$ten"; [ -n "$(email_tk "$ten")" ] || doc_email "$ten"; } &
-      done
+      for ten in "${ds[@]}"; do tk_dang_nhap "$ten" && chup_han_muc "$ten" & done
       wait; chup=0
     fi
     clear
@@ -609,11 +603,7 @@ tai_khoan() {
       printf ' %s%d  %s%s%s\n' "$M_DAM" $((i + 1)) "$(ten_tk "$ten")" "$M_HET" \
         "$([ -z "$ten" ] && echo " ${M_MO}(chính)${M_HET}")$x"
       [ -n "$(cua_so_khac "$ten")" ] && echo "    ${M_VANG}đang mở ở cửa sổ khác (pid $(echo $(cua_so_khac "$ten")))${M_HET}"
-      if tk_dang_nhap "$ten"; then
-        e=$(email_tk "$ten")
-        if [ -n "$e" ]; then echo "    Google: $(che_email "$e")"; else echo "    Google: ${M_MO}(chưa đọc được -- chọn d)${M_HET}"; fi
-        t=$(tk_cung_google "$ten"); [ -n "$t" ] && echo "    ${M_DO}⚠ CÙNG tài khoản Google với: $t${M_HET}"
-        khoi_han_muc "$ten" | sed 's/^   /    /'
+      if tk_dang_nhap "$ten"; then khoi_han_muc "$ten" | sed 's/^   /    /'
       else echo "    ${M_DO}CHƯA đăng nhập${M_HET}"; fi
     done
     echo
@@ -625,6 +615,7 @@ tai_khoan() {
     echo " ${M_DAM}r${M_HET}      đổi tên"
     echo " ${M_DAM}x${M_HET}      đăng xuất / xoá"
     echo " ${M_DAM}d${M_HET}      dò tài khoản trùng token"
+    echo " ${M_DAM}e${M_HET}      email Google đầy đủ của từng tài khoản"
     echo " ${M_DAM}t${M_HET}      xuất token (chép sang máy tính)"
     echo " ${M_DAM}Enter${M_HET}  về menu"
     echo "${M_MO} Cùng lúc: cửa sổ Termux mới,${M_HET}"
@@ -641,7 +632,7 @@ tai_khoan() {
       colab sessions      # chua co token -> CLI in link dang nhap o day
       if tk_dang_nhap "$ten" && doc_email "$ten"; then
         e=$(email_tk "$ten"); t=$(tk_cung_google "$ten")
-        echo "Tài khoản Google vừa đăng nhập: $(che_email "$e")"
+        echo "Tài khoản Google vừa đăng nhập: $e"
         if [ -n "$t" ]; then
           echo "${M_DO}⚠ Đã có tài khoản Google này ở: $t -- hai tên cùng dùng một tài khoản.${M_HET}"
           read -rp "Gõ 'xoa' để xoá '$ten' vừa thêm (rồi n lại, chọn tài khoản Google khác) · Enter = giữ: " x || x=
@@ -657,11 +648,18 @@ tai_khoan() {
         muc+=("$(ten_tk "$ten")|$([ -n "$ten" ] && echo "$TKG/$ten" || echo "$HOME")")
       done
       python ~/fz_trung_tk.py "${muc[@]}"
-      echo; echo "Tài khoản Google của từng tên (đọc từ Google, che bớt):"
+      dung ;;
+    e|E)
+      # Email Google DAY DU cua tung ten (token.json khong ghi tai khoan; hoi Google bang fz_colab.py --ai, song song).
+      # Chi doc khi chon muc nay -- khong doc luc mo danh sach (cham, can mang).
+      echo "[đang đọc tài khoản Google của từng tên từ Google...]"
+      for ten in "${ds[@]}"; do tk_dang_nhap "$ten" && doc_email "$ten" & done
+      wait
+      echo
       for ten in "${ds[@]}"; do
         tk_dang_nhap "$ten" || { echo "  $(ten_tk "$ten"): chưa đăng nhập"; continue; }
-        doc_email "$ten"; e=$(email_tk "$ten")
-        if [ -n "$e" ]; then echo "  $(ten_tk "$ten"): $(che_email "$e")"; else echo "  $(ten_tk "$ten"): không đọc được"; fi
+        x=$(email_tk "$ten")
+        echo "  $(ten_tk "$ten"): ${x:-không đọc được (token hỏng hoặc mất mạng)}"
         t=$(tk_cung_google "$ten"); [ -n "$t" ] && echo "    ${M_DO}⚠ cùng tài khoản Google với: $t${M_HET}"
       done
       dung ;;
