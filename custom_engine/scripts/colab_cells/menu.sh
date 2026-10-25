@@ -89,6 +89,29 @@ cua_so_ket() {
   for p in $ps; do rm -f "$CS/$p"; done
   return 0
 }
+# Email Google cua tai khoan $1 ("" = chinh): token.json KHONG ghi tai khoan (truong account rong), nen doc bang
+# `fz_colab.py --ai` (userinfo) va nho trong fz_email.txt cung thu muc token. Rong = chua doc.
+email_tk() { cat "$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME")/.config/colab-cli/fz_email.txt" 2>/dev/null; }
+che_email() {
+  local u=${1%%@*} d=${1#*@}
+  if [ ${#u} -ge 7 ]; then echo "${u:0:3}***${u: -2}@$d"; else echo "${u:0:2}***@$d"; fi
+}
+doc_email() {
+  [ -f ~/fz_colab.py ] || return 1
+  HOME=$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME") timeout 40 python ~/fz_colab.py --ai >/dev/null 2>&1
+}
+# Ten cac tai khoan KHAC cung tai khoan Google voi $1 (hai ten Termux dang nhap nham cung mot tai khoan).
+tk_cung_google() {
+  local e t x out=
+  e=$(email_tk "$1"); [ -n "$e" ] || return 0
+  for x in "" $(ls -1 "$TKG" 2>/dev/null); do
+    [ "$x" = "$1" ] && continue
+    [ -z "$x" ] || [ -d "$TKG/$x" ] || continue
+    tk_dang_nhap "$x" || continue
+    t=$(email_tk "$x"); [ "$t" = "$e" ] && out+=" $(ten_tk "$x")"
+  done
+  echo "${out# }"
+}
 # Ctrl+D o menu chinh: thoat menu fz co hoi. Thoat menu KHONG tra may Colab -- nhac neu tai khoan dang giu may.
 thoat_hoi() {
   local ds x
@@ -554,7 +577,7 @@ kiem_secs() {
 # nay dung tai khoan do; cac cua so Termux khac khong bi anh huong.
 tk_dang_nhap() { [ -f "$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME")/.config/colab-cli/token.json" ]; }
 tai_khoan() {
-  local ds i x ten cu
+  local ds i x ten cu e t
   # Tai khoan da "cat" theo cach cu (~/.config/colab-cli/luu/<ten>) -> tai khoan phu cung ten.
   for x in "$HOME/.config/colab-cli/luu"/*/; do
     [ -f "$x/token.json" ] || continue
@@ -569,7 +592,9 @@ tai_khoan() {
     if [ $chup = 1 ]; then
       # Tai khoan nao dang giu may thi may chu tra han muc -> chup lai (song song, <= 20 giay).
       echo "[đang chụp hạn mức các tài khoản...]"
-      for ten in "${ds[@]}"; do tk_dang_nhap "$ten" && chup_han_muc "$ten" & done
+      for ten in "${ds[@]}"; do
+        tk_dang_nhap "$ten" && { chup_han_muc "$ten"; [ -n "$(email_tk "$ten")" ] || doc_email "$ten"; } &
+      done
       wait; chup=0
     fi
     clear
@@ -584,7 +609,11 @@ tai_khoan() {
       printf ' %s%d  %s%s%s\n' "$M_DAM" $((i + 1)) "$(ten_tk "$ten")" "$M_HET" \
         "$([ -z "$ten" ] && echo " ${M_MO}(chính)${M_HET}")$x"
       [ -n "$(cua_so_khac "$ten")" ] && echo "    ${M_VANG}đang mở ở cửa sổ khác (pid $(echo $(cua_so_khac "$ten")))${M_HET}"
-      if tk_dang_nhap "$ten"; then khoi_han_muc "$ten" | sed 's/^   /    /'
+      if tk_dang_nhap "$ten"; then
+        e=$(email_tk "$ten")
+        if [ -n "$e" ]; then echo "    Google: $(che_email "$e")"; else echo "    Google: ${M_MO}(chưa đọc được -- chọn d)${M_HET}"; fi
+        t=$(tk_cung_google "$ten"); [ -n "$t" ] && echo "    ${M_DO}⚠ CÙNG tài khoản Google với: $t${M_HET}"
+        khoi_han_muc "$ten" | sed 's/^   /    /'
       else echo "    ${M_DO}CHƯA đăng nhập${M_HET}"; fi
     done
     echo
@@ -610,6 +639,15 @@ tai_khoan() {
       dat_tk "$ten"; ghi_cua_so
       echo "[cửa sổ này dùng tài khoản $ten] Mở link dưới đây, chọn ĐÚNG tài khoản Google muốn thêm:"
       colab sessions      # chua co token -> CLI in link dang nhap o day
+      if tk_dang_nhap "$ten" && doc_email "$ten"; then
+        e=$(email_tk "$ten"); t=$(tk_cung_google "$ten")
+        echo "Tài khoản Google vừa đăng nhập: $(che_email "$e")"
+        if [ -n "$t" ]; then
+          echo "${M_DO}⚠ Đã có tài khoản Google này ở: $t -- hai tên cùng dùng một tài khoản.${M_HET}"
+          read -rp "Gõ 'xoa' để xoá '$ten' vừa thêm (rồi n lại, chọn tài khoản Google khác) · Enter = giữ: " x || x=
+          if [ "$x" = xoa ]; then rm -rf "${TKG:?}/$ten"; dat_tk ""; ghi_cua_so; echo "[đã xoá $ten]"; fi
+        fi
+      fi
       dung; return ;;
     d|D)
       # Tai khoan trung: cung tep token (chep nham giua cac dien thoai). Chi so tep, khong hoi mang.
@@ -619,6 +657,13 @@ tai_khoan() {
         muc+=("$(ten_tk "$ten")|$([ -n "$ten" ] && echo "$TKG/$ten" || echo "$HOME")")
       done
       python ~/fz_trung_tk.py "${muc[@]}"
+      echo; echo "Tài khoản Google của từng tên (đọc từ Google, che bớt):"
+      for ten in "${ds[@]}"; do
+        tk_dang_nhap "$ten" || { echo "  $(ten_tk "$ten"): chưa đăng nhập"; continue; }
+        doc_email "$ten"; e=$(email_tk "$ten")
+        if [ -n "$e" ]; then echo "  $(ten_tk "$ten"): $(che_email "$e")"; else echo "  $(ten_tk "$ten"): không đọc được"; fi
+        t=$(tk_cung_google "$ten"); [ -n "$t" ] && echo "    ${M_DO}⚠ cùng tài khoản Google với: $t${M_HET}"
+      done
       dung ;;
     t|T)
       # Xuat token.json cua mot tai khoan ra Download/FairyZero de chep sang may tinh (Colab CLI tren
@@ -678,7 +723,7 @@ tai_khoan() {
       read -rp "Đăng xuất $(ten_tk "$ten")$([ -n "$ten" ] && echo " và xoá khỏi danh sách")? Gõ 'co': " x
       if [ "$x" = co ]; then
         if [ -n "$ten" ]; then rm -rf "${TKG:?}/$ten"; [ "$cu" = "$ten" ] && cu=
-        else rm -f "$HOME/.config/colab-cli/token.json" "$HOME/.config/colab-cli/sessions.json"; fi
+        else rm -f "$HOME/.config/colab-cli/token.json" "$HOME/.config/colab-cli/token.json.bak" "$HOME/.config/colab-cli/sessions.json" "$HOME/.config/colab-cli/fz_email.txt"; fi
         echo "[đã đăng xuất] $(ten_tk "$ten")"
       fi
       dat_tk "$cu"; ghi_cua_so; dung ;;

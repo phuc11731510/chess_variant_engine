@@ -14,6 +14,8 @@ Chay nhu `colab` (cung doi so), nhung sua hai loi cua Colab CLI 0.7.x ma menu va
    lap v, cac lenh chay nen) CLI KHONG hoi: in "FZ_CAN_DANG_NHAP" ra stderr va thoat ma 75.
 
   python ~/fz_colab.py <lenh colab ...>   # nhu `colab <lenh ...>`
+  python ~/fz_colab.py --ai               # DOC EMAIL cua tai khoan Google dang dung token nay (userinfo), ghi
+                                          # <HOME>/.config/colab-cli/fz_email.txt, in FZ_EMAIL=<email che bot>
   python ~/fz_colab.py --token            # kiem tra / lam moi token.json (luu nguyen tu), in FZ_TOKEN=...
       0 = ok (con han hoac da lam moi), 2 = phai dang nhap lai (khong co tep / refresh_token bi tu choi),
       3 = loi mang (thu lai sau, KHONG can dang nhap lai)
@@ -96,6 +98,7 @@ def kiem_token():
     if creds.valid and con_lai > CON_LAI_TOI_THIEU:
         if not os.path.exists(bak):
             shutil.copyfile(p, bak)
+        kiem_token.creds = creds
         print("FZ_TOKEN=ok")
         return 0
 
@@ -119,13 +122,46 @@ def kiem_token():
     # to_json() cua credentials khong co scope (da bo) -- CLI doc duoc.
     _ghi_nguyen_tu(p, creds.to_json())
     shutil.copyfile(p, bak)
+    kiem_token.creds = creds
     print("FZ_TOKEN=ok (da lam moi)")
+    return 0
+
+
+def che_email(e):
+    u, _, d = e.partition("@")
+    return (u[:3] + "***" + u[-2:] if len(u) >= 7 else u[:2] + "***") + "@" + d
+
+
+def doc_email():
+    """Token.json KHONG ghi tai khoan nao (truong "account" rong, khong co id_token). Hoi Google (userinfo, quyen email
+    da cap) ai la chu token -> luu de menu hien ten + canh bao hai ten Termux tro ve MOT tai khoan Google."""
+    from colab_cli import auth
+    ma = kiem_token()
+    if ma != 0:
+        return ma
+    from google.auth.transport.requests import AuthorizedSession
+    try:
+        r = AuthorizedSession(kiem_token.creds).get("https://openidconnect.googleapis.com/v1/userinfo", timeout=20)
+    except Exception as e:
+        print(f"FZ_EMAIL=loi mang ({type(e).__name__})")
+        return 3
+    if r.status_code != 200:
+        print(f"FZ_EMAIL=loi {r.status_code}")
+        return 2
+    email = (r.json().get("email") or "").strip().lower()
+    if not email:
+        print("FZ_EMAIL=khong co email")
+        return 2
+    _ghi_nguyen_tu(os.path.join(os.path.dirname(auth.TOKEN_CONFIG_PATH), "fz_email.txt"), email + "\n")
+    print("FZ_EMAIL=" + che_email(email))
     return 0
 
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--token":
         return kiem_token()
+    if len(sys.argv) > 1 and sys.argv[1] == "--ai":
+        return doc_email()
     va(bool(os.environ.get("FZ_KHONG_HOI")))
     from colab_cli.cli import main as cli
     sys.argv[0] = "colab"
