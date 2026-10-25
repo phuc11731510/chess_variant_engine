@@ -573,7 +573,7 @@ kiem_secs() {
 # nay dung tai khoan do; cac cua so Termux khac khong bi anh huong.
 tk_dang_nhap() { [ -f "$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME")/.config/colab-cli/token.json" ]; }
 tai_khoan() {
-  local ds i x ten cu e t
+  local ds i x ten cu e t gc
   # Tai khoan da "cat" theo cach cu (~/.config/colab-cli/luu/<ten>) -> tai khoan phu cung ten.
   for x in "$HOME/.config/colab-cli/luu"/*/; do
     [ -f "$x/token.json" ] || continue
@@ -587,9 +587,16 @@ tai_khoan() {
     for x in "$TKG"/*/; do [ -d "$x" ] && ds+=("$(basename "$x")"); done
     if [ $chup = 1 ]; then
       # Tai khoan nao dang giu may thi may chu tra han muc -> chup lai (song song, <= 20 giay).
-      echo "[đang chụp hạn mức các tài khoản...]"
-      for ten in "${ds[@]}"; do tk_dang_nhap "$ten" && chup_han_muc "$ten" & done
-      wait; chup=0
+      # Chi chup tai khoan dang giu may (co phien cuc bo), toi da 8 giay -- khong doi tai khoan khong co gi de chup.
+      gc=0
+      for ten in "${ds[@]}"; do
+        if tk_dang_nhap "$ten" && tk_co_phien "$ten"; then
+          [ $gc = 0 ] && echo "[đang chụp hạn mức các tài khoản đang giữ máy...]"
+          gc=1; chup_han_muc "$ten" 8 &
+        fi
+      done
+      [ $gc = 1 ] && wait
+      chup=0
     fi
     clear
     # Moi dong <= ~38 ky tu: man hinh dien thoai hep, dong dai bi gay xuong dong kho doc.
@@ -836,7 +843,13 @@ do_han_muc() {
 # Chup han muc (neu dang giu may) cua tai khoan $1 ("" = chinh) -- im lang, toi da 20 giay.
 chup_han_muc() {
   [ -f ~/fz_han_muc.py ] || return 1
-  HOME=$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME") timeout 20 python ~/fz_han_muc.py --chup >/dev/null 2>&1
+  HOME=$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME") timeout "${2:-20}" python ~/fz_han_muc.py --chup >/dev/null 2>&1
+}
+# Tai khoan $1 ("" = chinh) co phien may trong sessions.json cuc bo khong? Khong hoi mang. Han muc chi doc duoc
+# khi tai khoan DANG GIU may, nen tai khoan khong co phien thi chup han muc la phi (mo python + doi mang) -- bo qua.
+tk_co_phien() {
+  local f; f="$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME")/.config/colab-cli/sessions.json"
+  [ -s "$f" ] && grep -q '"endpoint"' "$f" 2>/dev/null
 }
 # Mot dong tu lan chup gan nhat cua tai khoan $1, khong hoi mang.
 dong_han_muc() {
