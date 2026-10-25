@@ -183,8 +183,12 @@ td_toi_luot_hl() {
 
 # Ctrl+D (EOF tren ban phim) trong luc vong lap dang chay = nhu Ctrl+C: mo menu thoat co hoi (d / s / q). Doc
 # terminal khong chan (toi da 0.05 giay); chi tinh EOF (read tra 1), phim khac bi nuot + bo.
+TD_HB=0
 td_ctrl_d() {
   local k rc
+  # Nhip tim: cua so con song thi tep trang thai $TD_W duoc "cham" moi 30 giay (07 chay nhieu phut khong ghi gi), de
+  # cua so khac / menu a phan biet "dang chay tot" voi "da treo" (xem cua_so_ket).
+  if [ $((SECONDS - TD_HB)) -ge 30 ]; then TD_HB=$SECONDS; [ -f "$TD_W" ] && touch "$TD_W" 2>/dev/null; fi
   [ -t 0 ] || return 0
   IFS= read -rs -t 0.05 -N 1 k 2>/dev/null; rc=$?
   if [ $rc = 1 ]; then NGAT=1
@@ -378,6 +382,7 @@ td_xin_mot_vong() {
   while IFS=$'\t' read -r -u 3 ten loai mo_ta; do
     if [ "$loai" = bo ]; then echo "   ${M_MO}bỏ qua $ten: $mo_ta${M_HET}"; continue; fi
     tk=$(tim_tk "$ten")
+    touch "$TD/.khoa_chon" 2>/dev/null          # con lam viec: khoa khong bi coi la treo (xem td_khoa_chon)
     if [ -n "$(cua_so_khac "$tk")" ]; then echo "   ${M_MO}bỏ qua $ten: đang mở ở cửa sổ khác${M_HET}"; continue; fi
     dat_tk "$tk"
     td_token_ok "$ten" || { td_ranh; continue; }
@@ -393,7 +398,12 @@ td_xin_mot_vong() {
       td_mo_khoa_chon; return 0
     fi
     td_ranh
-    if [ $NGAT = 1 ]; then td_hoi_ngat; [ $TD_THOAT = 1 ] && { td_mo_khoa_chon; return 1; }; fi
+    if [ $NGAT = 1 ]; then
+      # Nha khoa chon TRUOC khi hoi (nguoi dung co the roi di): cua so khac khong bi chan boi mot lua chon bo ngo.
+      td_mo_khoa_chon; td_hoi_ngat
+      [ $TD_THOAT = 1 ] && return 1
+      td_khoa_chon || return 1
+    fi
   done 3< <(python ~/fz_tu_dong.py xep "${muc[@]}")
   # Ca vong khong xin duoc: dat lich chung (thu_<ten> vua ghi o tren -> moc "moi gio" dung).
   muc=()

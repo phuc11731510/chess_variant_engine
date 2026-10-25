@@ -83,6 +83,19 @@ cua_so_ket() {
   ps=$(cua_so_khac "$1")
   [ -z "$ps" ] && return 0
   echo "[!] Tài khoản $(ten_tk "$1") đang mở ở cửa sổ khác (pid: $(echo $ps))."
+  # Cua so do co dang cap nhat khong? (vong lap ghi $TKG/.tu_dong/w_<pid> moi buoc) -- dang chay tot thi KHONG xoa:
+  # xoa dau hieu cua mot cua so dang song de hai cua so dung chung tai khoan / may.
+  local f t
+  for p in $ps; do
+    f=$TKG/.tu_dong/w_$p
+    if [ -f "$f" ]; then
+      t=$(( $(date +%s) - $(stat -c %Y "$f" 2>/dev/null || echo 0) ))
+      echo "    pid $p: vòng lặp, bước '$(sed -n 's/^buoc=//p' "$f" | tail -1)', cập nhật lần cuối $((t / 60)) phút trước"
+      [ "$t" -lt 300 ] && echo "    ${M_VANG}→ cửa sổ này VẪN đang cập nhật: nhiều khả năng chạy tốt, xoá dấu hiệu sẽ làm hai cửa sổ dùng chung.${M_HET}"
+    else
+      echo "    pid $p: không phải vòng lặp v (menu thường)"
+    fi
+  done
   echo "    Nếu cửa sổ đó đã TREO, hoặc bạn đã đóng nó mà tiến trình còn lại:"
   read -rp "    gõ 'xoa' để bỏ dấu hiệu đó và tiếp tục (Enter = thôi): " x
   [ "$x" = xoa ] || return 1
