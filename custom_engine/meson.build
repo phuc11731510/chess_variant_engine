@@ -43,6 +43,11 @@ else
 endif
 
 # CUDA Execution Provider (Linux/Colab GPU). Requires a GPU ONNX Runtime package.
+if get_option('playout_stats')
+  add_project_arguments('-DFZ_PLAYOUT_STATS', language: 'cpp')
+  message('Playout statistics ENABLED (-DFZ_PLAYOUT_STATS)')
+endif
+
 if get_option('use_cuda')
   add_project_arguments('-DUSE_CUDA', language: 'cpp')
   message('CUDA Execution Provider ENABLED (-DUSE_CUDA)')

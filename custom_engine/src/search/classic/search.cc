@@ -2330,8 +2330,10 @@ void SearchWorker::DoBackupUpdateSingleNode(
   Node* node = node_to_process.node;
   if (node_to_process.IsCollision()) {
     // Collisions are handled via shared_collisions instead.
+#ifdef FZ_PLAYOUT_STATS
     g_playout_stats.collision_visits.fetch_add(node_to_process.multivisit,
                                                std::memory_order_relaxed);
+#endif
     return;
   }
 
@@ -2415,6 +2417,9 @@ void SearchWorker::DoBackupUpdateSingleNode(
     search_->network_evaluations_++;
   }
   // Process-wide breakdown of where playouts go (C1, --show-nps summary).
+  // Statistics only: built in with -Dplayout_stats=true (FZ_PLAYOUT_STATS);
+  // without it the counters stay 0 and the summary section is not printed.
+#ifdef FZ_PLAYOUT_STATS
   g_playout_stats.playouts.fetch_add(node_to_process.multivisit, std::memory_order_relaxed);
   if (node_to_process.nn_queried) {
     (node_to_process.is_cache_hit ? g_playout_stats.cache_hits : g_playout_stats.nn_evals)
@@ -2428,6 +2433,7 @@ void SearchWorker::DoBackupUpdateSingleNode(
       g_playout_stats.terminal_playouts.fetch_add(node_to_process.multivisit,
                                                   std::memory_order_relaxed);
   }
+#endif
   search_->cum_depth_ += node_to_process.depth * node_to_process.multivisit;
   search_->max_depth_ = std::max(search_->max_depth_, node_to_process.depth);
 }

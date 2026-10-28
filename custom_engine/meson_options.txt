@@ -13,6 +13,11 @@ option('onnxruntime_dir',
        value: 'third_party/onnxruntime-linux-x64-gpu-1.18.0',
        description: 'ONNX Runtime root dir (non-Windows builds, e.g. Colab GPU package)')
 
+option('playout_stats',
+       type : 'boolean',
+       value: false,
+       description: 'Count where search playouts go (g_playout_stats, -DFZ_PLAYOUT_STATS): statistics only, atomics in the backup hot path; off = counters stay 0, self-play summary omits the playout section')
+
 option('use_cuda',
        type : 'boolean',
        value: false,

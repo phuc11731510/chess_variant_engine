@@ -51,7 +51,8 @@ namespace lczero {
 namespace classic {
 
 // Process-wide counters of where search playouts go (all searches, all
-// threads; relaxed atomics, statistics only). playouts = nn_evals + cache_hits
+// threads; relaxed atomics, statistics only). Counted only in builds with
+// -Dplayout_stats=true (FZ_PLAYOUT_STATS); otherwise they stay 0. playouts = nn_evals + cache_hits
 // + no_eval_playouts; collision_visits are not playouts (they are retried).
 struct PlayoutStats {
   std::atomic<int64_t> playouts{0};
