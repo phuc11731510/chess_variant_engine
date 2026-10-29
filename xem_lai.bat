@@ -4,6 +4,7 @@ rem   xem_lai.bat                              -> van moi nhat trong tu_dau_log
 rem   xem_lai.bat tu_dau_log\tu_dau_XXXX.txt  -> mot van cu the (duong dan khong duoc co khoang trang)
 rem Space = tu chay (1 giay/nuoc), phim mui ten / lan chuot / bam nuoc o thanh duoi = xem tung nuoc,
 rem Home / End = ve dau / ve cuoi, PageUp / PageDown = lui / tien 10 nuoc.
+rem L = bat / tat bang tim kiem ben phai (lan tim da chon nuoc dang xem; Q / cp / WDL theo phia Trang).
 setlocal
 set "F=%~1"
 if not "%F%"=="" goto go

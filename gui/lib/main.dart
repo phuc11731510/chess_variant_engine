@@ -12,6 +12,7 @@ import 'engine/uci_process_engine.dart';
 import 'engine/native_ffi_engine.dart';
 import 'ui/board_view.dart';
 import 'ui/move_strip.dart';
+import 'ui/search_panel.dart';
 
 /// Chọn engine theo nền tảng: desktop spawn tiến trình UCI; Android nạp
 /// libfairyzero.so qua dart:ffi ([NativeFfiEngine], M4) — chơi ngay trên máy.
@@ -60,6 +61,13 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   late final GameController controller;
 
+  /// Tự đấu / xem lại: hiện bảng tìm kiếm bên phải (phím L bật / tắt).
+  bool _showSearch = true;
+
+  /// Bảng tìm kiếm chỉ hiện khi cửa sổ đủ rộng: phần rộng hơn chiều cao (bàn vuông) >= mức này.
+  static const _minSearchWidth = 300.0;
+  static const _maxSearchWidth = 520.0;
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +86,7 @@ class _BoardScreenState extends State<BoardScreen> {
     if (path != null) {
       try {
         final g = readReplayFile(path);
+        controller.searches.addAll(g.searches);
         await controller.initReplay(g.moves, startFen: g.startFen);
       } catch (e) {
         controller.status = 'Không đọc được biên bản $path: $e';
@@ -117,7 +126,7 @@ class _BoardScreenState extends State<BoardScreen> {
     if (widget.config.replayPath != null) {
       return 'Xem lại ván: nửa nước ${c.shownPly}/$ply · '
           '${c.autoPlaying ? "đang tự chạy (Space = dừng)" : "Space = tự chạy"} '
-          '· ← → / lăn chuột / bấm nước';
+          '· ← → / lăn chuột / bấm nước · L = bảng tìm kiếm';
     }
     final side = c.board.whiteToMove ? 'Trắng' : 'Đen';
     if (c.gameOver) return 'Hết ván sau $ply nửa nước';
@@ -162,6 +171,8 @@ class _BoardScreenState extends State<BoardScreen> {
             const SingleActivator(LogicalKeyboardKey.end): controller.goLive,
             const SingleActivator(LogicalKeyboardKey.pageUp): _back10,
             const SingleActivator(LogicalKeyboardKey.pageDown): _forward10,
+            const SingleActivator(LogicalKeyboardKey.keyL): () =>
+                setState(() => _showSearch = !_showSearch),
           },
         },
         child: Focus(
@@ -284,9 +295,32 @@ class _BoardScreenState extends State<BoardScreen> {
               );
               if (!selfPlay) return stack;
               // Tự đấu: bàn ở trên, thanh nước đi (bấm / mũi tên / lăn chuột để xem lại) ở dưới.
+              // Bên phải bàn: lần tìm kiếm đã chọn nước đang xem (khi cửa sổ đủ rộng).
               return Column(
                 children: [
-                  Expanded(child: stack),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, box) {
+                        final w = (box.maxWidth - box.maxHeight).clamp(0.0, _maxSearchWidth);
+                        if (!_showSearch || w < _minSearchWidth) return stack;
+                        final ply = controller.shownPly;
+                        return Row(
+                          children: [
+                            Expanded(child: stack),
+                            SizedBox(
+                              width: w,
+                              child: SearchPanel(
+                                record: controller.shownSearch,
+                                ply: ply,
+                                played: ply == 0 ? null : controller.moves[ply - 1],
+                                whiteMoved: ply == 0 || controller.whiteMovedAt(ply - 1),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
                   MoveStrip(
                     moves: controller.moves,
                     shownPly: controller.shownPly,

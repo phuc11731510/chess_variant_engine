@@ -208,15 +208,20 @@ Win32Window::MessageHandler(HWND hwnd,
       const int ncH = (wr.bottom - wr.top) - (cr.bottom - cr.top);
       const int clientW = (rect->right - rect->left) - ncW;
       const int clientH = (rect->bottom - rect->top) - ncH;
+      // Tự đấu / xem lại: rộng hơn hình vuông một khoảng cố định (bảng tìm kiếm bên phải).
+      const int extra = MulDiv(extra_width_,
+                               FlutterDesktopGetDpiForMonitor(
+                                   MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)),
+                               96);
       switch (wparam) {
         case WMSZ_TOP:
         case WMSZ_BOTTOM:
           // Kéo cạnh trên/dưới -> khớp bề RỘNG theo chiều cao client.
-          rect->right = rect->left + (clientH + ncW);
+          rect->right = rect->left + (clientH + extra + ncW);
           break;
         default:
           // Kéo cạnh trái/phải hoặc góc -> khớp chiều CAO theo bề rộng client.
-          rect->bottom = rect->top + (clientW + ncH);
+          rect->bottom = rect->top + ((clientW > extra + 200 ? clientW - extra : 200) + ncH);
           break;
       }
       return TRUE;

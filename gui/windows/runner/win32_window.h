@@ -55,6 +55,10 @@ class Win32Window {
   // Return a RECT representing the bounds of the current client area.
   RECT GetClientArea();
 
+  // Client area kept at width = height + |logical_px| (DPI-scaled) while resizing,
+  // instead of a square: room for the search panel right of the board.
+  void SetExtraClientWidth(int logical_px) { extra_width_ = logical_px; }
+
  protected:
   // Processes and route salient window messages for mouse handling,
   // size change and DPI. Delegates handling of these to member overloads that
@@ -73,6 +77,9 @@ class Win32Window {
 
  private:
   friend class WindowClassRegistrar;
+
+  // See SetExtraClientWidth (logical pixels; 0 = square client area).
+  int extra_width_ = 0;
 
   // OS callback called by message pump. Handles the WM_NCCREATE message which
   // is passed when the non-client area is being created and enables automatic

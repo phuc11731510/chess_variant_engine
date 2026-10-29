@@ -1,11 +1,16 @@
 import 'dart:io';
 
-/// Một ván đọc từ tệp để xem lại: thế xuất phát ([startFen] null = thế đầu của biến thể)
-/// và dãy nước đi UCI thật.
+import '../domain/search_record.dart';
+
+/// Một ván đọc từ tệp để xem lại: thế xuất phát ([startFen] null = thế đầu của biến thể),
+/// dãy nước đi UCI thật, và (nhật ký tự đấu) lần tìm kiếm của từng nước.
 class ReplayGame {
   final String? startFen;
   final List<String> moves;
-  const ReplayGame(this.startFen, this.moves);
+
+  /// Khoá = chỉ số nước (0 = nước đầu); rỗng với danh sách nước thuần.
+  final Map<int, SearchRecord> searches;
+  const ReplayGame(this.startFen, this.moves, [this.searches = const {}]);
 }
 
 final RegExp _uciMove = RegExp(r'^[a-j](10|[1-9])[a-j](10|[1-9])[a-z]?$');
@@ -39,7 +44,7 @@ ReplayGame parseReplay(String text) {
       if (m != null && m.group(1) != '0000') moves.add(m.group(1)!);
     }
     if (moves.isEmpty) throw const FormatException('Không có nước đi nào trong tệp');
-    return ReplayGame(fen, moves);
+    return ReplayGame(fen, moves, SearchRecord.parseLog(text));
   }
   final moves = <String>[];
   for (final line in lines) {

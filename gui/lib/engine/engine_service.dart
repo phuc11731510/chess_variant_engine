@@ -1,5 +1,15 @@
+import '../domain/search_record.dart';
+
 /// Kết quả ván cờ engine trả về (khớp lệnh `result` của engine).
 enum GameResult { undecided, white, black, draw }
+
+/// Engine cho biết lần tìm kiếm vừa chọn nước ở [EngineService.bestMove] (các dòng
+/// info / RootStats) — để GUI hiện bảng tìm kiếm của từng nước. Chỉ engine tiến trình
+/// UCI ở chế độ tự đấu có; GUI hỏi bằng `engine is SearchLogSource`.
+abstract interface class SearchLogSource {
+  /// Lần tìm của lần gọi [EngineService.bestMove] gần nhất (null nếu không ghi).
+  SearchRecord? get lastSearch;
+}
 
 /// Giao diện trừu tượng tới "bộ não" engine.
 ///

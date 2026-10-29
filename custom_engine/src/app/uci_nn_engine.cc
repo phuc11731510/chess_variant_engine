@@ -551,12 +551,43 @@ private:
         // noise is on, after Dirichlet noise), Q = value of playing the move from the
         // root's side (what `score cp` reports). A move with high Q but few N was
         // under-explored: PUCT only visits a child in proportion to Q + U(P, N).
+        // Pnet = the network's own prior for the move (after PolicySoftmaxTemp, BEFORE
+        // Dirichlet noise): from the backend cache, or one more NN run of the root when
+        // the entry is gone (only with RootStats on). Absent if neither is available.
         if (root_stats_) {
+            std::vector<float> pnet;
+            if (backend_) {
+                const auto& hist = tree_->GetPositionHistory();
+                const lczero::MoveList legal = hist.Last().GetBoard().GenerateLegalMoves();
+                const lczero::EvalPosition ep{
+                    &hist, std::span<const lczero::Move>(legal.begin(), legal.size())};
+                std::optional<lczero::EvalResult> r = backend_->GetCachedEvaluation(ep);
+                if (!r && !legal.empty()) {
+                    lczero::EvalResult fresh{};
+                    fresh.p.resize(legal.size());
+                    auto comp = backend_->CreateComputation();
+                    comp->AddInput(ep, fresh.AsPtr());
+                    comp->ComputeBlocking();
+                    r = fresh;
+                }
+                if (r && !r->p.empty()) {
+                    pnet.assign(lczero::kPolicySize, -1.0f);
+                    for (size_t j = 0; j < legal.size() && j < r->p.size(); ++j) {
+                        const uint16_t idx = lczero::MoveToNNIndex(legal[j], 0);
+                        if (idx < lczero::kPolicySize) pnet[idx] = r->p[j];
+                    }
+                }
+            }
             for (int i = 0; i < K; ++i) {
                 std::ostringstream os;
                 os << "info string stat " << CanonicalMoveToUci(edges[i].GetMove(), root_black)
                    << " N " << edges[i].GetN() << " P " << std::fixed << std::setprecision(4) << edges[i].GetP()
                    << " Q " << std::setprecision(3) << edges[i].GetWL(static_cast<float>(-root->GetWL()));
+                if (!pnet.empty()) {
+                    const uint16_t idx = lczero::MoveToNNIndex(edges[i].GetMove(), 0);
+                    if (idx < lczero::kPolicySize && pnet[idx] >= 0.0f)
+                        os << " Pnet " << std::setprecision(4) << pnet[idx];
+                }
                 Send(os.str());
             }
         }

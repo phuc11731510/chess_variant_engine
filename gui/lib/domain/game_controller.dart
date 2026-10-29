@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../engine/engine_service.dart';
 import 'board_state.dart';
+import 'search_record.dart';
 import 'uci_move.dart';
 
 /// Máy trạng thái một ván: điều phối lượt NGƯỜI ↔ MÁY qua [EngineService].
@@ -64,6 +65,22 @@ class GameController extends ChangeNotifier {
       _viewBoardPly = v;
     }
     return _viewBoard!;
+  }
+
+  /// Tự đấu / xem lại: lần tìm kiếm đã chọn từng nước (khoá = chỉ số nước, 0 = nước đầu).
+  /// Tự đấu ghi khi engine đi; xem lại nạp từ nhật ký ([SearchRecord.parseLog]).
+  final Map<int, SearchRecord> searches = {};
+
+  /// Lần tìm đã chọn nước dẫn tới thế đang hiện (null ở thế xuất phát / không có nhật ký).
+  SearchRecord? get shownSearch => shownPly == 0 ? null : searches[shownPly - 1];
+
+  /// Trắng là bên đi nước thứ [index] (0 = nước đầu): đọc bên đi trong FEN trước nước đó.
+  bool whiteMovedAt(int index) {
+    if (index >= 0 && index < fens.length) {
+      final parts = fens[index].split(' ');
+      if (parts.length > 1) return parts[1] == 'w';
+    }
+    return index.isEven;
   }
 
   /// Ô đi/đến của nước dẫn tới thế đang hiện (để tô).
@@ -316,6 +333,11 @@ class GameController extends ChangeNotifier {
       try {
         mv = await engine.bestMove();
         if (_disposed) return;
+        final Object e = engine; // SearchLogSource không phải kiểu con của EngineService
+        if (e is SearchLogSource) {
+          final s = e.lastSearch;
+          if (s != null) searches[moves.length] = s;
+        }
         if (mv != '0000') {
           await engine.applyMove(mv);
           _recordMove(mv);

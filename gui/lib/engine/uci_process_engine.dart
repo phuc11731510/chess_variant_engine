@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../config/launch_config.dart';
+import '../domain/search_record.dart';
 import 'engine_service.dart';
 import 'self_play_log.dart';
 
@@ -12,7 +13,7 @@ import 'self_play_log.dart';
 /// Mọi output engine được đọc **bất đồng bộ** qua một Stream (không khựng UI).
 /// Mẫu request→response: gửi lệnh rồi `await` dòng phản hồi thoả điều kiện. Vì
 /// engine xử lý lệnh tuần tự trên một luồng đọc, ta gửi/đợi tuần tự là an toàn.
-class UciProcessEngine implements EngineService {
+class UciProcessEngine implements EngineService, SearchLogSource {
   final LaunchConfig config;
 
   Process? _proc;
@@ -36,8 +37,12 @@ class UciProcessEngine implements EngineService {
   String _goPosition = '';
   final Map<int, String> _lastInfo = {};
   final List<String> _lastStats = [];
+  SearchRecord? _lastSearch;
 
   UciProcessEngine(this.config, {this.verbose = false});
+
+  @override
+  SearchRecord? get lastSearch => _lastSearch;
 
   @override
   Future<void> start() async {
@@ -181,6 +186,15 @@ class UciProcessEngine implements EngineService {
     );
     final parts = line.trim().split(RegExp(r'\s+'));
     final best = parts.length > 1 ? parts[1] : '0000';
+    if (_log != null) {
+      _lastSearch = SearchRecord(
+        ply: _moves.length,
+        bestmove: best,
+        positionCmd: _goPosition,
+        infos: [for (final k in (_lastInfo.keys.toList()..sort())) _lastInfo[k]!],
+        stats: List.of(_lastStats),
+      );
+    }
     _log?.entry(
       ply: _moves.length,
       positionCmd: _goPosition,
