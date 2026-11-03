@@ -162,3 +162,12 @@ RAM cao nhất xảy ra lúc gộp node mới, vì script nối mảng tạo b�
 
 **Ghi chú:** tài khoản `t4` hết hạn mức T4 ("Service Unavailable") sau khoảng 1 giờ dùng trong ngày; chủ dự án đưa token tài khoản thứ hai (`t4b`). Với 23 bước huấn luyện (ít hơn 25), SWA chưa gộp bản nào; với cấu hình thật (khoảng 390 bước mỗi đời) thì không gặp.
 - Chủ dự án đồng ý đưa gói chạy trên Colab lên GitHub Release công khai. Đã tạo Release `co_vua` (https://github.com/phuc11731510/chess_variant_engine/releases/tag/co_vua) với `goi.tar.gz` đóng từ commit `dedd92a`. Lệnh cài đặt Termux giờ tự tải gói này; đã chạy thử lệnh cài đặt trong một thư mục nhà tạm.
+
+## 2026-11-04: Chạy thử `cvt` trên điện thoại (Termux)
+
+- Cài bằng `cai_dat.sh` (gói commit `dedd92a` từ Release `co_vua`). Chạy thử trong thư mục riêng `Download/CoVua/thu` với cấu hình nhỏ (1.5 triệu lần chạy mạng mỗi đời, 2 đời, 200 lượt thăm, 32 ván song song), tài khoản `phuhao2006dz`.
+- Kết quả: chạy trọn hai đời rồi tự trả máy, khoảng 12 phút.
+  - Đời 0: 80 ván, 2 122 445 lần chạy mạng, 206 giây; huấn luyện 35 giây.
+  - Đời 1: 51 ván, 1 308 605 lần chạy mạng, 145 giây; huấn luyện 35 giây. Cộng dồn 3 431 050.
+- Phần chỉ điện thoại mới kiểm được đều chạy đúng: SSH qua Termux, `proxy_ssh.py` với Colab CLI của điện thoại, giữ máy, tải lên và tải về. Tải về một mạng (4.4 đến 4.9 MB) mất khoảng 13 giây; tải lên một tệp ván khoảng 4 giây.
+- Đời 0 vượt mục tiêu khoảng 40% (2.12 triệu so với 1.5 triệu): với cấu hình nhỏ, mỗi ván chiếm phần lớn ngân sách, và ván ngắn xong trước nên ước lượng độ dài ván bị thấp. Với cấu hình thật (80 triệu mỗi đời), phần vượt ước khoảng 5 đến 6%, và được trừ vào đời sau.
