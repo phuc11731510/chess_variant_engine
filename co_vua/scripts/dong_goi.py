@@ -4,8 +4,11 @@ Gói gồm: lc0 (co_vua/ban_linux/lc0, dịch bằng co_vua/bien_dich_linux.bat)
 colab/ (co_vua/scripts/colab), goi_thong_tin.txt (commit, số tệp chưa commit, sha256 của lc0, thời điểm đóng gói).
 Bộ điều phối tải gói này lên mỗi máy Colab mới; chép nó vào thư mục gốc (GOC) của cvt/cvc.
 
-Chạy:  py dong_goi.py
+Chạy:  py dong_goi.py           (chỉ đóng gói)
+       py dong_goi.py --dang    (đóng gói rồi đưa lên GitHub Release `co_vua`, thay bản cũ; cài đặt trên Termux
+                                 tải gói từ đó). Chỉ đăng khi mọi thay đổi trong co_vua đã commit.
 """
+import sys
 import hashlib
 import io
 import subprocess
@@ -15,6 +18,8 @@ from pathlib import Path
 
 GOC = Path(__file__).resolve().parents[2]          # D:\chess_variant
 CV = GOC / "co_vua"
+KHO = "phuc11731510/chess_variant_engine"
+RELEASE = "co_vua"
 
 
 def main():
@@ -42,6 +47,20 @@ def main():
         ti.size, ti.mtime = len(b), int(time.time())
         t.addfile(ti, io.BytesIO(b))
     print(f"Đã ghi {ra} ({ra.stat().st_size} byte)\n{thong_tin}")
+    if "--dang" in sys.argv:
+        if git("status", "--porcelain", "--", "co_vua"):
+            sys.exit("Còn thay đổi chưa commit trong co_vua: commit trước rồi mới đăng gói.")
+        gh = lambda *a: subprocess.run(["gh", *a, "-R", KHO], capture_output=True, text=True)
+        if gh("release", "view", RELEASE).returncode != 0:
+            r = gh("release", "create", RELEASE, "--title", "Cờ vua: gói chạy trên Colab",
+                   "--notes", "Gói goi.tar.gz (lc0 + mã Python + script Colab) cho lệnh cvt/cvc. "
+                              "Tạo bằng co_vua/scripts/dong_goi.py --dang; xem goi_thong_tin.txt trong gói.")
+            if r.returncode != 0:
+                sys.exit("Không tạo được Release: " + r.stderr)
+        r = gh("release", "upload", RELEASE, str(ra), "--clobber")
+        if r.returncode != 0:
+            sys.exit("Không tải được gói lên Release: " + r.stderr)
+        print(f"Đã đăng lên https://github.com/{KHO}/releases/tag/{RELEASE}")
 
 
 if __name__ == "__main__":
