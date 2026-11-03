@@ -769,6 +769,31 @@ Dự án cờ biến thể tạm hoãn, nhưng engine và các script của nó 
   - Trong dữ liệu đọc ra, tổng $n(a)$ bằng $N$, và tổng prior của nước đã thăm cộng $P_0$ bằng 1.
 - **Đã chạy trên T4 với mạng thật** (mạng đời 0, khởi tạo ngẫu nhiên, fp32) qua backend `multiplexing` bọc `onnx-cuda`, sau khi kiểm mạng khớp với Python (12.1). Kết quả đo tốc độ ghi ở 12.8.
 
+
+### 12.8 Tốc độ trên T4 (đo 2026-11-03)
+
+**Cách đo.** Script `co_vua/scripts/colab_do_toc_do.sh` chạy `lc0 treeplay` trên một máy Colab T4 (2 nhân CPU) với mạng đời 0 (khởi tạo ngẫu nhiên, fp32). Các ván bắt đầu từ thế khởi đầu, theo cấu hình mốc truyền thống: 800 lượt thăm, temperature 1 trong 30 nửa nước đầu. Mỗi cấu hình chạy 75 đến 105 giây. Con số là số lần chạy mạng mỗi giây do engine tự đếm (không tính lần lấy từ bộ nhớ đệm), đọc ở dòng báo tiến độ cuối.
+
+Backend là `multiplexing` bọc `onnx-cuda`. Nó gom thế cờ của nhiều ván vào một lô rồi gửi lên GPU. "Luồng gom lô" là số luồng làm việc gom và gửi đó.
+
+| Ván song song | Luồng gom lô | Lần chạy mạng mỗi giây | GPU dùng |
+|---|---|---|---|
+| 32 | 2 | 9 144 | |
+| 64 | 2 | 13 569 | 41% |
+| 64 | 1 | 16 740 | 64% |
+| 128 | 1 | **16 947** | 58% |
+| 128 | 2 | khoảng 16 000 | 71% |
+| 128 | 4 | 14 214 | 62% |
+| 256 | 1 | 16 689 | 70% |
+| 256 | 2 | 16 268 | 67% |
+| 256 | 4 | 15 900 | 65% |
+| 384 | 2 | 16 070 | 70% |
+
+**Đọc bảng.**
+- Cấu hình chọn: **128 ván song song, 1 luồng gom lô**, khoảng 17 000 lần chạy mạng mỗi giây. Cả hai bên so sánh dùng chung cấu hình này, và vì ngân sách đo bằng số lần chạy mạng nên cấu hình không ảnh hưởng phép so sánh, chỉ ảnh hưởng thời gian.
+- Từ 64 ván trở lên với 1 luồng, tốc độ dừng ở khoảng 16 700 đến 17 000. GPU chỉ dùng 58 đến 70%, còn lc0 chỉ dùng khoảng 1.1 đến 1.2 trong 2 nhân CPU. Nghĩa là nút thắt là một phần chạy tuần tự trên CPU, không phải GPU. Thêm luồng gom lô còn làm chậm đi. Chưa đo phần nào là nút thắt; tìm và gỡ nó là việc tối ưu tiếp theo cho tốc độ.
+- Mỗi số chỉ đo một lần, nên chênh lệch dưới khoảng 5% giữa các cấu hình chưa chắc là thật.
+- Với tốc độ này, 1 triệu lần chạy mạng mất khoảng 1 phút trên một máy T4. Ví dụ một đời 1000 ván, mỗi ván 100 nửa nước, 800 lượt thăm mỗi nửa nước, cần khoảng 80 triệu lần chạy mạng, tức khoảng 80 phút trên một máy T4. Độ dài ván thật với mạng còn yếu chưa đo, và có thể dài hơn nhiều.
 ---
 
 ## 13. Rủi ro và những điều chưa biết

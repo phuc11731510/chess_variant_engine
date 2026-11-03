@@ -125,3 +125,5 @@ RAM cao nhất xảy ra lúc gộp node mới, vì script nối mảng tạo b�
 - Colab: dùng đăng nhập riêng `HOME=~/.fz_tk/t4` trong WSL, cài từ token chủ dự án đưa. Máy T4, ONNX Runtime 1.20.1 GPU tải từ GitHub của Microsoft (`co_vua/scripts/colab_chuan_bi.sh`). `lc0 treeplay` chạy được với `onnx-cuda`.
 - Đo tốc độ lần đầu (`colab_do_toc_do.sh`, ván từ thế khởi đầu, 800 lượt thăm): 32 ván song song, 2 luồng gom lô cho khoảng 9 100 lần chạy mạng mỗi giây.
 - `colab exec` bị mất kết nối với lệnh chạy lâu, nên các việc dài phải chạy nền.
+- Đo tốc độ đầy đủ trên T4 (chi tiết ở mục 12.8 của thiết kế). Tốt nhất: 128 ván song song, 1 luồng gom lô, 16 947 lần chạy mạng mỗi giây. Từ 64 ván trở lên tốc độ chững ở 16 700 đến 17 000, GPU chỉ dùng 58 đến 70%, lc0 dùng khoảng 1.2 trên 2 nhân CPU: nút thắt là một phần tuần tự trên CPU, chưa xác định. Mỗi cấu hình đo một lần.
+- Đã trả máy T4 sau khi đo.
