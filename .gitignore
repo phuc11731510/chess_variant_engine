@@ -91,3 +91,6 @@ ban_linux/
 co_vua/engine/subprojects/*/
 !co_vua/engine/subprojects/packagefiles/
 co_vua/engine/build*/
+
+# Du lieu va log chay thu cua co vua tren may tinh (tren dien thoai nam o Download/CoVua)
+co_vua/chay/

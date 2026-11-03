@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# cvt -- du an co vua, CACH TRUYEN THONG (moc so sanh). Chay tren Termux (hoac WSL).
+#   cvt @B      cua so nay chay vong lap nhieu doi bang tai khoan B (cvt / cvt @chinh = tai khoan chinh)
+#   cvt dung    dung mem MOI cua so: van dang do choi not, thu ve, tra may roi thoat
+#   cvt xem     xem tinh trang: doi, ngan sach, may dang chay, log gan nhat
+# Du lieu va log (giu vinh vien, khong xoa): $CVT_GOC, mac dinh Download/CoVua/truyen_thong
+CV_DIR="${CV_DIR:-$HOME/co_vua}"
+GOC="${CVT_GOC:-$HOME/storage/downloads/CoVua/truyen_thong}"
+mkdir -p "$GOC/trang_thai"
+case "${1:-@chinh}" in
+  dung)
+    touch "$GOC/trang_thai/dung"
+    echo "Da bao dung mem moi cua so cvt (moi cua so dung sau toi da khoang 1 phut + thoi gian choi not van do)." ;;
+  xem)
+    python3 "$CV_DIR/dieu_phoi/xem.py" "$GOC" ;;
+  @*)
+    TK="${1#@}"; shift
+    if [ -f "$GOC/trang_thai/dung" ]; then
+      rm -f "$GOC/trang_thai/dung"; echo "Go lenh dung mem cu (cvt dung) de chay tiep."
+    fi
+    command -v termux-wake-lock > /dev/null && termux-wake-lock
+    exec python3 "$CV_DIR/dieu_phoi/truyen_thong.py" --goc "$GOC" --tai-khoan "$TK" "$@" ;;
+  *)
+    sed -n 2,6p "$0" ;;
+esac

@@ -794,6 +794,36 @@ Backend là `multiplexing` bọc `onnx-cuda`. Nó gom thế cờ của nhiều v
 - Từ 64 ván trở lên với 1 luồng, tốc độ dừng ở khoảng 16 700 đến 17 000. GPU chỉ dùng 58 đến 70%, còn lc0 chỉ dùng khoảng 1.1 đến 1.2 trong 2 nhân CPU. Nghĩa là nút thắt là một phần chạy tuần tự trên CPU, không phải GPU. Thêm luồng gom lô còn làm chậm đi. Bạn đã khảo sát hiện tượng này nhiều lần trên engine cờ biến thể: có một mức trung gian nhanh nhất, tăng thêm thì lợi giảm. Vì vậy bạn chốt dùng cấu hình nhanh nhất đo được và không tìm nút thắt CPU nữa.
 - Mỗi số chỉ đo một lần, nên chênh lệch dưới khoảng 5% giữa các cấu hình chưa chắc là thật.
 - Với tốc độ này, 1 triệu lần chạy mạng mất khoảng 1 phút trên một máy T4. Ví dụ một đời 1000 ván, mỗi ván 100 nửa nước, 800 lượt thăm mỗi nửa nước, cần khoảng 80 triệu lần chạy mạng, tức khoảng 80 phút trên một máy T4. Độ dài ván thật với mạng còn yếu chưa đo, và có thể dài hơn nhiều.
+
+### 12.9 Bộ script Termux/Colab: lệnh `cvt` (cách truyền thống) và `cvc` (cách cây trò chơi)
+
+Mỗi cách có một lệnh riêng trên điện thoại, giống lệnh `fz` của engine cờ biến thể: **`cvt`** cho cách truyền thống (mốc so sánh) và **`cvc`** cho cách cây trò chơi (chưa viết). Hai bộ dùng chung phần điều khiển máy Colab và quy tắc log. Bộ script kế thừa những gì đã chạy tốt ở engine biến thể (`custom_engine/scripts/colab_cells`, `HUONG_DAN_TERMUX.md`) nhưng viết riêng, không sửa gì của engine biến thể.
+
+**Cài và dùng trên Termux.**
+- Cài hoặc cập nhật: `curl -fsSL https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/co_vua/scripts/cai_dat.sh | bash`. Script này tải các tệp của `co_vua/scripts/dieu_phoi` vào `~/co_vua` và tạo lệnh `cvt`.
+- `cvt @B`: cửa sổ này chạy vòng lặp nhiều đời bằng tài khoản `B`. Tài khoản dùng đúng thư mục đăng nhập `~/.fz_tk/<tên>` mà điện thoại đã có từ engine biến thể; `cvt` hay `cvt @chinh` là tài khoản chính. Muốn chạy song song nhiều tài khoản thì mở nhiều cửa sổ, mỗi cửa sổ một tài khoản. Một khoá ngăn hai cửa sổ dùng cùng một tài khoản.
+- `cvt dung`: dừng mềm mọi cửa sổ. Ván đang dở được chơi nốt và thu về, máy được trả, rồi cửa sổ thoát. Lần `cvt @...` tiếp theo tự gỡ lệnh dừng này.
+- `cvt xem`: xem đời hiện tại, ngân sách đã dùng, các máy đang sinh ván, các khoá và vài dòng log cuối của mỗi cửa sổ.
+- Dữ liệu và log nằm ở `Download/CoVua/truyen_thong` nên mở được bằng MT Manager. Thư mục này cần có `goi.tar.gz` (gói chạy trên Colab, tạo bằng `co_vua/scripts/dong_goi.py`).
+- Mọi thứ tự chạy tiếp từ trạng thái trên đĩa: tắt Termux, mất mạng hay mất máy rồi chạy lại `cvt @B` là làm tiếp đúng chỗ.
+
+**Một đời G của `cvt`** (`co_vua/scripts/dieu_phoi/truyen_thong.py`):
+1. **Sinh ván.** Mỗi cửa sổ giữ một máy T4 chạy `colab/sinh.py` với mạng đời G (128 ván song song, 800 lượt thăm, temperature 1 trong 30 nửa nước đầu). Mỗi phút bộ điều phối hỏi tiến độ qua SSH và cộng số lần chạy mạng của mọi cửa sổ. Khi tổng cộng dồn của mọi đời đạt `ngan_sach_moi_doi × (G + 1)`, nó báo dừng mềm; ván dở chơi nốt nên thường vượt một chút, và phần vượt tự trừ vào đời sau vì mục tiêu là cộng dồn.
+2. **Thu về.** Bản ghi ván (`.bin.gz`) và mọi log của lần sinh được tải về điện thoại. Cứ 20 phút, bản ghi dở cũng được tải về một bản tạm, để nếu mất máy giữa chừng thì chỉ mất tối đa 20 phút.
+3. **Huấn luyện.** Một cửa sổ giữ khoá `hl_doi<G>`, tải ván của cửa sổ 4 đời lên một máy, chạy `colab/huan_luyen_doi.sh` (tạo mẫu, huấn luyện như 2.5, xuất, bọc bằng `onnx2leela`), tải mạng đời G+1 về, ghi `tom_tat/doi<G>.json`, rồi chuyển sang đời G+1. Các cửa sổ khác chờ và trả máy nếu chờ lâu.
+
+**Giữ máy và chạy lệnh trên Colab.**
+- Colab thu hồi máy sau khoảng 10 đến 15 phút nếu không có kết nối SSH. Bộ điều phối mở một phiên SSH ngắn mỗi 60 giây (cách engine biến thể đã đo).
+- SSH đi qua `proxy_ssh.py`, bản sửa của cầu SSH trong Colab CLI không cho tự xin máy mới khi phiên đã mất (lỗi engine biến thể từng gặp).
+- Việc dài chạy nền trên Colab, bộ điều phối chỉ hỏi tiến độ, vì `colab exec` mất kết nối với lệnh chạy lâu.
+
+**Log (giữ vĩnh viễn, 15.2).**
+- `log/dieu_phoi_<cửa sổ>.log`: mọi việc của bộ điều phối (xin máy, tải lên và tải về kèm thời gian, tiến độ, lỗi), chỉ ghi thêm.
+- `log/doi<G>/<cửa sổ>_<lần>/`: log thô của mỗi lần sinh (đầu ra engine, dòng tiến độ mỗi phút, nvidia-smi mỗi 5 phút, cấu hình).
+- `log/hl/`: log huấn luyện và tóm tắt từng đời.
+- `van/doi<G>/`: bản ghi từng ván, kèm số lần chạy mạng, số ván, thời gian.
+- `tom_tat/doi<G>.json`: tóm tắt máy đọc được của mỗi đời, gồm cấu hình, seed, lần sinh, huấn luyện, thời gian, và thông tin gói (commit của mã, sha256 của lc0).
+- Mỗi máy khi chuẩn bị in một dòng `MAY` (GPU, số CPU, RAM, phiên bản thư viện) vào log của bộ điều phối.
 ---
 
 ## 13. Rủi ro và những điều chưa biết
