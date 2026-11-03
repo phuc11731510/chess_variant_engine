@@ -72,7 +72,10 @@ def main():
         het.set()
 
     def ghi_gpu():
-        while not het.wait(300):
+        # Mẫu đầu sau 30 giây (engine đã chạy đều), sau đó 5 phút một lần, để gpu.log luôn có.
+        cho = 30
+        while not het.wait(cho):
+            cho = 300
             try:
                 g = subprocess.run(["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,temperature.gpu",
                                     "--format=csv,noheader"], capture_output=True, text=True, timeout=30).stdout.strip()
@@ -95,8 +98,9 @@ def main():
             log(f"dung mem: thoi nap viec; {con_dang} van dang do se choi not")
             p.stdin.close()
         if not trang["dang_dung"]:
-            # Giữ hàng đợi của engine luôn có việc: tối đa 2 lần số ván song song đang chờ hoặc đang chơi.
-            them = 2 * a.song_song - con_dang
+            # Nạp vừa đủ: số ván song song cộng 4 việc chờ. Việc đã nạp vẫn được chơi sau khi dừng mềm, nên nạp
+            # dư làm vượt ngân sách (lần chạy thử 2026-11-03 nạp 2 lần số ván song song: vượt gấp đôi ngân sách).
+            them = a.song_song + 4 - con_dang
             for _ in range(max(0, them)):
                 p.stdin.write(f"G {id_tiep} {a.temp_plies}\n")
                 id_tiep += 1
@@ -107,6 +111,7 @@ def main():
             with khoa:
                 t = dict(trang)
             t["giay"] = round(time.time() - t["bat_dau"], 1)
+            t["dang_choi"] = t["van_da_nap"] - t["van_xong"] - t["loi"]
             ghi_json(tm("tien_do.json"), t)
             lan_ghi = time.time()
         time.sleep(1)

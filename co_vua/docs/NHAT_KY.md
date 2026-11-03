@@ -141,3 +141,23 @@ RAM cao nhất xảy ra lúc gộp node mới, vì script nối mảng tạo b�
   - `thu_nghiem/kiem_mau.py`: cả 516 mẫu khớp bộ mã hoá đã kiểm với lc0; số nước hợp lệ đúng; nước đã thăm đều hợp lệ; tổng xác suất bằng 1.
   - Huấn luyện 27 bước (batch 64), xuất mạng đời 1, bọc bằng `onnx2leela`: mạng đời 1 khớp với lc0 trên 7 thế cờ (WL, D trùng tới 6 chữ số).
 - Chủ dự án yêu cầu: hai bộ script Termux/Colab (truyền thống và cây trò chơi); log là tệp lưu vĩnh viễn, không xoá, làm minh chứng (mục 15.2 của thiết kế).
+
+## 2026-11-03: Chạy thử `cvt` (cách truyền thống) hai đời trên T4
+
+**Cấu hình thử** (nhỏ, chỉ để kiểm đường đi, không nói gì về sức mạnh): ngân sách 1.5 triệu lần chạy mạng mỗi đời, 2 đời, 200 lượt thăm, tối đa 200 nửa nước, 32 ván song song. Bộ điều phối chạy trong WSL trên máy tính, tài khoản `t4b`. Dữ liệu ở `co_vua/chay/tt_thu` (không commit).
+
+**Kết quả:** chạy trọn đời 0 và đời 1 rồi tự thoát, trả máy.
+- Đời 0: tạo mạng đời 0 trên Colab; sinh 119 ván, 3 102 542 lần chạy mạng, 295 giây; huấn luyện 35 giây.
+- Đời 1: sinh 53 ván, 1 408 303 lần chạy mạng, 141 giây; huấn luyện trên đời 0 và 1, 35 giây; ra mạng đời 2.
+- Mọi log và dữ liệu đều về đủ: log bộ điều phối, log thô từng lần sinh, log huấn luyện, bản ghi ván, 3 mạng, tóm tắt JSON từng đời.
+
+**Lỗi tìm thấy và đã sửa:**
+1. Máy Colab không có gói `onnx` để PyTorch xuất mạng. Đã thêm vào `chuan_bi.sh`.
+2. Lệnh SSH khởi động việc nền không trả về, vì `cd && setsid ... &` chạy trong shell con vẫn giữ kết nối. Đã đổi sang `setsid -f`.
+3. Lệnh hỏi tiến độ có mã thoát 1 khi việc chưa xong (do `test -f`), nên bộ điều phối không bao giờ báo dừng. Lệnh kiểm huấn luyện có cùng lỗi. Đã thêm `; true` và tách lỗi kết nối riêng.
+4. Vượt ngân sách gấp đôi, vì `sinh.py` nạp sẵn gấp đôi số ván song song, và việc đã nạp vẫn được chơi sau khi dừng. Đã đổi thành nạp bằng số ván song song cộng 4, và báo dừng sớm theo ước lượng phần còn lại của các ván dở.
+5. Do phần vượt của đời 0, đời 1 không còn ngân sách để sinh, và huấn luyện gặp thư mục rỗng. Đã thêm quy tắc mỗi đời tự sinh ít nhất nửa ngân sách, và chỉ tải lên các đời có dữ liệu.
+6. `gpu.log` không có nếu lần sinh ngắn hơn 5 phút. Đã ghi mẫu đầu sau 30 giây.
+7. `pkill -f` trúng cả tiến trình `timeout` bọc ngoài nên bộ điều phối không kịp trả máy. Bộ điều phối giờ bắt SIGTERM để luôn trả máy và thả khoá.
+
+**Ghi chú:** tài khoản `t4` hết hạn mức T4 ("Service Unavailable") sau khoảng 1 giờ dùng trong ngày; chủ dự án đưa token tài khoản thứ hai (`t4b`). Với 23 bước huấn luyện (ít hơn 25), SWA chưa gộp bản nào; với cấu hình thật (khoảng 390 bước mỗi đời) thì không gặp.

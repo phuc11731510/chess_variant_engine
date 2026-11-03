@@ -20,7 +20,9 @@ def main():
         G = int(open(p("trang_thai", "doi_hien_tai.txt")).read())
     except OSError:
         G = 0
-    da_thu = sum(json.load(open(f)).get("evals", 0) for f in glob.glob(p("van", "doi*", "*.json")))
+    lan_thu = [json.load(open(f)) for f in glob.glob(p("van", "doi*", "*.json"))]
+    da_thu = sum(j.get("evals", 0) for j in lan_thu)
+    truoc = sum(j.get("evals", 0) for j in lan_thu if j.get("doi", 0) < G)
     song = []
     for f in glob.glob(p("trang_thai", "song_*.json")):
         try:
@@ -31,7 +33,8 @@ def main():
         s["cu"] = time.time() - s.get("cap_nhat", 0)
         song.append(s)
     dang = sum(s["evals"] for s in song if s["cu"] < 600)
-    muc = ch["ngan_sach_moi_doi"] * (G + 1)
+    # Cùng quy tắc với truyen_thong.py (muc_tieu): cộng dồn, nhưng mỗi đời tự sinh ít nhất nửa ngân sách.
+    muc = max(ch["ngan_sach_moi_doi"] * (G + 1), truoc + ch["ngan_sach_moi_doi"] // 2)
     print(f"Đời hiện tại: {G}   (mạng có sẵn: {sorted(int(os.path.basename(f)[3:-6]) for f in glob.glob(p('mang', 'doi*.pb.gz')))})")
     print(f"Lần chạy mạng cộng dồn: {da_thu + dang:,} / mục tiêu đời {G}: {muc:,} ({100 * (da_thu + dang) / muc:.1f}%)")
     if os.path.exists(p("trang_thai", "dung")):

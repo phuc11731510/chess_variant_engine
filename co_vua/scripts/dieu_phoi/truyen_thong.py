@@ -150,8 +150,20 @@ class DieuPhoi:
                 tong += s.get("evals", 0)
         return tong
 
+    def evals_truoc_doi(self, G):
+        """Số lần chạy mạng đã thu về của các đời trước G."""
+        tong = 0
+        for f in glob.glob(self.p("van", "doi*", "*.json")):
+            j = json.load(open(f))
+            if j.get("doi", 0) < G:
+                tong += j.get("evals", 0)
+        return tong
+
     def muc_tieu(self, G):
-        return self.ch["ngan_sach_moi_doi"] * (G + 1)
+        """Mục tiêu cộng dồn của đời G: ngân sách x (G + 1), để phần vượt của đời trước được trừ vào đời này;
+        nhưng mỗi đời vẫn tự sinh ít nhất nửa ngân sách, để đời nào cũng có dữ liệu mới."""
+        ns = self.ch["ngan_sach_moi_doi"]
+        return max(ns * (G + 1), self.evals_truoc_doi(G) + ns // 2)
 
     def con_lan_sinh_khac(self, G):
         for f in glob.glob(self.p("trang_thai", "song_*.json")):
@@ -257,10 +269,15 @@ class DieuPhoi:
             self.ghi_json(f_song, {"doi": G, "lan": lan, "evals": tien_do.get("evals", 0),
                                    "van_xong": tien_do.get("van_xong", 0), "cap_nhat": time.time()})
             tong = self.evals_cong_don()
-            if not da_bao_dung and (tong >= self.muc_tieu(G) or self.dung_mem()):
+            # Ván đang dở sẽ được chơi nốt sau khi báo dừng: ước lượng phần còn lại của chúng là nửa ván trung
+            # bình mỗi ván, rồi báo dừng sớm chừng ấy để tổng sau khi chơi nốt gần mục tiêu nhất.
+            van_xong = tien_do.get("van_xong", 0)
+            con_lai = (tien_do.get("dang_choi", 0) * tien_do.get("evals", 0) / van_xong / 2) if van_xong >= 8 else 0
+            if not da_bao_dung and (tong + con_lai >= self.muc_tieu(G) or self.dung_mem()):
                 self.may.ssh(f"touch {tm}/dung")
                 da_bao_dung = True
-                self.log(f"doi {G} lan {lan}: bao dung mem (cong don {tong:,} / muc tieu {self.muc_tieu(G):,}"
+                self.log(f"doi {G} lan {lan}: bao dung mem (cong don {tong:,}, uoc luong con lai {con_lai:,.0f} "
+                         f"cua {tien_do.get('dang_choi', 0)} van dang do / muc tieu {self.muc_tieu(G):,}"
                          f"{', lenh cv dung' if self.dung_mem() else ''}); van dang do se choi not")
             if "__XONG__" in ra:
                 break
@@ -313,9 +330,15 @@ class DieuPhoi:
         dau = max(0, G - self.ch["cua_so_doi"] + 1)
         t0 = time.time()
         so_tep = 0
+        if not glob.glob(self.p("van", f"doi{G}", "*.bin.gz")):
+            raise RuntimeError(f"doi {G} chua co ban ghi van nao")
         for k in range(dau, G + 1):
+            tep = sorted(glob.glob(self.p("van", f"doi{k}", "*.bin.gz")))
+            if not tep:
+                self.log(f"doi {G}: doi {k} trong cua so khong co ban ghi, bo qua")
+                continue
             self.may.ssh(f"mkdir -p {CV}/hl/van/doi{k}")
-            for f in sorted(glob.glob(self.p("van", f"doi{k}", "*.bin.gz"))):
+            for f in tep:
                 if not self.may.tai_len(f, f"{CV}/hl/van/doi{k}/{os.path.basename(f)}"):
                     raise RuntimeError(f"khong tai duoc {f} len")
                 so_tep += 1

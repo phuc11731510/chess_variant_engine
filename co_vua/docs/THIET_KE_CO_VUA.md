@@ -808,7 +808,10 @@ Mỗi cách có một lệnh riêng trên điện thoại, giống lệnh `fz` c
 - Mọi thứ tự chạy tiếp từ trạng thái trên đĩa: tắt Termux, mất mạng hay mất máy rồi chạy lại `cvt @B` là làm tiếp đúng chỗ.
 
 **Một đời G của `cvt`** (`co_vua/scripts/dieu_phoi/truyen_thong.py`):
-1. **Sinh ván.** Mỗi cửa sổ giữ một máy T4 chạy `colab/sinh.py` với mạng đời G (128 ván song song, 800 lượt thăm, temperature 1 trong 30 nửa nước đầu). Mỗi phút bộ điều phối hỏi tiến độ qua SSH và cộng số lần chạy mạng của mọi cửa sổ. Khi tổng cộng dồn của mọi đời đạt `ngan_sach_moi_doi × (G + 1)`, nó báo dừng mềm; ván dở chơi nốt nên thường vượt một chút, và phần vượt tự trừ vào đời sau vì mục tiêu là cộng dồn.
+1. **Sinh ván.** Mỗi cửa sổ giữ một máy T4 chạy `colab/sinh.py` với mạng đời G (128 ván song song, 800 lượt thăm, temperature 1 trong 30 nửa nước đầu). Mỗi phút bộ điều phối hỏi tiến độ qua SSH và cộng số lần chạy mạng của mọi cửa sổ.
+   - **Mục tiêu cộng dồn của đời G** là `max(ngan_sach_moi_doi × (G + 1), số lần chạy mạng của các đời trước + ngan_sach_moi_doi / 2)`. Phần vượt của đời trước được trừ vào đời này, nhưng đời nào cũng tự sinh ít nhất nửa ngân sách. Quy tắc tối thiểu này được thêm sau khi chạy thử: đời 0 vượt nhiều đến mức đời 1 không còn ngân sách để sinh ván.
+   - **Báo dừng mềm sớm theo ước lượng.** Ván đang dở được chơi nốt sau khi báo dừng, nên bộ điều phối báo dừng khi tổng cộng dồn cộng phần còn lại ước lượng của các ván dở (nửa ván trung bình mỗi ván) đạt mục tiêu.
+   - **Nạp vừa đủ.** `sinh.py` chỉ giữ số việc đã nạp bằng số ván song song cộng 4, vì việc đã nạp vẫn được chơi sau khi dừng. Lần chạy thử đầu nạp gấp đôi số ván song song, và vượt ngân sách gấp đôi.
 2. **Thu về.** Bản ghi ván (`.bin.gz`) và mọi log của lần sinh được tải về điện thoại. Cứ 20 phút, bản ghi dở cũng được tải về một bản tạm, để nếu mất máy giữa chừng thì chỉ mất tối đa 20 phút.
 3. **Huấn luyện.** Một cửa sổ giữ khoá `hl_doi<G>`, tải ván của cửa sổ 4 đời lên một máy, chạy `colab/huan_luyen_doi.sh` (tạo mẫu, huấn luyện như 2.5, xuất, bọc bằng `onnx2leela`), tải mạng đời G+1 về, ghi `tom_tat/doi<G>.json`, rồi chuyển sang đời G+1. Các cửa sổ khác chờ và trả máy nếu chờ lâu.
 
