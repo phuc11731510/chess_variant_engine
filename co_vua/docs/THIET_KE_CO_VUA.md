@@ -791,7 +791,7 @@ Backend là `multiplexing` bọc `onnx-cuda`. Nó gom thế cờ của nhiều v
 
 **Đọc bảng.**
 - Cấu hình chọn: **128 ván song song, 1 luồng gom lô**, khoảng 17 000 lần chạy mạng mỗi giây. Cả hai bên so sánh dùng chung cấu hình này, và vì ngân sách đo bằng số lần chạy mạng nên cấu hình không ảnh hưởng phép so sánh, chỉ ảnh hưởng thời gian.
-- Từ 64 ván trở lên với 1 luồng, tốc độ dừng ở khoảng 16 700 đến 17 000. GPU chỉ dùng 58 đến 70%, còn lc0 chỉ dùng khoảng 1.1 đến 1.2 trong 2 nhân CPU. Nghĩa là nút thắt là một phần chạy tuần tự trên CPU, không phải GPU. Thêm luồng gom lô còn làm chậm đi. Chưa đo phần nào là nút thắt; tìm và gỡ nó là việc tối ưu tiếp theo cho tốc độ.
+- Từ 64 ván trở lên với 1 luồng, tốc độ dừng ở khoảng 16 700 đến 17 000. GPU chỉ dùng 58 đến 70%, còn lc0 chỉ dùng khoảng 1.1 đến 1.2 trong 2 nhân CPU. Nghĩa là nút thắt là một phần chạy tuần tự trên CPU, không phải GPU. Thêm luồng gom lô còn làm chậm đi. Bạn đã khảo sát hiện tượng này nhiều lần trên engine cờ biến thể: có một mức trung gian nhanh nhất, tăng thêm thì lợi giảm. Vì vậy bạn chốt dùng cấu hình nhanh nhất đo được và không tìm nút thắt CPU nữa.
 - Mỗi số chỉ đo một lần, nên chênh lệch dưới khoảng 5% giữa các cấu hình chưa chắc là thật.
 - Với tốc độ này, 1 triệu lần chạy mạng mất khoảng 1 phút trên một máy T4. Ví dụ một đời 1000 ván, mỗi ván 100 nửa nước, 800 lượt thăm mỗi nửa nước, cần khoảng 80 triệu lần chạy mạng, tức khoảng 80 phút trên một máy T4. Độ dài ván thật với mạng còn yếu chưa đo, và có thể dài hơn nhiều.
 ---
@@ -866,7 +866,11 @@ Bạn giao cho mình làm người quan sát chính của dự án: mình đọc
 
 ### 15.2 Log mỗi đời
 
-Log được ghi ở dạng máy đọc được, mỗi đời một bản ghi, để vẽ biểu đồ qua các đời. Định dạng tệp chốt khi có hạ tầng (12.2).
+**Log là tệp lưu vĩnh viễn, không phải dòng chữ trên terminal.** Terminal Termux chỉ giữ khoảng 2000 dòng rồi xoá, còn `/content` của Colab mất sạch khi máy bị thu hồi. Vì vậy mọi log được ghi thành tệp, tải về điện thoại sau mỗi bước, và giữ mãi, kể cả log cũ nhất. Không có bước nào xoá log. Ngoài mục đích đối chiếu và cải thiện, log còn là minh chứng cho kết quả của dự án nếu nó thành công. Có hai bộ script Termux/Colab, một cho cách truyền thống và một cho cách cây trò chơi, và cả hai đều tuân theo quy tắc này.
+
+Log gồm hai loại:
+- **Log thô:** toàn bộ đầu ra của engine (kể cả dòng báo tiến độ), của script huấn luyện và của các script Colab, cùng các tệp kết quả `treeplay` (bản ghi từng ván, xem 12.7).
+- **Bản tóm tắt mỗi đời:** dạng máy đọc được (JSON), mỗi đời một bản ghi, để vẽ biểu đồ qua các đời. Mỗi bản ghi kèm cấu hình đầy đủ, seed, commit của mã, và tên máy đã chạy.
 
 - **Cây:** số node, số lá, số node mới, số node bị cắt và độ sâu của chúng; số điểm rẽ quét được, số điểm được chơi, và phân bố độ sâu của điểm rẽ; phân bố $m$, $E$ và $U$ theo độ sâu; tuổi nhãn theo độ sâu, tính theo trọng số $m$; tỉ trọng mẫu huấn luyện theo độ sâu.
 - **Các số được ước lượng:** $\omega^2$ theo cả hai cách ở 4.4; $\omega^2$ theo từng nhóm độ sâu và nhóm số quân; dãy $\omega^2$ qua các lượt lặp chỉ để log (4.5); $\tau_q^2$, $\tau_d^2$; phân bố $w_q$.

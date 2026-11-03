@@ -127,3 +127,17 @@ RAM cao nhất xảy ra lúc gộp node mới, vì script nối mảng tạo b�
 - `colab exec` bị mất kết nối với lệnh chạy lâu, nên các việc dài phải chạy nền.
 - Đo tốc độ đầy đủ trên T4 (chi tiết ở mục 12.8 của thiết kế). Tốt nhất: 128 ván song song, 1 luồng gom lô, 16 947 lần chạy mạng mỗi giây. Từ 64 ván trở lên tốc độ chững ở 16 700 đến 17 000, GPU chỉ dùng 58 đến 70%, lc0 dùng khoảng 1.2 trên 2 nhân CPU: nút thắt là một phần tuần tự trên CPU, chưa xác định. Mỗi cấu hình đo một lần.
 - Đã trả máy T4 sau khi đo.
+- Chủ dự án chốt: dùng cấu hình nhanh nhất đã đo (128 ván song song, 1 luồng gom lô) và không tìm nút thắt CPU nữa. Lý do: đã khảo sát nhiều lần trên engine biến thể, có một mức trung gian nhanh nhất, tăng thêm thì lợi giảm.
+
+## 2026-11-03: Mã huấn luyện, chạy thử đầu cuối trên máy
+
+- Mã mới trong `co_vua/python`:
+  - `du_lieu.py`: bản ghi treeplay thành mẫu nén bit (khoảng 840 byte mỗi thế cờ), nhãn của cách truyền thống ($\pi$ và $0.2q+0.8z$); toàn bộ mẫu nạp lên GPU một lần, mỗi lô giải nén ngay trên GPU.
+  - `tao_mau.py`: tạo tệp mẫu.
+  - `huan_luyen.py`: AdamW với tốc độ học cố định $10^{-3}$, SWA kiểu lc0 (25 bước, tối đa 10 bản), cập nhật BatchNorm, xuất `.pt` và ONNX. Huấn luyện hoàn toàn fp32 (engine biến thể dùng `--amp`; chủ dự án yêu cầu luôn fp32).
+- Cửa sổ dữ liệu của cách truyền thống theo engine biến thể là 4 đời (đời hiện tại và 3 đời trước, `TD_SO_DOI=4`), nên $W=4$ cho cả hai bên.
+- Chạy thử đầu cuối trên máy (CPU, Docker), không có kết luận gì về sức mạnh:
+  - Mạng đời 0 sinh 6 ván (24 lượt thăm, tối đa 160 nửa nước), ra 516 mẫu.
+  - `thu_nghiem/kiem_mau.py`: cả 516 mẫu khớp bộ mã hoá đã kiểm với lc0; số nước hợp lệ đúng; nước đã thăm đều hợp lệ; tổng xác suất bằng 1.
+  - Huấn luyện 27 bước (batch 64), xuất mạng đời 1, bọc bằng `onnx2leela`: mạng đời 1 khớp với lc0 trên 7 thế cờ (WL, D trùng tới 6 chữ số).
+- Chủ dự án yêu cầu: hai bộ script Termux/Colab (truyền thống và cây trò chơi); log là tệp lưu vĩnh viễn, không xoá, làm minh chứng (mục 15.2 của thiết kế).
