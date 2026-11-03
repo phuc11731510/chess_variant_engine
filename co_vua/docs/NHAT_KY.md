@@ -161,3 +161,4 @@ RAM cao nhất xảy ra lúc gộp node mới, vì script nối mảng tạo b�
 7. `pkill -f` trúng cả tiến trình `timeout` bọc ngoài nên bộ điều phối không kịp trả máy. Bộ điều phối giờ bắt SIGTERM để luôn trả máy và thả khoá.
 
 **Ghi chú:** tài khoản `t4` hết hạn mức T4 ("Service Unavailable") sau khoảng 1 giờ dùng trong ngày; chủ dự án đưa token tài khoản thứ hai (`t4b`). Với 23 bước huấn luyện (ít hơn 25), SWA chưa gộp bản nào; với cấu hình thật (khoảng 390 bước mỗi đời) thì không gặp.
+- Chủ dự án đồng ý đưa gói chạy trên Colab lên GitHub Release công khai. Đã tạo Release `co_vua` (https://github.com/phuc11731510/chess_variant_engine/releases/tag/co_vua) với `goi.tar.gz` đóng từ commit `dedd92a`. Lệnh cài đặt Termux giờ tự tải gói này; đã chạy thử lệnh cài đặt trong một thư mục nhà tạm.

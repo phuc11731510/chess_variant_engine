@@ -800,11 +800,11 @@ Backend là `multiplexing` bọc `onnx-cuda`. Nó gom thế cờ của nhiều v
 Mỗi cách có một lệnh riêng trên điện thoại, giống lệnh `fz` của engine cờ biến thể: **`cvt`** cho cách truyền thống (mốc so sánh) và **`cvc`** cho cách cây trò chơi (chưa viết). Hai bộ dùng chung phần điều khiển máy Colab và quy tắc log. Bộ script kế thừa những gì đã chạy tốt ở engine biến thể (`custom_engine/scripts/colab_cells`, `HUONG_DAN_TERMUX.md`) nhưng viết riêng, không sửa gì của engine biến thể.
 
 **Cài và dùng trên Termux.**
-- Cài hoặc cập nhật: `curl -fsSL https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/co_vua/scripts/cai_dat.sh | bash`. Script này tải các tệp của `co_vua/scripts/dieu_phoi` vào `~/co_vua` và tạo lệnh `cvt`.
+- Cài hoặc cập nhật: `curl -fsSL https://raw.githubusercontent.com/phuc11731510/chess_variant_engine/main/co_vua/scripts/cai_dat.sh | bash`. Script này tải các tệp của `co_vua/scripts/dieu_phoi` vào `~/co_vua`, tạo lệnh `cvt`, và tải gói chạy trên Colab (`goi.tar.gz`) từ GitHub Release `co_vua` về `Download/CoVua/truyen_thong`. Gói được đăng bằng `co_vua/scripts/dong_goi.py --dang`, chỉ khi mọi thay đổi trong `co_vua` đã commit; trong gói có `goi_thong_tin.txt` ghi commit và sha256 của lc0.
 - `cvt @B`: cửa sổ này chạy vòng lặp nhiều đời bằng tài khoản `B`. Tài khoản dùng đúng thư mục đăng nhập `~/.fz_tk/<tên>` mà điện thoại đã có từ engine biến thể; `cvt` hay `cvt @chinh` là tài khoản chính. Muốn chạy song song nhiều tài khoản thì mở nhiều cửa sổ, mỗi cửa sổ một tài khoản. Một khoá ngăn hai cửa sổ dùng cùng một tài khoản.
 - `cvt dung`: dừng mềm mọi cửa sổ. Ván đang dở được chơi nốt và thu về, máy được trả, rồi cửa sổ thoát. Lần `cvt @...` tiếp theo tự gỡ lệnh dừng này.
 - `cvt xem`: xem đời hiện tại, ngân sách đã dùng, các máy đang sinh ván, các khoá và vài dòng log cuối của mỗi cửa sổ.
-- Dữ liệu và log nằm ở `Download/CoVua/truyen_thong` nên mở được bằng MT Manager. Thư mục này cần có `goi.tar.gz` (gói chạy trên Colab, tạo bằng `co_vua/scripts/dong_goi.py`).
+- Dữ liệu và log nằm ở `Download/CoVua/truyen_thong` nên mở được bằng MT Manager. Lần chạy đầu tạo `cau_hinh.json` với cấu hình thật (80 triệu lần chạy mạng mỗi đời, 128 ván song song, 800 lượt thăm); muốn chạy thử nhỏ thì sửa tệp này trước.
 - Mọi thứ tự chạy tiếp từ trạng thái trên đĩa: tắt Termux, mất mạng hay mất máy rồi chạy lại `cvt @B` là làm tiếp đúng chỗ.
 
 **Một đời G của `cvt`** (`co_vua/scripts/dieu_phoi/truyen_thong.py`):
