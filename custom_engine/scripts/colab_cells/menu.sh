@@ -250,18 +250,22 @@ ssh_fz() {
 # Chup moi truong cua kernel Colab vao $LOGD/env.json (mot lan moi may) -- duy nhat cho con dung
 # colab exec. Phien bi CLI xoa (kernel cu 404) -> nhan lai may roi thu lai.
 luu_env() {
-  local ma out
+  local ma out rc
   ma="import json, os
 os.makedirs('$LOGD', exist_ok=True)
 json.dump(dict(os.environ), open('$LOGD/env.json.tmp', 'w'))
 os.replace('$LOGD/env.json.tmp', '$LOGD/env.json')
 print('FZ_ENV_OK')"
-  echo "[máy mới] Chụp môi trường kernel Colab (một lần mỗi máy)..."
-  out=$(colab exec -s "$S" <<<"$ma" 2>&1)
+  echo "[máy mới] Chụp môi trường kernel Colab (một lần mỗi máy; tối đa ~2,5 phút mỗi lần)..."
+  # COLAB_TO: trước đây lệnh này KHÔNG có giới hạn thời gian -- máy mới vừa xin mà kernel chưa sẵn sàng/websocket
+  # kẹt thì cả vòng lặp im lặng mãi (đầu ra bị bắt).
+  out=$(COLAB_TO=150 colab exec -s "$S" <<<"$ma" 2>&1); rc=$?
   grep -q FZ_ENV_OK <<<"$out" && return 0
-  cuu_phien && out=$(colab exec -s "$S" <<<"$ma" 2>&1)
+  [ $rc = 124 ] && echo "[!] colab exec quá 150 giây chưa xong -- bỏ, thử lại"
+  cuu_phien && { out=$(COLAB_TO=150 colab exec -s "$S" <<<"$ma" 2>&1); rc=$?; }
   grep -q FZ_ENV_OK <<<"$out" && return 0
   echo "$out" | tail -3
+  [ $rc = 124 ] && echo "[!] colab exec quá 150 giây chưa xong"
   echo "[!] Không chụp được môi trường kernel (colab exec lỗi)"
   return 1
 }
@@ -468,7 +472,8 @@ doi_doi() {
 # khi colab exec gap loi 404/401 -- ca khi may van song (vd kernel cu chet). kiem_may: phien con
 # thi bat lai keep-alive neu no chet + ghi endpoint; cuu_phien: phien vua bi xoa ma may con -> nhan
 # lai. 0 = phien dung duoc.
-kiem_may() { [ -f ~/fz_nhan_may.py ] && py_colab ~/fz_nhan_may.py kiem "$S"; }
+# timeout 90: hoi danh sach may qua mang -- truoc day khong co gioi han (vong lap v goi no truoc moi o).
+kiem_may() { [ -f ~/fz_nhan_may.py ] && HOME=$TKH timeout 90 python ~/fz_nhan_may.py kiem "$S"; }
 cuu_phien() { [ -f ~/fz_nhan_may.py ] && py_colab ~/fz_nhan_may.py cuu "$S"; }
 
 chay_o() {

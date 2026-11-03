@@ -558,17 +558,21 @@ td_gui_dung() {
 td_chay() {
   local out pid ban
   kiem_may >/dev/null 2>&1
-  out=$(khoi_dong_ssh "$1" "$2" 2>&1) || { td_con_may || return 3; echo "$out" | tail -3; return 1; }
+  # Thong bao tien trinh (stderr cua khoi_dong_ssh: "[máy mới] Chụp môi trường...", loi ssh) hien thang ra man hinh --
+  # truoc day bi bat vao $out nen may moi mat vai phut im lang, khong phan biet duoc cham voi treo.
+  td_in "nối ssh, khởi động ô $1 trên máy (máy mới còn chụp môi trường: có thể mất 1-3 phút)"
+  out=$(khoi_dong_ssh "$1" "$2") || { td_con_may || return 3; return 1; }
   ban=$(sed -n 's/^FZ_BAN=//p' <<<"$out")
   if [ -n "$ban" ]; then
     # O khac dang chay nen tren may nay (vd nhan lai may giua chung): xem no xong roi chay o nay.
     read -r ban pid <<<"$(ssh_colab "cat $LOGD/dang_chay" 2>/dev/null)"
     td_in "ô $ban đang chạy trên máy -- xem tới khi xong"
     td_xem "$ban" "$pid" 20 || return $?
-    out=$(khoi_dong_ssh "$1" "$2" 2>&1) || return 1
+    out=$(khoi_dong_ssh "$1" "$2") || return 1
   fi
   pid=$(sed -n 's/^FZ_PID=//p' <<<"$out")
   [ -n "$pid" ] || { echo "$out" | tail -3; return 1; }
+  td_in "ô $1 đã chạy nền trên máy (pid $pid) -- xem log"
   td_xem "$1" "$pid"
 }
 
