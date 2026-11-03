@@ -90,6 +90,9 @@ const OptionId kMaxPlyId{"max-ply", "MaxPly",
                          "Games are stopped at this game ply (lc0: 450)."};
 const OptionId kSeedId{"seed", "Seed",
                        "Seed of the move sampling; 0 = random seed."};
+const OptionId kReportSecondsId{
+    "report-seconds", "ReportSeconds",
+    "Print a progress line to stderr every this many seconds; 0 = off."};
 
 // Counts the positions that actually reach the network: wraps the caching
 // backend, so cache hits (FETCHED_IMMEDIATELY) are not counted.
@@ -233,19 +236,55 @@ class TreePlay {
     std::cerr << "[treeplay] visits " << visits_ << ", parallelism "
               << parallelism << ", max ply " << max_ply_ << ", seed " << seed_
               << std::endl;
+    const auto start = std::chrono::steady_clock::now();
     std::thread reader([this] { ReadJobs(); });
     std::vector<std::thread> workers;
     for (int i = 0; i < parallelism; ++i) {
       workers.emplace_back([this, i] { Work(i); });
     }
+    std::thread reporter;
+    const int report_seconds = options_.Get<int>(kReportSecondsId);
+    if (report_seconds > 0) {
+      reporter = std::thread([this, report_seconds, start] {
+        std::unique_lock<std::mutex> lock(report_mutex_);
+        while (!report_cv_.wait_for(lock, std::chrono::seconds(report_seconds),
+                                    [this] { return finished_; })) {
+          Report(start);
+        }
+      });
+    }
     reader.join();
     for (auto& t : workers) t.join();
+    {
+      std::lock_guard<std::mutex> lock(report_mutex_);
+      finished_ = true;
+    }
+    report_cv_.notify_all();
+    if (reporter.joinable()) reporter.join();
+    Report(start);
     std::lock_guard<std::mutex> lock(out_mutex_);
     std::cout << "HET " << counter_->evals() << " " << jobs_done_
               << std::endl;
   }
 
  private:
+  void Report(std::chrono::steady_clock::time_point start) {
+    const double seconds =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
+            .count();
+    const int64_t evals = counter_->evals();
+    int64_t jobs;
+    {
+      std::lock_guard<std::mutex> lock(out_mutex_);
+      jobs = jobs_done_;
+    }
+    std::fprintf(stderr,
+                 "[treeplay] %.0f s, %lld evals, %.0f evals/s, %lld jobs done\n",
+                 seconds, static_cast<long long>(evals),
+                 seconds > 0 ? evals / seconds : 0.0,
+                 static_cast<long long>(jobs));
+  }
+
   void ReadJobs() {
     for (std::string line; std::getline(std::cin, line);) {
       if (!line.empty() && line.back() == '\r') line.pop_back();
@@ -475,6 +514,10 @@ class TreePlay {
 
   std::mutex out_mutex_;
   int64_t jobs_done_ = 0;
+
+  std::mutex report_mutex_;
+  std::condition_variable report_cv_;
+  bool finished_ = false;
 };
 
 void PopulateOptions(OptionsParser* options) {
@@ -486,6 +529,7 @@ void PopulateOptions(OptionsParser* options) {
   options->Add<StringOption>(kOutputId) = "treeplay.bin";
   options->Add<IntOption>(kMaxPlyId, 1, 10000) = 450;
   options->Add<IntOption>(kSeedId, 0, std::numeric_limits<int>::max()) = 0;
+  options->Add<IntOption>(kReportSecondsId, 0, 86400) = 0;
 
   // lc0's self-play defaults (src/selfplay/tournament.cc), with the choices
   // of the chess-variant project's self-play (THIET_KE_CO_VUA.md 2.5):

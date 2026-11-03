@@ -613,22 +613,26 @@ Khi chạy trên nhiều máy Colab, bước 3 và bước 5 được làm cùng
 
 Mạng chỉ có **hai đầu ra**: policy (xác suất cho 1858 nước) và value (thắng, hòa, thua). Không có đầu ra số nước còn lại (moves left head), là đầu ra thứ ba mà một số mạng lc0 có. Quy định này áp dụng cho cả hai bên so sánh.
 
-Đề xuất **11 khối × 64 kênh có SE** (tỉ lệ SE 8, như `FairyNet` của dự án), đầu vào 112 mặt phẳng kiểu lc0 (`INPUT_CLASSICAL_112_PLANE` trong `selfplay/game.cc`). Số liệu dưới đây là **tính tay bằng một đoạn mã, chưa dựng mạng thật**, và phụ thuộc vào cấu hình hai đầu ra mà mình giả định ở đây:
+Mạng là **11 khối × 64 kênh có SE** (tỉ lệ SE 8, như `FairyNet` của dự án cờ biến thể), đầu vào 112 mặt phẳng kiểu lc0 (`INPUT_CLASSICAL_112_PLANE`). Mã ở `co_vua/python/mang.py`. Hai đầu ra lấy theo mạng của engine biến thể (`custom_engine/python/model.py`), chỉ đổi cỡ bàn cờ và số loại nước, vì đây là phần trùng với cách cũ nên giữ như cách cũ:
 
-- Policy head giả định: tích chập 3×3 từ 64 về 64 kênh (có BN), rồi tích chập 1×1 từ 64 về 80 mặt phẳng, ánh xạ về 1858 nước kiểu lc0.
-- Value head giả định: tích chập 1×1 từ 64 về 4 kênh (có BN), rồi hai lớp kết nối đầy đủ 256 → 128 → 3 (thắng, hòa, thua).
+- Policy head: tích chập 3×3 từ 64 về 64 kênh (có BN), rồi tích chập 1×1 từ 64 về 73 mặt phẳng, rồi lấy 1858 ô theo bảng `kConvPolicyMap` của lc0 (73 mặt phẳng × 64 ô, cách đánh số nước của AlphaZero).
+- Value head: tích chập 1×1 từ 64 về 32 kênh (có BN), rồi hai lớp kết nối đầy đủ 2048 → 128 → 3 (thắng, hòa, thua).
+
+Số tham số đếm trên mạng thật:
 
 | Phần | Tham số |
 |---|---|
-| Lớp đầu, 112 mặt phẳng vào 64 kênh | 64640 |
+| Lớp đầu, 112 mặt phẳng vào 64 kênh (kể cả BN) | 64640 |
 | Thân 11 khối (mỗi khối 2 tích chập 3×3, BN, SE) | 832216 |
-| Policy head giả định ở trên | 42192 |
-| Value head giả định ở trên | 33547 |
-| **Tổng** | **972595**, khoảng 0.97 triệu |
+| Policy head | 41737 |
+| Value head | 264771 |
+| **Tổng** | **1203364**, khoảng 1.2 triệu |
 
-Số phép nhân cho một lần đánh giá, cũng tính tay: khoảng 58.8 triệu, trong đó thân mạng chiếm 51.9 triệu.
+Số phép nhân cho một lần đánh giá, tính tay: khoảng 59.1 triệu, trong đó thân mạng chiếm 51.9 triệu. Value head chiếm nhiều tham số (chủ yếu lớp 2048 → 128) nhưng ít phép nhân.
 
-Hai đầu ra giả định ở trên **nhỏ hơn đầu ra mặc định kiểu lc0**. Nếu dùng policy head tích chập 3×3 từ 64 kênh về 80 mặt phẳng và value head 1×1 về 32 kênh rồi kết nối đầy đủ 2048 → 128 → 3, tổng là khoảng 1.245 triệu tham số và 61.7 triệu phép nhân. Cấu hình hai đầu ra chưa chốt, và mốc truyền thống cùng thiết kế này phải dùng chung một cấu hình.
+Mạng luôn chạy và xuất ở **fp32**, không dùng fp16 (bạn chốt). Khi xuất cho lc0, policy là logit (lc0 tự làm softmax trên các nước hợp lệ), còn WDL là xác suất: với mạng bọc bằng `onnx2leela`, backend ONNX của lc0 không làm softmax cho WDL (`neural/backends/onnx/network_onnx.cc` dòng 602 đến 624 và 945, 946). Mặt phẳng 109 (luật 50 nước) vào mạng dưới dạng số nửa nước thô, mạng tự chia cho 99.
+
+**Đã kiểm khớp với lc0.** Script `co_vua/python/kiem_khop_lc0.py` so mạng chạy trong Python với mạng chạy trong lc0 trên 7 thế cờ: thế khởi đầu, Đen đi, Trắng đã nhập thành, có bắt tốt qua đường, thế lặp lại, phong cấp, Đen mất quyền nhập thành một cánh. Chỉ số policy của mọi nước hợp lệ trùng với chỉ số lc0 in ra. WL và D mà `lc0 treeplay` ghi lại trùng với Python tới 6 chữ số thập phân. Prior thô lệch tương đối tối đa khoảng 0.3%, vì lc0 lưu prior ở độ chính xác 16 bit; search cũng chạy trên chính các prior này. Như vậy bộ mã hoá 112 mặt phẳng (`co_vua/python/ma_hoa.py`), bảng chỉ số nước đi và việc xuất mạng đều đúng.
 
 Tốc độ thực phải đo, vì với mạng nhỏ thì nút thắt có thể nằm ở CPU và chi phí mỗi lần gọi GPU, không nằm ở số phép nhân.
 
@@ -763,7 +767,7 @@ Dự án cờ biến thể tạm hoãn, nhưng engine và các script của nó 
   - Search lại chạy được, kể cả ở thế đã chiếu hết (0 lần search).
   - Việc có nước sai hoặc chuỗi rác bị từ chối.
   - Trong dữ liệu đọc ra, tổng $n(a)$ bằng $N$, và tổng prior của nước đã thăm cộng $P_0$ bằng 1.
-- **Chưa kiểm:** chạy với mạng thật qua `onnx-cuda` trên T4, và tốc độ. Hai việc này cần mạng đầu tiên từ mã huấn luyện.
+- **Đã chạy trên T4 với mạng thật** (mạng đời 0, khởi tạo ngẫu nhiên, fp32) qua backend `multiplexing` bọc `onnx-cuda`, sau khi kiểm mạng khớp với Python (12.1). Kết quả đo tốc độ ghi ở 12.8.
 
 ---
 

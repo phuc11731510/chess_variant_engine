@@ -112,3 +112,16 @@ RAM cao nhất xảy ra lúc gộp node mới, vì script nối mảng tạo b�
 - Lần chạy thử đầu phát hiện hàm dựng thế cờ của lc0 không kiểm nước hợp lệ. Đã thêm bước kiểm.
 - Phát hiện khi đối chiếu tham số: engine biến thể tự chơi với cpuct cố định 1.3 (không phải 1.745 tăng dần như tài liệu ghi trước đó), FPU 0, không prefetch. Đã sửa mục 2.5, 7.2 và tính lại ví dụ ở 7.2.
 - Chưa chạy với mạng thật trên T4.
+
+## 2026-11-03: Mạng đời 0, kiểm khớp với lc0, chạy trên T4
+
+- Mạng `co_vua/python/mang.py`: 11 khối × 64 kênh SE, hai đầu ra theo engine biến thể. Tổng 1 203 364 tham số, nhiều hơn con số 0.97 triệu tính trước đây, vì value head 32 kênh (lớp 2048 → 128) giống engine biến thể. Luôn dùng fp32 (chủ dự án chốt).
+- Bộ mã hoá 112 mặt phẳng (`ma_hoa.py`) và bảng chỉ số nước đi (`bang_lc0.py`, lấy thẳng từ mã lc0) viết lại bằng Python.
+- Kiểm khớp (`kiem_khop_lc0.py`) trên 7 thế cờ, mạng đời 0 seed 1:
+  - Chỉ số policy của mọi nước hợp lệ trùng với lc0.
+  - WL và D mà `lc0 treeplay` ghi lại trùng Python tới 6 chữ số.
+  - Prior thô lệch tương đối tối đa 0.3%, do lc0 lưu prior 16 bit.
+- WL mà chế độ UCI của lc0 in ra thấp hơn khoảng 10%, trong khi trường V của nó khớp với Python. Dự án không dùng chế độ UCI nên không tìm tiếp nguyên nhân.
+- Colab: dùng đăng nhập riêng `HOME=~/.fz_tk/t4` trong WSL, cài từ token chủ dự án đưa. Máy T4, ONNX Runtime 1.20.1 GPU tải từ GitHub của Microsoft (`co_vua/scripts/colab_chuan_bi.sh`). `lc0 treeplay` chạy được với `onnx-cuda`.
+- Đo tốc độ lần đầu (`colab_do_toc_do.sh`, ván từ thế khởi đầu, 800 lượt thăm): 32 ván song song, 2 luồng gom lô cho khoảng 9 100 lần chạy mạng mỗi giây.
+- `colab exec` bị mất kết nối với lệnh chạy lâu, nên các việc dài phải chạy nền.
