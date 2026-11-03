@@ -1,0 +1,3 @@
+# Script chay tren Linux (Docker, Colab) phai giu xuong dong kieu LF
+*.py text eol=lf
+*.sh text eol=lf

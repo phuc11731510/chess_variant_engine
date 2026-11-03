@@ -85,3 +85,9 @@ tu_dau_log/
 
 # binary Linux dich bang bien_dich_linux.bat (dua len Release, khong commit)
 ban_linux/
+
+# Engine co vua (co_vua/engine, ban sao lc0): giu cac tep .wrap va packagefiles, bo ma nguon tai ve va thu muc bien dich
+!co_vua/engine/subprojects/
+co_vua/engine/subprojects/*/
+!co_vua/engine/subprojects/packagefiles/
+co_vua/engine/build*/
