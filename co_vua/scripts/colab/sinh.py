@@ -1,12 +1,20 @@
-"""Sinh ván trên Colab (chạy nền): nạp việc liên tục cho `lc0 treeplay`, ghi tiến độ ra tệp, dừng mềm khi được báo.
+"""Sinh ván trên Colab cho ô 04 của `cv`: nạp việc liên tục cho `lc0 treeplay`, dừng mềm như ô 04 của fz.
 
-Cách truyền thống: mọi việc là "G <id> <temp_plies>" (ván từ thế khởi đầu). Bộ điều phối trên điện thoại đọc
-tien_do.json qua SSH để cộng ngân sách, và tạo tệp `dung` khi tổng số lần chạy mạng đã đủ. Khi đó script
-thôi nạp việc, đóng đầu vào của engine; engine chơi nốt các ván đang dở rồi thoát (không mất ván nào).
+Cách truyền thống: mọi việc là "G <id> <temp_plies>" (ván từ thế khởi đầu). Ba cách dừng MỀM (thôi nạp việc,
+đóng đầu vào của engine; engine chơi nốt các ván đang dở rồi thoát, không mất ván nào):
+  - có tệp --tep-dung (vòng lặp / ô 09b tạo; như --stop-file của engine biến thể);
+  - hết --max-giay giây (như --max-seconds: chừa hạn mức T4 cho phần chơi nốt, gom và tải về);
+  - đủ lượng tính toán được giao --giao (như --games: máy không bao giờ nhận quá phần được giao). Ván đang dở
+    được tính vào: dừng khi số lần chạy mạng đã xong + ước lượng phần còn lại của các ván dở (mỗi ván dở còn
+    nửa ván trung bình) đạt --giao, để sau khi chơi nốt thì vừa đủ.
 
-Thư mục của một lần chạy (--thu-muc): van.bin (bản ghi treeplay), engine_ra.log (stdout: XONG/LOI/HET),
-engine_loi.log (stderr: dòng tiến độ), sinh.log (log của script này), gpu.log (nvidia-smi mỗi 5 phút),
-tien_do.json (cập nhật mỗi 10 giây), xong.json (khi kết thúc), van.bin.gz (nén khi kết thúc).
+In ra màn hình (vòng lặp của `cv` đọc các dòng này qua log của ô):
+  [sinh] <ván xong> van, <lần chạy mạng> evals, dang choi <d>, uoc con <r>, giao <giao>   (mỗi 15 giây)
+  [sinh] dung mem: <lý do>; <d> van dang do se choi not
+  [sinh] Ket thuc: <ván> van, <evals> evals trong <giây>s (<lý do dừng>)
+Thư mục của lần chạy (--thu-muc): van.bin (bản ghi treeplay), engine_ra.log (XONG/LOI/HET), engine_loi.log,
+sinh.log, gpu.log, tien_do.json (mỗi 10 giây), xong.json (khi kết thúc), van.bin.gz (nén khi kết thúc), mau.npz
+(mẫu huấn luyện đã mã hoá và nén, tạo một lần khi kết thúc; ô 07 nạp thẳng).
 """
 import argparse
 import gzip
@@ -28,6 +36,7 @@ def ghi_json(duong_dan, du_lieu):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lc0", default="/content/cv/lc0")
+    ap.add_argument("--py", default="/content/cv/py", help="thư mục mã Python (tao_mau.py)")
     ap.add_argument("--mang", required=True)
     ap.add_argument("--thu-muc", required=True)
     ap.add_argument("--song-song", type=int, default=128)
@@ -35,25 +44,35 @@ def main():
     ap.add_argument("--visits", type=int, default=800)
     ap.add_argument("--temp-plies", type=int, default=30)
     ap.add_argument("--max-ply", type=int, default=450)
-    ap.add_argument("--gioi-han-evals", type=int, default=0, help="tự dừng khi đạt (0 = chỉ dừng theo tệp dung)")
+    ap.add_argument("--giao", type=int, default=0, help="số lần chạy mạng được giao (0 = không giới hạn)")
+    ap.add_argument("--max-giay", type=int, default=0, help="dừng mềm sau chừng này giây (0 = không giới hạn)")
+    ap.add_argument("--tep-dung", default="", help="có tệp này thì dừng mềm")
     a = ap.parse_args()
     os.makedirs(a.thu_muc, exist_ok=True)
     tm = lambda t: os.path.join(a.thu_muc, t)
+    if a.tep_dung and os.path.exists(a.tep_dung):
+        os.remove(a.tep_dung)   # tệp của lần dừng trước: để lại thì dừng ngay từ ván đầu
     nhat_ky = open(tm("sinh.log"), "a", buffering=1)
-    log = lambda s: nhat_ky.write(time.strftime("%Y-%m-%d %H:%M:%S ") + s + "\n")
+
+    def log(s, man_hinh=False):
+        nhat_ky.write(time.strftime("%Y-%m-%d %H:%M:%S ") + s + "\n")
+        if man_hinh:
+            print("[sinh] " + s, flush=True)
+
     cau_hinh = vars(a)
-    log("bat dau: " + json.dumps(cau_hinh, ensure_ascii=False))
+    log("bat dau: " + json.dumps(cau_hinh, ensure_ascii=False), True)
 
     lenh = [a.lc0, "treeplay", f"--weights={a.mang}", "--backend=multiplexing",
             f"--backend-opts=backend=onnx-cuda,threads={a.luong_gom_lo},max_batch=1024",
             f"--parallelism={a.song_song}", f"--visits={a.visits}", f"--max-ply={a.max_ply}",
             "--report-seconds=60", f"--output={tm('van.bin')}"]
-    log("lenh: " + " ".join(lenh))
+    log("lenh: " + " ".join(lenh), True)
     loi = open(tm("engine_loi.log"), "a")
     p = subprocess.Popen(lenh, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=loi, text=True, bufsize=1)
     ra = open(tm("engine_ra.log"), "a", buffering=1)
 
-    trang = {"evals": 0, "van_xong": 0, "van_da_nap": 0, "loi": 0, "dang_dung": False, "bat_dau": time.time()}
+    trang = {"evals": 0, "van_xong": 0, "van_da_nap": 0, "loi": 0, "dang_dung": False, "ly_do_dung": "",
+             "bat_dau": time.time(), "giao": a.giao}
     khoa = threading.Lock()
     het = threading.Event()
 
@@ -84,23 +103,40 @@ def main():
             except Exception as e:  # noqa: BLE001 -- chỉ là log
                 log(f"nvidia-smi loi: {e}")
 
+    def uoc_con(t):
+        """Ước lượng số lần chạy mạng các ván đang dở còn tốn: mỗi ván dở còn nửa ván trung bình (từ 8 ván xong)."""
+        d = t["van_da_nap"] - t["van_xong"] - t["loi"]
+        return int(d * t["evals"] / t["van_xong"] / 2) if t["van_xong"] >= 8 else 0
+
     threading.Thread(target=doc_ra, daemon=True).start()
     threading.Thread(target=ghi_gpu, daemon=True).start()
 
     id_tiep = 0
-    lan_ghi = 0.0
+    lan_ghi = lan_in = 0.0
     while not het.is_set():
         with khoa:
-            dung = os.path.exists(tm("dung")) or (a.gioi_han_evals and trang["evals"] >= a.gioi_han_evals)
-            con_dang = trang["van_da_nap"] - trang["van_xong"] - trang["loi"]
-        if dung and not trang["dang_dung"]:
-            trang["dang_dung"] = True
-            log(f"dung mem: thoi nap viec; {con_dang} van dang do se choi not")
-            p.stdin.close()
+            t = dict(trang)
+        con = uoc_con(t)
+        if not t["dang_dung"]:
+            ly_do = ""
+            if a.tep_dung and os.path.exists(a.tep_dung):
+                ly_do = "tep dung"
+            elif os.path.exists(tm("dung")):
+                ly_do = "tep dung"
+            elif a.max_giay and time.time() - t["bat_dau"] >= a.max_giay:
+                ly_do = "het --max-giay"
+            elif a.giao and t["evals"] + con >= a.giao:
+                ly_do = "du phan giao"
+            if ly_do:
+                with khoa:
+                    trang["dang_dung"] = True
+                    trang["ly_do_dung"] = ly_do
+                log(f"dung mem: {ly_do}; {t['van_da_nap'] - t['van_xong'] - t['loi']} van dang do se choi not", True)
+                p.stdin.close()
         if not trang["dang_dung"]:
             # Nạp vừa đủ: số ván song song cộng 4 việc chờ. Việc đã nạp vẫn được chơi sau khi dừng mềm, nên nạp
-            # dư làm vượt ngân sách (lần chạy thử 2026-11-03 nạp 2 lần số ván song song: vượt gấp đôi ngân sách).
-            them = a.song_song + 4 - con_dang
+            # dư làm vượt phần giao (lần chạy thử 2026-11-03 nạp 2 lần số ván song song: vượt gấp đôi).
+            them = a.song_song + 4 - (t["van_da_nap"] - t["van_xong"] - t["loi"])
             for _ in range(max(0, them)):
                 p.stdin.write(f"G {id_tiep} {a.temp_plies}\n")
                 id_tiep += 1
@@ -112,8 +148,15 @@ def main():
                 t = dict(trang)
             t["giay"] = round(time.time() - t["bat_dau"], 1)
             t["dang_choi"] = t["van_da_nap"] - t["van_xong"] - t["loi"]
+            t["uoc_con"] = uoc_con(t)
             ghi_json(tm("tien_do.json"), t)
             lan_ghi = time.time()
+        if time.time() - lan_in >= 15:
+            with khoa:
+                t = dict(trang)
+            print(f"[sinh] {t['van_xong']} van, {t['evals']} evals, dang choi {t['van_da_nap'] - t['van_xong'] - t['loi']}, "
+                  f"uoc con {uoc_con(t)}, giao {a.giao}", flush=True)
+            lan_in = time.time()
         time.sleep(1)
     p.wait()
     with khoa:
@@ -121,13 +164,30 @@ def main():
     t["giay"] = round(time.time() - t["bat_dau"], 1)
     t["ma_thoat_engine"] = p.returncode
     t["cau_hinh"] = cau_hinh
-    with open(tm("van.bin"), "rb") as f_vao, gzip.open(tm("van.bin.gz"), "wb", compresslevel=6) as f_ra:
+    with open(tm("van.bin"), "rb") as f_vao, gzip.open(tm("van.bin.gz.tam"), "wb", compresslevel=6) as f_ra:
         shutil.copyfileobj(f_vao, f_ra)
+    os.replace(tm("van.bin.gz.tam"), tm("van.bin.gz"))
     t["byte_van_bin"] = os.path.getsize(tm("van.bin"))
     t["byte_van_bin_gz"] = os.path.getsize(tm("van.bin.gz"))
+    # Mã hoá một lần ngay trên máy vừa sinh (như engine của fz ghi ván ở dạng sẵn sàng huấn luyện): mau.npz nén,
+    # ô 07 chỉ việc nạp. Bộ mã hoá là py/ma_hoa.py đã kiểm khớp với lc0. Lỗi thì ô 07 tự mã hoá lại từ van.bin.gz.
+    t0 = time.time()
+    r = subprocess.run(["python3", os.path.join(a.py, "tao_mau.py"), tm("mau.npz.tam.npz"), tm("van.bin"),
+                        "--q-ratio", "0.2", "--nen"], cwd=a.py, capture_output=True, text=True)
+    if r.returncode == 0 and os.path.exists(tm("mau.npz.tam.npz")):
+        os.replace(tm("mau.npz.tam.npz"), tm("mau.npz"))
+        t["mau"] = {"giay": round(time.time() - t0, 1), "byte": os.path.getsize(tm("mau.npz")),
+                    "ra": r.stdout.strip()[-300:]}
+        log(f"tao mau: {r.stdout.strip()[-200:]}", True)
+    else:
+        t["mau"] = {"loi": (r.stdout + r.stderr).strip()[-500:]}
+        log(f"tao mau LOI (o 07 se tu ma hoa lai tu van.bin.gz): {(r.stdout + r.stderr).strip()[-300:]}", True)
+    os.remove(tm("van.bin"))   # đã có bản .gz
     ghi_json(tm("tien_do.json"), t)
     ghi_json(tm("xong.json"), t)
     log("ket thuc: " + json.dumps(t, ensure_ascii=False))
+    print(f"[sinh] Ket thuc: {t['van_xong']} van, {t['evals']} evals trong {t['giay']:.0f}s "
+          f"({t['ly_do_dung'] or 'engine tu thoat'}), ma thoat engine {p.returncode}", flush=True)
 
 
 if __name__ == "__main__":

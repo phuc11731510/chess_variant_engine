@@ -13,7 +13,8 @@
     char[4]  magic "CVG1"
     u32      record size in bytes, header included
     u64      job id
-    u8       kind: 0 = game (G), 1 = re-search (S)
+    u8       kind: 0 = game (G), 1 = re-search (S), 2 = arena game (A, white
+             played by --weights if a_white = 1, else by --weights2)
     i8       result, white's view: +1 white won, 0 draw, -1 black won
     u8       end: 0 = game over by the rules, 1 = stopped at max ply (not an
              exact result), 2 = re-search record
@@ -34,6 +35,10 @@
         f16  Q(sa) (win minus loss) and D(sa), side to move's view
         f16  prior after Dirichlet noise (what the search used)
         f16  raw prior of the network (NaN if not in the cache)
+  Arena games (A jobs, like the arena mode of the chess-variant engine) play
+  two networks against each other with no Dirichlet noise; their stdout line
+  is "XONG <id> <evals> <result>", result from white's view. --stop-like soft
+  stop: close the input, the games in progress are finished.
   Moves are lc0's 16-bit Move::raw_data() in absolute coordinates (white's
   side of the board): from = bits 6-11, to = bits 0-5, castling is encoded as
   king takes rook.
@@ -90,6 +95,9 @@ const OptionId kMaxPlyId{"max-ply", "MaxPly",
                          "Games are stopped at this game ply (lc0: 450)."};
 const OptionId kSeedId{"seed", "Seed",
                        "Seed of the move sampling; 0 = random seed."};
+const OptionId kWeights2Id{
+    "weights2", "Weights2",
+    "Second network, for arena (A) jobs; empty = no arena jobs."};
 const OptionId kReportSecondsId{
     "report-seconds", "ReportSeconds",
     "Print a progress line to stderr every this many seconds; 0 = off."};
@@ -144,6 +152,8 @@ class CountingBackend final : public Backend {
 
 struct Job {
   bool research = false;
+  bool arena = false;
+  bool a_white = true;  // arena: --weights plays white
   uint64_t id = 0;
   int temp_plies = 0;
   std::vector<std::string> moves;
@@ -154,7 +164,7 @@ bool ParseJob(const std::string& line, Job* job, std::string* error) {
   std::istringstream in(line);
   std::string kind;
   if (!(in >> kind >> job->id)) {
-    *error = "expected '<G|S> <id> ...'";
+    *error = "expected '<G|S|A> <id> ...'";
     return false;
   }
   if (kind == "G") {
@@ -165,6 +175,15 @@ bool ParseJob(const std::string& line, Job* job, std::string* error) {
     }
   } else if (kind == "S") {
     job->research = true;
+  } else if (kind == "A") {
+    int a_white = 0;
+    job->arena = true;
+    if (!(in >> job->temp_plies >> a_white) || job->temp_plies < 0 ||
+        (a_white != 0 && a_white != 1)) {
+      *error = "A job needs <temp_plies> >= 0 and <a_white> 0|1";
+      return false;
+    }
+    job->a_white = a_white == 1;
   } else {
     *error = "unknown job kind '" + kind + "'";
     return false;
@@ -215,10 +234,14 @@ std::vector<Move> AbsoluteMovesToHead(const classic::NodeTree& tree) {
 class TreePlay {
  public:
   TreePlay(const OptionsDict& options, Backend* backend,
-           CountingBackend* counter)
+           CountingBackend* counter, Backend* backend_b,
+           CountingBackend* counter_b, const OptionsDict& arena_options)
       : options_(options),
+        arena_options_(arena_options),
         backend_(backend),
         counter_(counter),
+        backend_b_(backend_b),
+        counter_b_(counter_b),
         visits_(options.Get<int>(kVisitsId)),
         max_ply_(options.Get<int>(kMaxPlyId)) {
     const std::string out = options.Get<std::string>(kOutputId);
@@ -263,7 +286,7 @@ class TreePlay {
     if (reporter.joinable()) reporter.join();
     Report(start);
     std::lock_guard<std::mutex> lock(out_mutex_);
-    std::cout << "HET " << counter_->evals() << " " << jobs_done_
+    std::cout << "HET " << Evals() << " " << jobs_done_
               << std::endl;
   }
 
@@ -272,7 +295,7 @@ class TreePlay {
     const double seconds =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
             .count();
-    const int64_t evals = counter_->evals();
+    const int64_t evals = Evals();
     int64_t jobs;
     {
       std::lock_guard<std::mutex> lock(out_mutex_);
@@ -309,6 +332,11 @@ class TreePlay {
     queue_cv_.notify_all();
   }
 
+  // Network evaluations of both networks (the second one only for arena jobs).
+  int64_t Evals() const {
+    return counter_->evals() + (counter_b_ ? counter_b_->evals() : 0);
+  }
+
   std::optional<Job> NextJob() {
     std::unique_lock<std::mutex> lock(queue_mutex_);
     queue_cv_.wait(lock, [this] { return !queue_.empty() || input_done_; });
@@ -323,8 +351,12 @@ class TreePlay {
     std::vector<uint8_t> record;
     while (auto job = NextJob()) {
       record.clear();
+      int8_t res = 0;
       try {
-        PlayJob(*job, &rng, &record);
+        if (job->arena && !backend_b_) {
+          throw Exception("A job needs --weights2");
+        }
+        res = PlayJob(*job, &rng, &record);
       } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(out_mutex_);
         std::cout << "LOI " << job->id << " " << e.what() << std::endl;
@@ -337,13 +369,15 @@ class TreePlay {
         throw Exception("cannot write the output file");
       }
       ++jobs_done_;
-      std::cout << "XONG " << job->id << " " << counter_->evals()
-                << std::endl;
+      std::cout << "XONG " << job->id << " " << Evals();
+      if (job->arena) std::cout << " " << static_cast<int>(res);
+      std::cout << std::endl;
     }
   }
 
-  void PlayJob(const Job& job, std::mt19937_64* rng,
-               std::vector<uint8_t>* record) {
+  // Returns the result, white's view (0 when stopped at max ply).
+  int8_t PlayJob(const Job& job, std::mt19937_64* rng,
+                 std::vector<uint8_t>* record) {
     // Same as NodeTree::ResetToPosition(fen, moves), but rejects illegal
     // moves: lc0's ParseMove only decodes the string.
     GameState state;
@@ -372,7 +406,7 @@ class TreePlay {
     const size_t size_at = w.size();
     w.Put<uint32_t>(0);
     w.Put<uint64_t>(job.id);
-    w.Put<uint8_t>(job.research ? 1 : 0);
+    w.Put<uint8_t>(job.arena ? 2 : job.research ? 1 : 0);
     const size_t result_at = w.size();
     w.Put<int8_t>(0);
     w.Put<uint8_t>(0);
@@ -394,7 +428,11 @@ class TreePlay {
         end = 1;
         break;
       }
-      const Move move = SearchAndRecord(&tree, job, rng, &w);
+      // Arena: the side to move's network searches, without noise.
+      const bool by_a = !job.arena || (tree.IsBlackToMove() != job.a_white);
+      const Move move = SearchAndRecord(&tree, job, rng, &w,
+                                        by_a ? backend_ : backend_b_,
+                                        job.arena ? arena_options_ : options_);
       ++plies;
       if (job.research) continue;
       Move to_play = move;
@@ -413,25 +451,27 @@ class TreePlay {
     const uint16_t plies16 = static_cast<uint16_t>(plies);
     std::memcpy(record->data() + plies_at, &plies16, 2);
     w.PutAt(size_at, static_cast<uint32_t>(record->size()));
+    return res;
   }
 
   // Runs one search at the tree's head, appends its statistics and returns
   // the move to play, in absolute coordinates.
   Move SearchAndRecord(classic::NodeTree* tree, const Job& job,
-                       std::mt19937_64* rng, Writer* w) {
+                       std::mt19937_64* rng, Writer* w, Backend* backend,
+                       const OptionsDict& options) {
     // A fresh root every move, as in lc0 self-play: Dirichlet noise is mixed
     // into the root's priors when the root is expanded.
     tree->TrimTreeAtHead();
     auto stopper = std::make_unique<classic::ChainedSearchStopper>();
     stopper->AddStopper(
         std::make_unique<classic::VisitsStopper>(visits_, false));
-    classic::PopulateIntrinsicStoppers(stopper.get(), options_);
+    classic::PopulateIntrinsicStoppers(stopper.get(), options);
     auto responder = std::make_unique<CallbackUciResponder>(
         [](const BestMoveInfo&) {}, [](const std::vector<ThinkingInfo>&) {});
     auto search = std::make_unique<classic::Search>(
-        *tree, backend_, std::move(responder), MoveList(),
+        *tree, backend, std::move(responder), MoveList(),
         std::chrono::steady_clock::now(), std::move(stopper),
-        /*infinite=*/false, /*ponder=*/false, options_, /*syzygy_tb=*/nullptr);
+        /*infinite=*/false, /*ponder=*/false, options, /*syzygy_tb=*/nullptr);
     search->RunBlocking(1);
 
     const classic::Eval best_eval = search->GetBestEval();
@@ -442,7 +482,7 @@ class TreePlay {
     const int game_ply = history.Last().GetGamePly();
 
     const MoveList legal_moves = history.Last().GetBoard().GenerateLegalMoves();
-    const std::optional<EvalResult> raw = backend_->GetCachedEvaluation(
+    const std::optional<EvalResult> raw = backend->GetCachedEvaluation(
         EvalPosition{history.GetPositions(), legal_moves});
 
     // Move to play: visit-count sampling (temperature 1) before temp_plies,
@@ -500,8 +540,11 @@ class TreePlay {
   }
 
   const OptionsDict& options_;
+  const OptionsDict& arena_options_;
   Backend* backend_;
   CountingBackend* counter_;
+  Backend* backend_b_;
+  CountingBackend* counter_b_;
   const int visits_;
   const int max_ply_;
   uint64_t seed_ = 0;
@@ -530,6 +573,7 @@ void PopulateOptions(OptionsParser* options) {
   options->Add<IntOption>(kMaxPlyId, 1, 10000) = 450;
   options->Add<IntOption>(kSeedId, 0, std::numeric_limits<int>::max()) = 0;
   options->Add<IntOption>(kReportSecondsId, 0, 86400) = 0;
+  options->Add<StringOption>(kWeights2Id) = "";
 
   // lc0's self-play defaults (src/selfplay/tournament.cc), with the choices
   // of the chess-variant project's self-play (THIET_KE_CO_VUA.md 2.5):
@@ -569,7 +613,24 @@ void RunTreePlay() {
   std::unique_ptr<Backend> cached =
       CreateMemCache(BackendManager::Get()->CreateFromParams(options), options);
   CountingBackend counter(cached.get());
-  TreePlay play(options, &counter, &counter);
+  // Arena: the second network gets its own backend and cache, from the same
+  // options with --weights replaced (a child dict falls back to its parent).
+  OptionsDict options_b(&options);
+  std::unique_ptr<Backend> cached_b;
+  std::unique_ptr<CountingBackend> counter_b;
+  const std::string weights2 = options.Get<std::string>(kWeights2Id);
+  if (!weights2.empty()) {
+    options_b.Set<std::string>(SharedBackendParams::kWeightsId, weights2);
+    cached_b = CreateMemCache(BackendManager::Get()->CreateFromParams(options_b),
+                              options_b);
+    counter_b = std::make_unique<CountingBackend>(cached_b.get());
+  }
+  // Arena searches: same parameters as self-play, without Dirichlet noise
+  // (as the arena of the chess-variant engine).
+  OptionsDict arena_options(&options);
+  arena_options.Set<float>(classic::SearchParams::kNoiseEpsilonId, 0.0f);
+  TreePlay play(options, &counter, &counter, counter_b.get(), counter_b.get(),
+                arena_options);
   play.Run();
 }
 
