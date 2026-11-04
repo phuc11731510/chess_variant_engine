@@ -196,7 +196,7 @@ $Q(sa_1)=+0.10$ nghĩa là: thế cờ con $sa_1$ (thế cờ sau khi Trắng đ
 
 Nhóm 2, lấy từ các ván thật đã đi qua $s$, lưu riêng cho **từng nước đã chơi** $a$ nhưng nói về node con $sa$:
 
-- $m(sa)$: số ván đi qua $sa$. Mỗi đời con số này được nhân với $\gamma$ (một số hơi nhỏ hơn 1, ví dụ 0.875) để ván cũ tính ít đi (phần 8.4). Ví dụ 3 ván đi qua $sa$ ở đời này thì $m=3$, sang đời sau còn $3\times0.875=2.625$.
+- $m(sa)$: số ván đi qua $sa$. Mỗi đời con số này được nhân với $\gamma$ (một số nhỏ hơn 1, đã chốt 0.75 vì $W=4$) để ván cũ tính ít đi (phần 8.4). Ví dụ 3 ván đi qua $sa$ ở đời này thì $m=3$, sang đời sau còn $3\times0.75=2.25$.
 - $G(sa)$: giá trị tổng hợp **từ kết quả cuối ván thật** của các ván đi qua $sa$ (trung bình có trọng số, góc nhìn Trắng, phần 4.1). Khác với $Q$ ở chỗ nó không dùng đánh giá của mạng, chỉ dùng phán quyết của luật cờ.
 - $E(sa)$: sai số bình phương trung bình của $G(sa)$ so với giá trị thật (phần 4.2). Nhỏ thì $G(sa)$ đáng tin.
 
@@ -531,13 +531,13 @@ Khi ít bằng chứng, nhãn chỉ dịch nhẹ. Khi bằng chứng đủ nhi�
 
 ### 8.1 Giữ kích thước cây
 
-Cây giữ một số node cố định, ví dụ 1 triệu. Mỗi đời, số node cắt bằng số node sinh mới.
-
 $$
 W=\frac{\text{kích thước cây}}{\text{số node mới mỗi đời}}
 $$
 
-**Ý nghĩa:** $W$ là số đời dữ liệu tồn tại, tương đương cửa sổ của replay buffer. Ví dụ, cây 1 triệu node với 125000 node mới mỗi đời có $W=8$.
+**Ý nghĩa:** $W$ là số đời dữ liệu tồn tại, tương đương cửa sổ của replay buffer: mỗi đời cây được làm mới $1/W$ số node.
+
+**Đã chốt (4/11, chủ dự án chọn sau khi đo):** $W=4$ cố định, để mỗi đời cây được làm mới một phần tư, như cửa sổ trượt 4 đời của cách truyền thống; ngân sách giữ 200 triệu lần chạy mạng mỗi đời. Kích thước cây vì thế không cố định mà bằng tổng số node mới của 4 đời gần nhất: sau khi gộp node của đời mới, cắt lá (8.3) cho tới khi số node còn bằng tổng đó; 4 đời đầu chưa cắt. Với số đo đời 0 (mỗi lần search khoảng 490 lần chạy mạng nhờ bộ nhớ đệm của mạng, nên 200 triệu cho khoảng 400 nghìn node mới mỗi đời, ít hơn một chút nếu tính phần ngân sách dành cho search lại ở phần 9), cây khoảng 1.4 đến 1.6 triệu node, khoảng 420 MB. Con số 1 triệu node trước đây dựa trên giả định mỗi lượt thăm tốn một lần chạy mạng; nó không phải một nguyên tắc nên được bỏ. Khi số node mới mỗi đời thay đổi theo mạng, cây tự đổi theo mà vẫn giữ đúng 4 đời.
 
 ### 8.2 Cắt mà giữ thống kê
 
@@ -547,9 +547,9 @@ Khi cắt một lá $sa$ (node con của $s$ qua nước $a$), chỉ bỏ phần
 
 **Quy tắc:** mỗi lần cắt lá có $m$ nhỏ nhất trong các lá hiện có (lá là node không có node con, 2.1; $m$ là số ván đi qua node, đã nhân $\gamma$ mỗi đời, phần 3 và 8.4), rồi lặp lại cho tới khi đủ số node cần cắt của đời (8.1). Khi mọi node con của một node đã bị cắt thì node đó trở thành lá và có thể bị cắt ở các lần sau. Vì số lá thường ít hơn số node cần cắt (mỗi ván chỉ kết thúc ở một lá), các nhánh bị ăn dần từ cuối ván lên. Hai lá có $m$ bằng nhau thì chọn ngẫu nhiên một lá.
 
-**Cắt lá có $m$ nhỏ nhất gần như là cắt lá cũ nhất.** Một lá thường là node cuối của đúng một ván, nên $m$ của nó bằng $\gamma^{\text{số đời kể từ ván đó}}$. Ví dụ với $W=8$, $\gamma=0.875$: lá của ván chơi 1 đời trước có $m=0.875$, lá của ván chơi 8 đời trước có $m=0.875^8\approx0.344$, nên lá cũ bị cắt trước. Một node trở thành lá sau khi mất hết con mà có 2 ván đi qua thì có $m$ gấp đôi một lá một ván cùng tuổi, nên được giữ lâu hơn: chỗ có nhiều bằng chứng được giữ lâu hơn.
+**Cắt lá có $m$ nhỏ nhất gần như là cắt lá cũ nhất.** Một lá thường là node cuối của đúng một ván, nên $m$ của nó bằng $\gamma^{\text{số đời kể từ ván đó}}$. Ví dụ với $W=4$, $\gamma=0.75$: lá của ván chơi 1 đời trước có $m=0.75$, lá của ván chơi 4 đời trước có $m=0.75^4\approx0.316$, nên lá cũ bị cắt trước. Một node trở thành lá sau khi mất hết con mà có 2 ván đi qua thì có $m$ gấp đôi một lá một ván cùng tuổi, nên được giữ lâu hơn: chỗ có nhiều bằng chứng được giữ lâu hơn.
 
-**Vì sao không cắt ngẫu nhiên.** Bạn đã chọn cắt ngẫu nhiên, nhưng mình đổi vì cắt ngẫu nhiên đem vào một cái hại đã biết mà không có lợi gì bù lại, nên trái phương châm (15.1). Cách cũ dùng replay buffer: mỗi mẫu được giữ đúng $W$ đời rồi bỏ, mẫu cũ nhất bỏ trước. Cắt ngẫu nhiên làm thời gian sống của mẫu tản ra, vì lá mới và lá cũ có cùng cơ hội bị cắt. Giả sử đơn giản mỗi đời cắt ngẫu nhiên 1/8 số lá. Khi đó một lá vừa sinh có 1/8 khả năng bị cắt ngay đời sau, tức ván vừa tốn search để chơi bị bỏ sau một lượt huấn luyện. Ngược lại, khoảng $0.875^{16}\approx12\%$ số lá còn sống sau 16 đời, gấp đôi $W$, tức nhãn của mạng rất cũ vẫn được học. Cắt lá có $m$ nhỏ nhất tránh được cả hai, không có tham số nào phải chỉnh, và giữ đúng ý của replay buffer là bỏ dữ liệu cũ nhất trước.
+**Vì sao không cắt ngẫu nhiên.** Bạn đã chọn cắt ngẫu nhiên, nhưng mình đổi vì cắt ngẫu nhiên đem vào một cái hại đã biết mà không có lợi gì bù lại, nên trái phương châm (15.1). Cách cũ dùng replay buffer: mỗi mẫu được giữ đúng $W$ đời rồi bỏ, mẫu cũ nhất bỏ trước. Cắt ngẫu nhiên làm thời gian sống của mẫu tản ra, vì lá mới và lá cũ có cùng cơ hội bị cắt. Giả sử đơn giản mỗi đời cắt ngẫu nhiên 1/4 số lá. Khi đó một lá vừa sinh có 1/4 khả năng bị cắt ngay đời sau, tức ván vừa tốn search để chơi bị bỏ sau một lượt huấn luyện. Ngược lại, khoảng $0.75^{8}\approx10\%$ số lá còn sống sau 8 đời, gấp đôi $W$, tức nhãn của mạng rất cũ vẫn được học. Cắt lá có $m$ nhỏ nhất tránh được cả hai, không có tham số nào phải chỉnh, và giữ đúng ý của replay buffer là bỏ dữ liệu cũ nhất trước.
 
 ### 8.4 Giảm dần bằng chứng cũ
 
@@ -561,7 +561,7 @@ Mỗi đời, mọi $m$ đã lưu ($m$ là số ván đi qua một node, phần 
 
 **Ý nghĩa:** ván cũ do mạng cũ chơi, nên càng cũ càng ít được tính. Tổng trọng lượng của một ván qua các đời bằng đúng $W$, nên cây nhớ lâu tương đương replay buffer cũ.
 
-**Ví dụ:** với $W=8$, $\gamma=0.875$, nên một ván có trọng lượng 0.875 sau 1 đời, 0.513 sau 5 đời, và 0.344 sau 8 đời. Node cũ cũng tự được lấy mẫu ít đi.
+**Ví dụ:** với $W=4$ (đã chốt, 8.1), $\gamma=0.75$, nên một ván có trọng lượng 0.75 sau 1 đời, 0.56 sau 2 đời, và 0.32 sau 4 đời; cộng mọi đời lại là $1+0.75+0.56+\dots=4$, đúng bằng 4 lượt mà một mẫu của cách truyền thống được học trong cửa sổ 4 đời. Node cũ cũng tự được lấy mẫu ít đi. Cùng $\gamma$ này cũng làm nhẹ dần các lần search cũ trong trung bình search của node (phần 3, nhóm 1).
 
 **Chưa giải quyết:** $E$ chưa tính đến việc ván cũ do mạng cũ chơi, nên độ sai thật của chúng lớn hơn số công thức cho ra.
 
@@ -678,7 +678,7 @@ Dự án được làm trong `D:\chess_variant`, nơi đã có mã nguồn lc0 �
 
 ### 12.5 Quy mô
 
-Con số 1 triệu node và 125000 node mới mỗi đời được bàn khi chưa chọn trò chơi, nên cần đặt lại sau khi đo tốc độ. Với ván khoảng 100 nửa nước, 125000 node mới ứng với khoảng 1250 ván đầy đủ, và nhiều hơn nếu các nhánh ngắn hơn.
+Con số 1 triệu node và 125000 node mới mỗi đời được bàn khi chưa chọn trò chơi. Đã đặt lại ngày 4/11 sau khi đo (8.1): ngân sách 200 triệu lần chạy mạng mỗi đời cho khoảng 400 nghìn node mới (khoảng 2 600 ván rẽ, 6.3), $W=4$, cây khoảng 1.4 đến 1.6 triệu node.
 
 ### 12.6 Chạy trên nhiều máy Colab cùng lúc
 
