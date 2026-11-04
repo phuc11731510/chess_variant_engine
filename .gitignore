@@ -94,3 +94,6 @@ co_vua/engine/build*/
 
 # Du lieu va log chay thu cua co vua tren may tinh (tren dien thoai nam o Download/CoVua)
 co_vua/chay/
+
+# Goi chuyen ghe lai (fz_chuyen.py) chua token = mat khau: khong bao gio commit
+chuyen_*.tar
