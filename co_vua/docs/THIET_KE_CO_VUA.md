@@ -411,7 +411,7 @@ Bước quét chỉ đọc số đã lưu nên không cần chạy mạng. Mỗi
 
 Sau điểm rẽ, ở mỗi nước ván chơi nước có nhiều lượt thăm nhất (temperature 0). Temperature không biến mất mà được chuyển sang bước quét. Trong cách cũ, mỗi lần temperature chọn nước khác là một nhánh ẩn, không để lại dấu vết, và làm nhiễu nhãn phía trước. Trên cây, mỗi lần rẽ đều được ghi lại và $\rho$ cân lại được. Nhiễu Dirichlet vẫn được giữ: đó là nhiễu ngẫu nhiên cộng vào prior của thế cờ gốc mỗi lần search (như AlphaZero và lc0), để search thỉnh thoảng thăm cả nước có prior thấp.
 
-Ở đời đầu cây còn trống, nên bước quét lặp ngay trong đời đó: chơi một ván, quét lấy nhánh mới, chơi tiếp, đến khi hết ngân sách.
+Ở đời đầu cây còn trống, nên bước quét lặp ngay trong đời đó: chơi một ván, quét lấy nhánh mới, chơi tiếp, đến khi hết ngân sách. Theo số đo 4/11 thì chỉ cần hai lượt: lượt một chơi một đợt ván từ thế khởi đầu (mỗi máy một đợt 128 ván song song, chỉ khác nhau nhờ nhiễu Dirichlet); một ván đời 0 dài khoảng 240 nửa nước và mỗi node có khoảng 58% cơ hội ra điểm rẽ, nên mỗi ván cho khoảng 140 điểm rẽ, và vài trăm ván đã cho hàng chục nghìn điểm rẽ, dư cho khoảng 2 600 ván cả đời; lượt hai quét cây đó một lần rồi chơi các điểm rẽ đã xáo trộn tới hết ngân sách. Chủ dự án chấp nhận đời 0 chậm hơn một chút vì chỉ làm một lần (4/11).
 
 ### 6.3 Chọn điểm rẽ khi vượt ngân sách: ngẫu nhiên (đã chốt)
 
