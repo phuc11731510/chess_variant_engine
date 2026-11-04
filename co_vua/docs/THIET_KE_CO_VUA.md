@@ -587,15 +587,25 @@ $$
 
 $\hat\Delta$ được đo từ chính các node vừa search lại, bằng độ chênh giữa phân bố $\pi$ cũ và mới theo từng tuổi. Đời đầu chưa có số liệu thì lấy $\hat\Delta(\text{tuổi})=\text{tuổi}$.
 
+**Sửa ngày 5/11, vì node lưu trung bình các lần search (phần 3, 7.4).** Search lại không còn thay nhãn mà cộng thêm một lần search vào trung bình, nên nhãn đang lưu chỉ dịch về phía lần search mới một phần $1/(k+1)$, với $k$ là số lần search đã có (đã nhân $\gamma$ mỗi đời). Độ chênh giữa trung bình đang lưu và một lần search mới gồm cả phần cũ (mạng đã đổi) lẫn phần nhiễu Dirichlet (số đo 7.4: ở đời 0 một nước có thể lệch từ 5.5% lên 55% chỉ vì nhiễu). Vì vậy $\hat\Delta$ được đo theo cả tuổi lẫn $k$, và
+
+$$
+\text{ưu tiên}(s)=m(s)\times\frac{\hat\Delta\big(\text{tuổi}(s),\,k(s)\big)}{k(s)+1}
+$$
+
+Đời đầu chưa có số liệu thì lấy $\hat\Delta=\text{tuổi}+1$. Ví dụ: gốc có $m=2600$, mới search $k=1$ lần, tuổi 0, ưu tiên $2600\times1/2=1300$; một node giữa ván có $m=3$, $k=1$, tuổi 3, ưu tiên $3\times4/2=6$. Gốc được search lại nhiều lần trước: sau 9 lần nữa ($k=10$) ưu tiên của nó còn $2600/11\approx236$, vẫn đứng trước. Như vậy search lại tự dồn vào các node được học nhiều nhất mà còn ít lần search, đúng chỗ nhiễu gây hại nhiều nhất.
+
 **Ví dụ:** node A có $m=200$, tuổi 2, và node B có $m=3$, tuổi 8. Nếu $\hat\Delta$ bằng tuổi, ưu tiên là 400 và 24, nên A được search trước dù trẻ hơn.
 
 ### 9.3 Khi nào dừng
 
 Search lại theo thứ tự ưu tiên đến khi **tuổi trung bình của nhãn, tính theo trọng số $m$, không vượt quá tuổi trung bình của nhãn trong cửa sổ dữ liệu của cách cũ**, với mức trần đề xuất là 20% ngân sách. Phần ngân sách còn dư chuyển sang sinh node mới.
 
-**Tuổi trung bình của cách cũ.** Cửa sổ của cách cũ giữ dữ liệu của $W$ đời gần nhất. Nhãn của đời mới nhất có tuổi 0, nhãn của đời cũ nhất có tuổi $W-1$. Nếu mỗi đời đóng góp số mẫu như nhau thì tuổi trung bình là $\dfrac{W-1}{2}$; ví dụ $W=8$ cho 3.5. (Bản trước ghi $W/2$, lỏng hơn nửa đời.) Điều kiện dừng này bảo đảm nhãn trên cây không cũ hơn cách cũ, tức cách mới không mang một bất lợi đã biết về độ cũ của nhãn so với cách cũ.
+**Tuổi trung bình của cách cũ.** Cửa sổ của cách cũ giữ dữ liệu của $W$ đời gần nhất. Nhãn của đời mới nhất có tuổi 0, nhãn của đời cũ nhất có tuổi $W-1$. Nếu mỗi đời đóng góp số mẫu như nhau thì tuổi trung bình là $\dfrac{W-1}{2}$; với $W=4$ đã chốt (8.1) là 1.5. (Bản trước ghi $W/2$, lỏng hơn nửa đời.) Với trung bình các lần search, tuổi của một node là tuổi trung bình của các lần search của nó theo trọng số đã giảm dần. Điều kiện dừng này bảo đảm nhãn trên cây không cũ hơn cách cũ, tức cách mới không mang một bất lợi đã biết về độ cũ của nhãn so với cách cũ.
 
 **Vì sao thường không tốn nhiều.** Node sinh trong $W$ đời gần nhất tự có tuổi 0 đến $W-1$ như cách cũ, vì lá cũ nhất bị cắt trước (8.3). Chỉ các node sống lâu hơn $W$ đời mới làm tuổi trung bình vượt mức: đó là các node gần gốc, có nhiều ván đi qua nên không bị cắt. Các node này có $m$ lớn nên chiếm nhiều trọng số, và search lại vài node như vậy đã kéo tuổi trung bình xuống nhiều. Một lần search lại tốn bằng một nước của một ván, trong khi một ván rẽ tốn hàng chục nước. Đây là suy luận, chưa đo.
+
+**Nhiễu là chỗ cách mới chịu thiệt có chủ ý (ghi 5/11).** Cách truyền thống search mỗi thế cờ một lần cho mỗi ván đi qua nó, nên thế cờ có $m$ ván đi qua được $m$ lần search với nhiễu độc lập. Cây trò chơi tiết kiệm đúng phần đó: ván rẽ không search lại đoạn chung từ gốc tới điểm rẽ. Với số đo đời 0 (ván dài khoảng 240 nửa nước, ván rẽ trung bình 157 nửa nước tính từ điểm rẽ, nên đoạn chung trung bình khoảng 83 nửa nước), 2 600 ván rẽ mỗi đời bỏ qua khoảng 2 600 × 83 ≈ 216 nghìn lần search, tức khoảng 106 triệu lần chạy mạng, hơn nửa ngân sách. Đưa mọi node về ngang cách truyền thống về nhiễu ($k=m$) sẽ xoá gần hết phần tiết kiệm của cây. Search lại theo ưu tiên ở 9.2 dồn vào các node có $m$ lớn nhất trước, nên một phần nhỏ ngân sách đã đưa vùng gần gốc (nơi nhiễu gây hại nhiều nhất vì được học nhiều nhất) về gần ngang. Mức dùng bao nhiêu ngân sách cho việc này chờ chủ dự án chốt (5/11); log ghi mỗi đời trung bình theo trọng số $m$ của tỉ số $m/k$ (ngang cách truyền thống là 1) và độ dịch thật của nhãn sau mỗi lần search lại.
 
 **Mức trần 20%** là con số duy nhất ở đây không suy ra được. Nó chỉ để chặn trường hợp search lại ăn gần hết ngân sách. Log ghi mỗi đời phần ngân sách đã dùng cho search lại và việc có chạm trần hay không (15.2). Nếu chạm trần thường xuyên, nhãn trên cây sẽ cũ hơn cách cũ; khi đó phải tìm nguyên nhân (ví dụ cây quá lớn so với số node mới mỗi đời) thay vì chỉ nâng trần.
 
