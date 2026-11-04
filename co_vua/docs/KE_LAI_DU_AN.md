@@ -1,0 +1,201 @@
+# Kể lại dự án cờ vua và cây trò chơi, từ đầu đến hôm nay
+
+## Đang ở đâu
+
+Cập nhật ngày 2026-11-04. Phần chung của cả hai cách đã xong và đã kiểm là chạy đúng. Phần chung gồm engine cờ vua mới, mạng, mã hoá thế cờ và mã huấn luyện. Cách truyền thống đã có lệnh `cvt` trên điện thoại. Lệnh này đã chạy trọn hai đời nhỏ trên máy tính và hai đời nhỏ trên điện thoại của bạn, nhưng chưa sẵn sàng cho lần chạy thật. Lý do là nó còn thiếu một số thứ mà fz đã có, và có một lỗi khi chạy nhiều cửa sổ cùng lúc. Cách cây trò chơi (lệnh `cvc`) chưa có dòng mã nào. Công cụ cho mạng hai cách đấu với nhau cũng chưa có. Việc tiếp theo, chưa bắt đầu, là làm `cvt` chắc chắn như fz rồi thử chạy hai cửa sổ cùng lúc. Theo cách làm đã thống nhất hôm nay, mỗi lần chỉ làm một việc nhỏ, và việc nào cũng được nói trước và báo lại bằng lời thường.
+
+Bài này được viết bằng cách đọc lại toàn bộ tin nhắn đã lưu của các phiên trò chuyện từ ngày 29/10, nhật ký `co_vua/docs/NHAT_KY.md`, tài liệu thiết kế `co_vua/docs/THIET_KE_CO_VUA.md` và lịch sử commit. Nó không viết từ trí nhớ của Claude, vì trí nhớ đó đã bị compact. Mỗi đoạn có ghi ngày để bạn tự đối chiếu. Bạn không phải là người dò xem bài có thiếu gì, vì trí nhớ không hoạt động như vậy: chuyện cũ thường chỉ chợt hiện lại vào lúc khác. Việc dò là của Claude. Sau khi viết bản đầu, Claude đã đối chiếu bài với từng tin nhắn của bạn trong mọi phiên, kể cả phiên của dự án fz trong cùng thời gian, và bổ sung các chuyện còn thiếu. Nếu một ngày bạn chợt nhớ ra điều gì, lúc đó cũng chưa trễ: chưa có lần chạy thật nào, nên mọi quyết định vẫn sửa được, và chuyện đó sẽ được thêm vào đây.
+
+---
+
+## Phần một: ý tưởng ra đời như thế nào
+
+### Một thế cờ sai mà không có cách nào tự sửa (29/10)
+
+Mọi chuyện bắt đầu từ engine cờ biến thể của bạn, tức dự án fz chạy học tăng cường trên Colab và Termux. Khi cho engine chơi thật, bạn gặp một thế cờ mà MCTS duyệt 8000 node và dồn gần hết lượt thăm vào một nước a. Nước a là một nước thí quân vô lý: nó bỏ một quân mà ở tàn cuộc có khi còn quý hơn cả quân hoàng gia. Bạn biết chắc nước b tốt hơn. Điều làm bạn khó chịu là ở thế cờ đó cả hai đầu ra của mạng đều sai cùng lúc. Policy, tức xác suất mạng cho từng nước, nghiêng về a. Value, tức đánh giá thế cờ, cũng không kéo search khỏi a.
+
+Bạn nói rằng thường khi chỉ một trong hai đầu ra sai, đầu ra kia sẽ kéo nó lên dần. Ở thế cờ này thì không có gì kéo được gì. Nhiễu Dirichlet không cứu được nó. Temperature cũng không, vì thế cờ đã qua nửa nước thứ 30, mà sau nửa nước 30 ván luôn đi nước nhiều lượt thăm nhất. Bạn đoán rằng cách duy nhất để mạng sửa được chỗ này là học thật nhiều thế cờ khác, không liên quan gì tới nó, cho tới khi mạng tự tiến bộ rồi quay lại nhìn đúng. Đó là cách tốn rất nhiều ván tự chơi.
+
+Từ đó bạn đặt mục tiêu cho cả dự án. Bạn muốn nhãn mà mạng học trở nên chính xác hơn, để không phải lấy số lượng ván "đè bẹp" như hiện nay. Mục tiêu này không phải là làm engine chạy nhanh hơn. Nó là đổi chính cách tạo ra dữ liệu và cách mạng học từ dữ liệu đó. Sau này, ngày 1/11, bạn nói rõ hơn: mục tiêu không phải là ít ván hơn, mà là **với cùng một lượng tính toán, mạng tiến bộ nhanh hơn cách truyền thống**. Đây vẫn là học tăng cường thuần túy: không đưa hiểu biết cờ của con người vào nhãn.
+
+Trong lúc bàn, bạn nhắc thêm một chuyện thứ hai: thế cờ khởi đầu. Thế cờ khởi đầu gần như cân bằng. Nhưng khi mạng còn non, nhãn value ở đó lúc là thắng, lúc là thua, tùy bên nào hớ nhiều hơn ở phần sau ván. Vì nhãn dao động quá mạnh, mạng phải học rất nhiều ván mới thấy được giá trị trung bình. Bạn muốn một cách làm giải quyết được cả thế khởi đầu lẫn cái sai kỳ lạ kia cùng lúc. Bạn cũng nói rõ là không muốn chỉ trộn nhãn search với nhãn kết quả ván theo một tỉ lệ khác, vì bạn đã biết cách đó và nó không giải quyết được cả hai.
+
+Trên đường tìm hướng, bạn có nghĩ lờ mờ tới việc thêm một đầu ra nữa cho mạng để mạng tự báo nhãn chắc chắn tới đâu. Bạn nghiêng về không chọn cách này, vì lúc chơi thật đầu ra đó không được dùng. Bạn nói mình có cảm giác có một cách "thủ công" làm nhãn đúng hơn, và giải thích "thủ công" ở đây là thiết kế thêm một cơ chế, chứ không phải đưa hiểu biết của con người vào nhãn. Bạn cũng không nhắm tới việc dạy mạng giá trị tuyệt đối đúng của thế cờ. Khi Claude nói rằng thứ duy nhất nằm ngoài niềm tin của mạng là luật cờ, bạn phản bác chữ "luật cờ": luật di chuyển quân không giúp gì cho nhãn. Ý đúng là phán quyết thắng, hoà, thua ở cuối ván. Bạn còn tự hỏi liệu có thể lấy hiểu biết của mạng ở những thế cờ khác, tức là đang chơi ván này mà hỏi mạng ở một thế cờ không nằm trong ván.
+
+### Hai kiểu hỏng của nhãn
+
+Cuộc bàn ngày 29/10 đi đến một cách nhìn chung mà sau này thành phần 2 của tài liệu thiết kế. Nhãn có thể hỏng theo hai kiểu.
+
+Kiểu thứ nhất là **nhiễu**: từng nhãn lệch khỏi giá trị đúng, nhưng lấy trung bình nhiều nhãn thì đúng. Thế khởi đầu với mạng non thuộc kiểu này. Số lượng ván chữa được nhiễu, nhưng tốn.
+
+Kiểu thứ hai là **lệch**: nhãn sai theo cùng một hướng mỗi lần được tạo ra. Thế cờ thí quân thuộc kiểu này. Chạy lại search bao nhiêu lần ở đó vẫn ra cùng một nhãn sai, nên số lượng ván tại chỗ đó không chữa được. Nhãn sai còn trông rất tự tin, và mạng học theo nó như sự thật.
+
+Tiếp theo là câu hỏi nhãn được tính từ đâu. Hiện có hai nguồn. Kết quả cuối ván do luật cờ phán quyết, nên nó nằm ngoài niềm tin của mạng và ít lệch; nhưng nó ở xa thế cờ, cách nhiều nước, nên rất nhiễu. Giá trị search được tính ngay tại thế cờ, nên ít nhiễu; nhưng nó nằm trong niềm tin của mạng, nên có thể lệch. Trộn hai nguồn theo tỉ lệ cố định chỉ đổi nhiễu lấy lệch. Muốn giảm cả hai cùng lúc thì cần một nguồn thông tin **vừa gần thế cờ vừa nằm ngoài niềm tin của mạng**.
+
+Chính lúc đó bạn nhận ra một điều mình đã nghĩ lờ mờ từ trước. Mỗi lần search dựng một cây tại một thế cờ, cho ra nhãn, rồi vứt cây đi. Mỗi ván không biết các ván khác đã thấy gì. Bạn cũng từng nghĩ tới việc giữ nhiều hướng chơi khác nhau trong cùng một bản ghi. Claude đề xuất một cấu trúc dùng chung giữa các ván. Bạn nói câu trả lời đó "rất chạm" tới cảm giác của bạn, và bạn xin thời gian suy nghĩ thêm. Những gì bàn trong ngày này được ghi ở `co_vua/docs/walkthrough/ngu-canh-sinh-nhan-hoc-tang-cuong.md`.
+
+### Vì sao công thức PUCT được viết như vậy (30/10)
+
+Sáng 30/10, trước khi nói về cây, bạn hỏi vì sao công thức PUCT của MCTS lại được viết như hiện nay. Bạn nói rõ là không muốn nghe kiểu "biến này tăng thì hàm tăng", vì có rất nhiều hàm có cùng xu hướng như vậy. Claude giải thích theo một kết quả nghiên cứu năm 2020 của Grill và cộng sự: cách search chia lượt thăm xấp xỉ lời giải của một bài toán tối ưu. Bài toán đó muốn dồn lượt thăm vào nước có giá trị cao, nhưng không đi quá xa khỏi prior của mạng. Bạn nói mình chỉ hiểu "hơi hơi", nhưng muốn giữ mạch toán học này, vì sau này thiết kế có thể cần phát triển công thức mới. Bạn cũng nói rằng mình đọc hiểu được toán, nhưng tự phát minh công thức trong lĩnh vực này thì dở. Mạch toán này về sau được dùng để dựng nhãn policy mới.
+
+### Cây trò chơi (30/10)
+
+Ngày 30/10 bạn quay lại với một thiết kế cụ thể, và chính bạn đặt tên cho nó là **cây trò chơi**. Bạn gọi như vậy để khỏi lẫn với cây search của MCTS. Cây trò chơi lưu nhiều ván tự chơi thật cùng lúc. Hai ván đi chung một đoạn nước thì dùng chung các node của đoạn đó. Mỗi lần cây rẽ nhánh, tức có một ván mới tách ra từ một thế cờ đã có, chính là lúc ta đang sinh dữ liệu tự chơi để mở rộng cây. Bạn cũng chốt rằng nếu hai thế cờ giống hệt nhau xuất hiện ở hai nhánh khác nhau thì chúng vẫn là hai node riêng. Nhờ vậy cây không bao giờ có chu trình và giữ đúng lịch sử từng ván.
+
+Từ cấu trúc đó, bạn thấy một điều "dễ chịu". Bên dưới thế cờ khởi đầu trong cây có rất nhiều ván khác nhau. Vậy nhãn value của một node có thể được tổng hợp từ kết quả của mọi ván đi qua node đó, thay vì chỉ dùng kết quả của một ván. Ở thế khởi đầu, việc này làm nhãn bớt dao động hẳn. Tài liệu thiết kế gọi giá trị tổng hợp này là G. Nó chỉ dùng kết quả ván thật, không dùng đánh giá của mạng.
+
+Bạn cũng muốn cây lưu phân bố lượt thăm của lần search gần nhất ở mỗi node. Khi mạng đời mới chơi qua một node, số liệu mới ghi đè số liệu cũ. Như vậy cây không cần search lại toàn bộ mọi node mỗi đời. Bạn còn kể rằng trực giác của bạn từng nghĩ tới một cách rẽ nhánh kiểu "MCTS trong MCTS", tức dùng một thứ giống search để chọn chỗ rẽ trên chính cây trò chơi, nhưng nó phức tạp nên bạn chưa biết diễn tả thế nào. Ý này chưa được đưa vào thiết kế.
+
+Cũng trong ngày 30/10, bạn hỏi nhãn value mới có nhất thiết phải là 0.2 phần giá trị search cộng 0.8 phần giá trị tổng hợp hay không, vì bạn thấy giá trị search tại node cũng nên được tính vào theo một cách khác. Chính câu hỏi này dẫn tới cách trộn theo độ tin cậy được kể ở mục dưới.
+
+Về cách tổng hợp, Claude đưa ra ba mức trọng số cho các nhánh. Mức thứ nhất là trung bình thuần theo số ván. Mức thứ hai cân theo cách search chia lượt thăm và theo độ tin cậy của từng nhánh. Mức thứ ba nghiêng thêm về nhánh có kết quả tốt hơn. Bạn phân vân giữa mức một và mức hai, và loại mức ba vì nó cần một lịch thay đổi tham số theo thời gian, tức là khó chỉnh. Lúc này bạn nói ra phương châm lần đầu: thích cách nào tối ưu, ổn định và ít phải tinh chỉnh.
+
+Còn chuyện rẽ nhánh ở đâu, bạn gắn nó với thế cờ thí quân ban đầu. Bạn nói rằng ở thế cờ đó, nếu tính đến sự phân vân lúc chọn nước thì mọi chuyện ổn hơn, vì tổng hợp các yếu tố thì nó cũng chỉ ở mức vừa phải. Vậy cần rẽ nhánh ở những chỗ phân vân. Bạn chọn cách **quét toàn cây**: đầu mỗi đời, mọi node trong cây được xem một lần, và ở mỗi node, bước quét rút ngẫu nhiên một nước theo phân bố lượt thăm đã lưu, với temperature 0.5. Nếu nước rút ra là nước chưa ván nào chơi, một ván mới được chơi từ nước đó đến hết. Node càng phân vân thì càng dễ rẽ. Nước rất tệ hiếm khi được thử. Node tàn cuộc hiếm gặp vẫn có cơ hội được rẽ như mọi node khác, và nhánh rẽ ở đó rất rẻ vì ván còn ngắn. Bạn cũng chọn **temperature 0 khi tự chơi** sau điểm rẽ cho thử nghiệm ban đầu. Ý là temperature không mất đi, mà được chuyển từ lúc tự chơi sang bước quét. Ở cách cũ, mỗi lần temperature chọn một nước khác là một nhánh ẩn, không để lại dấu vết. Trên cây, mỗi lần rẽ đều được ghi lại và cân lại được.
+
+Hôm đó bạn quyết thêm ba điều. Thứ nhất, khi lấy mẫu huấn luyện, mỗi node được lấy với tỉ lệ theo số ván đi qua nó, để giữ nguyên tỉ trọng khai cuộc so với tàn cuộc như cách cũ. Thứ hai, khi cắt bớt cây thì vẫn giữ các con số thống kê ở node cha, để phán quyết của các ván cũ không mất. Thứ ba, ván cũ phải được tính nhẹ dần theo thời gian.
+
+Claude chỉ ra một vấn đề mà bạn nói nó làm não bạn "đóng băng một chút". Ván mới bắt đầu từ điểm rẽ nên không search lại đoạn đường từ gốc. Nếu không làm gì, các node gần gốc như thế khởi đầu sẽ giữ mãi số liệu của mạng đời đầu. Bạn sợ rằng giữ cho cây đúng đắn sẽ tốn rất nhiều ngân sách, còn nếu chỉ search lại một phần thì cây không nhất quán. Claude trả lời rằng hệ thống hiện tại của bạn vốn đã không nhất quán, chỉ là không lộ ra: replay buffer chứa mẫu của nhiều đời mạng, và nhãn của chúng không bao giờ được cập nhật. Node ít ván không được search lại thì tương đương một mẫu cũ trong buffer, không tệ hơn trước. Node nguy hiểm thật là node có nhiều ván đi qua, vì nó được lấy mẫu nhiều. Nhóm đó rất ít node, và đó là nhóm được search lại. Bạn hỏi lại: nếu làm đúng cách thì nhìn chung vẫn ít hại và ngân sách vẫn ổn so với cách cũ phải không, và câu trả lời là có. Claude có đưa ra một cách đơn giản hơn: bỏ hẳn việc search lại, thay bằng việc dành 10 đến 20% số ván mỗi đời để chơi từ thế khởi đầu. Bạn từ chối, và nói rằng không nhất thiết phải đơn giản hơn, vì bạn thích sự tối ưu, ổn định và không phải tinh chỉnh nhiều.
+
+Claude cũng nêu một rủi ro mà bạn hỏi kỹ: nhãn value có thể "quá trơn". Các node nằm trên cùng một đường đi dùng chung phần lớn các ván bên dưới, nên chúng nhận nhãn gần giống nhau. Ở vùng khai cuộc, điều đó có thể làm mạng mất một phần tín hiệu về khác biệt giữa hai thế cờ liền nhau. Mức thiệt hại chưa đo được, và nó là một trong những thứ phải quan sát khi chạy. Phần này được ghi ở `co_vua/docs/walkthrough/walkthrough-cay-tro-choi.md`.
+
+### Công thức phải được suy ra, không được bịa (30/10 đến 2/11)
+
+Tối 30/10 bạn nói mình có hai nỗi sợ về công thức, vì chúng không được suy ra mà như được đặt đại. Một là thừa số trong trọng số nhánh. Hai là công thức chọn node để search lại. Claude làm lại cả hai bằng các phép suy ra dưới những giả định được nêu rõ. Ngày 1/11 bạn nói công thức có sự suy ra như vậy thì ổn hơn. Phần này ở `co_vua/docs/walkthrough/walkthrough-cong-thuc-va-policy.md`.
+
+Kết quả là một bộ ý tưởng mà bạn không cần hiểu từng ký hiệu, chỉ cần biết nó làm gì. Ở mỗi node, ngoài giá trị tổng hợp G, cây còn giữ một con số cho biết G có thể sai bao nhiêu. Tài liệu gọi nó là E. G nằm sát cuối ván thì gần như không sai, vì luật cờ vừa phán quyết. G nằm xa cuối ván trên một nhánh chỉ có một ván thì sai nhiều. Nhiều ván tách nhau ngay tại node thì làm G bớt sai rất nhiều, còn nhiều ván đi chung một đoạn dài rồi mới tách thì gần như không giúp gì cho node ở xa phía trên. Trọng số của mỗi nhánh tin nhánh có nhiều bằng chứng hơn, nhưng vẫn bám theo cách search chia lượt thăm. Trọng số không dùng kết quả ván, nên vài ván may mắn không được ưu ái. Còn một con số chung cho cả cây, ước lượng lại mỗi đời từ chính cây chứ không chỉnh tay, cho biết các nước đi từ cùng một thế cờ thường chênh nhau bao nhiêu về giá trị. Con số đó gọi là omega bình phương. Ngày 3/11 bạn hỏi nó là một số duy nhất hay mỗi đời mỗi khác: nó là một số chung cho cả cây trong một đời, và sang đời sau được ước lượng lại. Ngày 2/11 bạn còn chỉ ra rằng trọng số nhánh và độ sai E trông như gọi nhau vô hạn. Câu trả lời là hai thứ đó được tính từ cuối ván ngược lên gốc, node con xong trước rồi mới tới node cha, nên không vòng. Chỉ có omega bình phương và E là phụ thuộc vòng vào nhau, và vòng đó được cắt bằng cách dùng omega bình phương của đời trước.
+
+Tốc độ làm cũ ván được bạn nhờ Claude đề xuất. Mỗi đời, số ván đã lưu ở mọi node được nhân với một hệ số hơi nhỏ hơn 1, bằng 1 trừ đi một phần số đời dữ liệu được giữ. Với cách chọn đó, tổng trọng lượng của một ván qua mọi đời bằng đúng số đời dữ liệu được giữ, nên cây nhớ lâu tương đương replay buffer của cách cũ.
+
+Nhãn value mới trộn giá trị search với giá trị tổng hợp, nhưng không theo tỉ lệ cố định 0.2 và 0.8 như cũ. Ở mỗi node, nguồn nào ít sai hơn thì được tin nhiều hơn. Thế cờ sát cuối ván, hay thế khai cuộc có nhiều ván, gần như tin hẳn vào kết quả ván thật. Thế cờ ở giữa một nhánh dài ít bằng chứng thì tin search nhiều hơn. Tài liệu ghi rõ đây là phần rủi ro nhất và phải được kiểm trước khi dùng thật.
+
+Ngày 1/11 bạn đề xuất quy mô cây. Cây giữ khoảng 1 triệu node. Sau mỗi lần huấn luyện, cây cắt 125 000 lá, search lại 125 000 node, rồi sinh thêm khoảng 125 000 node mới. Claude cho rằng search lại nhiều như vậy là quá nhiều, và bạn đồng ý nên giảm. Mức search lại sau này được quyết bằng một điều kiện dừng thay cho con số cố định: search lại các node quan trọng nhất cho tới khi nhãn trên cây, tính trung bình, không cũ hơn nhãn trong cửa sổ dữ liệu của cách cũ. Mức trần là 20% ngân sách, và đó là con số duy nhất ở phần này không suy ra được. Bạn cũng hỏi cắt lá có số ván nhỏ nhất có hơn cắt ngẫu nhiên không. Lúc đó bạn chưa chốt.
+
+Rồi tới policy, tức nhãn dạy mạng nên đi nước nào (1/11 và 2/11). Search chia lượt thăm chủ yếu theo việc nước nào dẫn tới thế cờ có giá trị search cao hơn. Cây trò chơi có thêm một thứ cách cũ không có: chênh lệch giữa các nước theo kết quả ván thật. Ý tưởng của nhãn policy mới là sửa chênh lệch giá trị search về phía chênh lệch theo kết quả ván, sửa nhiều hay ít tùy độ tin cậy của bằng chứng, rồi hỏi: nếu search có các giá trị đã sửa đó thì nó sẽ chia lượt thăm ra sao. Câu trả lời chính là nhãn mới. Nhãn này chỉ khác nhãn cũ ở node có ít nhất hai nước đã được chơi, nên một ván đơn lẻ không làm nhiễu nhãn policy. Bạn hỏi cái sai hiếm có được sửa nhanh hơn không: nó vẫn được sửa khá chậm, nhưng không chậm hơn cách cũ.
+
+### Ý kiến của một AI khác (2/11)
+
+Sáng 2/11 bạn đem thiết kế hỏi một AI khác và dán lại bản đánh giá. Bản đánh giá dẫn tới một nghiên cứu năm 2026 về việc quay lại những thế cờ mà đánh giá của tác tử lệch nhiều so với kết quả thực rồi dùng chúng làm điểm bắt đầu ván mới. Nghiên cứu đó hơn AlphaZero trên cờ vây 9×9, Othello và Hex. Ý này được ghi vào tài liệu như một phương án để sau. Sau bản đánh giá đó, con số E (độ sai của giá trị tổng hợp) được dùng thay cho một khái niệm cũ hơn là "số ván hiệu dụng", vì E tính đúng được chuyện hai ván đi chung một đoạn dài thì không đem thêm bằng chứng cho node ở xa phía trên. Bản đánh giá cũng nêu vài điều tiêu cực, như ván hòa rất nhiều khi mạng mạnh, hay temperature 0 dễ làm các ván lặp y hệt. Bạn phản bác: dự án không làm tới mức mạng mạnh lắm, và bước quét với temperature 0.5 vẫn làm các ván tản ra. Bạn dặn rằng mỗi lần phán một điều tiêu cực thì phải chú ý xem nó có thật sự đúng với dự án không.
+
+### Quyết định làm thử, và chọn trò chơi (2/11)
+
+Cũng sáng 2/11, bạn hỏi nếu bắt đầu thử nghiệm luôn thì Claude có thể giúp làm tới thành công không. Bạn nói thêm rằng các công thức áp dụng nhiều lý thuyết thống kê mà bạn chưa hiểu, và vì phải thử nghiệm mới biết đúng sai nên bạn mất động lực đọc chúng. Hai bên thống nhất "đến cùng" nghĩa là đi tới một câu trả lời đáng tin, nhưng phải cố mọi cách để cách mới hơn cách truyền thống.
+
+Bạn quyết định tạm gác engine cờ biến thể và làm một dự án nghiên cứu riêng. Ban đầu bạn chọn Connect6 bàn 24×24, vì nó đơn giản và hợp với mạng tích chập, với một mạng khoảng 1 triệu tham số có SE (mạng biến thể của bạn có 5.5 triệu tham số), và đầu policy có 165 600 số cho mọi cặp ô đặt hai quân. Claude đã tạo dự án ở `D:\connect6_zero`, rồi bạn bảo xoá đi. Sau đó, cũng ngày 2/11, bạn bỏ Connect6 và chọn **cờ vua thường**, vẫn với mạng tích chập có SE khoảng 1 triệu tham số. Thiết kế được viết lại cho cờ vua thành `co_vua/docs/THIET_KE_CO_VUA.md`.
+
+### Những lần sửa tài liệu làm bạn mất tin tưởng (2/11 và 3/11)
+
+Khi đọc bản thiết kế cờ vua, bạn gặp rất nhiều chỗ mơ hồ: không rõ một ký hiệu là phân bố lượt thăm hay đầu ra thô của mạng, không rõ E là gì, omega là gì, n(a) là gì. Chỗ làm bạn rối nhất là giá trị search của một thế cờ khác với giá trị của một nước đi thế nào. Bạn chỉ ra rằng MCTS biết điểm của một node chứ không phải điểm của một nước đi. Bạn rất khó chịu vì Claude chỉ sửa cục bộ từng chỗ mà không rà cả bản thiết kế, vì có lần định nghĩa bị đổi qua đổi lại, và vì một phát hiện quan trọng đến quá trễ: mã huấn luyện của dự án biến thể dùng giá trị search của nước tốt nhất (tên trong lc0 là `best_q`), chứ không phải giá trị search trung bình của cả gốc (`root_q`). Kết quả cuối cùng là tài liệu thống nhất dùng đúng `best_q` như lc0, và giá trị search được viết theo thế cờ con. Sáng 3/11 bạn dán thêm một bản đánh giá dài khác, nói về số ván độc lập, độ bất đồng giữa search và kết quả ván, và việc giá trị search tụt mạnh sau một nước, rồi nhờ Claude đánh giá nó. Claude hiểu nhầm thành đưa nó vào tài liệu, và sửa rất nhiều chỗ trong thiết kế. Bạn nói đó là bản thảo bừa bãi và bảo bỏ các phần đến từ đoạn dán. Các phần đó đã được gỡ. Lúc gỡ, Claude nói rằng nó dựng lại các phần cũ từ nội dung cuộc trò chuyện, nên đó là bản gần đúng chứ không chắc trùng từng chữ với bản trước. Ranh giới của chuyện này: nó chỉ chạm vào phần văn bản thiết kế của cách cây trò chơi, không chạm vào mã nào. Phần đó sẽ được kiểm lại từng công thức khi mô phỏng trên cây giả và khi viết `cvc`, nên nếu có chỗ lệch thì sẽ lộ ra trước khi dùng thật. Từ lúc đó, Claude ghi lại cách viết tài liệu thiết kế: mỗi ký hiệu phải được định nghĩa ngay chỗ dùng kèm ví dụ số, mọi khẳng định về lc0 phải đối chiếu với mã, và khi sửa phải rà cả tệp.
+
+---
+
+## Phần hai: các quyết định chốt trước khi làm (3/11)
+
+Sáng 3/11 bạn hỏi đã triển khai thử nghiệm được chưa. Buổi đó chốt nhiều quyết định, và đây là lần bạn trao quyền quyết định cho Claude.
+
+Về những việc không có công thức quan trọng, bạn muốn dùng ngẫu nhiên, để cách mới và cách cũ cân bằng; nếu ngẫu nhiên mà cách mới vẫn mạnh hơn thì càng đáng mừng. Vì vậy bạn chọn hai điều. Khi số điểm rẽ quét được nhiều hơn ngân sách cho phép chơi, danh sách điểm rẽ được xáo trộn rồi chơi lần lượt cho tới khi hết ngân sách. Claude xem lại và đồng ý, vì cách này giữ nguyên phân bố của bước quét, không phí dữ liệu (điểm rẽ chưa chơi thì chưa tốn gì), và không có ngưỡng nào phải chỉnh. Khi cắt lá, bạn cũng muốn cắt ngẫu nhiên. Ở chỗ này Claude không đồng ý và đổi thành **cắt lá có số ván nhỏ nhất**, gần như là cắt lá cũ nhất trước. Lý do: cắt ngẫu nhiên có thể bỏ ngay một ván vừa tốn công chơi, đồng thời giữ rất lâu nhãn của mạng rất cũ. Nếu mỗi đời cắt ngẫu nhiên 1/8 số lá thì khoảng 12% số lá còn sống sau 16 đời. Cách cắt lá cũ nhất giữ đúng ý của replay buffer là bỏ dữ liệu cũ nhất trước, và không có tham số nào phải chỉnh.
+
+Bạn giao cho Claude làm người quan sát chính của dự án: ghi log mọi thứ, đọc log, và tinh chỉnh cách mới tới khi thành công nhất có thể, dù phải tinh chỉnh nhiều đến đâu. Với những gì chưa suy ra được, như omega bình phương có hội tụ không hay nó khác nhau bao nhiêu giữa các thế cờ, Claude được làm linh hoạt: chọn mặc định, chạy, ghi log, quan sát rồi sửa. Bạn chốt thêm rằng mạng chỉ có hai đầu ra là policy và value, không có đầu ra số nước còn lại. Bạn không dùng Syzygy. Kết luận cuối cùng chỉ dựa vào việc mạng hai cách đấu trực tiếp với nhau ở cùng lượng tính toán. Claude quyết rằng Stockfish chỉ được dùng để tìm nguyên nhân, chẳng hạn đo xem có bao nhiêu nhãn sai và một nhãn sai tồn tại bao lâu, chứ không dùng cho nhãn hay cho kết luận.
+
+Bạn nói muốn Claude tự quyết thay bạn nhiều việc, và cố ngăn bạn mỗi khi bạn quyết một điều đi ngược phương châm. Bạn mô tả lại phương châm cho chính xác: có thể chọn một cách chưa chắc tối ưu, nhưng nhất định không được đem vào bất kỳ điều gì mà ta biết là hại nhiều hơn lợi. Bạn cũng nói: hãy cố làm cho thử nghiệm thành công, kể cả phải làm lại theo hướng khác khi phát hiện điều bất lợi, và phần lý thuyết thống kê thì bạn giao hẳn cho Claude kiểm.
+
+Hôm nay, 4/11, bạn nói rằng từ lúc giao quyền quyết định, bạn không còn hiểu gì về dự án nữa. Lỗi nằm ở cách Claude dùng quyền đó: quyết nhiều việc liên tiếp, chỉ ghi vào tài liệu, và giải thích bằng công thức. Cách làm từ nay được sửa: Claude vẫn được quyết định, nhưng quyết định nào cũng được nói cho bạn bằng vài câu thường ngay lúc quyết, kèm lý do và nguồn gốc (từ bạn, từ fz, từ lc0, hay do Claude tự đặt). Điều kiện để đi tiếp là bạn hiểu. Chỗ nào chưa hiểu được ngay thì Claude chỉ nói ranh giới của nó, tức nó chưa cần hiểu bây giờ, và phạm vi ảnh hưởng của nó, tức nó chạm vào đâu và nếu sai thì hỏng gì, hỏng nặng hay nhẹ.
+
+---
+
+## Phần ba: dựng hạ tầng (3/11)
+
+### Trong cùng thời gian, ở dự án fz
+
+Song song với các buổi bàn, fz vẫn đang chạy. Ngày 2/11 bạn nhờ search 8000 node tại nửa nước 75 của ván tự đấu mới nhất bằng mạng mới nhất, và hỏi lc0 dùng temperature thế nào khi sinh dữ liệu. Bạn định chuyển fz sang temperature táo bạo hơn, ví dụ hằng số 0.5, và muốn lấy tinh hoa của lc0 để tránh hại cho dữ liệu huấn luyện. Sáng 3/11, vòng lặp tự động của fz bị đứng: không dừng mềm được, không trả được máy, và không có log nào cho biết vì sao. Nguyên nhân là một lệnh `colab exec` lúc khởi động máy mới không có giới hạn thời gian. fz đã được sửa trong commit `bbdd169` bằng cách đặt giới hạn thời gian cho lệnh đó và cho hiện tiến trình ra màn hình. Bài học này có trong `cvt`: mọi lệnh gửi tới Colab đều có giới hạn thời gian (lệnh SSH 5 phút, lệnh của Colab CLI 10 phút, bước chuẩn bị máy 15 phút). Nhưng `cvt` chưa từng gặp tình huống đứng như vậy, nên phần này chưa được thử thật.
+
+### Chạy trên nhiều máy, và đặt phần cây lên điện thoại
+
+Bạn nói rằng với fz, bạn chạy sinh dữ liệu và huấn luyện liên tục trên nhiều cửa sổ Termux, mỗi cửa sổ lo một máy Colab. Cách truyền thống dễ chia cho nhiều cửa sổ, vì mỗi ván độc lập. Bạn hỏi với cây trò chơi thì điều phối thế nào. Claude chỉ ra rằng phần tốn tính toán của cách mới vẫn độc lập như cách cũ: một ván từ một điểm rẽ chỉ cần mạng, dãy nước từ thế khởi đầu tới điểm rẽ, và nước rẽ, không cần cả cây. Phần cần cả cây (gộp ván vào cây, tính nhãn, cắt lá, quét, lấy mẫu) thì không chạy mạng. Lúc đó bạn đề xuất cho phần này chạy thẳng trên điện thoại, và Claude đồng ý: không tốn hạn mức T4, cây không phải chuyển lên chuyển xuống Colab, cây không mất khi máy Colab bị thu hồi, và phía Colab gần như giữ y hệt cách cũ. Điều kiện là cây phải lưu bằng mảng số gọn chứ không lưu mỗi node thành một đối tượng Python. Bạn chốt thêm là không dùng sách khai cuộc.
+
+Claude quyết cách chia việc. Điện thoại lập danh sách việc của mỗi đời, gồm các điểm rẽ và các việc search lại, rồi chia thành gói. Mỗi máy Colab nhận một gói chưa ai nhận, giữ chỗ bằng khoá thư mục giống fz. Khi hết gói mà còn ngân sách, việc chắc chắn xảy ra ở đời đầu vì cây khi đó chỉ có gốc, máy tự quét trên các ván của chính nó. Kết quả từ nhiều máy được gộp theo đường đi từ gốc. Việc dở của một máy bị thu hồi thì bỏ đi, và việc đó không làm lệch mẫu vì danh sách đã được xáo trộn. Toàn bộ phần này mới chỉ là thiết kế, chưa có mã.
+
+### Đo công sức của hai cách bằng gì
+
+Claude quyết rằng cả hai cách đo ngân sách mỗi đời bằng **số lần chạy mạng**. Khi engine chọn một nước, nó search 800 lượt thăm. Mỗi lượt thăm đi xuống tới một thế cờ chưa được đánh giá, và mạng phải tính thế cờ đó; mỗi lần như vậy là một lần chạy mạng. Nếu thế cờ đó vừa được tính và còn trong bộ nhớ đệm thì kết quả được dùng lại, GPU không phải làm gì, và lần đó không được đếm. Gần như toàn bộ thời gian T4 là thời gian chạy mạng, nên đếm lần chạy mạng là đếm công của GPU.
+
+Lý do không đếm theo số ván như fz: ván của cách cây bắt đầu từ giữa ván nên ngắn hơn, và cách cây còn có các lần search lại vốn không phải ván. Ngày 4/11 chính bạn cũng nói rõ điều này: hai phương án học tăng cường phải được so ở cùng lượng tính toán, không phải ở cùng số ván. Đếm lần chạy mạng gần bằng "số nước đã search nhân 800", trừ đi phần dùng lại từ bộ nhớ đệm, nên nó không khắt khe hơn trực giác "luôn đặt visits 800" của bạn. Quy tắc đếm này áp dụng y hệt cho cả hai cách, vì hai bên dùng cùng engine và cùng bộ đếm. Hai bên cũng dùng cùng số bước huấn luyện mỗi đời: cách cũ học một lượt qua cửa sổ dữ liệu, cách mới học đúng chừng ấy bước. Vì đo bằng lượng tính toán chứ không bằng thời gian, máy nhanh hay chậm, nhiều hay ít máy đều không ảnh hưởng phép so sánh.
+
+### Tham số của cách truyền thống
+
+Bạn chốt rằng engine kế thừa từ lc0, rằng tham số sinh dữ liệu và huấn luyện của cách truyền thống lấy theo engine cờ biến thể của bạn, và rằng cách mới giữ nguyên các tham số đó ở mọi chỗ trùng với cách cũ. Các con số cụ thể vì vậy đến từ ô 04 và ô 07 của fz: 800 lượt thăm mỗi nước, nhiễu Dirichlet với hệ số 0.25, huấn luyện AdamW kèm SWA với tốc độ học cố định 0.001 (bạn chốt), weight decay 0.0001, batch 1024, học một lượt qua cửa sổ dữ liệu, và nhãn value trộn 0.2 phần giá trị search với 0.8 phần kết quả ván. Bạn đổi hai chỗ cho cờ vua: temperature 1 trong 30 nửa nước đầu (bạn cho biết đã đổi từ 32 xuống 30, dù các tệp trong kho vẫn ghi 32), và alpha của nhiễu Dirichlet là 0.3 theo chuẩn cờ vua (bàn 10×10 dùng 0.15). Claude đổi một chỗ: giới hạn ván là 450 nửa nước như lc0, thay cho 400 của bàn 10×10.
+
+Khi đối chiếu kỹ với mã fz, Claude phát hiện mình đã ghi sai trong tài liệu rằng fz dùng cpuct mặc định tăng dần của lc0. Thật ra fz tự chơi với cpuct cố định 1.3 (lựa chọn của bạn), FPU 0 và không prefetch. Bạn dặn dùng đúng như vậy, và tài liệu được sửa cùng với ví dụ tính lại.
+
+Cửa sổ dữ liệu, tức số đời dữ liệu mỗi lần huấn luyện dùng, cũng lấy theo fz: 4 đời, gồm đời hiện tại và 3 đời trước. Con số 4 này áp dụng cho cả hai cách.
+
+### Nỗi lo về RAM
+
+Bạn tính sơ rằng cây 1 triệu node cần ít nhất 7 GB, và lo rằng nạp vào RAM sẽ tràn hoặc chậm. Con số 7 GB khớp với việc lưu mỗi node theo định dạng dữ liệu V6 của lc0, tốn 8356 byte mỗi node, mà cây không cần lưu như vậy. Claude dựng một cây giả 1 triệu node bằng mảng số gọn và đo trên máy tính. Cây tốn 271 đến 366 MB, RAM cao nhất 720 đến 960 MB, và mọi thao tác của một đời mất 6 đến 7 giây. Con số trên điện thoại chưa đo. Sau đó bạn dặn: luôn code và thiết kế cho tốc độ cao nhất, kể cả thời gian thật không tính vào số lần chạy mạng; bộ nhớ thì không cần tiết kiệm, chỉ cần không vượt 4 GB RAM, vì nhiều thuật toán muốn nhanh phải đổi bằng bộ nhớ.
+
+### Engine mới
+
+Bạn dặn không sửa engine cờ biến thể. Dự án cờ vua có engine riêng: một bản sao lc0 trong `co_vua/engine`, thêm một chế độ tự chơi mới tên `treeplay`. Chế độ này nhận việc dưới dạng dãy nước đi từ thế khởi đầu, nên nó dùng được cho cả ván từ đầu của cách cũ lẫn ván từ điểm rẽ và search lại của cách mới.
+
+Cần một chế độ riêng vì Claude đọc mã lc0 và thấy hai điều. Thứ nhất, dữ liệu huấn luyện V6 của lc0 không lưu giá trị search của từng thế cờ con, mà cây trò chơi cần con số đó. Thứ hai, tại gốc của mỗi lần search, lc0 ghi đè prior của mạng bằng prior đã trộn nhiễu Dirichlet, nên engine mới ghi cả hai loại prior. Engine mới cũng tự đếm số lần chạy mạng, đặt bộ đếm ngay trên bộ nhớ đệm để lần dùng lại không bị đếm.
+
+Lần chạy thử đầu tiên phát hiện hàm dựng thế cờ của lc0 không kiểm nước đi có hợp lệ không: một việc thử với nước e2e5 vẫn được chơi. Bạn hỏi vì sao, và Claude giải thích. Engine mới giờ kiểm từng nước. Bạn hỏi Claude biết biên dịch cho Colab chưa: engine được biên dịch cho Linux trong Docker, kèm ONNX Runtime bản GPU, và chạy được trên máy Colab.
+
+### Mạng, kiểm khớp, và tốc độ trên T4
+
+Mạng có 11 khối, mỗi khối 64 kênh, có SE, và tổng cộng 1 203 364 tham số. Con số này nhiều hơn mức 0.97 triệu tính trước đó, vì đầu value lấy theo đúng cỡ của mạng biến thể. Bạn cho biết đầu value của bạn là thắng/hoà/thua (WDL), và bạn chốt luôn dùng fp32, không bao giờ dùng fp16, cho huấn luyện, xuất mạng và chạy mạng. Bộ mã hoá thế cờ thành 112 mặt phẳng và bảng chỉ số nước đi được viết lại bằng Python, lấy thẳng từ mã lc0. Claude kiểm khớp trên 7 thế cờ: chỉ số của mọi nước hợp lệ trùng với lc0, và đánh giá thắng/hoà/thua trùng tới 6 chữ số thập phân. Prior chỉ lệch tối đa 0.3%, vì lc0 lưu prior bằng 16 bit.
+
+Bạn đưa token của một tài khoản Colab còn hạn mức T4 để Claude chạy thử. Token được cài vào WSL trên máy tính, chỉ người dùng đó đọc được, và không bao giờ được commit. Một tệp token có giá trị như mật khẩu của tài khoản; sau này nếu muốn, bạn có thể thu hồi quyền của Colab CLI trong phần bảo mật của tài khoản Google. Trên T4, cấu hình nhanh nhất đo được là 128 ván chơi song song với 1 luồng gom lô, khoảng 16 947 lần chạy mạng mỗi giây. Từ 64 ván trở lên tốc độ chững lại quanh 17 000, trong khi GPU chỉ dùng 58 đến 70%, nghĩa là nút thắt nằm ở một phần tuần tự trên CPU. Bạn chốt dùng cấu hình nhanh nhất này và không tìm nút thắt CPU nữa, vì bạn đã khảo sát chuyện này nhiều lần trên fz và biết luôn có một mức trung gian nhanh nhất.
+
+### Mã huấn luyện
+
+Mã huấn luyện mới đọc bản ghi ván của `treeplay`, nén mỗi thế cờ thành khoảng 840 byte, nạp toàn bộ lên GPU một lần, và giải nén từng lô ngay trên GPU để nhanh. Nó huấn luyện bằng AdamW kèm SWA theo kiểu lc0, hoàn toàn fp32 (fz dùng `--amp`, nhưng bạn yêu cầu luôn fp32). Claude chạy thử trọn đường đi trên máy tính: mạng đời 0 chơi 6 ván, ra 516 mẫu, cả 516 mẫu khớp với bộ mã hoá đã kiểm, và mạng đời 1 sau huấn luyện vẫn khớp với lc0. Bạn yêu cầu hai bộ script Termux/Colab riêng cho hai cách, và yêu cầu log là tệp lưu vĩnh viễn, không xoá, làm minh chứng nếu dự án thành công, vì Termux chỉ giữ khoảng 2000 dòng trên màn hình.
+
+---
+
+## Phần bốn: lệnh `cvt` cho cách truyền thống
+
+### Nó làm gì
+
+Bạn bảo "viết script truyền thống", và muốn kế thừa tinh hoa của Termux/Colab trong fz để chạy dự án trên điện thoại tiện nhất. Bạn cũng muốn có hai lệnh như `fz`, một cho mỗi cách, nên hai tên `cvt` (cờ vua truyền thống) và `cvc` (cờ vua cây) ra đời. `cvt` là bản cờ vua của lệnh `fz`. Khi bạn gõ `cvt @<tài khoản>` trong Termux, điện thoại xin một máy T4 trên Colab, đưa gói chạy lên máy đó (gồm engine, mã Python và các script Colab), và giữ máy bằng cách cứ 60 giây gửi một lệnh SSH, vì Colab thu hồi máy sau 10 đến 15 phút không có kết nối. Lần đầu tiên, máy tạo mạng đời 0. Sau đó mỗi đời diễn ra như giai đoạn 2 và 3 của fz: mạng tự chơi trên T4, điện thoại theo dõi tiến độ, khi đủ ngân sách thì báo dừng mềm (ván đang dở vẫn được chơi nốt), điện thoại tải bản ghi ván về, rồi một máy huấn luyện trên 4 đời dữ liệu gần nhất để ra mạng đời sau. Mọi log, bản ghi ván và mạng của mọi đời được giữ vĩnh viễn trong `Download/CoVua/truyen_thong`. Nhiều cửa sổ Termux, mỗi cửa sổ một tài khoản, có thể dùng chung thư mục đó để cùng làm một đời.
+
+### Chạy thử trên máy tính (3/11)
+
+Lần chạy thử đầu dùng cấu hình rất nhỏ (1.5 triệu lần chạy mạng mỗi đời, 2 đời, 200 lượt thăm) và chạy từ máy tính. Nó chạy trọn hai đời rồi tự trả máy, nhưng trên đường đi đã lộ ra bảy lỗi và cả bảy đã được sửa. Máy Colab thiếu gói `onnx` để xuất mạng. Lệnh khởi động việc chạy nền không trả về. Lệnh hỏi tiến độ báo lỗi giả khi việc chưa xong, nên bộ điều phối không bao giờ báo dừng. Lượng tính toán vượt gấp đôi ngân sách, vì máy nạp sẵn quá nhiều ván và ván đã nạp vẫn được chơi sau khi dừng. Đời 1 không còn ngân sách nào vì đời 0 vượt quá nhiều. Tệp log GPU không có nếu lần chạy ngắn. Và bộ điều phối không kịp trả máy khi bị tắt. Tài khoản đầu tiên hết hạn mức T4 sau khoảng một giờ dùng trong ngày, nên bạn đưa token của tài khoản thứ hai.
+
+Bạn đồng ý đưa gói chạy trên Colab lên GitHub Release công khai tên `co_vua`, và đồng ý commit, push lên nhánh main. Lệnh cài đặt trên Termux tự tải gói từ Release đó.
+
+### Chạy thử trên điện thoại (4/11)
+
+Bạn cài `cvt` trên điện thoại và chạy thử trong một thư mục riêng, `Download/CoVua/thu`, với tài khoản `phuhao2006dz` và cấu hình nhỏ. Nó chạy trọn hai đời trong khoảng 12 phút rồi tự trả máy. Đời 0 chơi 80 ván, đời 1 chơi 51 ván. Những gì chỉ điện thoại mới kiểm được đều chạy đúng: SSH qua Termux, giữ máy, tải lên và tải về. Tải về một mạng mất khoảng 13 giây. Ba mạng đời 0, 1 và 2 nằm trong thư mục đó trên điện thoại của bạn. Đây là dữ liệu chạy thử, không thuộc lần chạy thật.
+
+### Quy tắc dừng mỗi đời, theo cách đã thống nhất
+
+Quy tắc quyết định khi nào một đời ngừng chơi ván, cùng những công thức đi kèm, đã làm bạn rối nhiều nhất trong ngày 4/11. Bạn chưa cần hiểu bên trong của nó. Nó chỉ quyết định mỗi đời có thêm hay bớt một ít ván so với dự định. Nó không chạm vào luật cờ, cách mạng học, hay cách so sánh hai phương pháp. Nếu nó đoán lệch, một đời sẽ chơi nhiều hơn hoặc ít hơn dự định một chút, và đời sau tự bù lại phần lệch đó, nên tổng lượng tính toán sau nhiều đời vẫn đúng. Không có dữ liệu nào bị hỏng, và không phải chạy lại gì. Về ý tưởng, nó giống cách fz dừng: fz cộng cả ván đang dở vào tổng rồi báo dừng mềm, để khi các ván dở chơi xong thì vừa đủ 1000 ván. `cvt` làm điều tương tự, nhưng tính bằng lần chạy mạng thay vì bằng ván.
+
+Ngân sách mỗi đời của lần chạy thật được đặt là 80 triệu lần chạy mạng. Claude quy đổi con số này từ 1000 ván mỗi đời của fz, giả định mỗi ván khoảng 100 nước và mỗi nước 800 lượt thăm. Độ dài ván cờ vua thật với 800 lượt thăm thì chưa đo, nên 80 triệu có thể ứng với khoảng 500 đến 1000 ván mỗi đời. Với tốc độ đo được, một đời tốn khoảng 80 phút T4 nếu chỉ một tài khoản chạy.
+
+### `cvt` khác fz ở đâu
+
+Đây là chỗ bạn khó chịu nhất khi biết muộn, nên nó được kể đầy đủ ở đây.
+
+Có ba chỗ khác vì dự án bắt buộc phải khác, và bạn đã đồng ý từ trước. Một đời kết thúc khi đủ lượng tính toán chứ không phải khi đủ 1000 ván, để so được với cây trò chơi. Engine là lc0 chứ không phải `custom_engine`, vì đây là cờ vua thường. Temperature dừng ở nửa nước 30 và alpha là 0.3, theo lời bạn.
+
+Có ba chỗ khác do Claude tự quyết mà không báo bạn lúc quyết. `cvt` chạy 128 ván cùng lúc trong khi fz chạy 16, vì đo thấy đó là con số nhanh nhất với mạng nhỏ này trên T4. `cvt` là một lệnh chạy vòng lặp viết bằng Python, không có menu ô như fz. `cvt` giữ mạng ngay trên điện thoại chứ không đưa lên GitHub Release như fz. Ba chỗ này bạn có quyền quyết lại: giữ như hiện giờ hay làm giống fz.
+
+Có những thứ fz có mà `cvt` thiếu, không phải do chọn bỏ mà do chưa mang sang. fz đọc được tài khoản còn bao nhiêu hạn mức T4, chỉ cho máy chạy tới trước lúc hết hạn mức (đã trừ thời gian chơi nốt ván dở), không chạy khi còn dưới 20 phút, và chọn cửa sổ còn nhiều hạn mức nhất để huấn luyện. `cvt` không biết hạn mức, nên khi một tài khoản hết hạn mức giữa chừng thì máy bị thu hồi và có thể mất tới 20 phút ván chưa kịp tải về. fz có lịch xin máy chung giữa các cửa sổ và tự đổi tài khoản, còn `cvt` mỗi cửa sổ gắn với một tài khoản. fz có log màu, `cvt` thì không. fz có arena cho hai mạng đấu nhau, `cvt` chưa có. Khi quyết định dừng, fz cộng cả ván đang dở trên mọi cửa sổ, còn mỗi cửa sổ `cvt` chỉ ước lượng ván dở của chính nó, nên khi chạy nhiều cửa sổ, mỗi đời sẽ vượt ngân sách nhiều hơn một chút.
+
+Khi đọc lại mã ngày 4/11, Claude còn tìm ra một lỗi thật khi chạy nhiều cửa sổ. Cửa sổ đang giữ quyền huấn luyện có thể phải xin máy mới và chờ rất lâu, và trong lúc chờ nó không báo "còn sống". Sau 30 phút, cửa sổ khác tưởng nó đã chết, giành quyền và cũng huấn luyện cùng đời đó. Hai cửa sổ cùng huấn luyện một đời có thể ghi đè mạng của nhau. Lỗi này chưa từng xảy ra, vì `cvt` mới chạy với một cửa sổ, nhưng nó phải được sửa trước lần chạy thật.
+
+Ngoài ra còn hai chỗ đặt tên dễ nhầm. Tham số `so_doi` của `cvt` là tổng số đời của cả lần chạy, đang đặt tạm là 1000, tức gần như không giới hạn. Trong fz, `TD_SO_DOI = 4` lại là số đời dữ liệu mỗi lần huấn luyện. Cùng một cái tên mà hai nghĩa khác nhau, nên tên này sẽ được đổi. Số đời cho lần chạy thật chưa chốt. Claude đã đề xuất 40 đời, tức tổng 3.2 tỷ lần chạy mạng và khoảng 53 giờ T4 cho mỗi cách, nhưng con số này phụ thuộc vào số giờ T4 bạn thực sự có.
+
+---
+
+## Phần năm: những gì còn lại
+
+Việc gần nhất là làm `cvt` chắc chắn như fz: mang sang phần hạn mức, phần đổi tài khoản, log màu và cách cộng ván dở của mọi cửa sổ; sửa lỗi hai cửa sổ cùng huấn luyện; rồi thử hai cửa sổ cùng lúc với cấu hình nhỏ. Sau đó mới chạy cách truyền thống thật. Lần chạy thật đó là mốc so sánh. Nó cũng phải cho biết kết quả dao động bao nhiêu giữa các seed, vì có biết mức dao động thì mới biết một chênh lệch là thật hay do may.
+
+Cách cây trò chơi sẽ được thêm từng phần một, để khi kết quả xấu còn biết phần nào gây ra. Đầu tiên là cây với nhãn cũ, chỉ đổi cách rẽ nhánh: quét cây, chọn điểm rẽ ngẫu nhiên, cắt lá cũ nhất. Bước này tách riêng được lợi ích của việc chọn chỗ bắt đầu ván. Tiếp theo là nhãn value mới, rồi search lại theo ưu tiên, rồi nhãn policy mới. Cuối cùng là xác nhận lại cả hai cách với seed mới. Trước khi viết cây trò chơi, Claude phải kiểm các công thức trên một cây giả mà giá trị đúng được biết trước, vì bạn đã giao phần thống kê cho Claude và không thể dựa vào bạn để bắt lỗi công thức.
+
+Phép so sánh không làm một lần. Ở nhiều mốc lượng tính toán, mạng của hai cách ở cùng mốc được cho đấu trực tiếp, với cùng số lượt thăm mỗi nước, và chênh lệch Elo được tính kèm khoảng tin cậy. Công cụ đấu này chưa viết. Nếu sau này phải sửa một phần dùng chung cho cả hai cách, như engine, mã hoá thế cờ, mạng, cách huấn luyện hay tham số tự chơi, thì cách truyền thống phải chạy lại để so sánh còn công bằng. Nếu chỉ sửa lỗi điều phối mà dữ liệu vẫn đúng thì không phải chạy lại.
+
+Các tệp để đối chiếu: `co_vua/docs/NHAT_KY.md` (mỗi quyết định và mỗi lần chạy, theo ngày), `co_vua/docs/THIET_KE_CO_VUA.md` (thiết kế đầy đủ, bảng quyết định ở phần 1, kế hoạch ở phần 14), ba tệp trong `co_vua/docs/walkthrough/` (các buổi bàn ngày 29/10 đến 2/11), và các tệp lưu cuộc trò chuyện trong thư mục dự án của Claude trên máy này.
