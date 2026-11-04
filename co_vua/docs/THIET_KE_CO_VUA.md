@@ -293,6 +293,8 @@ $$
 - $f(sa)$ là độ tin cậy của nhánh, nằm giữa 0 và 1. Nó gần 1 khi $E(sa)$ nhỏ hơn nhiều so với $\omega^2$ (bằng chứng dày), và gần 0 khi $E(sa)$ lớn hơn nhiều (bằng chứng mỏng).
 - $\nu$ là hằng số cộng chung cho mọi nhánh, chọn sao cho tổng các $\rho$ bằng đúng 1. Nó cũng gánh phần $\pi$ của các nước chưa chơi.
 
+**$\rho$ chính là bộ trọng số làm $E(s)$ nhỏ nhất** (kiểm ngày 4/11 khi rà lại): tìm các $\rho_s(a)$ có tổng bằng 1 sao cho $E(s)$ ở 4.2 nhỏ nhất thì ra đúng công thức trên, với $\nu$ đóng vai hằng số giữ tổng bằng 1. Nên 4.2 và 4.3 là cùng một ý: chọn cách gộp các nhánh sao cho $G(s)$ sai ít nhất có thể.
+
 Công thức cân bằng hai mong muốn trái ngược: bám sát cách chơi của search ($\pi$), và không tin nhánh có quá ít bằng chứng ($f$). Khi mọi nhánh đều có bằng chứng dày ($f$ gần 1), $\rho$ gần $\pi$. Khi bằng chứng mỏng ($f$ nhỏ), $\rho$ tỉ lệ gần với $f$, tức tỉ lệ nghịch với $E$: nhánh nào có nhiều bằng chứng hơn thì được tin hơn. Trọng số không dùng kết quả ván, nên các ván may mắn không được ưu ái có hệ thống.
 
 **Ví dụ:** tại $s$ có hai nước đã chơi $a_1$, $a_2$ và một nước $a_3$ search đã thăm nhưng chưa ván nào chơi. Cho $\pi(a_1)=0.70$, $E(sa_1)=0.10$; $\pi(a_2)=0.25$, $E(sa_2)=0.05$; $\pi(a_3)=0.05$; $\omega^2=0.04$.
@@ -311,6 +313,8 @@ $\omega^2$ (phương sai giá trị thật giữa các nước đi từ cùng m�
 
 - Lấy độ chênh $G$ giữa các nhánh của cùng một node (các nước đã chơi tại cùng một thế cờ), rồi trừ đi phần chênh chỉ do sai số của $G$ ($E$ của từng nhánh).
 - Lấy phương sai kết quả của một ván (cỡ 0.8) chia cho tổng $U$ cộng dọc một ván điển hình. Cách này suy ra từ ví dụ 1 ở 4.2, nơi $E$ ở đầu ván bằng $\omega^2$ nhân tổng $U$.
+
+**Số đo thật (4/11, 573 ván đời 0 của cách truyền thống):** phương sai kết quả ván là 0.608 (164 ván Trắng thắng, 185 Đen thắng, 224 hoà), $U$ trung bình mỗi thế cờ 0.678 (với $\rho=1$ cho nước đã chơi), tổng $U$ dọc một ván trung bình 162.6, nên cách thứ hai cho $\omega^2\approx0.0037$, nhỏ hơn khoảng mười lần con số minh hoạ 0.04 dùng trong các ví dụ của phần 4. Hệ quả: gần gốc, nhánh mang một ván có $E(sa)$ cỡ 0.1 đến 0.6, lớn hơn $\omega^2$ rất nhiều, nên $f$ rất nhỏ và $\rho$ gần như chia đều theo độ tin cậy, gần như không theo $\pi$. Điều này đúng với mô hình; mô phỏng (phần 14) phải xem nó có hợp lý trên cây thật không.
 
 Mặc định dùng cách thứ nhất. Cách thứ hai dùng để đối chiếu, và để có giá trị khởi đầu ở đời đầu, khi cách thứ nhất chưa tính được vì $E$ của các nhánh lại cần $\omega^2$ (4.5, 15.1).
 
