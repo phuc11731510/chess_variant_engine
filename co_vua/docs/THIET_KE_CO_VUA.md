@@ -173,7 +173,7 @@ Cây trò chơi lưu **các ván tự chơi thật** trong một cây duy nhất
 
 **Mỗi node $s$ lưu hai nhóm số.**
 
-Nhóm 1, lấy từ lần search gần nhất tại $s$ (mỗi lần ván đi qua $s$ và chọn nước, engine search tại $s$; search lại ở phần 9 cũng ghi đè nhóm này). Từ vựng ở 2.1.
+Nhóm 1, lấy từ các lần search tại $s$ (lần đầu khi ván tạo ra node, thêm mỗi lần search lại ở phần 9). **Đổi ngày 4/11:** nhóm này không bị ghi đè mà là trung bình có trọng số của mọi lần search tại node, lần cũ bị nhân $\gamma$ mỗi đời (8.4), lưu kèm tổng trọng số; $N$ và $P_0$ lấy theo trung bình như vậy. Lý do ở 7.4: một lần search đơn lẻ mang nhiễu Dirichlet rất lớn. Mọi công thức dưới đây dùng các số trung bình này như thể chúng là của một lần search. Từ vựng ở 2.1.
 
 - $N$: **tổng số lượt thăm** của lần search đó. Search là một chuỗi lượt thăm; mỗi lượt đi từ thế cờ $s$ xuống một thế sâu hơn và gọi mạng một lần. Ví dụ $N=800$.
 - $n(a)$: **số lượt thăm của nước $a$**, tức trong $N$ lượt đó có bao nhiêu lượt đã đi qua nước $a$ ngay từ $s$. Ví dụ $n(a)=560$ trong 800 lượt. Các $n(a)$ của mọi nước đã thăm cộng lại bằng $N$.
@@ -518,10 +518,10 @@ Khi ít bằng chứng, nhãn chỉ dịch nhẹ. Khi bằng chứng đủ nhi�
 
 ### 7.4 Những điều cần lưu ý
 
-- **Công thức rất nhạy với $\tau_d^2$.** $\pi'$ tỉ lệ với $1/(\beta'-Q')$, mà hiệu $\beta'-Q'$ chỉ cỡ 0.05 trong ví dụ, nên một thay đổi 0.005 của $Q'$ đã làm nhãn đổi khoảng 10%. $\tau_d^2$ quyết định $Q'$ dịch bao nhiêu, nên con số này phải đo từ dữ liệu.
+- **Công thức rất nhạy với $\tau_d^2$.** $\pi'$ tỉ lệ với $1/(\beta'-Q')$, mà hiệu $\beta'-Q'$ chỉ cỡ 0.05 trong ví dụ, nên một thay đổi 0.005 của $Q'$ đã làm nhãn đổi khoảng 10%. $\tau_d^2$ quyết định $Q'$ dịch bao nhiêu, nên con số này phải đo từ dữ liệu. **Quyết định 4/11:** ước lượng $\tau_d^2$ theo cùng cách đã chốt cho $\tau_q^2$ ở phần 5 (chỉ từ node có $E$ nhỏ, có sàn dương, mặc định 0.0005), vì nó cũng là một phép trừ $E$ khỏi một độ chênh thấy được và có cùng nguy cơ ra số âm; log $\tau_d^2$ theo từng nhóm khoảng cách tới cuối ván.
 - **Lợi ích tập trung ở các node có nhiều bằng chứng.** Nhiều node sâu sẽ có $\pi'$ gần như bằng $\pi$.
 - **$\tau_d^2$ là số trung bình toàn cây**, nên cái sai hiếm vẫn được sửa khá chậm.
-- **Nhãn gần gốc chỉ đến từ một lần search có nhiễu Dirichlet**, trong khi cách cũ có nhiều mẫu nhiễu khác nhau. Nên lấy trung bình các lần search của node, với lần cũ bị nhân $\gamma$ theo mỗi đời ($\gamma$ là hệ số giảm bằng chứng cũ, định nghĩa ở 8.4).
+- **Nhãn gần gốc chỉ đến từ một lần search có nhiễu Dirichlet**, trong khi cách cũ có nhiều mẫu nhiễu khác nhau. Số đo 4/11 trên 573 lần search thế khởi đầu ở đời 0 (mạng ngẫu nhiên, prior gần đều nên nhiễu chiếm phần lớn): một nước có tỉ lệ lượt thăm trung bình chỉ khoảng 0.055 nhưng độ lệch chuẩn giữa các lần search tới 0.08, có lần lên tới 0.55; nước được thăm nhiều nhất đổi liên tục (a2a4 40 lần, e2e3 39 lần, c2c4 33 lần, ...). Cách truyền thống search thế khởi đầu khoảng 1 700 lần mỗi đời nên nhãn trung bình gần hết nhiễu; cây trò chơi chỉ search mỗi node khi tạo ra và khi search lại. **Quyết định 4/11:** node lưu trung bình các lần search (phần 3, nhóm 1) thay vì lần gần nhất, với lần cũ bị nhân $\gamma$ mỗi đời ($\gamma$ là hệ số giảm bằng chứng cũ, định nghĩa ở 8.4); tính chất "không có bằng chứng thì $\pi'=\pi$" vẫn giữ, với $\pi$ là trung bình đó. Số lần search của các node gần gốc do phần 9 quyết định, và đây là một lý do chính để search lại các node gần gốc.
 - **Prior nào được dùng ở bước 4.** Tại gốc của mỗi lần search, lc0 ghi đè prior của mạng bằng prior đã trộn nhiễu Dirichlet ($(1-\epsilon)P(a)+\epsilon\,\eta_a$, với $\eta_a$ là nhiễu; `upstream/lc0/src/search/classic/search.cc` dòng 202 đến 218 và 2191 đến 2194). PUCT chạy trên prior đã trộn nhiễu, nên $P_0$ ở bước 4 phải tính bằng prior đã trộn nhiễu. Còn $w_a$ được dựng lại từ $\pi$ và $Q$ nên tự phản ánh prior đã trộn nhiễu. Engine mới ghi cả prior đã trộn nhiễu lẫn prior thô của mạng (12.7); prior thô chỉ dùng cho log.
 - **Nguồn tham khảo:** dạng $\pi'$ giống nghiệm của Grill và cộng sự (ICML 2020). Phần mới là $Q'$ sửa theo kết quả ván, cũng là phần ít được kiểm chứng nhất, nên được thử sau cùng.
 
