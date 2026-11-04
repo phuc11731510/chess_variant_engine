@@ -811,8 +811,61 @@ chon_may() {
 
 # m / c: xin may ten $S. Ten dang la mot may CON CHAY -> tu choi (colab new se ghi de phien, may cu
 # bi thu hoi). 0 = xin duoc.
+# Chuyen "ghe lai" (tai khoan, han muc chup, trang thai vong lap, du lieu) giua dien thoai va may tinh: fz_chuyen.py
+# (dung chung cv / fz). Xuat xong may nay bi KHOA (~/.fz_tk/.chuyen/da_giao.json): khong xin may, khong chay vong
+# lap cho toi khi nhap goi chieu ve -- de khong bao gio co hai noi cung lai mot tai khoan.
+da_giao() {
+  [ -f "$TKG/.chuyen/da_giao.json" ] || return 1
+  echo "${M_DO}[!] Máy này đã GIAO ghế lái sang máy khác (menu z): không xin máy, không chạy vòng lặp ở đây.${M_HET}"
+  echo "    Lái lại ở máy này: nhập gói chiều về của máy kia (z -> n)."
+  return 0
+}
+chuyen_may() {
+  local x da rc goi=() f i
+  if [ ! -f $HOME/fz_chuyen.py ]; then echo "[!] Thiếu $HOME/fz_chuyen.py -- chạy: bash ~/lay_ve.sh"; dung; return; fi
+  echo "${M_DAM}== Chuyển ghế lái sang máy khác (điện thoại <-> máy tính) ==${M_HET}"
+  python $HOME/fz_chuyen.py tinh_trang
+  echo "--------------------------------------"
+  echo " x    XUẤT: tài khoản + hạn mức + vòng lặp + dữ liệu -> một gói, rồi KHOÁ máy này"
+  echo " n    NHẬP: nhận gói của máy kia (Download/chuyen_*.tar)"
+  echo " Enter = về menu"
+  read -rp "Chọn: " x || return
+  case "$x" in
+    x|X)
+      echo "Dữ liệu mang theo (gói chiều về tự mang đúng phần đã nhận):"
+      read -rp "  Enter = chỉ FairyZero · ca = cả CoVua và FairyZero: " da || return
+      case "$da" in ca|CA) da=cv,fz ;; *) da=fz ;; esac
+      echo "[đang đóng gói -- dữ liệu lớn có thể mất vài phút]"
+      if python $HOME/fz_chuyen.py xuat --du-an "$da" --menu-pid $$; then
+        echo "${M_VANG}Gói chứa token = mật khẩu tài khoản: chỉ chép giữa máy của bạn.${M_HET}"
+        echo "Chép gói bằng cáp USB sang máy kia (máy tính: D:\\fz_chuyen\\ · điện thoại: thư mục Download), rồi"
+        echo "ở máy kia: menu z -> n."
+      fi
+      dung ;;
+    n|N)
+      for f in "$HOME"/storage/downloads/chuyen_*_*.tar; do [ -f "$f" ] && goi+=("$f"); done
+      [ ${#goi[@]} -eq 0 ] && { echo "[!] Không có gói nào trong Download (chuyen_*.tar)"; dung; return; }
+      for i in "${!goi[@]}"; do printf "  %d   %s\n" $((i + 1)) "$(basename "${goi[$i]}")"; done
+      read -rp "Số gói cần nhập: " i || return
+      [[ "$i" =~ ^[0-9]+$ ]] && [ "$i" -ge 1 ] && [ "$i" -le ${#goi[@]} ] || return
+      f=${goi[$((i - 1))]}
+      python $HOME/fz_chuyen.py nhap "$f" --menu-pid $$; rc=$?
+      if [ $rc = 3 ]; then
+        read -rp "Cất ghế lái hiện có của máy này sang chỗ lưu rồi nhận gói? Gõ 'co' (Enter = thôi): " x || x=
+        [ "$x" = co ] || { dung; return; }
+        python $HOME/fz_chuyen.py nhap "$f" --menu-pid $$ --ep; rc=$?
+      fi
+      [ $rc = 0 ] || { dung; return; }
+      read -rp "Xoá tệp gói vừa nhập ($(basename "$f"))? c = xoá, Enter = giữ: " x || x=
+      [ "$x" = c ] && rm -f "$f" && echo "[đã xoá] $(basename "$f")"
+      read -rp "Enter = thoát menu (mở lại để đọc tài khoản mới) " x || true
+      exit 0 ;;
+  esac
+}
+
 duoc_xin() {
   local rc
+  da_giao && return 1
   [ -f ~/fz_nhan_may.py ] || return 0
   py_colab ~/fz_nhan_may.py con "$S" >/dev/null 2>&1; rc=$?
   [ $rc = 1 ] && return 0
@@ -1345,6 +1398,7 @@ chay_cac_o() {
 # Muc v / `fz tu_dong`: vong lap tu dong sinh du lieu -> huan luyen -> len doi (~/fz_tu_dong.sh, xem
 # dau tep do). Moi cua so chay vong lap lo mot may; hai cua so = hai may, tu phoi hop.
 tu_dong() {
+  da_giao && return
   [ -f ~/fz_tu_dong.sh ] || { echo "[!] Thiếu ~/fz_tu_dong.sh -- chạy: bash ~/lay_ve.sh"; return; }
   # shellcheck source=/dev/null
   source ~/fz_tu_dong.sh
@@ -1370,6 +1424,7 @@ while true; do
     echo " Chuỗi đang chờ: ô ${x%% *} xong thì chạy $y  (l = xem rồi chạy tiếp)"
   fi
   echo " Ô lệnh: Download/FairyZero/o_lenh"
+  [ -f "$TKG/.chuyen/da_giao.json" ] && echo "${M_DO} ĐÃ GIAO ghế lái sang máy khác: không xin máy, không chạy vòng lặp (z: xem / nhận lại)${M_HET}"
   echo "--------------------------------------"
   files=()
   for f in "$D"/[0-9]*_*.py; do
@@ -1393,6 +1448,7 @@ while true; do
   echo " t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)"
   echo " a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)"
   echo " v    Vòng lặp tự động: sinh -> huấn luyện -> lên đời"
+  echo " z    Chuyển sang máy khác: xuất / nhập ghế lái (tài khoản, hạn mức, vòng lặp, dữ liệu)"
   echo " q    Thoát"
   echo "--------------------------------------"
   echo " Nhiều ô liền nhau: gõ cách nhau, vd: 01 02"
@@ -1401,6 +1457,7 @@ while true; do
 
   case "${chon[0]}" in
   q|Q) exit 0 ;;
+  z|Z) chuyen_may; continue ;;
   m|M) duoc_xin && xin_may T4; dung; continue ;;
   c|C)
     # Khong --gpu = may CPU. O dung GPU (04, 07, 08: --provider cuda / --amp) se loi tren may nay.

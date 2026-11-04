@@ -1287,6 +1287,8 @@ td_vong_chinh() {
     { tail -n 2000 "$TD/nhat_ky.txt" > "$TD/nhat_ky.tmp" && mv "$TD/nhat_ky.tmp" "$TD/nhat_ky.txt"; }
   trap 'rm -f "$CS/$$" "$TD_W" "$TD/.w_$$.tmp" "$TD/.luong_$$" "$TD_DUNG_RIENG"; rm -rf "$TD/o_$$"' EXIT
   td_bat_dau || return
+  # Ctrl+C o mot cau hoi cua lan mo v TRUOC (bo do) da dat NGAT=1 -- khong de no bat menu ngat ngay khi bat dau.
+  NGAT=0
   td_ranh
   td_ghi gen="$(td_gen)" buoc=xin van=0
   while [ $TD_THOAT = 0 ] && [ $TD_LOI = 0 ]; do

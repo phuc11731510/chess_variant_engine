@@ -57,6 +57,7 @@ curl -fsSL -o ~/fz_nhan_may.py "$URL/fz_nhan_may.py" && echo "[tai]        ~/fz_
 curl -fsSL -o ~/fz_trung_tk.py "$URL/fz_trung_tk.py" && echo "[tai]        ~/fz_trung_tk.py"
 curl -fsSL -o ~/fz_giu_may.py "$URL/fz_giu_may.py" && echo "[tai]        ~/fz_giu_may.py"
 curl -fsSL -o ~/fz_colab.py "$URL/fz_colab.py" && echo "[tai]        ~/fz_colab.py"
+curl -fsSL -o ~/fz_chuyen.py "$URL/fz_chuyen.py" && echo "[tai]        ~/fz_chuyen.py"
 curl -fsSL -o ~/fz_tu_dong.sh "$URL/fz_tu_dong.sh" && echo "[tai]        ~/fz_tu_dong.sh"
 curl -fsSL -o ~/fz_tu_dong.py "$URL/fz_tu_dong.py" && echo "[tai]        ~/fz_tu_dong.py"
 
@@ -71,9 +72,9 @@ o() { bash ~/fz_menu.sh "$@"; }
 EOF
 
 # Xem log truc tiep can ssh + khoa ca nhan (colab ssh dua khoa len may Colab).
-command -v ssh >/dev/null || pkg install -y openssh
+command -v ssh >/dev/null || { command -v pkg >/dev/null && pkg install -y openssh; } || echo "[!] thieu ssh: cai bang trinh quan ly goi cua may (WSL: apt install openssh)"
 # Thanh tien do (%, toc do, con bao lau) khi tai len / tai ve qua menu.
-command -v pv >/dev/null || pkg install -y pv
+command -v pv >/dev/null || { command -v pkg >/dev/null && pkg install -y pv; } || echo "[!] thieu pv: cai bang trinh quan ly goi cua may (WSL: apt install pv)"
 [ -f ~/.ssh/id_ed25519 ] || ssh-keygen -t ed25519 -N "" -q -f ~/.ssh/id_ed25519
 
 # Chia se tep tu ung dung khac (MT Manager, Files) -> Termux -> "Edit": Termux chep tep vao

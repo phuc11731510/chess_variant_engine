@@ -51,7 +51,7 @@ for c in $CELLS; do
   fi
 done
 # Menu, vong lap, tro ly Python khong phai thu ban sua -> luon lay ban moi.
-for t in cv_menu.sh cv_tu_dong.sh cv_tu_dong.py fz_may.py fz_han_muc.py fz_nhan_may.py fz_trung_tk.py fz_giu_may.py fz_colab.py; do
+for t in cv_menu.sh cv_tu_dong.sh cv_tu_dong.py fz_may.py fz_han_muc.py fz_nhan_may.py fz_trung_tk.py fz_giu_may.py fz_colab.py fz_chuyen.py; do
   curl -fsSL -o "$CVD/$t" "$URL/$t" && echo "[tai]        ~/cv/$t"
 done
 
@@ -63,8 +63,8 @@ cv() { bash ~/cv/cv_menu.sh "$@"; }
 EOF
 
 # Xem log truc tiep can ssh + khoa ca nhan (colab ssh dua khoa len may Colab).
-command -v ssh >/dev/null || pkg install -y openssh
+command -v ssh >/dev/null || { command -v pkg >/dev/null && pkg install -y openssh; } || echo "[!] thieu ssh: cai bang trinh quan ly goi cua may (WSL: apt install openssh)"
 # Thanh tien do (%, toc do, con bao lau) khi tai len / tai ve qua menu.
-command -v pv >/dev/null || pkg install -y pv
+command -v pv >/dev/null || { command -v pkg >/dev/null && pkg install -y pv; } || echo "[!] thieu pv: cai bang trinh quan ly goi cua may (WSL: apt install pv)"
 [ -f ~/.ssh/id_ed25519 ] || ssh-keygen -t ed25519 -N "" -q -f ~/.ssh/id_ed25519
 echo "[xong] ban ${SHA:0:7}. Chay: source ~/.bashrc   roi go:  cv"

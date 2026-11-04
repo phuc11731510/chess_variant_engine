@@ -1355,6 +1355,8 @@ td_vong_chinh() {
   # (fz cat nhat ky xuong 2000 dong khi qua 4000; cv giu nguyen toan bo -- xem TD_NK)
   trap 'rm -f "$CS/$$" "$TD_W" "$TD/.w_$$.tmp" "$TD/.luong_$$" "$TD_DUNG_RIENG"; rm -rf "$TD/o_$$"' EXIT
   td_bat_dau || return
+  # Ctrl+C o mot cau hoi cua lan mo v TRUOC (bo do) da dat NGAT=1 -- khong de no bat menu ngat ngay khi bat dau.
+  NGAT=0
   td_ranh
   td_ghi gen="$(td_gen)" buoc=xin van=0
   while [ $TD_THOAT = 0 ] && [ $TD_LOI = 0 ]; do
