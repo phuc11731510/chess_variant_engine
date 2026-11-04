@@ -373,6 +373,18 @@ Thế cờ sát phán quyết gần như tin hẳn vào kết quả ván. Thế 
 
 **Rủi ro lớn nhất của phần này:** 65% và 85% khác rất xa mức $q_{\text{ratio}}=0.2$ của mô hình cũ (2.5), và làm yếu đi điểm neo từ kết quả ván. Phép trộn giả định sai số của $q$ độc lập với $G$ và không có lệch, trong khi $q$ có thể lệch đúng theo niềm tin của mạng. Phải kiểm tra phần này trước khi dùng thật. Một phương án dự phòng là giữ công thức cũ tại node có một ván, và chỉ giảm tỉ lệ của $q$ khi có nhiều bằng chứng độc lập.
 
+**Kiểm trên số thật (4/11, 573 ván đời 0 của cách truyền thống, 137 435 thế cờ, mỗi thế cờ coi như một node chỉ có một ván đi qua nên $G=z$, $\omega^2=0.0037$ như 4.4).** Mỗi nửa nước đi lên làm $E$ tăng trung bình $0.0037\times0.678\approx0.0025$. Ước lượng $\tau_q^2$ bằng trung bình $(G-q)^2$ trừ trung bình $E$, theo nhóm khoảng cách tới cuối ván:
+
+| Cách cuối ván (nửa nước) | Số thế cờ | $E$ trung bình | $(z-q)^2$ trung bình | $\tau_q^2$ ước lượng |
+|---|---|---|---|---|
+| 1 đến 9 | 5 146 | 0.009 | 0.391 | 0.382 |
+| 10 đến 29 | 11 164 | 0.045 | 0.595 | 0.550 |
+| 30 đến 79 | 26 062 | 0.132 | 0.569 | 0.437 |
+| 80 đến 159 | 34 319 | 0.295 | 0.480 | 0.185 |
+| từ 160 | 60 744 | 0.683 | 0.206 | **-0.477** |
+
+Ước lượng gộp cả cây ra $-0.023$, tức vô nghĩa (phương sai âm, kéo $w_q$ lên quá 1). Hai nguyên nhân: $E$ cộng dồn tuyến tính theo khoảng cách nên ở ván dài vượt cả độ dao động của kết quả ván (0.608); và thế cờ cách cuối ván rất xa chỉ có trong ván dài, mà ván dài phần lớn là hoà, nên $(z-q)^2$ ở đó nhỏ. Mạng đời 0 còn ngẫu nhiên ($q$ theo góc Trắng có độ lệch chuẩn chỉ 0.086), nên phép đo này thô, nhưng nó cho thấy cách ước lượng $\tau_q^2$ gộp cả cây không đứng vững. **Mình quyết định (4/11):** $\tau_q^2$ chỉ ước lượng từ các node có $E$ nhỏ (mặc định $E<0.05$, nơi phần trừ $E$ ít ảnh hưởng), và không bao giờ nhỏ hơn 0.01; mỗi đời log thêm $\tau_q^2$ theo từng nhóm khoảng cách như bảng trên. Việc $E$ có nên bị chặn trên bởi độ dao động kết quả ván hay không để mô phỏng quyết định (phần 14), vì chặn hay không chặn đều chưa biết là hại hơn lợi. Với số đời 0 này, $w_q$ trung bình theo nhóm là khoảng 2%, 10%, 25%, 42% và 63% (với $\tau_q^2\approx0.4$), so với 20% cố định của cách truyền thống.
+
 **Với cờ vua:** nếu value head cho ra thắng, hòa, thua, thì $G$, $q$ và value target được tính riêng cho từng thành phần với cùng các trọng số.
 
 ---
@@ -912,6 +924,7 @@ Log gồm hai loại:
 - **Cây:** số node, số lá, số node mới, số node bị cắt và độ sâu của chúng; số điểm rẽ quét được, số điểm được chơi, và phân bố độ sâu của điểm rẽ; phân bố $m$, $E$ và $U$ theo độ sâu; tuổi nhãn theo độ sâu, tính theo trọng số $m$; tỉ trọng mẫu huấn luyện theo độ sâu.
 - **Các số được ước lượng:** $\omega^2$ theo cả hai cách ở 4.4; $\omega^2$ theo từng nhóm độ sâu và nhóm số quân; dãy $\omega^2$ qua các lượt lặp chỉ để log (4.5); $\tau_q^2$, $\tau_d^2$; phân bố $w_q$.
 - **Nhãn:** sai số của nhãn value so với kết quả các ván đi qua node ở các đời sau (các ván này chưa có khi nhãn được tính, nên đây là phép đo không dùng lại dữ liệu đã dùng để tính nhãn); độ chênh giữa $\pi'$ và $\pi$; số node có nhãn đổi mạnh khi được search lại; bảng $\hat\Delta$ theo tuổi.
+- **Cơ chế $G$, $E$, $\rho$ (phần 4), log thật nhiều theo yêu cầu của chủ dự án (4/11) để khảo sát và sửa khi cần:** phân bố độ tin cậy $f$ và độ chênh $\rho-\pi$ theo độ sâu và theo số nước đã chơi tại node; tỉ lệ node mà nhánh có $\rho$ lớn nhất khác nhánh có $\pi$ lớn nhất; phép kiểm trực tiếp $E$: ở mỗi đời, so $E(s)$ đã tính ở đời trước với bình phương độ lệch giữa $G(s)$ cũ và kết quả các ván MỚI đi qua $s$ (tỉ số "sai số thấy được / sai số dự báo" theo nhóm độ sâu, đúng mô hình thì gần 1); $G$ và $E$ của gốc qua các đời; mỗi đời ghi một mẫu ngẫu nhiên cố định cỡ (mặc định 10 000 node) với đầy đủ số của node và các nhánh ($\pi$, $Q$, $\rho$, $f$, $G$, $E$, $U$, $m$) để soi bằng tay; ảnh chụp đầy đủ cây (nén) mỗi 10 đời. Tất cả giữ vĩnh viễn như mọi log khác.
 - **Ngân sách:** số lần chạy mạng cho tự chơi và cho search lại, việc search lại có chạm trần 20% không (9.3), phần vượt chuyển sang đời sau (6.3), và tổng cộng dồn.
 - **Ván và huấn luyện, ghi cho cả hai bên:** độ dài ván, tỉ lệ thắng, hòa, thua; số ván hòa do chạm giới hạn 450 nửa nước; loss của policy và value; số bước huấn luyện; thời gian chạy.
 - **Đo bằng Stockfish, chỉ để tìm nguyên nhân:** lấy một mẫu thế cờ cố định số lượng ở mỗi đời của mỗi bên, cho Stockfish đánh giá, rồi so với nhãn value và nước có nhãn policy cao nhất. Từ đó ghi tỉ lệ nhãn sai theo độ sâu, và số đời một nhãn sai tồn tại trước khi được sửa. Kết quả Stockfish không đi vào nhãn hay vào quyết định bên nào hơn. Cách quy đổi đánh giá của Stockfish sang thang thắng, hòa, thua và ngưỡng coi là "sai" sẽ chốt khi làm; hai lựa chọn này chỉ ảnh hưởng tới log, không ảnh hưởng tới hệ thống.
