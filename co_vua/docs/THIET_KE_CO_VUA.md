@@ -902,6 +902,16 @@ Bản trước có một bước kiểm công thức trên tàn cuộc bằng Sy
 
 **Thước đo phụ, chỉ dùng để tìm nguyên nhân:** các log ở phần 15.
 
+**Mô phỏng lần 1 (5/11, `co_vua/thu_nghiem/mo_phong_cay.py`).** Thế giới giả có giá trị thật biết trước: mỗi thế cờ 10 nước, giá trị thật của các con dao động quanh giá trị của cha (trung bình theo chính sách thật đúng bằng giá trị cha, độ toả $\omega^2$ thật khoảng 0.0047), ván kết thúc khi thế cờ đã rõ thắng thua hoặc hoà, nên kết quả ở lá gần như chắc chắn; "search" cho $Q$ bằng giá trị thật cộng lệch cố định (một phần node có một nước bị đánh giá cao sai 0.3) và nhiễu mỗi lần, rồi lượt thăm theo softmax trộn nhiễu Dirichlet. Cây chơi 300 ván từ gốc rồi 4 đời rẽ nhánh, khoảng 200 nghìn node. Hai thế giới: search khá đúng (nhiễu $Q$ 0.045, 5% node lệch) và search kém (nhiễu 0.15, 20% node lệch). Kết quả, chỉ là bằng chứng từ thế giới giả:
+
+- **$E$ dự báo thấp hơn sai số thật của $G$.** Phương án A: trung bình 0.117 so với thật 0.198 (search đúng), 0.181 so với 0.370 (search kém); ở nhóm node có $E$ nhỏ nhất, sai số thật gấp 4 đến 5 lần dự báo. Phương án B: trung bình gần hơn nhưng sai theo hướng khác, dự báo quá cao ở nhóm $E$ lớn (gấp 2 đến 3 lần) và quá thấp ở nhóm $E$ nhỏ. Không phương án nào khớp.
+- **Một phần do định nghĩa giá trị thật.** Đo trên 300 node, mỗi node 200 ván chơi tiếp độc lập đúng như ván của cây (đi nước nhiều lượt thăm nhất): giá trị khi chơi như vậy cao hơn giá trị trung bình theo chính sách mềm khoảng 0.022 cho bên đi, chênh bình phương khoảng 0.018. So với giá trị khi chơi thật, sai số của $G$ là 0.163 (dự báo A 0.122), gần hơn so với 0.186 khi so với định nghĩa hiện tại. Vậy định nghĩa hiện tại (chơi theo tỉ lệ lượt thăm) không phải thứ ván của cây đo; nhưng kể cả với định nghĩa đúng, $E$ vẫn thấp khoảng một phần tư, và lệch theo nhóm vẫn còn.
+- **Ước lượng $\tau_q^2$ lệch xa giá trị thật** (thật 0.008 và 0.049, ước 0.09 và 0.10 đến 0.13), vì phép trừ $E$ dùng một $E$ đã sai. Đúng như lo ngại ở phần 5.
+- **Nhãn value mới tốt hơn nhãn kiểu truyền thống nhiều** (sai số bình phương so với giá trị thật theo trọng số $m$: 0.178 xuống 0.044 với A, 0.021 với B ở thế giới search đúng; 0.365 xuống 0.082 và 0.052 ở thế giới search kém), nhưng chủ yếu vì trong cả hai thế giới $q$ chính xác hơn kết quả một ván rất nhiều (chỉ dùng $q$ còn tốt hơn nữa). Kết quả này phụ thuộc thế giới: với mạng đời 0 thật, $q$ gần như đoán bừa (phần 5), nên không được coi là bằng chứng.
+- **Nhãn policy $\pi'$:** ở thế giới search đúng, tốt hơn $\pi$ một chút (giá trị thật kỳ vọng -0.055 lên -0.047, trúng nước tốt nhất 55.9% lên 56.4%); ở thế giới search kém thì **kém hơn** (-0.048 xuống -0.056, 29.3% xuống 26.0%), vì ở chỗ $E$ báo nhỏ mà sai số thật lớn, nhãn tin $G$ quá mức.
+
+**Việc tiếp theo:** tìm vì sao $E$ thấp ở nhóm $E$ nhỏ; xét đổi định nghĩa giá trị thật sang "khi chơi như ván của cây" và sửa $U$ theo đó; xét hiệu chỉnh $E$ bằng chính phép kiểm mỗi đời ở 15.2 (so $E$ với kết quả các ván mới). Cho tới khi $E$ khớp trên mô phỏng, nhãn policy $\pi'$ là phần có bằng chứng gây hại trong một thế giới, nên mình đề nghị để công tắc của nó tắt ở lần chạy chính cho tới khi sửa xong (chờ chủ dự án đồng ý).
+
 ---
 
 ## 15. Quan sát, ghi log và tinh chỉnh
