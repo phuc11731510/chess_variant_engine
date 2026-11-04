@@ -867,7 +867,10 @@ Mỗi cách có một lệnh riêng trên điện thoại, giống lệnh `fz` c
 | Value target quá tin $q$ | Mất điểm neo từ kết quả ván, mạng có thể tự xác nhận sai | Theo dõi phân bố $w_q$; sai số của nhãn value so với kết quả các ván đi qua node ở các đời sau (các ván này chưa có khi nhãn được tính) và so với Stockfish (15.2) |
 | Value target quá trơn | Nhãn các node liền nhau gần như bằng nhau ở khai cuộc, mạng khó học độ chênh nhỏ | So độ chênh value head với search sâu |
 | Dữ liệu kém đa dạng (chỉ là khả năng, chưa có dấu hiệu) | Mạng gặp ít kiểu thế cờ hơn | Đếm thế cờ khác nhau theo độ sâu |
-| Ngân sách search lại quá lớn | Ít dữ liệu mới | Thử nhiều mức trần |
+| Ngân sách search lại quá lớn | Ít dữ liệu mới | Đã chốt dùng tới 20% (9.3); log độ dịch thật của nhãn sau mỗi lần search lại, hạ mức nếu nhãn gần như không dịch |
+| Nhiễu Dirichlet ở các node gần gốc (đo 4/11: một nước 5.5% trung bình có lần lên 55%) | Node được học nhiều nhất mang nhãn nhiễu | Trung bình các lần search (phần 3), search lại tới 20% (9.3); log tỉ số $m/k$ theo trọng số $m$ |
+| $\omega^2$ nhỏ (đo đời 0: 0.0037) làm $ho$ gần gốc gần như chia theo độ tin cậy, không theo $\pi$ | $G$ gần gốc gộp các nhánh khác cách search chơi | Log độ chênh $ho-\pi$ (15.2); phương án B ở 4.4 trong mô phỏng |
+| Ước lượng $	au_q^2$, $	au_d^2$ ra số âm (đo đời 0 khi gộp cả cây) | Nhãn vô nghĩa | Chỉ ước lượng từ node có $E$ nhỏ, có sàn (phần 5, 7.4); log theo nhóm |
 | $\pi'$ lật nhãn vì nhiễu | Policy dao động | Theo dõi độ chênh giữa $\pi'$ và $\pi$ qua các đời, đối chiếu với nước Stockfish chọn (15.2), thêm bước này sau cùng |
 | Cái sai hiếm vẫn tồn tại lâu | Không đạt mục tiêu về lệch | Đo bằng Stockfish (chỉ để đo, 15.2): tỉ lệ nhãn sai và số đời một nhãn sai tồn tại, ở cả hai bên. Thêm tín hiệu nội bộ: các node có nhãn đổi mạnh khi được search lại hoặc khi có ván mới đi qua |
 | Bằng chứng cũ từ mạng non | $G$ gần gốc bị lệch | So $G$ gần gốc với mạng hiện tại |
@@ -892,6 +895,8 @@ Thêm từng phần một, để khi kết quả xấu còn biết phần nào g
 | 6 | Xác nhận cuối với nhiều seed | Khoảng tin cậy của mức chênh Elo không chứa 0, hoặc kết luận rõ là không hơn |
 
 Bản trước có một bước kiểm công thức trên tàn cuộc bằng Syzygy và một bước thêm quy tắc chọn điểm rẽ theo tín hiệu. Bước thứ nhất đã bỏ vì dự án không dùng Syzygy. Bước thứ hai đã bỏ vì điểm rẽ được chọn ngẫu nhiên ngay từ bước 2.
+
+**Chi phí, ghi 5/11 (chờ chủ dự án chốt cách chạy).** Đo thật: một máy T4 chạy khoảng 14 500 lần chạy mạng mỗi giây, nên một đời 200 triệu tốn khoảng 3.8 giờ T4 cho mỗi cách, và tới đời 100 khoảng 380 giờ T4 mỗi cách. Chạy từng bước 2 đến 5 như bảng trên, mỗi bước từ đời 0, thì riêng các bước đó đã tốn nhiều lần chừng ấy. Bước 6 (chạy lại cả hai bên với seed mới) tốn thêm gấp đôi phần được chạy lại. Phương án đang đề xuất: một lần chạy chính với mọi phần bật, so với cách truyền thống ở các đời 10, 20, ..., 100 (arena của `cv`), và chỉ chạy các bước tách riêng (ngắn, vài chục đời) khi cần tìm nguyên nhân.
 
 **Thước đo chính:** Elo khi đấu trực tiếp giữa mạng của hai cách ở cùng tổng số lần chạy mạng, với cùng số bước huấn luyện. Ví dụ, sau 200 triệu lần chạy mạng mỗi bên, lấy mạng hiện tại của mỗi bên cho đấu với nhau với cùng số lượt thăm mỗi nước. Kết luận không dựa vào Syzygy hay Stockfish; Stockfish chỉ dùng để đo nguyên nhân (15.2). Mức chênh tối thiểu được chốt sau bước 1. Cách cũ phải được làm tốt thật, nếu không thì chiến thắng không có giá trị.
 
@@ -922,8 +927,8 @@ Bạn giao cho mình làm người quan sát chính của dự án: mình đọc
 | $\omega^2$ chung hay theo nhóm node | Một số chung cho cả cây (4.4) | $\omega^2$ ước lượng riêng theo độ sâu và theo số quân |
 | Hai cách ước lượng $\omega^2$ ở 4.4 có khớp nhau không | Dùng cách thứ nhất, cách thứ hai để đối chiếu | Giá trị của cả hai cách mỗi đời |
 | $\tau_q^2$, $\tau_d^2$ | Ước lượng lại mỗi đời (phần 5 và 7) | Giá trị mỗi đời, phân bố $w_q$ |
-| Mức trần search lại | 20% ngân sách (9.3) | Tuổi nhãn theo độ sâu, bảng $\hat\Delta$ |
-| Kích thước cây, số node mới mỗi đời | Đặt sau khi đo tốc độ (12.5) | Tỉ trọng mẫu và tuổi mẫu theo độ sâu |
+| Mức search lại | Đã chốt (5/11): tới 20% ngân sách, theo ưu tiên, dừng sớm nếu $k\ge m$ ở mọi node (9.3) | Tuổi nhãn theo độ sâu, bảng $\hat\Delta$, tỉ số $m/k$, độ dịch nhãn |
+| Kích thước cây, số node mới mỗi đời | Đã chốt (4/11): $W=4$, cây bằng tổng node mới của 4 đời (8.1) | Tỉ trọng mẫu và tuổi mẫu theo độ sâu |
 
 Ở dòng thứ tư, cách thứ nhất được chọn làm mặc định vì nó dùng trực tiếp độ chênh $G$ giữa các nhánh, còn cách thứ hai dựa trên ví dụ 1 ở 4.2 có giả định riêng. Lựa chọn này có thể đổi nếu log cho thấy cách thứ nhất không ổn định.
 
