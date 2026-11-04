@@ -869,8 +869,8 @@ Mỗi cách có một lệnh riêng trên điện thoại, giống lệnh `fz` c
 | Dữ liệu kém đa dạng (chỉ là khả năng, chưa có dấu hiệu) | Mạng gặp ít kiểu thế cờ hơn | Đếm thế cờ khác nhau theo độ sâu |
 | Ngân sách search lại quá lớn | Ít dữ liệu mới | Đã chốt dùng tới 20% (9.3); log độ dịch thật của nhãn sau mỗi lần search lại, hạ mức nếu nhãn gần như không dịch |
 | Nhiễu Dirichlet ở các node gần gốc (đo 4/11: một nước 5.5% trung bình có lần lên 55%) | Node được học nhiều nhất mang nhãn nhiễu | Trung bình các lần search (phần 3), search lại tới 20% (9.3); log tỉ số $m/k$ theo trọng số $m$ |
-| $\omega^2$ nhỏ (đo đời 0: 0.0037) làm $ho$ gần gốc gần như chia theo độ tin cậy, không theo $\pi$ | $G$ gần gốc gộp các nhánh khác cách search chơi | Log độ chênh $ho-\pi$ (15.2); phương án B ở 4.4 trong mô phỏng |
-| Ước lượng $	au_q^2$, $	au_d^2$ ra số âm (đo đời 0 khi gộp cả cây) | Nhãn vô nghĩa | Chỉ ước lượng từ node có $E$ nhỏ, có sàn (phần 5, 7.4); log theo nhóm |
+| $\omega^2$ nhỏ (đo đời 0: 0.0037) làm $\rho$ gần gốc gần như chia theo độ tin cậy, không theo $\pi$ | $G$ gần gốc gộp các nhánh khác cách search chơi | Log độ chênh $\rho-\pi$ (15.2); phương án B ở 4.4 trong mô phỏng |
+| Ước lượng $\tau_q^2$, $\tau_d^2$ ra số âm (đo đời 0 khi gộp cả cây) | Nhãn vô nghĩa | Chỉ ước lượng từ node có $E$ nhỏ, có sàn (phần 5, 7.4); log theo nhóm |
 | $\pi'$ lật nhãn vì nhiễu | Policy dao động | Theo dõi độ chênh giữa $\pi'$ và $\pi$ qua các đời, đối chiếu với nước Stockfish chọn (15.2), thêm bước này sau cùng |
 | Cái sai hiếm vẫn tồn tại lâu | Không đạt mục tiêu về lệch | Đo bằng Stockfish (chỉ để đo, 15.2): tỉ lệ nhãn sai và số đời một nhãn sai tồn tại, ở cả hai bên. Thêm tín hiệu nội bộ: các node có nhãn đổi mạnh khi được search lại hoặc khi có ván mới đi qua |
 | Bằng chứng cũ từ mạng non | $G$ gần gốc bị lệch | So $G$ gần gốc với mạng hiện tại |
