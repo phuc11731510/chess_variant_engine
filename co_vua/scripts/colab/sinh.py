@@ -120,10 +120,15 @@ def main():
 
     # Cách cây: hàng đợi việc, loại của việc đang chạy, cây nhỏ để tự quét và để đếm số lần search đã xong.
     hang_doi = []
+    e_viec, g_viec = 490.0, 0.0          # lần chạy mạng mỗi search, chi phí một ván rẽ (dòng "# e .. g .." của tệp việc)
     if a.viec:
         for dong in open(a.viec):
             phan = dong.split()
-            if phan:
+            if phan and phan[0] == "#":
+                kv = dict(zip(phan[1::2], phan[2::2]))
+                e_viec = float(kv.get("e", e_viec))
+                g_viec = float(kv.get("g", g_viec))
+            elif phan:
                 hang_doi.append((phan[0], " ".join(phan[2:])))
     else:
         hang_doi = [("G", "0")] * a.van_goc
@@ -137,17 +142,25 @@ def main():
 
     def uoc_con(t):
         """Ước lượng số lần chạy mạng các việc đang dở còn tốn. Cách truyền thống: mỗi ván dở còn nửa ván trung bình
-        (từ 8 ván xong). Cách cây: ván rẽ dở còn nửa ván rẽ trung bình, search lại dở còn một lần search."""
+        (từ 8 ván xong). Cách cây: ván rẽ dở còn nửa ván rẽ trung bình, search lại dở còn nửa lần search.
+        Cách cây KHÔNG chia bộ đếm của engine cho số search đã xong: bộ đếm gồm cả phần việc dở, còn số search đếm
+        từ van.bin (đọc 10 giây một lần) chỉ gồm việc đã xong -- việc S xong rất nhanh nên tỉ số phồng hàng chục lần
+        (thử 7/11: đời 1 dừng ở 100 nghìn / 1 triệu). Lần chạy mạng mỗi search lấy theo điện thoại đo (dòng # e);
+        độ dài ván rẽ đo trên máy từ các ván rẽ đã xong (từ 4 ván), trước đó theo ước của điện thoại (# g)."""
         d = t["van_da_nap"] - t["van_xong"] - t["loi"]
         if not che_do_cay:
             return int(d * t["evals"] / t["van_xong"] / 2) if t["van_xong"] >= 8 else 0
-        lan = cay_nho.so_lan_g + cay_nho.so_lan_s
-        if t["van_xong"] < 8 or lan == 0:
-            return 0
-        e = t["evals"] / lan
-        g_tb = cay_nho.so_lan_g / max(cay_nho.so_viec_g, 1)
-        so_g = sum(1 for k in dang_chay.values() if k == "G")
-        return int(e * (so_g * g_tb / 2 + (len(dang_chay) - so_g)))
+        with khoa:
+            loai = list(dang_chay.values())
+        so_g = loai.count("G")
+        return int(so_g * gia_g() / 2 + (len(loai) - so_g) * e_viec / 2)
+
+    def gia_g():
+        """Chi phí một ván rẽ: đo từ các ván rẽ đã xong trên máy (từ 4 ván), trước đó theo ước của điện thoại.
+        Đời 0 (ván từ gốc, không có tệp việc): 0 tới khi xong 4 ván, như cách truyền thống chờ 8 ván."""
+        if cay_nho.so_viec_g >= 4:
+            return e_viec * cay_nho.so_lan_g / cay_nho.so_viec_g
+        return g_viec
 
     threading.Thread(target=doc_ra, daemon=True).start()
     threading.Thread(target=ghi_gpu, daemon=True).start()
@@ -184,13 +197,21 @@ def main():
                 hang_doi.extend(("G", "0 " + " ".join(d)) for d in moi)
                 if moi:
                     log(f"tu quet: them {len(moi)} van re", True)
-            het_viec = False
+            het_viec = du_giao = False
+            them_uoc = 0.0
             for _ in range(max(0, them)):
                 if not che_do_cay:
                     p.stdin.write(f"G {id_tiep} {a.temp_plies}\n")
                 elif hang_doi:
+                    # Cách cây: chỉ nạp khi phần đã chạy + phần còn của việc dở + việc này còn trong phần giao
+                    # (thử 7/11: hết danh sách, tự quét nạp một lúc 48 ván rẽ khi giao 300 nghìn -> chạy 2 triệu).
+                    gia = gia_g() if hang_doi[0][0] == "G" else e_viec
+                    if a.giao and t["evals"] + con + them_uoc + gia > a.giao and (dang_chay or them_uoc):
+                        du_giao = True
+                        break
                     loai, phan_con = hang_doi.pop(0)
                     p.stdin.write(f"{loai} {id_tiep} {phan_con}\n")
+                    them_uoc += gia
                     with khoa:
                         dang_chay[id_tiep] = loai
                 else:
@@ -200,7 +221,12 @@ def main():
             p.stdin.flush()
             with khoa:
                 trang["van_da_nap"] = id_tiep
-            if het_viec and not dang_chay and not hang_doi:
+            if du_giao:
+                with khoa:
+                    trang["dang_dung"], trang["ly_do_dung"] = True, "du phan giao"
+                log(f"dung mem: du phan giao (viec ke tiep khong con vua); {len(dang_chay)} viec dang do se chay not", True)
+                p.stdin.close()
+            elif het_viec and not dang_chay and not hang_doi:
                 # Hết việc, không còn gì đang chạy, quét không ra điểm rẽ mới: dừng (engine tự thoát).
                 with khoa:
                     trang["dang_dung"], trang["ly_do_dung"] = True, "het viec"

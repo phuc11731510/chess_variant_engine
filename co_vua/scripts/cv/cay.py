@@ -640,7 +640,19 @@ def lay_viec(cach, g, giao, ra):
         while cuoi < len(dong) and tong < giao:
             tong += cp[cuoi]
             cuoi += 1
+        # Dòng đầu "# e <lần chạy mạng mỗi search> g <chi phí trung bình một ván rẽ của phần này>": sinh.py ước phần
+        # còn lại của việc đang dở bằng hai số này (bộ đếm của engine gồm cả việc dở nên không chia ra được).
+        e = EVALS_MOI_SEARCH
+        try:
+            with open(os.path.join(thu_muc_cay(cach), "cay.json"), encoding="utf-8") as fj:
+                e = float(json.load(fj).get("evals_moi_search", e))
+        except (OSError, ValueError):
+            pass
+        cp_g = [cp[i] for i in range(dau, cuoi) if dong[i].startswith("G ")]
+        g_tb = sum(cp_g) / len(cp_g) if cp_g else 0
         with open(ra, "w") as f:
+            if cuoi > dau:
+                f.write(f"# e {e:.1f} g {g_tb:.0f}\n")
             f.write("\n".join(dong[dau:cuoi]) + ("\n" if cuoi > dau else ""))
         with open(f_ct + ".tam", "w") as f:
             f.write(f"{cuoi}\n")
