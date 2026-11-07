@@ -216,7 +216,11 @@ def tinh(T, omega2_A):
         khong_choi[C] = False
         Qb = (pi * Q).sum()
         om = {"A": omega2_A, "B": max((pi * (Q - Qb) ** 2).sum(), 1e-6)}
-        om["C"] = om["D"] = om["B"]
+        om["C"] = om["B"]
+        # Phương án D (sửa 7/11): độ toả B trừ phần do nhiễu của chính Q (mỗi nước nhiễu NHIEU_Q^2 / số lần search,
+        # kỳ vọng phần nhiễu trong độ toả theo pi là NHIEU_Q^2 (1 - tổng pi^2) / k), và E không vượt 1 (độ dao động
+        # của kết quả một ván +1/0/-1 không vượt 1). Mã thật ước nhiễu từ các node được search nhiều lần.
+        om["D"] = max(om["B"] - NHIEU_Q ** 2 * (1 - (pi * pi).sum()) / T.k[s], 1e-6)
         tran = max(1.0 - hoa_all[s] - q_all[s] ** 2, 1e-4)   # độ dao động lớn nhất của kết quả một ván từ s
         for k in "ABCD":
             Ec = E[k][ch]
@@ -238,7 +242,7 @@ def tinh(T, omega2_A):
                 U = ((r - pi[C]) ** 2).sum() + (pi[khong_choi] ** 2).sum()
                 E[k][s] = (r * r * Ec).sum() + om[k] * U
                 if k == "D":
-                    E[k][s] = min(E[k][s], tran)
+                    E[k][s] = min(E[k][s], 1.0)
             rho_[k][s] = (C, ch, r)
     return G, E, rho_
 
