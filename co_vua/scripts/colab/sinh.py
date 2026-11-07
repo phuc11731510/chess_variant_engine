@@ -91,6 +91,10 @@ def main():
     ap.add_argument("--tu-quet", action="store_true", help="cách cây: hết việc thì tự quét ván của máy rồi rẽ tiếp")
     ap.add_argument("--van-goc", type=int, default=0, help="cách cây: số ván từ thế khởi đầu khi không có tệp việc")
     a = ap.parse_args()
+    if not a.han_cung and a.max_giay:
+        # Vòng lặp mở trước bản sửa 7/11 không ghi HAN: lấy hạn cứng = --max-giay + 400 giây, đúng phần chừa đuôi ván
+        # đã đo cho 128 ván (408 giây) mà vòng lặp cũ trừ ra khi tính SECS -- tức lúc phải gom và tải về.
+        a.han_cung = a.max_giay + 400
     che_do_cay = bool(a.viec) or a.tu_quet or a.van_goc > 0
     os.makedirs(a.thu_muc, exist_ok=True)
     tm = lambda t: os.path.join(a.thu_muc, t)

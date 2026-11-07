@@ -739,7 +739,7 @@ Cách cũ không đổi gì, vì nó đang chạy thật và phải giữ đúng
 - Máy đo độ dài từng ván (giây, từ lúc nạp tới lúc xong) và thôi nạp khi thời gian còn tới hạn cứng ít hơn 1,1 lần độ dài ván dài (phân vị 90 các ván đã xong). Như vậy phần chừa tự theo độ dài ván thật, không theo một lần đo cũ.
 - Tới hạn cứng mà engine chưa thoát thì tắt engine, bỏ các việc còn dở, giữ mọi ván đã xong (cắt bản ghi dở ở cuối tệp ván nếu có), rồi gom và tải về như thường. Thà mất vài ván dở còn hơn mất cả máy.
 - Lần chạy mạng của việc bị bỏ vẫn tính vào phần của máy (bộ đếm của engine gồm cả chúng), như việc chưa nạp bị bỏ khi máy dừng sớm: tính bất lợi cho cách đang chạy, không bao giờ có lợi.
-Cả hai cách cùng dùng bản sửa này: nó chỉ đổi gì khi máy sắp hết hạn mức, lúc mà bản cũ có thể mất cả máy.
+Cả hai cách cùng dùng bản sửa này: nó chỉ đổi gì khi máy sắp hết hạn mức, lúc mà bản cũ có thể mất cả máy. Vòng lặp mở trước bản sửa không ghi hạn cứng; khi đó máy lấy hạn cứng bằng SECS cộng 400 giây, đúng phần chừa đuôi ván vòng lặp cũ đã trừ, nên không phải mở lại vòng lặp.
 
 **Thứ tự so với phần 11.** Ở phần 11, search lại làm trước khi quét. Ở đây hai việc được làm cùng lúc trong bước song song, nên bước quét dùng số search của đời trước tại các node sắp được search lại. Mình chấp nhận điều này: phải tách thành hai lượt song song thì mỗi đời tốn thêm một lần chuyển dữ liệu giữa điện thoại và Colab, và máy phải ngồi chờ. Đó là hại chắc chắn, còn lợi của việc quét bằng số mới hơn một đời chỉ ở các node được search lại và có lẽ nhỏ.
 
