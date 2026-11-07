@@ -315,7 +315,9 @@ td_giay_t4() {
   local may g
   may=$(colab status -s "$S" 2>/dev/null | sed -n 's/.*Hardware: *\([^ |]*\).*/\1/p' | head -1)
   g=$(py_colab $CVD/fz_han_muc.py --may "$may" --giay-t4 2>/dev/null)
-  [[ "$g" =~ ^[0-9]+$ ]] && echo "$g"
+  # Hạn mức âm (7/11: -62 giây -- máy chạy quá hạn mức mà Colab chưa thu hồi) = hết: in 0 để td_sinh trả máy,
+  # thay vì "không đọc được hạn mức" lặp mãi.
+  if [[ "$g" =~ ^-[0-9]+$ ]]; then echo 0; elif [[ "$g" =~ ^[0-9]+$ ]]; then echo "$g"; fi
 }
 # 0 = may cua cua so nay con (hoac mat mang, khong biet), 1 = da mat.
 # rc 1 = may mat; 0 = con; khac (2 = loi mang / dang nhap, 75 = can dang nhap, 124 = treo) = khong biet. Truoc day
