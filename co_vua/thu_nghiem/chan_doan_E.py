@@ -44,7 +44,7 @@ def main():
     so_choi = np.array([len(T.con[s]) for s in range(n)])
 
     print(f"omega^2 dùng {om:.5f}")
-    for k in "ABC":
+    for k in "ABCD":
         err = G[k] - V
         print(f"\n=== Phương án {k} ===")
         print(" Theo khoảng cách tới cuối ván (chỉ node có đúng 1 ván đi qua):")

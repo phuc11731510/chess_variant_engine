@@ -180,15 +180,30 @@ def chay(a):
     return T, np.array(z_goc)
 
 
-def tinh(T, omega2_A):
-    """G, E theo phương án A (omega^2 chung) và B (độ toả tại node), từ dưới lên (4.5)."""
+def bang_hoa(T):
+    """Tỉ lệ ván hoà theo |q| (10 nhóm), đếm trên chính các ván của cây: thay cho xác suất hoà mà search của lc0
+    cho sẵn (best_d) -- search giả của mô phỏng chỉ cho Q."""
     n = T.n
-    G = {k: np.zeros(n) for k in "ABC"}
-    E = {k: np.zeros(n) for k in "ABC"}
-    rho_ = {k: [None] * n for k in "ABC"}
+    ns = T.n_sum[:n]
+    Qw = np.where(ns > 0, T.nq_sum[:n] / np.maximum(ns, 1e-12), 0.0)
+    q = Qw[np.arange(n), ns.argmax(1)]
+    co = ~T.het[:n] & (T.k[:n] > 0) & ~np.isnan(T.z_van[:n])
+    bien = np.quantile(np.abs(q[co]), np.linspace(0, 1, 11))
+    nhom = np.clip(np.searchsorted(bien, np.abs(q), side="right") - 1, 0, 9)
+    ty = np.array([np.mean(T.z_van[:n][co & (nhom == i)] == 0) if (co & (nhom == i)).any() else 0.3 for i in range(10)])
+    return q, ty[nhom]
+
+
+def tinh(T, omega2_A):
+    """G, E theo phương án A (omega^2 chung), B (độ toả tại node), C (độ chênh đo thẳng), D (B có trần tự nhiên)."""
+    n = T.n
+    q_all, hoa_all = bang_hoa(T)
+    G = {k: np.zeros(n) for k in "ABCD"}
+    E = {k: np.zeros(n) for k in "ABCD"}
+    rho_ = {k: [None] * n for k in "ABCD"}
     for s in np.argsort(-T.sau[:n], kind="stable"):
         if T.het[s]:
-            for k in "ABC":
+            for k in "ABCD":
                 G[k][s], E[k][s] = T.z[s], 0.0
             continue
         ns = T.n_sum[s]
@@ -201,8 +216,9 @@ def tinh(T, omega2_A):
         khong_choi[C] = False
         Qb = (pi * Q).sum()
         om = {"A": omega2_A, "B": max((pi * (Q - Qb) ** 2).sum(), 1e-6)}
-        om["C"] = om["B"]
-        for k in "ABC":
+        om["C"] = om["D"] = om["B"]
+        tran = max(1.0 - hoa_all[s] - q_all[s] ** 2, 1e-4)   # độ dao động lớn nhất của kết quả một ván từ s
+        for k in "ABCD":
             Ec = E[k][ch]
             f = om[k] / (om[k] + Ec)
             nu = (1 - (pi[C] * f).sum()) / f.sum()
@@ -221,6 +237,8 @@ def tinh(T, omega2_A):
             else:
                 U = ((r - pi[C]) ** 2).sum() + (pi[khong_choi] ** 2).sum()
                 E[k][s] = (r * r * Ec).sum() + om[k] * U
+                if k == "D":
+                    E[k][s] = min(E[k][s], tran)
             rho_[k][s] = (C, ch, r)
     return G, E, rho_
 
