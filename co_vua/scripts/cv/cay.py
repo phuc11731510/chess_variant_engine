@@ -649,6 +649,19 @@ def giay_may_tu_o(thu_muc=os.path.expanduser("~/.fz_tk/.cv_tu_dong")):
     return int(m.group(1)) + 400 if m else None
 
 
+def so_cua_so(thu_muc=os.path.expanduser("~/.fz_tk/.cv_tu_dong")):
+    """Số cửa sổ vòng lặp đang chạy: mỗi cửa sổ giữ một tệp w_<pid> (cập nhật mỗi bước), tiến trình còn sống."""
+    import glob
+    n = 0
+    for f in glob.glob(os.path.join(thu_muc, "w_*")):
+        try:
+            os.kill(int(f.rsplit("_", 1)[1]), 0)
+            n += 1
+        except (ValueError, OSError):
+            pass
+    return max(1, n)
+
+
 def lay_viec(cach, g, giao, ra, giay=None):
     """Nhận phần việc kế tiếp (khoá thư mục), đủ ước chi phí >= giao. In số việc; 0 = hết việc.
     giay = số giây máy còn chạy được: phần nhận không quá 1,3 lần số máy chạy kịp (tốc độ đo được x giây). Việc nhận
@@ -677,6 +690,10 @@ def lay_viec(cach, g, giao, ra, giay=None):
         cp = [int(x) for x in open(os.path.join(cach, f"viec_doi{g}.chi_phi")).read().split()]
         f_ct = os.path.join(cach, f"viec_doi{g}.con_tro")
         dau = int(open(f_ct).read().strip() or 0)
+        # Chia đều phần còn lại của danh sách cho các cửa sổ đang chạy: máy nhận trước không ôm hết, máy đến sau vẫn
+        # còn việc (7/11 đời 1: ba máy đầu nhận theo sức chạy, hết danh sách khi máy thứ tư tới, máy đó phải chơi
+        # ván từ gốc trong khi việc của ba máy kia thừa và sẽ mất khi đủ ngân sách).
+        giao = min(giao, sum(cp[dau:]) // so_cua_so() + 1)
         cuoi, tong = dau, 0
         while cuoi < len(dong) and tong < giao:
             tong += cp[cuoi]
