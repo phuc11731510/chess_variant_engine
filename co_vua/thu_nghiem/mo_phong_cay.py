@@ -28,7 +28,7 @@ import time
 import numpy as np
 
 K = 10            # số nước mỗi thế cờ
-D_MAX = 400       # giới hạn ván (hoà theo luật, như 450 nửa nước của cờ vua)
+D_MAX = 3000      # gần như không giới hạn: giá trị thật của thế giới giả không biết luật hoà khi chạm giới hạn, nên giới hạn thấp làm hỏng phép đo (chẩn đoán 7/11)
 OMEGA2 = 0.006    # độ toả giá trị thật giữa các nước ở thế cân bằng (tổng dọc ~100 nửa nước cỡ 0.6 như đo thật)
 SAC = 1.5         # độ sắc của chính sách thật (gần đời 0: nước nhiều nhất ~25%)
 P_HOA = 0.05      # mỗi nửa nước sau nửa nước 40, thế gần cân bằng (|V| < 0.05) có xác suất này kết thúc hoà
@@ -70,12 +70,14 @@ class The:
         self.n += 1
         self.cha[s], self.V[s] = cha, V
         self.sau[s] = 0 if cha < 0 else self.sau[cha] + 1
-        # Kết thúc theo "luật": thế đã thắng/thua rõ (|V| >= 0.95) -> kết quả đúng dấu; thế cân bằng sau nửa nước 40
-        # thỉnh thoảng thành hoà; chạm giới hạn -> hoà. Kết quả ở lá gần như chắc chắn, như cờ thật (E = 0 ở lá).
+        # Kết thúc theo "luật": thế đã gần như thắng/thua chắc (|V| >= 0.99) -> kết quả +1/-1 rút với trung bình đúng
+        # bằng V (độ dao động ở lá <= 0.02); thế cân bằng (|V| < 0.02) sau nửa nước 40 thỉnh thoảng thành hoà.
+        # Nhờ vậy V luôn đúng là kết quả trung bình khi chơi tiếp theo p, và kết quả ở lá gần như chắc chắn như cờ
+        # thật (E = 0 ở lá). (Bản 5/11 dùng ngưỡng 0.95 -> luôn +1, làm V gần cuối ván không còn là kết quả trung bình.)
         if cha >= 0:
-            if abs(V) >= 0.95:
-                self.het[s], self.z[s] = True, np.sign(V)
-            elif self.sau[s] >= 40 and abs(V) < 0.05 and self.rng.random() < P_HOA:
+            if abs(V) >= 0.99:
+                self.het[s], self.z[s] = True, (1.0 if self.rng.random() < (1 + V) / 2 else -1.0)
+            elif self.sau[s] >= 40 and abs(V) < 0.02 and self.rng.random() < P_HOA:
                 self.het[s], self.z[s] = True, 0.0
             elif self.sau[s] >= D_MAX:
                 self.het[s], self.z[s] = True, 0.0
@@ -144,7 +146,7 @@ class The:
 
 def chay(a):
     rng = np.random.default_rng(a.seed)
-    T = The(a.r0 * 200 + a.doi * a.ngan_sach * 2 + 1000, rng, a.lech)
+    T = The(a.r0 * 1200 + a.doi * a.ngan_sach * 2 + 1000, rng, a.lech)
     goc = T.tao(-1, 0, 0.0)
     T.z_van[goc] = np.nan
     t0 = time.time()
@@ -181,12 +183,12 @@ def chay(a):
 def tinh(T, omega2_A):
     """G, E theo phương án A (omega^2 chung) và B (độ toả tại node), từ dưới lên (4.5)."""
     n = T.n
-    G = {k: np.zeros(n) for k in "AB"}
-    E = {k: np.zeros(n) for k in "AB"}
-    rho_ = {k: [None] * n for k in "AB"}
+    G = {k: np.zeros(n) for k in "ABC"}
+    E = {k: np.zeros(n) for k in "ABC"}
+    rho_ = {k: [None] * n for k in "ABC"}
     for s in np.argsort(-T.sau[:n], kind="stable"):
         if T.het[s]:
-            for k in "AB":
+            for k in "ABC":
                 G[k][s], E[k][s] = T.z[s], 0.0
             continue
         ns = T.n_sum[s]
@@ -199,14 +201,26 @@ def tinh(T, omega2_A):
         khong_choi[C] = False
         Qb = (pi * Q).sum()
         om = {"A": omega2_A, "B": max((pi * (Q - Qb) ** 2).sum(), 1e-6)}
-        for k in "AB":
+        om["C"] = om["B"]
+        for k in "ABC":
             Ec = E[k][ch]
             f = om[k] / (om[k] + Ec)
             nu = (1 - (pi[C] * f).sum()) / f.sum()
             r = (pi[C] + nu) * f
             G[k][s] = (r * G[k][ch]).sum()
-            U = ((r - pi[C]) ** 2).sum() + (pi[khong_choi] ** 2).sum()
-            E[k][s] = (r * r * Ec).sum() + om[k] * U
+            if k == "C":
+                # Phương án C (7/11): phần sai do chọn thiếu nước đo thẳng bằng độ chênh giữa cách gộp các nước đã
+                # chơi (theo rho) và cách gộp mọi nước đã thăm (theo pi), dùng giá trị search Q thay cho giá trị thật.
+                # Ván đi nước nhiều lượt thăm nhất nên nước đã chơi thường có Q cao hơn mức chung: độ chênh này bắt
+                # được đúng phần "chọn nước tốt nhất" mà omega^2 x U (coi độ lệch là ngẫu nhiên) bỏ sót.
+                # Trừ phần do nhiễu của chính Q (mỗi nước nhiễu phương sai NHIEU_Q^2 / số lần search): kỳ vọng của
+                # độ chênh bình phương = độ chênh thật bình phương + nhiễu x U. (Mô phỏng dùng nhiễu biết trước; mã thật
+                # ước nó từ các node được search nhiều lần.)
+                U = ((r - pi[C]) ** 2).sum() + (pi[khong_choi] ** 2).sum()
+                E[k][s] = (r * r * Ec).sum() + max(((r * Q[C]).sum() - Qb) ** 2 - NHIEU_Q ** 2 / T.k[s] * U, 0.0)
+            else:
+                U = ((r - pi[C]) ** 2).sum() + (pi[khong_choi] ** 2).sum()
+                E[k][s] = (r * r * Ec).sum() + om[k] * U
             rho_[k][s] = (C, ch, r)
     return G, E, rho_
 
@@ -387,9 +401,9 @@ def gia_tri_khi_choi_that(T, s, so_van, rng):
             pi = (1 - EPS) * pi + EPS * rng.dirichlet(np.full(K, ALPHA))
             a = int(np.argmax(rng.multinomial(VISITS, pi)))
             V, sau = Vc[a], sau + 1
-            if abs(V) >= 0.95:
-                tong += np.sign(V); break
-            if sau >= 40 and abs(V) < 0.05 and rng.random() < P_HOA:
+            if abs(V) >= 0.99:
+                tong += 1.0 if rng.random() < (1 + V) / 2 else -1.0; break
+            if sau >= 40 and abs(V) < 0.02 and rng.random() < P_HOA:
                 break
             if sau >= D_MAX:
                 break

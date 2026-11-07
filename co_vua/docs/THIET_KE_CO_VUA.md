@@ -912,6 +912,17 @@ Bản trước có một bước kiểm công thức trên tàn cuộc bằng Sy
 
 **Việc tiếp theo:** tìm vì sao $E$ thấp ở nhóm $E$ nhỏ; xét đổi định nghĩa giá trị thật sang "khi chơi như ván của cây" và sửa $U$ theo đó; xét hiệu chỉnh $E$ bằng chính phép kiểm mỗi đời ở 15.2 (so $E$ với kết quả các ván mới). Cho tới khi $E$ khớp trên mô phỏng, nhãn policy $\pi'$ là phần có bằng chứng gây hại trong một thế giới, nên mình đề nghị để công tắc của nó tắt ở lần chạy chính cho tới khi sửa xong. **Chủ dự án đồng ý (5/11): lần chạy chính của cách cây trò chơi tắt nhãn policy mới**, nhãn policy là trung bình $\pi$ các lần search của node. $E$ vẫn được tính mỗi đời vì nhãn value và trọng số $\rho$ dùng nó, nên phép kiểm $E$ trên dữ liệu thật ở 15.2 vẫn chạy đủ. Mô phỏng là nơi sửa $E$ trước khi viết mã cách cây trò chơi.
 
+**Chẩn đoán $E$ (7/11, `co_vua/thu_nghiem/chan_doan_E.py`).** Trước hết sửa hai lỗi của chính thế giới giả làm hỏng phép đo lần 1: (1) giới hạn ván 400 nửa nước biến 17% số ván thành hoà trong khi giá trị thật của thế giới không biết luật đó (thế cờ ở lá có $|V|$ trung bình 0.46 mà kết quả là 0); (2) ngưỡng thắng chắc 0.95 luôn cho +1, nên gần cuối ván $V$ không còn là kết quả trung bình. Sau khi sửa (ngưỡng 0.99 với kết quả rút đúng trung bình $V$, bỏ giới hạn), thế giới cho ván dài trung bình 316 nửa nước, 34% hoà, độ dao động kết quả 0.66, gần số đo thật đời 0 (240, 39%, 0.61). Kết quả trên các node chỉ có một ván đi qua, theo khoảng cách tới cuối ván (sai số thật / dự báo):
+
+| Cách cuối ván | 1-4 | 5-14 | 15-39 | 40-79 | 80-159 | từ 160 |
+|---|---|---|---|---|---|---|
+| Sai số thật của $G$ | 0.014 | 0.037 | 0.098 | 0.214 | 0.390 | 0.729 |
+| A ($\omega^2$ chung) | 0.003 | 0.011 | 0.033 | 0.075 | 0.151 | 0.409 |
+| B (độ toả tại node) | 0.006 | 0.024 | 0.079 | 0.194 | 0.428 | 1.273 |
+| C (độ chênh đo thẳng, trừ nhiễu) | 0.008 | 0.034 | 0.114 | 0.285 | 0.634 | 1.911 |
+
+Đọc bảng: phần lệch có hệ thống rất nhỏ (khoảng 0.01, bình phương dưới 0.0003), nên gần như toàn bộ sai số là dao động. A dự báo thấp khoảng 2.5 đến 3 lần ở mọi khoảng cách, vì hai lẽ: ván luôn đi nước nhiều lượt thăm nhất, nên nước được chọn lệch khỏi mức chung nhiều hơn một nước bốc ngẫu nhiên (mỗi nửa nước giá trị thật đổi trung bình +0.032 cho bên đi, bình phương 0.0030, trong khi A tính khoảng 0.0013); và cách thứ hai ở 4.4 ước $\omega^2$ là 0.0028 trong khi giá trị thật là 0.0049. B gần nhất ở khoảng giữa (lệch dưới 25% từ 15 tới 159 nửa nước), thấp gần cuối ván, cao gấp đôi ở rất xa vì $E$ cộng dồn không có trần. C (phương án mới: phần sai do chọn thiếu nước đo bằng độ chênh giữa cách gộp các nước đã chơi và cách gộp mọi nước đã thăm, dùng $Q$ của search) đúng gần cuối ván nhưng cao dần khi xa, vì phần "nước được chọn tốt hơn mức chung" đổi dấu mỗi nửa nước nên triệt tiêu trong kết quả ván, nhưng bình phương của nó thì cộng dồn. Hướng tiếp: B có trần tự nhiên (độ dao động kết quả không vượt $(1-D)-V^2$, ước từ thắng/hoà/thua của search), và hiệu chỉnh $E$ bằng các ván mới (15.2) thử trên mô phỏng.
+
 ---
 
 ## 15. Quan sát, ghi log và tinh chỉnh
