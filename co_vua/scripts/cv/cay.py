@@ -671,6 +671,16 @@ def lay_viec(cach, g, giao, ra, giay=None):
         giay = giay_may_tu_o()
     if giay:
         giao = min(giao, int(1.3 * toc_do_may(cach, g) * giay))
+    # Chờ danh sách việc của đời g (đời >= 1): cửa sổ huấn luyện chuyển đời rồi mới lập danh sách (sau_hl, gần 2 phút),
+    # nên cửa sổ khác có thể tới nhận trước khi có tệp (8/11 đời 3: một máy nhận "hết việc" 10 giây trước khi danh sách
+    # xong, rồi tự quét suốt 255 phút). Quá 8 phút vẫn chưa có (sau_hl hỏng) thì nhận 0 như cũ -- máy tự quét; chờ
+    # lâu hơn thì máy đang giữ có thể bị Colab thu hồi, vì lúc này vòng lặp không nối ssh.
+    f_viec = os.path.join(cach, f"viec_doi{g}.txt")
+    if g >= 1:
+        for _ in range(48):
+            if os.path.exists(f_viec) and os.path.exists(os.path.join(cach, f"viec_doi{g}.con_tro")):
+                break
+            time.sleep(10)
     khoa = os.path.join(cach, f"viec_doi{g}.khoa")
     for _ in range(600):
         try:
@@ -681,7 +691,6 @@ def lay_viec(cach, g, giao, ra, giay=None):
     else:
         sys.exit("khoá việc treo")
     try:
-        f_viec = os.path.join(cach, f"viec_doi{g}.txt")
         if not os.path.exists(f_viec):
             open(ra, "w").close()
             print(0)
