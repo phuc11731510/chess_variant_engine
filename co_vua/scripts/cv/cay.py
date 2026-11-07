@@ -8,7 +8,7 @@ Không cần python-chess: nước đi là số 16 bit của lc0 (toạ độ tu
   python3 cay.py sau_hl <thư mục cách> <đời G> <ngân sách đời G+1>
                                                    # giảm gamma, cắt lá, quét điểm rẽ, ưu tiên search lại,
                                                    # lập danh sách việc của đời G+1 (viec_doi<G+1>.txt)
-  python3 cay.py lay_viec <thư mục cách> <đời> <lần chạy mạng được giao> <tệp ra>
+  python3 cay.py lay_viec <thư mục cách> <đời> <lần chạy mạng được giao> <tệp ra> [<số giây máy còn chạy>]
                                                    # nhận một phần danh sách việc (khoá thư mục), in số việc
   python3 cay.py tinh_trang <thư mục cách>
 
@@ -615,8 +615,49 @@ def sau_hl(cach, g, ngan_sach):
     print(json.dumps(tk, ensure_ascii=False))
 
 
-def lay_viec(cach, g, giao, ra):
-    """Nhận phần việc kế tiếp (khoá thư mục), đủ ước chi phí >= giao. In số việc; 0 = hết việc."""
+TOC_MAC_DINH = 16000      # lần chạy mạng mỗi giây của một T4 khi chưa đo được (cách truyền thống đo 15 400)
+
+
+def toc_do_may(cach, g):
+    """Lần chạy mạng mỗi giây của một máy cách này: lớn nhất trong các lần chạy đã tải về của đời g, không có thì
+    đời g - 1 (xong.json: evals / giay)."""
+    for d in (g, g - 1):
+        toc = []
+        thu = os.path.join(cach, f"games_gen{d}")
+        for ten in (os.listdir(thu) if os.path.isdir(thu) else []):
+            try:
+                with open(os.path.join(thu, ten, "xong.json"), encoding="utf-8") as f:
+                    t = json.load(f)
+                if t.get("giay", 0) > 600:
+                    toc.append(t["evals"] / t["giay"])
+            except (OSError, ValueError, KeyError):
+                pass
+        if toc:
+            return max(toc)
+    return TOC_MAC_DINH
+
+
+def giay_may_tu_o(thu_muc=os.path.expanduser("~/.fz_tk/.cv_tu_dong")):
+    """Vòng lặp mở trước bản sửa 7/11 không truyền số giây: đọc SECS của ô 04 nó vừa ghi (trong 120 giây) + 400."""
+    import glob
+    import re
+    moi = [(os.path.getmtime(f), f) for f in glob.glob(os.path.join(thu_muc, "o_*", "04_*.py"))]
+    moi = [x for x in moi if time.time() - x[0] < 120]
+    if not moi:
+        return None
+    m = re.search(r"^SECS\s*=\s*(\d+)", open(max(moi)[1], encoding="utf-8").read(), re.M)
+    return int(m.group(1)) + 400 if m else None
+
+
+def lay_viec(cach, g, giao, ra, giay=None):
+    """Nhận phần việc kế tiếp (khoá thư mục), đủ ước chi phí >= giao. In số việc; 0 = hết việc.
+    giay = số giây máy còn chạy được: phần nhận không quá 1,3 lần số máy chạy kịp (tốc độ đo được x giây). Việc nhận
+    mà không nạp kịp thì mất, nên trước bản sửa 7/11 một máy còn 20 phút đã nhận 2/3 danh sách việc đời 1 (193 triệu
+    trong khi chỉ chạy kịp cỡ 15 triệu). Nhận thiếu thì máy hết việc sớm và tự quét ván của nó -- vẫn là việc hợp lệ."""
+    if giay is None:
+        giay = giay_may_tu_o()
+    if giay:
+        giao = min(giao, int(1.3 * toc_do_may(cach, g) * giay))
     khoa = os.path.join(cach, f"viec_doi{g}.khoa")
     for _ in range(600):
         try:
@@ -678,7 +719,7 @@ def main():
     elif a[0] == "sau_hl":
         sau_hl(a[1], int(a[2]), int(a[3]))
     elif a[0] == "lay_viec":
-        lay_viec(a[1], int(a[2]), int(a[3]), a[4])
+        lay_viec(a[1], int(a[2]), int(a[3]), a[4], int(a[5]) if len(a) > 5 else None)
     elif a[0] == "tinh_trang":
         tinh_trang(a[1])
     else:

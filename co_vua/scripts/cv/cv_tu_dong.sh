@@ -756,7 +756,7 @@ td_sinh() {
   # hạn thì bỏ ván dở -- 7/11 phần chừa 7 phút (đo ở ván ngắn) không đủ cho ván 23 phút, Colab thu hồi hai máy.
   sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^EVALS[[:space:]]*=[[:space:]]*[0-9]+/s//EVALS = $so/; 0,/^HAN[[:space:]]*=[[:space:]]*[0-9]+/s//HAN = $((secs + duoi))/" \
     "$o04" > "$f"
-  if [ "$TD_BEN" = cay ]; then td_cay_viec "$g" "$so" || return; fi
+  if [ "$TD_BEN" = cay ]; then td_cay_viec "$g" "$so" "$((secs + duoi))" || return; fi
   TD_G=$g; TD_TONG_IN=
   td_ghi gen="$g" buoc=sinh van=0 con=0 giao="$so" par="$par"
   td_in "04 trên $(ten_tk "$TK"): $TD_BEN đời $g, giao $so lần chạy mạng ($par ván song song), SECS=$secs (≈ $((secs / 60)) phút, đã trừ $(chua_phut) phút gom zip + tải về và $(( (duoi + 59) / 60 )) phút đuôi ván) · đời $g: $tong/$muc"
@@ -770,7 +770,7 @@ td_sinh() {
 # tu quet. 0 = xong, 1 = loi mang (may mat?).
 td_cay_viec() {
   local f=$TD/viec_$$.txt so
-  so=$(python3 $CVD/cay.py lay_viec "$TB" "$1" "$2" "$f" 2>&1 | tail -1)
+  so=$(python3 $CVD/cay.py lay_viec "$TB" "$1" "$2" "$f" $3 2>&1 | tail -1)
   if [[ "$so" =~ ^[0-9]+$ ]] && [ "$so" -gt 0 ]; then
     td_in "cây: nhận $so việc của đời $1 (ván rẽ + search lại)"
     tai_len "$f" /content/cay_viec.txt || { td_con_may || td_mat_may; return 1; }
