@@ -1425,7 +1425,10 @@ hai_ben() {
   for b in $x; do
     case "$b" in
       tt) ;;
-      cay) echo "[!] Cách cây trò chơi chưa viết -- chưa bật được"; return ;;
+      cay)
+        # Cây trò chơi chạy trên máy này (cay.py, cần numpy cho python3).
+        python3 -c "import numpy" 2>/dev/null ||
+          { echo "[!] Cách cây cần numpy: pkg install python-numpy (Termux) / apt install python3-numpy (WSL)"; return; } ;;
       *) echo "[!] '$b' không phải cách học (tt / cay)"; return ;;
     esac
   done

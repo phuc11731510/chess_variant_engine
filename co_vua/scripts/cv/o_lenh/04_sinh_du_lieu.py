@@ -23,10 +23,21 @@ if os.path.exists(DUNG_MEM):
     os.remove(DUNG_MEM)   # tệp của lần dừng trước: để lại thì dừng ngay từ ván đầu
 LAN = time.strftime("lan_%Y%m%d_%H%M%S")
 
+# Cách cây trò chơi (THIET_KE_CO_VUA.md 6.2, 12.6): ván luôn đi nước nhiều lượt thăm nhất (temperature 0, nhiễu
+# Dirichlet giữ nguyên); việc (ván rẽ, search lại) do điện thoại giao trong /content/cay_viec.txt (vòng lặp tải lên);
+# hết việc mà còn phần giao thì máy tự quét các ván nó vừa chơi rồi rẽ tiếp. Đời 0 (cây còn trống): bắt đầu bằng
+# PARALLEL ván từ thế khởi đầu rồi tự quét.
+TEMP_PLIES, THEM = 30, ""
+if BEN == "cay":
+    VIEC = "/content/cay_viec.txt"
+    TEMP_PLIES = 0
+    THEM = (f"--tu-quet --viec {VIEC}" if os.path.exists(VIEC) and os.path.getsize(VIEC) > 0
+            else f"--tu-quet --van-goc {PARALLEL}")
+
 cmd = f"""python3 {CV}/colab/sinh.py --lc0 {CV}/lc0 --mang {CURRENT_PB} \
     --thu-muc {OUT_GAMES_DIR}/{LAN} --song-song {PARALLEL} --luong-gom-lo 1 \
-    --visits 800 --temp-plies 30 --max-ply 450 \
-    --giao {EVALS} --max-giay {SECS} --tep-dung {DUNG_MEM}"""
+    --visits 800 --temp-plies {TEMP_PLIES} --max-ply 450 \
+    --giao {EVALS} --max-giay {SECS} --tep-dung {DUNG_MEM} {THEM}"""
 
 if not (os.path.exists(CURRENT_PB) and os.path.getsize(CURRENT_PB) > 0):
     print(f"[!] Thiếu mạng {CURRENT_PB} -- chạy ô 02 (hoặc ô 03 cho đời 0) trước")

@@ -12,6 +12,12 @@ In ra màn hình (vòng lặp của `cv` đọc các dòng này qua log của ô
   [sinh] <ván xong> van, <lần chạy mạng> evals, dang choi <d>, uoc con <r>, giao <giao>   (mỗi 15 giây)
   [sinh] dung mem: <lý do>; <d> van dang do se choi not
   [sinh] Ket thuc: <ván> van, <evals> evals trong <giây>s (<lý do dừng>)
+Cách cây trò chơi (THIET_KE_CO_VUA.md 6, 9, 12.6): --viec <tệp> = danh sách việc do điện thoại lập (cay.py lay_viec),
+mỗi dòng "G <id> <temp> <nước...>" (ván rẽ) hoặc "S <id> <nước...>" (search lại); nạp lần lượt. --tu-quet: hết việc mà
+còn ngân sách thì tự quét các ván máy vừa chơi rồi rẽ tiếp (colab/tu_quet.py); --van-goc K: khi không có tệp việc thì
+bắt đầu bằng K ván từ thế khởi đầu (đời 0). Ước phần còn lại của việc dở tính theo loại việc: ván rẽ còn nửa ván
+trung bình, search lại còn một lần search.
+
 Thư mục của lần chạy (--thu-muc): van.bin (bản ghi treeplay), engine_ra.log (XONG/LOI/HET), engine_loi.log,
 sinh.log, gpu.log, tien_do.json (mỗi 10 giây), xong.json (khi kết thúc), van.bin.gz (nén khi kết thúc), mau.npz
 (mẫu huấn luyện đã mã hoá và nén, tạo một lần khi kết thúc; ô 07 nạp thẳng).
@@ -47,7 +53,13 @@ def main():
     ap.add_argument("--giao", type=int, default=0, help="số lần chạy mạng được giao (0 = không giới hạn)")
     ap.add_argument("--max-giay", type=int, default=0, help="dừng mềm sau chừng này giây (0 = không giới hạn)")
     ap.add_argument("--tep-dung", default="", help="có tệp này thì dừng mềm")
+    ap.add_argument("--backend", default="multiplexing", help="chỉ để thử (vd random)")
+    ap.add_argument("--backend-opts", default="", help="chỉ để thử; rỗng = onnx-cuda như ô 04")
+    ap.add_argument("--viec", default="", help="cách cây: tệp danh sách việc (G/S) do điện thoại lập")
+    ap.add_argument("--tu-quet", action="store_true", help="cách cây: hết việc thì tự quét ván của máy rồi rẽ tiếp")
+    ap.add_argument("--van-goc", type=int, default=0, help="cách cây: số ván từ thế khởi đầu khi không có tệp việc")
     a = ap.parse_args()
+    che_do_cay = bool(a.viec) or a.tu_quet or a.van_goc > 0
     os.makedirs(a.thu_muc, exist_ok=True)
     tm = lambda t: os.path.join(a.thu_muc, t)
     if a.tep_dung and os.path.exists(a.tep_dung):
@@ -62,8 +74,8 @@ def main():
     cau_hinh = vars(a)
     log("bat dau: " + json.dumps(cau_hinh, ensure_ascii=False), True)
 
-    lenh = [a.lc0, "treeplay", f"--weights={a.mang}", "--backend=multiplexing",
-            f"--backend-opts=backend=onnx-cuda,threads={a.luong_gom_lo},max_batch=1024",
+    opts = a.backend_opts or (f"backend=onnx-cuda,threads={a.luong_gom_lo},max_batch=1024" if a.backend == "multiplexing" else "")
+    lenh = [a.lc0, "treeplay", f"--weights={a.mang}", f"--backend={a.backend}"] + ([f"--backend-opts={opts}"] if opts else []) + [
             f"--parallelism={a.song_song}", f"--visits={a.visits}", f"--max-ply={a.max_ply}",
             "--report-seconds=60", f"--output={tm('van.bin')}"]
     log("lenh: " + " ".join(lenh), True)
@@ -84,8 +96,11 @@ def main():
                 if phan and phan[0] == "XONG":
                     trang["van_xong"] += 1
                     trang["evals"] = int(phan[2])
+                    dang_chay.pop(int(phan[1]), None)
                 elif phan and phan[0] == "LOI":
                     trang["loi"] += 1
+                    if len(phan) > 1 and phan[1].isdigit():
+                        dang_chay.pop(int(phan[1]), None)
                 elif phan and phan[0] == "HET":
                     trang["evals"] = int(phan[1])
         het.set()
@@ -103,10 +118,36 @@ def main():
             except Exception as e:  # noqa: BLE001 -- chỉ là log
                 log(f"nvidia-smi loi: {e}")
 
+    # Cách cây: hàng đợi việc, loại của việc đang chạy, cây nhỏ để tự quét và để đếm số lần search đã xong.
+    hang_doi = []
+    if a.viec:
+        for dong in open(a.viec):
+            phan = dong.split()
+            if phan:
+                hang_doi.append((phan[0], " ".join(phan[2:])))
+    else:
+        hang_doi = [("G", "0")] * a.van_goc
+    dang_chay = {}
+    cay_nho = None
+    if che_do_cay:
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from tu_quet import CayCucBo
+        cay_nho = CayCucBo()
+
     def uoc_con(t):
-        """Ước lượng số lần chạy mạng các ván đang dở còn tốn: mỗi ván dở còn nửa ván trung bình (từ 8 ván xong)."""
+        """Ước lượng số lần chạy mạng các việc đang dở còn tốn. Cách truyền thống: mỗi ván dở còn nửa ván trung bình
+        (từ 8 ván xong). Cách cây: ván rẽ dở còn nửa ván rẽ trung bình, search lại dở còn một lần search."""
         d = t["van_da_nap"] - t["van_xong"] - t["loi"]
-        return int(d * t["evals"] / t["van_xong"] / 2) if t["van_xong"] >= 8 else 0
+        if not che_do_cay:
+            return int(d * t["evals"] / t["van_xong"] / 2) if t["van_xong"] >= 8 else 0
+        lan = cay_nho.so_lan_g + cay_nho.so_lan_s
+        if t["van_xong"] < 8 or lan == 0:
+            return 0
+        e = t["evals"] / lan
+        g_tb = cay_nho.so_lan_g / max(cay_nho.so_viec_g, 1)
+        so_g = sum(1 for k in dang_chay.values() if k == "G")
+        return int(e * (so_g * g_tb / 2 + (len(dang_chay) - so_g)))
 
     threading.Thread(target=doc_ra, daemon=True).start()
     threading.Thread(target=ghi_gpu, daemon=True).start()
@@ -137,12 +178,36 @@ def main():
             # Nạp vừa đủ: số ván song song cộng 4 việc chờ. Việc đã nạp vẫn được chơi sau khi dừng mềm, nên nạp
             # dư làm vượt phần giao (lần chạy thử 2026-11-03 nạp 2 lần số ván song song: vượt gấp đôi).
             them = a.song_song + 4 - (t["van_da_nap"] - t["van_xong"] - t["loi"])
+            if che_do_cay and them > 0 and len(hang_doi) < them and a.tu_quet:
+                cay_nho.doc_them(tm("van.bin"))
+                moi = cay_nho.quet()
+                hang_doi.extend(("G", "0 " + " ".join(d)) for d in moi)
+                if moi:
+                    log(f"tu quet: them {len(moi)} van re", True)
+            het_viec = False
             for _ in range(max(0, them)):
-                p.stdin.write(f"G {id_tiep} {a.temp_plies}\n")
+                if not che_do_cay:
+                    p.stdin.write(f"G {id_tiep} {a.temp_plies}\n")
+                elif hang_doi:
+                    loai, phan_con = hang_doi.pop(0)
+                    p.stdin.write(f"{loai} {id_tiep} {phan_con}\n")
+                    with khoa:
+                        dang_chay[id_tiep] = loai
+                else:
+                    het_viec = True
+                    break
                 id_tiep += 1
             p.stdin.flush()
             with khoa:
                 trang["van_da_nap"] = id_tiep
+            if het_viec and not dang_chay and not hang_doi:
+                # Hết việc, không còn gì đang chạy, quét không ra điểm rẽ mới: dừng (engine tự thoát).
+                with khoa:
+                    trang["dang_dung"], trang["ly_do_dung"] = True, "het viec"
+                log("het viec: khong con viec nao de nap", True)
+                p.stdin.close()
+        if che_do_cay and time.time() - lan_ghi >= 10:
+            cay_nho.doc_them(tm("van.bin"))          # đếm số lần search đã xong (cho uoc_con)
         if time.time() - lan_ghi >= 10:
             with khoa:
                 t = dict(trang)

@@ -228,6 +228,9 @@ def gop(tai, cach, g, so_doi):
     os.rename(tam, dich)
     print(f"[gộp] {len(goi)} gói -> games_gen{g}/: {so_lan} lần sinh, {evals_doi(tai, g):,} lần chạy mạng"
           + (f" (bỏ {trung} lần sinh trùng)" if trung else ""))
+    if cach == "cay":                            # cách cây: ô 07 nhận nhãn + mau.npz từ cay.py, không cần gói zip
+        print(f"FZ_GOP_XONG {so_lan}")
+        return
     # 2. Gói gộp nhiều đời: chỉ những gì ô 07 cần (ván, mẫu, tóm tắt của từng lần sinh).
     zip_ra = os.path.join(tai, f"games_gen{g}.zip")
     zip_tam = os.path.join(tai, f".games_gen{g}.zip.dang_goi")

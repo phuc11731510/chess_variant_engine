@@ -65,7 +65,7 @@ CV_CL=/content/cv
 TD_BEN=tt; TB=$TAI/tt
 td_dat_ben() { TD_BEN=$1; TB=$TAI/$1; mkdir -p "$TB"; }
 # ---- DIEU PHOI HAI CACH (khong co trong fz: fz chi co mot cach hoc) ----
-# Cac cach vong lap duoc lam ($TD/.cac_ben, mac dinh "tt"): cach cay tro choi chua viet, nen chua bat. Moi cua so,
+# Cac cach vong lap duoc lam ($TD/.cac_ben, mac dinh "tt"; bat cach cay o menu b). Moi cua so,
 # truoc moi viec, tu chon cach DANG TUT LAI (tong so lan chay mang cong don nho hon) ma con viec cho cua so nay
 # (con thieu luong tinh toan, hoac du roi va chua ai huan luyen); ca hai deu khong con viec thi chon cach tut lai
 # (cua so do cho, nhu fz). Hai cach so o CUNG DOI = cung luong tinh toan, nen quy tac nay chi quyet dinh cach nao toi
@@ -106,7 +106,7 @@ td_hai_ben() {
       printf ' %-4s đời %-3s · cộng dồn %s lần chạy mạng · đời %s: %s/%s%s\n' "$b" "$g" "$(td_cong_don)" "$g" \
         "$(td_tong "$g")" "$(td_muc "$g")" "$(grep -qw "$b" <<<"$(td_cac_ben)" || echo "  ${M_MO}(vòng lặp chưa làm cách này)${M_HET}")" )
   done
-  echo "${M_MO} tt = truyền thống · cay = cây trò chơi (chưa viết)${M_HET}"
+  echo "${M_MO} tt = truyền thống · cay = cây trò chơi${M_HET}"
 }
 # Ban chep cua o 00 voi BEN / GEN_CURRENT cua viec dang lam (menu ghep() dung TD_O00): tep o 00 cua ban khong bi sua.
 td_o00() {
@@ -754,6 +754,7 @@ td_sinh() {
   mkdir -p "$TD/o_$$"
   sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^EVALS[[:space:]]*=[[:space:]]*[0-9]+/s//EVALS = $so/" \
     "$o04" > "$f"
+  if [ "$TD_BEN" = cay ]; then td_cay_viec "$g" "$so" || return; fi
   TD_G=$g; TD_TONG_IN=
   td_ghi gen="$g" buoc=sinh van=0 con=0 giao="$so" par="$par"
   td_in "04 trên $(ten_tk "$TK"): $TD_BEN đời $g, giao $so lần chạy mạng ($par ván song song), SECS=$secs (≈ $((secs / 60)) phút, đã trừ $(chua_phut) phút gom zip + tải về và $(( (duoi + 59) / 60 )) phút đuôi ván) · đời $g: $tong/$muc"
@@ -761,6 +762,22 @@ td_sinh() {
   case $rc in 3) td_mat_may; return ;; 4) return ;; esac
   ghi_duoi_log
   td_gom_tai "$g"
+}
+# Cach cay: nhan mot phan danh sach viec cua doi $1 (cay.py lay_viec, khoa thu muc) du uoc chi phi $2 lan chay mang,
+# tai len /content/cay_viec.txt. Het viec (hoac doi 0, cay con trong) -> xoa tep tren may: o 04 tu bat dau tu goc /
+# tu quet. 0 = xong, 1 = loi mang (may mat?).
+td_cay_viec() {
+  local f=$TD/viec_$$.txt so
+  so=$(python3 $CVD/cay.py lay_viec "$TB" "$1" "$2" "$f" 2>&1 | tail -1)
+  if [[ "$so" =~ ^[0-9]+$ ]] && [ "$so" -gt 0 ]; then
+    td_in "cây: nhận $so việc của đời $1 (ván rẽ + search lại)"
+    tai_len "$f" /content/cay_viec.txt || { td_con_may || td_mat_may; return 1; }
+  else
+    [[ "$so" =~ ^[0-9]+$ ]] || td_in "${M_VANG}[!] cay.py lay_viec: $so${M_HET}"
+    td_in "cây: hết việc đời $1 -- máy tự quét ván của nó rồi rẽ tiếp"
+    ssh_colab "rm -f /content/cay_viec.txt" >/dev/null 2>&1
+  fi
+  rm -f "$f"
 }
 # 06 + tai goi van ve (ten tich luy; van cua may nay ve 0 ngay luc dat ten).
 td_gom_tai() {
@@ -1071,12 +1088,13 @@ td_huan_luyen() {
   local g=$1 n=$(($1 + 1)) lan=0 loi=0 h rc
   TD_VAI=huan_luyen; td_ghi gen="$g" buoc=huan_luyen van=0
   if ! td_co_mang "$n"; then
-    if [ ! -f "$TB/games_gen$g.zip" ]; then
+    if [ ! -f "$TB/games_gen$g.zip" ] && [ ! -f "$TB/cay_hl_gen$g.tar" ]; then
       td_in "gộp dữ liệu $TD_BEN đời $g ($TD_SO_DOI đời) ..."
       # Ctrl+C trong luc gop bi bo qua (gop do dang thi phai lam lai) -- bam lai sau khi gop xong.
       ( trap '' INT; python $CVD/cv_tu_dong.py gop "$TB" "$TD_BEN" "$g" "$TD_SO_DOI" | tee "$TD/.gop_$$" )
       grep -q '^FZ_GOP_XONG' "$TD/.gop_$$" || { td_in "${M_DO}[!] gộp lỗi${M_HET}"; rm -f "$TD/.gop_$$"; TD_LOI=1; return; }
       rm -f "$TD/.gop_$$"
+      if [ "$TD_BEN" = cay ]; then td_cay_nhan "$g" || { TD_LOI=1; return; }; fi
       command -v termux-media-scan >/dev/null && termux-media-scan -r "$TB" >/dev/null 2>&1
     fi
     while :; do
@@ -1096,8 +1114,14 @@ td_huan_luyen() {
         td_in "máy còn $((h / 60)) phút T4 (< $TD_PHUT_HL) -> trả, xin máy khác"
         td_tra; lan=0; continue
       fi
-      td_in "tải $TD_BEN games_gen$g.zip lên (máy còn $((h / 60)) phút T4)"
-      if ! tai_len "$TB/games_gen$g.zip" "/content/${TD_BEN}_games_gen$g.zip"; then
+      if [ "$TD_BEN" = cay ]; then
+        td_in "tải nhãn + mặt phẳng cây đời $g lên (máy còn $((h / 60)) phút T4)"
+        tai_len "$TB/cay_hl_gen$g.tar" "/content/cay_hl_gen$g.tar"
+      else
+        td_in "tải $TD_BEN games_gen$g.zip lên (máy còn $((h / 60)) phút T4)"
+        tai_len "$TB/games_gen$g.zip" "/content/${TD_BEN}_games_gen$g.zip"
+      fi
+      if [ $? != 0 ]; then
         td_con_may || td_mat_may; lan=0; continue
       fi
       td_in "07: huấn luyện $TD_BEN đời $n"
@@ -1114,9 +1138,32 @@ td_huan_luyen() {
   fi
   td_len_github "$n" || return
   td_len_doi "$g" "$n"
+  if [ "$TD_BEN" = cay ] && [ "$(td_gen)" = "$n" ]; then td_cay_sau "$g" "$n"; fi
   [ "$(td_gen)" = "$n" ] && td_don_dep "$n"     # mang vua len GitHub + goi van doi truoc: don dien thoai
   rm -rf "$TD/hl_${TD_BEN}_$g"
   TD_VAI=
+}
+# Cach cay, sau khi gop doi $1: gop cac lan sinh vao cay (cay.py cap_nhat: G, E, nhan), dong goi nhan + cac mau.npz
+# can thiet thanh cay_hl_gen$1.tar de tai len may huan luyen. Ghi so lieu vao nhat ky. 0 = xong.
+td_cay_nhan() {
+  local g=$1 out tep
+  td_in "cây: gộp đời $g vào cây, tính G, E và nhãn ..."
+  out=$( ( trap '' INT; python3 $CVD/cay.py cap_nhat "$TB" "$g" ) 2>&1 ); local rc=$?
+  td_in "cây: $(echo "$out" | tail -1)"
+  [ $rc = 0 ] || return 1
+  tep=$(cut -f2 "$TB/nhan_doi$g.tep.txt")
+  # shellcheck disable=SC2086
+  ( cd "$TB" && tar -cf "cay_hl_gen$g.tar.tam" "nhan_doi$g.npz" "nhan_doi$g.tep.txt" $tep ) &&
+    mv "$TB/cay_hl_gen$g.tar.tam" "$TB/cay_hl_gen$g.tar" || return 1
+  td_in "cây: cay_hl_gen$g.tar $(( $(stat -c %s "$TB/cay_hl_gen$g.tar") / 1048576 )) MB ($(echo "$tep" | wc -l) tệp mau.npz)"
+}
+# Cach cay, sau khi len doi $2: giam gamma, cat la, quet diem re, uu tien search lai, lap danh sach viec doi $2.
+td_cay_sau() {
+  local out
+  out=$( ( trap '' INT; python3 $CVD/cay.py sau_hl "$TB" "$1" "$(td_muc "$2")" ) 2>&1 ) ||
+    { td_in "${M_DO}[!] cây sau huấn luyện lỗi: $(echo "$out" | tail -2)${M_HET}"; return; }
+  td_in "cây: $(echo "$out" | tail -1)"
+  rm -f "$TB/cay_hl_gen$1.tar"
 }
 # Giai doan 4: gen$1.pb.gz + .pt cua cach dang lam len GitHub Release co_vua_mang (REL_NN trong o 00) voi ten
 # <cach>_gen$1.*, kiem sha256 tren Release, roi xoa .pb.gz cac doi truoc cua cach do. Loi mang -> thu lai.
@@ -1289,7 +1336,7 @@ td_bat_dau() {
   done
   for f in $(td_cac_cua_so); do [ "$f" = "$TD_W" ] || khac+=("${f##*/w_}"); done
   td_hai_ben
-  echo "${M_MO}Vòng lặp làm các cách: $(td_cac_ben) (cách cây trò chơi bật khi đã viết xong)${M_HET}"
+  echo "${M_MO}Vòng lặp làm các cách: $(td_cac_ben) (đổi: menu b)${M_HET}"
   read -rp "Cửa sổ này làm cách nào (Enter = tự chọn cách tụt lại; tt / cay = chỉ cách đó): " x
   case "$x" in
     "") TD_BEN_EP= ;;

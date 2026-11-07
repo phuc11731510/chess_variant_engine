@@ -79,7 +79,13 @@ def main():
     seed = a.seed or int(np.random.SeedSequence().entropy % 2**31)
     torch.manual_seed(seed)
     t0 = time.time()
-    du = TrenGPU(noi([dict(np.load(f)) for f in a.mau.split(",")]), a.thiet_bi)
+    cac = [dict(np.load(f)) for f in a.mau.split(",")]
+    # Cách cây trò chơi (gop_mau_cay.py): một tệp có thêm trọng số "w" (số ván đi qua node, phần 10 của thiết kế);
+    # mỗi lô bốc mẫu theo w (có lặp lại) thay cho xáo trộn đều.
+    trong_so = cac[0].get("w") if len(cac) == 1 else None
+    du = TrenGPU(noi(cac), a.thiet_bi)
+    if trong_so is not None:
+        trong_so = torch.as_tensor(trong_so, dtype=torch.float64, device=a.thiet_bi)
     t_nap = time.time() - t0
 
     mang = MangCoVua().to(a.thiet_bi)
@@ -105,7 +111,11 @@ def main():
             if buoc >= so_buoc:
                 break
             mang.train()
-            x, pi, wdl = du.lo(hoan_vi[d:d + a.batch])
+            if trong_so is not None:
+                ci = torch.multinomial(trong_so, a.batch, replacement=True)
+            else:
+                ci = hoan_vi[d:d + a.batch]
+            x, pi, wdl = du.lo(ci)
             p, v = mang(x)
             lp, lv = mat_policy(p, pi), mat_value(v, wdl)
             opt.zero_grad(set_to_none=True)
@@ -127,7 +137,7 @@ def main():
     cap_nhat_bn(xuat, du, a.batch)
     torch.save(xuat.state_dict(), a.ra + ".pt")
     xuat_onnx(xuat.to("cpu").eval(), a.ra + ".onnx")
-    print(json.dumps({"so_mau": du.n, "so_buoc": buoc, "so_ban_swa": so_ban, "seed": seed,
+    print(json.dumps({"so_mau": du.n, "so_buoc": buoc, "theo_trong_so": trong_so is not None, "so_ban_swa": so_ban, "seed": seed,
                       "mat_policy_hoc": tp / max(n, 1), "mat_value_hoc": tv / max(n, 1),
                       "mat_policy_dau_tren_doi_moi": dau_p, "mat_value_dau_tren_doi_moi": dau_v,
                       "giay_nap": round(t_nap, 1), "giay_hoc": round(t_hoc, 1),

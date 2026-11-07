@@ -51,7 +51,7 @@ for c in $CELLS; do
   fi
 done
 # Menu, vong lap, tro ly Python khong phai thu ban sua -> luon lay ban moi.
-for t in cv_menu.sh cv_tu_dong.sh cv_tu_dong.py fz_may.py fz_han_muc.py fz_nhan_may.py fz_trung_tk.py fz_giu_may.py fz_colab.py fz_chuyen.py; do
+for t in cv_menu.sh cv_tu_dong.sh cv_tu_dong.py cay.py fz_may.py fz_han_muc.py fz_nhan_may.py fz_trung_tk.py fz_giu_may.py fz_colab.py fz_chuyen.py; do
   curl -fsSL -o "$CVD/$t" "$URL/$t" && echo "[tai]        ~/cv/$t"
 done
 
@@ -62,6 +62,9 @@ cat >> ~/.bashrc <<'EOF'
 cv() { bash ~/cv/cv_menu.sh "$@"; }
 EOF
 
+# Cay tro choi (cay.py) chay tren may nay, can numpy cho python3.
+python3 -c "import numpy" 2>/dev/null || { command -v pkg >/dev/null && pkg install -y python-numpy; } ||
+  echo "[!] thieu numpy cho python3: Termux pkg install python-numpy / WSL apt install python3-numpy"
 # Xem log truc tiep can ssh + khoa ca nhan (colab ssh dua khoa len may Colab).
 command -v ssh >/dev/null || { command -v pkg >/dev/null && pkg install -y openssh; } || echo "[!] thieu ssh: cai bang trinh quan ly goi cua may (WSL: apt install openssh)"
 # Thanh tien do (%, toc do, con bao lau) khi tai len / tai ve qua menu.

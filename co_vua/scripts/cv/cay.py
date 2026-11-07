@@ -149,6 +149,7 @@ class Cay:
         c.p = {k: z[f"p_{k}"].copy() for k in POOL}
         with open(os.path.join(thu_muc, "cay.json"), encoding="utf-8") as fj:
             c.meta = json.load(fj)
+        c.meta["tep_mau"] = [t.replace("\\", "/") for t in c.meta["tep_mau"]]   # cây tạo trên Windows (thử)
         c._dung_con()
         return c
 
@@ -242,7 +243,7 @@ class Cay:
         with gzip.open(os.path.join(thu_muc_lan, "van.bin.gz"), "rb") as f:
             ds = doc_ban_ghi(f.read())
         tep = len(self.meta["tep_mau"])
-        self.meta["tep_mau"].append(os.path.relpath(os.path.join(thu_muc_lan, "mau.npz"), self.meta.get("goc_cach", ".")))
+        self.meta["tep_mau"].append(os.path.relpath(os.path.join(thu_muc_lan, "mau.npz"), self.meta.get("goc_cach", ".")).replace(os.sep, "/"))
         a = self.a
         hang = 0
         n0, so_search, so_van, delta = self.n, 0, 0, []
@@ -566,9 +567,10 @@ def cap_nhat(cach, g):
     ra = os.path.join(cach, f"nhan_doi{g}.npz")
     np.savez_compressed(ra[:-4] + ".tam.npz", **nh)
     os.replace(ra[:-4] + ".tam.npz", ra)
-    can_tep = sorted({c.meta["tep_mau"][i] for i in np.unique(nh["tep"]).tolist()})
+    # Các tệp mau.npz cần tải lên máy huấn luyện: "<chỉ số>\t<đường dẫn tương đối trong thư mục cách>"
+    can_tep = [(i, c.meta["tep_mau"][i]) for i in np.unique(nh["tep"]).tolist()]
     with open(os.path.join(cach, f"nhan_doi{g}.tep.txt"), "w", encoding="utf-8") as f:
-        f.write("\n".join(can_tep) + "\n")
+        f.write("".join(f"{i}\t{t}\n" for i, t in can_tep))
     tk.update({"doi": g, "node_moi": moi, "search": so_s, "van": so_v, "so_node": int(c.n),
                "so_node_song": int((c.a["trang"][:c.n] == 0).sum()), "so_buoc": so_buoc, "giay": round(time.time() - t0, 1),
                "so_tep_mau": len(can_tep)})
