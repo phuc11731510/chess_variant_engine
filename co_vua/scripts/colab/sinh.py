@@ -7,6 +7,13 @@ Cách truyền thống: mọi việc là "G <id> <temp_plies>" (ván từ thế 
   - đủ lượng tính toán được giao --giao (như --games: máy không bao giờ nhận quá phần được giao). Ván đang dở
     được tính vào: dừng khi số lần chạy mạng đã xong + ước lượng phần còn lại của các ván dở (mỗi ván dở còn
     nửa ván trung bình) đạt --giao, để sau khi chơi nốt thì vừa đủ.
+  - gần --han-cung: còn ít hơn 1,1 lần độ dài ván dài (phân vị 90 của các ván đã xong, tính bằng giây) thì thôi nạp,
+    để ván nạp cuối kịp xong trước hạn.
+Một cách dừng CỨNG: tới --han-cung giây (lúc Colab sắp thu hồi máy vì hết hạn mức) mà engine chưa thoát thì tắt
+engine, bỏ các việc còn dở, giữ mọi ván đã xong (cắt bản ghi dở ở cuối van.bin). Thà mất vài ván dở còn hơn mất
+cả máy: 7/11 hai máy cách cây chỉ chừa 7 phút đuôi ván (đo một lần ở đời 2 cách truyền thống, ván ngắn), trong
+khi ván đời 0 cách cây dài gần 23 phút; Colab thu hồi máy khi ván còn đang chơi nốt, mất hết hơn 110 triệu lần
+chạy mạng chưa tải về.
 
 In ra màn hình (vòng lặp của `cv` đọc các dòng này qua log của ô):
   [sinh] <ván xong> van, <lần chạy mạng> evals, dang choi <d>, uoc con <r>, giao <giao>   (mỗi 15 giây)
@@ -39,6 +46,29 @@ def ghi_json(duong_dan, du_lieu):
     os.replace(tam, duong_dan)
 
 
+def cat_ban_ghi_do(duong_dan, log):
+    """Sau khi tắt engine: cắt van.bin tới hết bản ghi trọn vẹn cuối cùng (mỗi bản ghi mở đầu bằng magic CVG1 và
+    độ dài cả bản ghi, u32)."""
+    import struct
+    try:
+        n = os.path.getsize(duong_dan)
+    except OSError:
+        return
+    i = 0
+    with open(duong_dan, "rb") as f:
+        while i + 8 <= n:
+            f.seek(i)
+            dau = f.read(8)
+            magic, co = dau[:4], struct.unpack("<I", dau[4:])[0]
+            if magic != b"CVG1" or co < 8 or i + co > n:
+                break
+            i += co
+    if i < n:
+        with open(duong_dan, "r+b") as f:
+            f.truncate(i)
+        log(f"cat {n - i} byte ban ghi do o cuoi van.bin (giu {i} byte)", True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lc0", default="/content/cv/lc0")
@@ -53,6 +83,8 @@ def main():
     ap.add_argument("--giao", type=int, default=0, help="số lần chạy mạng được giao (0 = không giới hạn)")
     ap.add_argument("--max-giay", type=int, default=0, help="dừng mềm sau chừng này giây (0 = không giới hạn)")
     ap.add_argument("--tep-dung", default="", help="có tệp này thì dừng mềm")
+    ap.add_argument("--han-cung", type=int, default=0,
+                    help="dừng CỨNG sau chừng này giây (bỏ việc dở, giữ ván đã xong); gần hạn thì thôi nạp (0 = tắt)")
     ap.add_argument("--backend", default="multiplexing", help="chỉ để thử (vd random)")
     ap.add_argument("--backend-opts", default="", help="chỉ để thử; rỗng = onnx-cuda như ô 04")
     ap.add_argument("--viec", default="", help="cách cây: tệp danh sách việc (G/S) do điện thoại lập")
@@ -87,6 +119,8 @@ def main():
              "bat_dau": time.time(), "giao": a.giao}
     khoa = threading.Lock()
     het = threading.Event()
+    nap_luc = {}          # id -> lúc nạp (mọi việc)
+    thoi_g = []           # số giây của từng ván (G) đã xong -- cho dừng mềm gần --han-cung
 
     def doc_ra():
         for dong in p.stdout:
@@ -96,11 +130,15 @@ def main():
                 if phan and phan[0] == "XONG":
                     trang["van_xong"] += 1
                     trang["evals"] = int(phan[2])
-                    dang_chay.pop(int(phan[1]), None)
+                    t0 = nap_luc.pop(int(phan[1]), None)
+                    loai_xong = dang_chay.pop(int(phan[1]), None)
+                    if t0 is not None and (not che_do_cay or loai_xong == "G"):
+                        thoi_g.append(time.time() - t0)
                 elif phan and phan[0] == "LOI":
                     trang["loi"] += 1
                     if len(phan) > 1 and phan[1].isdigit():
                         dang_chay.pop(int(phan[1]), None)
+                        nap_luc.pop(int(phan[1]), None)
                 elif phan and phan[0] == "HET":
                     trang["evals"] = int(phan[1])
         het.set()
@@ -165,20 +203,47 @@ def main():
     threading.Thread(target=doc_ra, daemon=True).start()
     threading.Thread(target=ghi_gpu, daemon=True).start()
 
+    def van_dai():
+        """Số giây của một ván dài: phân vị 90 các ván đã xong (từ 8 ván), None nếu chưa đủ."""
+        with khoa:
+            d = sorted(thoi_g)
+        return d[int(0.9 * (len(d) - 1))] if len(d) >= 8 else None
+
     id_tiep = 0
     lan_ghi = lan_in = 0.0
+    da_cat = False
     while not het.is_set():
         with khoa:
             t = dict(trang)
         con = uoc_con(t)
+        da_chay = time.time() - t["bat_dau"]
+        if a.han_cung and da_chay >= a.han_cung and not da_cat:
+            da_cat = True
+            with khoa:
+                trang["dang_dung"], trang["ly_do_dung"] = True, "het --han-cung"
+            log(f"dung cung: het --han-cung ({a.han_cung}s); bo {t['van_da_nap'] - t['van_xong'] - t['loi']} viec dang do, "
+                "giu van da xong", True)
+            try:
+                p.stdin.close()
+            except OSError:
+                pass
+            p.terminate()
+            try:
+                p.wait(20)
+            except subprocess.TimeoutExpired:
+                p.kill()
+            het.wait(30)              # luồng đọc kết quả hết dữ liệu -> thoát vòng
+            continue
         if not t["dang_dung"]:
             ly_do = ""
             if a.tep_dung and os.path.exists(a.tep_dung):
                 ly_do = "tep dung"
             elif os.path.exists(tm("dung")):
                 ly_do = "tep dung"
-            elif a.max_giay and time.time() - t["bat_dau"] >= a.max_giay:
+            elif a.max_giay and da_chay >= a.max_giay:
                 ly_do = "het --max-giay"
+            elif a.han_cung and van_dai() is not None and da_chay >= a.han_cung - 1.1 * van_dai():
+                ly_do = f"gan --han-cung (van dai {van_dai() / 60:.1f} phut)"
             elif a.giao and t["evals"] + con >= a.giao:
                 ly_do = "du phan giao"
             if ly_do:
@@ -217,6 +282,8 @@ def main():
                 else:
                     het_viec = True
                     break
+                with khoa:
+                    nap_luc[id_tiep] = time.time()
                 id_tiep += 1
             p.stdin.flush()
             with khoa:
@@ -250,6 +317,8 @@ def main():
             lan_in = time.time()
         time.sleep(1)
     p.wait()
+    if da_cat:
+        cat_ban_ghi_do(tm("van.bin"), log)
     with khoa:
         t = dict(trang)
     t["giay"] = round(time.time() - t["bat_dau"], 1)

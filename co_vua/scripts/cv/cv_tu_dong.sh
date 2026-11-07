@@ -752,7 +752,9 @@ td_sinh() {
   [ $so -ge 1 ] || return
   f=$TD/o_$$/$(basename "$o04")
   mkdir -p "$TD/o_$$"
-  sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^EVALS[[:space:]]*=[[:space:]]*[0-9]+/s//EVALS = $so/" \
+  # HAN = lúc phải gom và tải về (SECS + phần chừa đuôi ván): gần hạn máy tự thôi nạp theo độ dài ván đo được, tới
+  # hạn thì bỏ ván dở -- 7/11 phần chừa 7 phút (đo ở ván ngắn) không đủ cho ván 23 phút, Colab thu hồi hai máy.
+  sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^EVALS[[:space:]]*=[[:space:]]*[0-9]+/s//EVALS = $so/; 0,/^HAN[[:space:]]*=[[:space:]]*[0-9]+/s//HAN = $((secs + duoi))/" \
     "$o04" > "$f"
   if [ "$TD_BEN" = cay ]; then td_cay_viec "$g" "$so" || return; fi
   TD_G=$g; TD_TONG_IN=
