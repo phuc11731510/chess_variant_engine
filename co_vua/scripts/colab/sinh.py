@@ -349,8 +349,11 @@ def main():
     # Mã hoá một lần ngay trên máy vừa sinh (như engine của fz ghi ván ở dạng sẵn sàng huấn luyện): mau.npz nén,
     # ô 07 chỉ việc nạp. Bộ mã hoá là py/ma_hoa.py đã kiểm khớp với lc0. Lỗi thì ô 07 tự mã hoá lại từ van.bin.gz.
     t0 = time.time()
+    # Cách cây: nhãn lấy từ cây (cay.py), mau.npz chỉ cần mặt phẳng + nước hợp lệ (--chi-mat-phang: 12.9 -> 3.9 MB
+    # mỗi lần sinh, 8/11) -- policy / giá trị của search vẫn nằm nguyên trong van.bin.gz.
     r = subprocess.run(["python3", os.path.join(a.py, "tao_mau.py"), tm("mau.npz.tam.npz"), tm("van.bin"),
-                        "--q-ratio", "0.2", "--nen"], cwd=a.py, capture_output=True, text=True)
+                        "--q-ratio", "0.2", "--nen"] + (["--chi-mat-phang"] if che_do_cay else []),
+                       cwd=a.py, capture_output=True, text=True)
     if r.returncode == 0 and os.path.exists(tm("mau.npz.tam.npz")):
         os.replace(tm("mau.npz.tam.npz"), tm("mau.npz"))
         t["mau"] = {"giay": round(time.time() - t0, 1), "byte": os.path.getsize(tm("mau.npz")),

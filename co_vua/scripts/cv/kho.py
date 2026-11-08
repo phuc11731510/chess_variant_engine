@@ -80,29 +80,102 @@ def ghi(*a):
     print(time.strftime("%Y-%m-%d %H:%M:%S"), *a, flush=True)
 
 
-def len_kho(cach_dir, cach, g):
-    g = int(g)
+def giu_khoa(cach, cho_giay):
+    """Khoá đưa lên kho của một cách (một tiến trình mỗi lúc: xoá tệp ngoài cửa sổ không được chen giữa lúc tiến trình
+    khác vừa đưa tệp mới lên). Đợi tối đa cho_giay. Trả về thư mục khoá, hoặc None."""
     khoa = os.path.join(TD, f"kho_len_{cach}")
-    try:
-        os.makedirs(khoa)
-    except FileExistsError:
+    han = time.time() + cho_giay
+    while True:
+        os.makedirs(khoa, exist_ok=True)
         try:
             pid = int(open(os.path.join(khoa, "pid")).read())
-            if os.path.exists(f"/proc/{pid}"):
-                ghi(f"[kho {cach} đời {g}] tiến trình {pid} đang đưa lên -- thôi")
-                return
+            song = pid != os.getpid() and os.path.exists(f"/proc/{pid}")
         except (OSError, ValueError):
-            pass
-    with open(os.path.join(khoa, "pid"), "w") as f:
-        f.write(str(os.getpid()))
+            song = False
+        if not song:
+            with open(os.path.join(khoa, "pid"), "w") as f:
+                f.write(str(os.getpid()))
+            time.sleep(1)
+            try:
+                if int(open(os.path.join(khoa, "pid")).read()) == os.getpid():
+                    return khoa
+            except (OSError, ValueError):
+                pass
+        if time.time() > han:
+            return None
+        time.sleep(20)
+
+
+def bo_khoa(khoa):
     try:
-        mang = os.path.join(cach_dir, f"gen{g + 1}.pb.gz")
-        han = time.time() + 12 * 3600
-        while not os.path.exists(mang):
-            if time.time() > han or os.path.exists(os.path.join(cach_dir, f".kho_gen{g + 1}.json")):
-                ghi(f"[kho {cach} đời {g}] chưa thấy {os.path.basename(mang)} -- thôi")
-                return
-            time.sleep(60)
+        if int(open(os.path.join(khoa, "pid")).read()) == os.getpid():
+            os.remove(os.path.join(khoa, "pid"))
+    except (OSError, ValueError):
+        pass
+
+
+def _dua(rp, cach, can, co, khoa):
+    """Đưa lên các tệp trong can {tên: (đường dẫn, cỡ)} mà kho co chưa có đúng cỡ. Trả về (đã đưa, lỗi, [tên mới])."""
+    ln = os.path.join(khoa, "ln")
+    os.makedirs(ln, exist_ok=True)
+    for t in os.listdir(ln):
+        os.remove(os.path.join(ln, t))
+    moi = [t for t, (p, kt) in can.items() if co.get(t) != kt and os.path.exists(p) and os.path.getsize(p) == kt]
+    for t in moi:
+        if t in co:
+            gh("release", "delete-asset", TAG, t, "-R", rp, "-y")
+        os.symlink(can[t][0], os.path.join(ln, t))
+    len_ok = loi = 0
+    for i in range(0, len(moi), 4):
+        lo = moi[i:i + 4]
+        for lan in range(3):
+            r = gh("release", "upload", TAG, *[os.path.join(ln, t) for t in lo], "-R", rp, "--clobber", timeout=3600)
+            if r.returncode == 0:
+                len_ok += len(lo)
+                break
+            time.sleep(30)
+        else:
+            loi += len(lo)
+            ghi(f"[kho {cach}] lỗi đưa lên {lo}: {r.stderr.strip()[:200]}")
+    for t in os.listdir(ln):
+        os.remove(os.path.join(ln, t))
+    return len_ok, loi, moi
+
+
+def dua_len(cach_dir, cach, muc, nhan=""):
+    """Đưa ngay lên kho các tệp muc [(arc, đường dẫn)] (bước dồn mặt phẳng của cay.py), không xoá gì. True = xong."""
+    khoa = giu_khoa(cach, 2 * 3600)
+    if not khoa:
+        ghi(f"[kho {cach}] {nhan}: đợi khoá quá lâu -- đời sau gửi thẳng")
+        return False
+    try:
+        rp = repo(cach_dir)
+        co = ds_kho(rp)
+        if co is None:
+            ghi(f"[kho {cach}] {nhan}: không đọc được Release {TAG} -- đời sau gửi thẳng")
+            return False
+        can = {ten_asset(cach, a): (p, os.path.getsize(p)) for a, p in muc}
+        ok, loi, moi = _dua(rp, cach, can, co, khoa)
+        ghi(f"[kho {cach}] {nhan}: đưa lên {ok}/{len(moi)} tệp ({sum(can[t][1] for t in moi) / 1e6:.0f} MB)")
+        return loi == 0
+    finally:
+        bo_khoa(khoa)
+
+
+def len_kho(cach_dir, cach, g):
+    g = int(g)
+    mang = os.path.join(cach_dir, f"gen{g + 1}.pb.gz")      # đợi huấn luyện xong (chưa giữ khoá)
+    han = time.time() + 12 * 3600
+    while not os.path.exists(mang):
+        if time.time() > han or os.path.exists(os.path.join(cach_dir, f".kho_gen{g + 1}.json")):
+            ghi(f"[kho {cach} đời {g}] chưa thấy {os.path.basename(mang)} -- thôi")
+            return
+        time.sleep(60)
+    khoa = giu_khoa(cach, 3600)
+    if not khoa:
+        ghi(f"[kho {cach} đời {g}] đợi khoá quá lâu -- thôi (đời sau gửi thẳng phần thiếu)")
+        return
+    try:
         muc = json.load(open(os.path.join(cach_dir, f".kho_gen{g}.json"), encoding="utf-8"))
         rp = repo(cach_dir)
         co = ds_kho(rp)
@@ -115,45 +188,20 @@ def len_kho(cach_dir, cach, g):
                 ghi(f"[kho {cach} đời {g}] không đọc / tạo được Release {TAG}: {r.stderr.strip()[:200]}")
                 return
         can = {ten_asset(cach, a): (p, kt) for a, p, kt in muc}
-        ln = os.path.join(khoa, "ln")
-        os.makedirs(ln, exist_ok=True)
-        moi = [t for t, (p, kt) in can.items() if co.get(t) != kt and os.path.exists(p) and os.path.getsize(p) == kt]
-        for t in moi:
-            if t in co:
-                gh("release", "delete-asset", TAG, t, "-R", rp, "-y")
-            if os.path.lexists(os.path.join(ln, t)):
-                os.remove(os.path.join(ln, t))
-            os.symlink(can[t][0], os.path.join(ln, t))
-        len_ok = loi = 0
-        for i in range(0, len(moi), 4):
-            lo = moi[i:i + 4]
-            for lan in range(3):
-                r = gh("release", "upload", TAG, *[os.path.join(ln, t) for t in lo], "-R", rp, "--clobber", timeout=3600)
-                if r.returncode == 0:
-                    len_ok += len(lo)
-                    break
-                time.sleep(30)
-            else:
-                loi += len(lo)
-                ghi(f"[kho {cach} đời {g}] lỗi đưa lên {lo}: {r.stderr.strip()[:200]}")
+        len_ok, loi, moi = _dua(rp, cach, can, co, khoa)
         bo = [t for t in co if t.startswith(f"{cach}__") and t not in can]
         for t in bo:
             gh("release", "delete-asset", TAG, t, "-R", rp, "-y")
         mb = sum(can[t][1] for t in moi) / 1e6
         ghi(f"[kho {cach} đời {g}] đưa lên {len_ok}/{len(moi)} tệp ({mb:.0f} MB), xoá {len(bo)} tệp ngoài cửa sổ, "
             f"kho giữ {len(can)} tệp" + (f", {loi} tệp lỗi (đời sau gửi thẳng)" if loi else ""))
-        for t in os.listdir(ln):
-            os.remove(os.path.join(ln, t))
         for k in range(max(0, g - 3), g):
             try:
                 os.remove(os.path.join(cach_dir, f".kho_gen{k}.json"))
             except OSError:
                 pass
     finally:
-        try:
-            os.remove(os.path.join(khoa, "pid"))
-        except OSError:
-            pass
+        bo_khoa(khoa)
 
 
 if __name__ == "__main__":

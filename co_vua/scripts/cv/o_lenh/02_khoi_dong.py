@@ -15,17 +15,30 @@ for lan in (1, 2, 3):
     time.sleep(5)
 else:
     tai_qua_api(REL, "goi.tar.gz", f"{CV}/goi.tar.gz")      # ô 00: đường dự phòng qua api.github.com
-# ONNX Runtime GPU (colab/chuan_bi.sh tải từ Release của Microsoft, bỏ qua nếu lib/ đã có): tải trước ở đây để có
-# đường dự phòng qua API khi releases/download lỗi (8/11).
+# ONNX Runtime GPU 1.20.1 (colab/chuan_bi.sh tải từ Release của Microsoft, bỏ qua nếu lib/ đã có): tải trước ở đây.
+# Gói GỌN của fz (Release v3.0.0, 79 MB .tar.xz thay cho 258 MB .tgz, 9/11): chỉ libonnxruntime.so.1.20.1 +
+# providers_cuda + providers_shared, giống từng byte bản của Microsoft (bỏ TensorRT và tệp biên dịch, lc0 không
+# dùng). Lỗi thì lấy bản của Microsoft; mỗi đường đều có dự phòng qua api.github.com (8/11).
 ORT = "onnxruntime-linux-x64-gpu-1.20.1"
+REL_V3 = REL.rsplit("/", 1)[0] + "/v3.0.0"
+ORT_MS = "https://github.com/microsoft/onnxruntime/releases/download/v1.20.1"
+
+
+def _co(p):
+    return os.path.exists(p) and os.path.getsize(p) > 0
+
+
 if not os.path.exists(f"{CV}/lib/libonnxruntime_providers_cuda.so"):
-    r = subprocess.run(f"timeout 300 wget -q -O /tmp/ort.tgz "
-                       f"https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/{ORT}.tgz", shell=True)
-    if r.returncode != 0 or not os.path.getsize("/tmp/ort.tgz"):
-        tai_qua_api("https://github.com/microsoft/onnxruntime/releases/download/v1.20.1", f"{ORT}.tgz", "/tmp/ort.tgz")
-    if os.path.exists("/tmp/ort.tgz") and os.path.getsize("/tmp/ort.tgz"):
-        subprocess.run(f"tar xzf /tmp/ort.tgz -C /tmp && mkdir -p {CV}/lib && cp -a /tmp/{ORT}/lib/libonnxruntime* {CV}/lib/",
-                       shell=True)
+    for rel, ten, giai in ((REL_V3, f"{ORT}-gon.tar.xz", "xJf"), (ORT_MS, f"{ORT}.tgz", "xzf")):
+        r = subprocess.run(f"rm -f /tmp/{ten}; timeout 300 wget -q -O /tmp/{ten} {rel}/{ten}", shell=True)
+        if r.returncode != 0 or not _co(f"/tmp/{ten}"):
+            tai_qua_api(rel, ten, f"/tmp/{ten}")
+        if _co(f"/tmp/{ten}") and subprocess.run(
+                f"rm -rf /tmp/{ORT} && tar -{giai} /tmp/{ten} -C /tmp && mkdir -p {CV}/lib && "
+                f"cp -a /tmp/{ORT}/lib/libonnxruntime* {CV}/lib/ && test -s {CV}/lib/libonnxruntime_providers_cuda.so",
+                shell=True).returncode == 0:
+            print(f"[02] ONNX Runtime: {ten}", flush=True)
+            break
 !cd {CV} && tar -xzf goi.tar.gz colab/chuan_bi.sh && timeout 600 bash colab/chuan_bi.sh
 !cat {CV}/goi_thong_tin.txt 2>/dev/null
 

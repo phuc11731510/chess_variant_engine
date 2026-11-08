@@ -11,6 +11,7 @@ Không cần python-chess: nước đi là số 16 bit của lc0 (toạ độ tu
   python3 cay.py lay_viec <thư mục cách> <đời> <lần chạy mạng được giao> <tệp ra> [<số giây máy còn chạy>]
                                                    # nhận một phần danh sách việc (khoá thư mục), in số việc
   python3 cay.py tinh_trang <thư mục cách>
+  python3 cay.py don_mau <thư mục cách> <đời G>         # dồn mặt phẳng còn dùng sang tệp gọn (sau_hl tự mở chạy nền)
 
 Công tắc (mục 14, chủ dự án chốt 5/11 "mọi phần bật", nhãn policy mới tắt): CONG_TAC dưới đây.
 """
@@ -621,6 +622,7 @@ def thu_muc_cay(cach):
 def cap_nhat(cach, g):
     t0 = time.time()
     tm = thu_muc_cay(cach)
+    _cho_don(tm)                                         # bước dồn mặt phẳng chạy nền (sau sau_hl) phải xong trước
     c = Cay.nap(tm)
     c.meta["goc_cach"] = cach
     c.meta["doi"] = g
@@ -690,6 +692,7 @@ def _so_buoc_tt(cach, g):
 
 def sau_hl(cach, g, ngan_sach):
     tm = thu_muc_cay(cach)
+    _cho_don(tm)
     c = Cay.nap(tm)
     c.giam()
     moi = c.meta["moi_moi_doi"]
@@ -712,6 +715,152 @@ def sau_hl(cach, g, ngan_sach):
     c.meta["nhat_ky"].append({"sau_hl": tk})
     c.luu(tm)
     print(json.dumps(tk, ensure_ascii=False))
+    del c
+    _mo_nen(cach, ["don_mau", cach, str(g)])
+
+
+# ---------------------------------------------------------------- dồn mặt phẳng (9/11)
+# Mặt phẳng của một node nằm trong mau.npz của lần sinh đã tạo ra nó; tệp còn phải giữ (trên điện thoại và trong kho
+# đệm trên Release) chừng nào còn một node của nó sống. Đời 8: 46 tệp 490 MB, tệp của đời 1-5 chỉ còn dùng 29-36%,
+# và mỗi tệp cũ còn mang policy / giá trị của search mà cách cây không dùng (12.9 MB, phần cần 3.9 MB). Sau mỗi sau_hl,
+# một tiến trình nền dồn các hàng còn dùng của tệp "đáng dồn" (còn mang pt_* hoặc dùng < DON_DUOI) sang tệp mới chỉ có
+# MAT_PHANG (mỗi tệp tối đa DON_HANG hàng), cho node trỏ sang đó, đưa tệp mới lên kho; tệp cũ không còn node nào trỏ
+# tới thì đời sau kho tự xoá. Tệp gốc trên điện thoại giữ nguyên. Khoá cay/.dang_don: cap_nhat / sau_hl đợi nó xong.
+MAT_PHANG = ("bit", "phu", "r50", "hl_off", "hl")
+DON_DUOI = 0.5
+DON_HANG = 300_000
+
+
+def _mo_nen(cach, lenh):
+    import subprocess
+    try:
+        log = open(os.path.join(os.path.dirname(os.path.abspath(cach)), "log", "kho.log"), "a", encoding="utf-8")
+        subprocess.Popen([sys.executable, os.path.abspath(__file__), *lenh], stdin=subprocess.DEVNULL, stdout=log,
+                         stderr=subprocess.STDOUT, start_new_session=True, close_fds=True)
+    except OSError as e:
+        print(f"[!] không mở được {lenh[0]} chạy nền: {e}", file=sys.stderr)
+
+
+def _cho_don(tm, toi_da=3600):
+    f = os.path.join(tm, ".dang_don")
+    han = time.time() + toi_da
+    while os.path.exists(f) and time.time() < han:
+        try:
+            if not os.path.exists(f"/proc/{int(open(f).read())}"):
+                break
+        except (OSError, ValueError):
+            break
+        time.sleep(5)
+
+
+def _ghi(*a):
+    print(time.strftime("%Y-%m-%d %H:%M:%S"), "[dồn mặt phẳng]", *a, flush=True)
+
+
+def don_mau(cach, g):
+    tm = thu_muc_cay(cach)
+    khoa = os.path.join(tm, ".dang_don")
+    _cho_don(tm, 0)
+    with open(khoa, "w") as f:
+        f.write(str(os.getpid()))
+    try:
+        t0 = time.time()
+        c = Cay.nap(tm)
+        n, a = c.n, c.a
+        tep, hang = a["mau_tep"][:n], a["mau_hang"][:n]
+        co = np.flatnonzero(tep >= 0)
+        dung = np.bincount(tep[co], minlength=len(c.meta["tep_mau"]))
+        chon, tong_cu = [], 0
+        for i in np.flatnonzero(dung).tolist():
+            p = os.path.join(cach, c.meta["tep_mau"][i])
+            try:
+                with np.load(p) as z:
+                    du = "pt_p" in z.files
+                    so = len(z["phu"])
+            except (OSError, ValueError, KeyError) as e:
+                _ghi(f"đời {g}: không đọc được {c.meta['tep_mau'][i]} ({e}) -- bỏ qua tệp này")
+                continue
+            if du or dung[i] < DON_DUOI * so:
+                chon.append(i)
+                tong_cu += os.path.getsize(p)
+        if not chon:
+            _ghi(f"đời {g}: không có tệp nào đáng dồn ({len(np.flatnonzero(dung))} tệp)")
+            return
+        # node theo (tệp cũ, hàng cũ): mỗi tệp cũ nạp một lần, các hàng chép theo thứ tự
+        node = co[np.isin(tep[co], chon)]
+        node = node[np.lexsort((hang[node], tep[node]))]
+        os.makedirs(os.path.join(cach, "nen_mau"), exist_ok=True)
+        moi_tep, khuc, so_khuc = [], {k: [] for k in MAT_PHANG + ("hl_dai",)}, 0
+        tep_moi = np.empty(len(node), np.int32)
+        hang_moi = np.empty(len(node), np.int32)
+        vi = 0
+
+        def xa_khuc():
+            nonlocal khuc, so_khuc
+            if not so_khuc:
+                return
+            hl_dai = np.concatenate(khuc["hl_dai"])
+            ra = {"bit": np.concatenate(khuc["bit"]), "phu": np.concatenate(khuc["phu"]),
+                  "r50": np.concatenate(khuc["r50"]),
+                  "hl_off": np.concatenate(([0], np.cumsum(hl_dai))).astype(np.int64), "hl": np.concatenate(khuc["hl"])}
+            ten = f"nen_mau/doi{g}_{len(moi_tep)}.npz"
+            while os.path.exists(os.path.join(cach, ten)) or ten in c.meta["tep_mau"]:
+                ten = ten[:-4] + "b.npz"
+            p = os.path.join(cach, ten)
+            np.savez_compressed(p[:-4] + ".tam.npz", **ra)
+            os.replace(p[:-4] + ".tam.npz", p)
+            moi_tep.append(ten)
+            khuc, so_khuc = {k: [] for k in MAT_PHANG + ("hl_dai",)}, 0
+
+        dau = 0
+        while dau < len(node):
+            i = int(tep[node[dau]])
+            cuoi = dau + int(np.searchsorted(tep[node[dau:]], i, side="right"))
+            h = hang[node[dau:cuoi]].astype(np.int64)
+            with np.load(os.path.join(cach, c.meta["tep_mau"][i])) as z:
+                off, hl = z["hl_off"], z["hl"]
+                bit, phu, r50 = z["bit"], z["phu"], z["r50"]
+            vt0 = 0
+            while vt0 < len(h):
+                k = min(DON_HANG - so_khuc, len(h) - vt0)      # không vượt chỗ còn trống của khúc đang gom
+                hh = h[vt0:vt0 + k]
+                khuc["bit"].append(bit[hh])
+                khuc["phu"].append(phu[hh])
+                khuc["r50"].append(r50[hh])
+                dai = (off[hh + 1] - off[hh]).astype(np.int64)
+                khuc["hl_dai"].append(dai)
+                khuc["hl"].append(hl[np.repeat(off[hh] - (np.cumsum(dai) - dai), dai) + np.arange(int(dai.sum()))])
+                tep_moi[vi:vi + k] = len(c.meta["tep_mau"]) + len(moi_tep)
+                hang_moi[vi:vi + k] = so_khuc + np.arange(k)
+                vi += k
+                so_khuc += k
+                vt0 += k
+                if so_khuc >= DON_HANG:
+                    xa_khuc()
+            del off, hl, bit, phu, r50
+            dau = cuoi
+        xa_khuc()
+        assert vi == len(node)
+        a["mau_tep"][node] = tep_moi
+        a["mau_hang"][node] = hang_moi
+        c.meta["tep_mau"].extend(moi_tep)
+        c.meta["nhat_ky"].append({"don_mau": {"doi": g, "tep_cu": len(chon), "tep_moi": len(moi_tep), "hang": int(len(node))}})
+        c.luu(tm)
+        mb_moi = sum(os.path.getsize(os.path.join(cach, t)) for t in moi_tep) / 1e6
+        _ghi(f"đời {g}: {len(chon)} tệp ({tong_cu / 1e6:.0f} MB) -> {len(moi_tep)} tệp ({mb_moi:.0f} MB), "
+             f"{len(node)} hàng, {time.time() - t0:.0f} giây")
+        del c
+        try:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            import kho
+            kho.dua_len(cach, "cay", [(t, os.path.join(cach, t)) for t in moi_tep], f"dồn mặt phẳng đời {g}")
+        except Exception as e:
+            _ghi(f"đời {g}: chưa đưa được lên kho ({e}) -- đời sau gửi thẳng")
+    finally:
+        try:
+            os.remove(khoa)
+        except OSError:
+            pass
 
 
 TOC_MAC_DINH = 16000      # lần chạy mạng mỗi giây của một T4 khi chưa đo được (cách truyền thống đo 15 400)
@@ -847,6 +996,8 @@ def main():
         lay_viec(a[1], int(a[2]), int(a[3]), a[4], int(a[5]) if len(a) > 5 else None)
     elif a[0] == "tinh_trang":
         tinh_trang(a[1])
+    elif a[0] == "don_mau":
+        don_mau(a[1], int(a[2]))
     else:
         sys.exit(__doc__)
 
