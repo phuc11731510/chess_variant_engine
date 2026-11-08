@@ -234,23 +234,41 @@ def gop(tai, cach, g, so_doi):
     # 2. Gói gộp nhiều đời: chỉ những gì ô 07 cần (ván, mẫu, tóm tắt của từng lần sinh).
     zip_ra = os.path.join(tai, f"games_gen{g}.zip")
     zip_tam = os.path.join(tai, f".games_gen{g}.zip.dang_goi")
-    tong, dem = 0, []
-    with zipfile.ZipFile(zip_tam, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as z:
-        for k in range(g, max(-1, g - so_doi), -1):
-            d = os.path.join(tai, f"games_gen{k}")
-            if not os.path.isdir(d):
+    # Ô 07 chỉ đọc mau.npz (mã hoá sẵn trên máy sinh); van.bin.gz (gấp 2,4 lần cỡ) chỉ gửi cho lần sinh thiếu mau.npz
+    # (8/11). Tệp lớn đã có trong kho đệm trên Release (kho.py) không gửi lại: ô 07 tự tải theo kho_ds.txt.
+    tong, dem, muc = 0, [], []
+    for k in range(g, max(-1, g - so_doi), -1):
+        d = os.path.join(tai, f"games_gen{k}")
+        if not os.path.isdir(d):
+            continue
+        n = 0
+        for lan in sorted(os.listdir(d)):
+            if not os.path.exists(os.path.join(d, lan, "van.bin.gz")):
                 continue
-            n = 0
-            for lan in sorted(os.listdir(d)):
-                if not os.path.exists(os.path.join(d, lan, "van.bin.gz")):
-                    continue
-                for t in CHO_HUAN_LUYEN:
-                    p = os.path.join(d, lan, t)
-                    if os.path.exists(p):
-                        z.write(p, f"{cach}_games_gen{k}/{lan}/{t}")
-                n += 1
-            dem.append(f"games_gen{k}: {n} lần sinh")
-            tong += n
+            co_mau = os.path.exists(os.path.join(d, lan, "mau.npz"))
+            for t in CHO_HUAN_LUYEN:
+                p = os.path.join(d, lan, t)
+                if os.path.exists(p) and not (t == "van.bin.gz" and co_mau):
+                    muc.append((f"{cach}_games_gen{k}/{lan}/{t}", p))
+            n += 1
+        dem.append(f"games_gen{k}: {n} lần sinh")
+        tong += n
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import kho
+        gui, lay = kho.chia(tai, cach, muc)
+    except Exception as e:                       # thiếu kho.py / lỗi bất kỳ: gửi thẳng tất cả như trước
+        print(f"  (kho đệm: {e} -- gửi thẳng tất cả)")
+        kho, gui, lay = None, muc, []
+    with zipfile.ZipFile(zip_tam, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as z:
+        for arc, p in gui:
+            z.write(p, arc)
+        if lay:
+            z.writestr("kho_ds.txt", "".join(f"{a}\t{t}\t{kt}\n" for a, t, kt in lay))
+    if kho:
+        kho.khoi_len(tai, cach, g, muc)
+    if lay:
+        dem.append(f"lấy từ kho đệm {len(lay)} tệp ({sum(x[2] for x in lay) / 1e6:.0f} MB)")
     if os.path.exists(zip_ra):
         cu = ten_moi(tai, f"games_gen{g}.zip")
         os.rename(zip_ra, os.path.join(tai, cu))

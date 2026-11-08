@@ -51,7 +51,7 @@ for c in $CELLS; do
   fi
 done
 # Menu, vong lap, tro ly Python khong phai thu ban sua -> luon lay ban moi.
-for t in cv_menu.sh cv_tu_dong.sh cv_tu_dong.py cay.py fz_may.py fz_han_muc.py fz_nhan_may.py fz_trung_tk.py fz_giu_may.py fz_colab.py fz_chuyen.py; do
+for t in cv_menu.sh cv_tu_dong.sh cv_tu_dong.py cay.py kho.py fz_may.py fz_han_muc.py fz_nhan_may.py fz_trung_tk.py fz_giu_may.py fz_colab.py fz_chuyen.py; do
   curl -fsSL -o "$CVD/$t" "$URL/$t" && echo "[tai]        ~/cv/$t"
 done
 

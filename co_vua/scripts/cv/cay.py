@@ -90,6 +90,28 @@ NODE = {  # tên: (kiểu, giá trị đầu)
 POOL = {"mv": (np.uint16, 0), "ns": (np.float32, 0), "nq": (np.float32, 0), "nd": (np.float32, 0)}
 
 
+def _pi_uint16(pi, dem, khuc=1 << 22):
+    """pi (các node nối liền, node thứ i có dem[i] nước) -> uint16 với tổng mỗi node đúng 65535: làm tròn xuống, rồi
+    cộng 1 cho các nước có phần lẻ lớn nhất (theo thứ tự phần lẻ giảm dần) tới khi đủ. Theo từng khúc node."""
+    dem = np.asarray(dem, np.int64)
+    off = np.concatenate(([0], np.cumsum(dem)))
+    ra = np.empty(int(off[-1]), np.uint16)
+    i, n = 0, len(dem)
+    while i < n:
+        j = min(max(int(np.searchsorted(off, off[i] + khuc, side="right")) - 1, i + 1), n)
+        a, b = int(off[i]), int(off[j])
+        x = pi[a:b].astype(np.float64) * 65535
+        q = np.floor(x)
+        own = np.repeat(np.arange(j - i), dem[i:j])
+        thieu = np.clip(np.rint(65535 - np.bincount(own, q, j - i)), 0, dem[i:j]).astype(np.int64)
+        thu_tu = np.argsort(own + (q - x + 1) * 0.999)  # theo node, trong node phần lẻ giảm dần (một khoá float64)
+        hang = np.arange(b - a) - np.repeat(off[i:j] - a, dem[i:j])
+        q[thu_tu[hang < thieu[own[thu_tu]]]] += 1
+        ra[a:b] = q
+        i = j
+    return ra
+
+
 class Cay:
     def __init__(self):
         self.n = 0
@@ -449,6 +471,9 @@ class Cay:
             dem_moi[co_ml] = np.add.reduceat(co.view(np.uint8), a["ms"][:n][co_ml], dtype=np.int64)
         dem = dem_moi[chon]
         mv2 = self.p["mv"][slot][co]
+        # Gửi lên máy huấn luyện gọn hơn (8/11): pi lưu số nguyên 16 bit, tổng mỗi node đúng 65535 (làm tròn xuống rồi
+        # cộng 1 cho các nước có phần lẻ lớn nhất), sai mỗi số < 1/65535 = 1.5e-5, nhỏ hơn độ mịn 1/800 của 800 lượt
+        # thăm ~80 lần; độ dài đoạn mỗi node thay cho mảng chỉ số int64. Nén: 103 + 4.3 MB -> 74 + 1.7 MB ở đời 5.
         pi2 = np.empty(int(dem.sum()), np.float32)          # pi[co] theo từng khúc, khỏi tạo bản float64 cả mảng
         k = 0
         for dau in range(0, co.size, 1 << 23):
@@ -456,10 +481,11 @@ class Cay:
             pi2[k:k + len(x)] = x
             k += len(x)
         del co
-        pol_off = np.concatenate(([0], np.cumsum(dem))).astype(np.int64)
+        pol_q = _pi_uint16(pi2, dem)
         ra = {"tep": a["mau_tep"][chon], "hang": a["mau_hang"][chon], "den_di": den[chon].astype(np.uint8),
               "wdl": wdl[chon].astype(np.float32), "w": a["m"][chon].astype(np.float32),
-              "pol_off": pol_off, "pol_mv": mv2.astype(np.uint16), "pol_p": pi2,
+              "pol_dem": dem.astype(np.uint8 if dem.max(initial=0) < 256 else np.uint16),
+              "pol_mv": mv2.astype(np.uint16), "pol_q": pol_q,
               "so_buoc": np.int64(so_buoc)}
         tk = {"tau_q2": tau, "so_node_tau": int(gan.sum()), "so_mau": int(len(chon)),
               "wq_tb_theo_m": float((a["m"][chon] * wq[chon]).sum() / max(a["m"][chon].sum(), 1e-9)),
@@ -628,11 +654,25 @@ def cap_nhat(cach, g):
     os.replace(ra[:-4] + ".tam.npz", ra)
     # Các tệp mau.npz cần tải lên máy huấn luyện: "<chỉ số>\t<đường dẫn tương đối trong thư mục cách>"
     can_tep = [(i, c.meta["tep_mau"][i]) for i in np.unique(nh["tep"]).tolist()]
+    # Kho đệm (kho.py, 8/11): mau.npz đã có trên Release thì không gửi lại. .tep.txt (vòng lặp gói đúng các tệp ở cột
+    # 2) chỉ còn tệp gửi thẳng, cộng dòng "-1 nhan_doi<G>.kho.txt": ô 07 tải các tệp trong đó rồi ghép lại .tep.txt.
+    lay = []
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import kho
+        muc = [(t, os.path.join(cach, t)) for _, t in can_tep]
+        _, lay = kho.chia(cach, "cay", muc)
+        kho.khoi_len(cach, "cay", g, muc)
+    except Exception as e:                           # thiếu kho.py / lỗi bất kỳ: gửi thẳng tất cả như trước
+        print(f"(kho đệm: {e} -- gửi thẳng tất cả)", file=sys.stderr)
+    trong_kho = {a: (t, kt) for a, t, kt in lay}
+    with open(os.path.join(cach, f"nhan_doi{g}.kho.txt"), "w", encoding="utf-8") as f:
+        f.write("".join(f"{i}\t{p}\t{trong_kho[p][0]}\t{trong_kho[p][1]}\n" for i, p in can_tep if p in trong_kho))
     with open(os.path.join(cach, f"nhan_doi{g}.tep.txt"), "w", encoding="utf-8") as f:
-        f.write("".join(f"{i}\t{t}\n" for i, t in can_tep))
+        f.write("".join(f"{i}\t{t}\n" for i, t in can_tep if t not in trong_kho) + (f"-1\tnhan_doi{g}.kho.txt\n" if lay else ""))
     tk.update({"doi": g, "node_moi": moi, "search": so_s, "van": so_v, "so_node": int(c.n),
                "so_node_song": int((c.a["trang"][:c.n] == 0).sum()), "so_buoc": so_buoc, "giay": round(time.time() - t0, 1),
-               "so_tep_mau": len(can_tep)})
+               "so_tep_mau": len(can_tep), "kho_lay": len(lay), "kho_lay_mb": round(sum(x[2] for x in lay) / 1e6)})
     c.meta["nhat_ky"].append(tk)
     c.luu(tm)
     print(json.dumps(tk, ensure_ascii=False))
