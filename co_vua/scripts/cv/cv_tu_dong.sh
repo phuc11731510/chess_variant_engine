@@ -1053,7 +1053,7 @@ td_ai_ban() {
 
 # Giai doan 3 (cho / bau cua so huan luyen) cho doi $1.
 td_giai_doan_3() {
-  local g=$1 chu da_bao=0
+  local g=$1 chu da_bao=0 vong=0 b
   if [ $TD_CO_MAY = 1 ]; then td_ghi gen="$g" buoc=cho_hl han="$(td_giay_t4 || echo 0)" van=0
   else td_ghi gen="$g" buoc=cho han=0 van=0; fi
   while :; do
@@ -1065,6 +1065,13 @@ td_giai_doan_3() {
         td_tra; td_ghi buoc=cho han=0
       fi
       td_dung_ca && return 0
+      # Cach kia co viec (vd hai cach cung het doi, cach kia da len doi moi trong luc cho): sang lam cach do thay vi
+      # ngoi khong tro may nua tieng (8/11: hai cua so cho cay doi 6 tu 18:20 trong khi tt doi 7 da mo tu 18:42).
+      vong=$((vong + 1))
+      if [ $((vong % 6)) = 1 ] && b=$(td_chon_ben) && [ "$b" != "$TD_BEN" ]; then
+        td_in "cách $TD_BEN đời $g đang huấn luyện ở cửa sổ khác -> làm cách $b trong lúc chờ"
+        return 0
+      fi
       [ $da_bao = 0 ] && { td_in "chờ cửa sổ khác huấn luyện xong đời $g..."; da_bao=1; }
     elif [ -z "$chu" ]; then
       # So van tut duoi muc tieu (may cua so khac mat giua chung) -> quay lai sinh tiep.
