@@ -746,6 +746,24 @@ Thêm nữa, mỗi lần nhận không quá phần còn lại của danh sách c
 
 **Cách truyền thống nạp vừa phần giao (sửa 8/11).** Cuối đời 3 và đời 4 cách truyền thống, khi chỉ còn thiếu khoảng 343 đến 550 nghìn lần chạy mạng, hai đến ba cửa sổ cùng mở máy mới, mỗi máy nạp ngay 132 ván (khoảng 55 nghìn lần chạy mạng một ván, tức 7 triệu một máy): đời 3 vượt 13 triệu, đời 4 vượt khoảng 20 triệu (trừ vào đời sau theo mục tiêu cộng dồn, nhưng cỡ mỗi đời lệch tới một phần mười). Hai chỗ: máy chưa xong 8 ván thì ước phần còn của ván dở là 0, nên điện thoại không thấy phần máy mới đã nhận; và máy nạp đủ số ván song song bất kể phần giao. Bản sửa: `sinh.py` ước mỗi ván dở trọn `--gia-van` (mặc định 60 nghìn, đo được 55 đến 66 nghìn ở đời 1 và 2) khi chưa xong 8 ván, và chỉ nạp thêm ván khi phần đã chạy cộng phần còn của ván dở cộng ván mới còn trong phần giao. Thử với engine giả: giao 550 nghìn nạp 9 ván (chạy 452 nghìn), giao 5 triệu nạp 83 ván; không giới hạn thì chạy như cũ.
 
+**Gửi dữ liệu huấn luyện gọn hơn (sửa 8/11).** Mỗi đời, máy huấn luyện là một máy Colab mới, nên điện thoại gửi lại cả cửa sổ dữ liệu.
+
+- **Trước khi sửa:** ở đời 6, cách cây gửi 575 MB (nhãn 224 MB và 34 tệp mặt phẳng của đời 0 đến 6), cách truyền thống gửi 697 MB (ván của 4 đời). Cộng lại khoảng 1,27 GB mỗi đời, trong khi phần mới chỉ khoảng 460 MB.
+- **Vì sao cách truyền thống nặng hơn fz:** mỗi đời ở đây có 200 triệu lần chạy mạng, tức khoảng 3 600 ván và 440 nghìn thế cờ, gấp khoảng 3,6 lần 1000 ván mỗi đời của fz. Mỗi thế cờ đã mã hoá thì không tốn hơn: khoảng 160 byte.
+
+Ba thay đổi, không thay đổi nào làm khác dữ liệu hai cách học:
+
+1. **Cách truyền thống không gửi `van.bin.gz` khi lần sinh đã có `mau.npz`.** Ô 07 chỉ đọc `mau.npz`; tệp ván (lớn gấp 2,4 lần) chỉ dùng để mã hoá lại khi thiếu `mau.npz`. Thử trên bản sao dữ liệu thật: 26 lần sinh còn 185 MB.
+2. **Kho đệm trên Release `co_vua_du_lieu`** (`scripts/cv/kho.py`).
+   - Lúc gộp, các tệp từ 1 MB trở lên đã có trên Release (cùng tên, cùng cỡ) không gửi lại. Gói chỉ kèm danh sách của chúng: `kho_ds.txt` cho cách truyền thống, `nhan_doi<G>.kho.txt` cho cách cây, nơi `.tep.txt` có thêm một dòng `-1` chỉ tới tệp này. Ô 07 tải các tệp đó từ Release (song song, có đường dự phòng qua `api.github.com`).
+   - Ô 07 không huấn luyện nếu thiếu dù chỉ một tệp.
+   - Huấn luyện xong (đã có mạng đời sau trên điện thoại), một tiến trình nền đưa lên Release các tệp của cửa sổ còn thiếu, và xoá các tệp của cách đó đã ra khỏi cửa sổ. Việc này không nằm trên đường găng.
+   - Không đọc được Release thì coi như kho trống: gửi thẳng như trước.
+   - Đã thử trọn vòng trên một Release thử: tạo, đưa lên, lần sau không gửi lại, tải về khớp từng byte, xoá đúng tệp khi cửa sổ trượt.
+3. **Nhãn policy của cách cây lưu số nguyên 16 bit.** Làm tròn sao cho tổng mỗi node đúng 65535; mỗi xác suất lệch dưới $1{,}5 \times 10^{-5}$ (đo được tối đa $1{,}49 \times 10^{-5}$), nhỏ hơn độ mịn $1/800$ của 800 lượt thăm khoảng 80 lần. Mảng chỉ số int64 thay bằng độ dài đoạn mỗi node. Phần policy giảm từ 103 + 4,3 MB xuống 74 + 1,7 MB sau nén; bước này mất 6,6 giây trên máy tính. Ô 07 đổi lại sang định dạng mà `gop_mau_cay.py` đọc.
+
+Ước tính từ đời thứ hai có kho: mỗi đời điện thoại gửi lên máy huấn luyện khoảng 200 MB của cách cây (nhãn khoảng 190 MB và mặt phẳng của đời mới) và khoảng 70 MB của cách truyền thống. Phần đưa lên kho chạy nền, khoảng 135 MB. Trước đây là 1,27 GB, toàn bộ nằm trên đường găng. Phần còn lớn nhất là nhãn cách cây: giá trị của mọi node đổi mỗi đời, còn policy chỉ đổi ở node được search, nên có thể làm gọn tiếp nếu cần.
+
 **Thứ tự so với phần 11.** Ở phần 11, search lại làm trước khi quét. Ở đây hai việc được làm cùng lúc trong bước song song, nên bước quét dùng số search của đời trước tại các node sắp được search lại. Mình chấp nhận điều này: phải tách thành hai lượt song song thì mỗi đời tốn thêm một lần chuyển dữ liệu giữa điện thoại và Colab, và máy phải ngồi chờ. Đó là hại chắc chắn, còn lợi của việc quét bằng số mới hơn một đời chỉ ở các node được search lại và có lẽ nhỏ.
 
 **Kích thước cây và thời gian thao tác: đã đo trên một cây giả.** Script `co_vua/thu_nghiem/do_cay_gia.py` dựng một cây 1 triệu node có hình dạng giống cây thật: ván đầu đi từ gốc, các ván sau rẽ từ một node ngẫu nhiên và đi tới hết ván, sâu tối đa 449 nửa nước. Số liệu search trong cây là số ngẫu nhiên, nên chỉ dung lượng và thời gian là có ý nghĩa. Cây lưu bằng các mảng numpy:
