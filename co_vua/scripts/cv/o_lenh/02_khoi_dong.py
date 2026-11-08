@@ -15,6 +15,17 @@ for lan in (1, 2, 3):
     time.sleep(5)
 else:
     tai_qua_api(REL, "goi.tar.gz", f"{CV}/goi.tar.gz")      # ô 00: đường dự phòng qua api.github.com
+# ONNX Runtime GPU (colab/chuan_bi.sh tải từ Release của Microsoft, bỏ qua nếu lib/ đã có): tải trước ở đây để có
+# đường dự phòng qua API khi releases/download lỗi (8/11).
+ORT = "onnxruntime-linux-x64-gpu-1.20.1"
+if not os.path.exists(f"{CV}/lib/libonnxruntime_providers_cuda.so"):
+    r = subprocess.run(f"timeout 300 wget -q -O /tmp/ort.tgz "
+                       f"https://github.com/microsoft/onnxruntime/releases/download/v1.20.1/{ORT}.tgz", shell=True)
+    if r.returncode != 0 or not os.path.getsize("/tmp/ort.tgz"):
+        tai_qua_api("https://github.com/microsoft/onnxruntime/releases/download/v1.20.1", f"{ORT}.tgz", "/tmp/ort.tgz")
+    if os.path.exists("/tmp/ort.tgz") and os.path.getsize("/tmp/ort.tgz"):
+        subprocess.run(f"tar xzf /tmp/ort.tgz -C /tmp && mkdir -p {CV}/lib && cp -a /tmp/{ORT}/lib/libonnxruntime* {CV}/lib/",
+                       shell=True)
 !cd {CV} && tar -xzf goi.tar.gz colab/chuan_bi.sh && timeout 600 bash colab/chuan_bi.sh
 !cat {CV}/goi_thong_tin.txt 2>/dev/null
 
