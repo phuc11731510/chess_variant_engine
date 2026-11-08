@@ -13,6 +13,8 @@ for lan in (1, 2, 3):
         break
     print(f"[02] tải goi.tar.gz lần {lan} thất bại hoặc treo -- thử lại", flush=True)
     time.sleep(5)
+else:
+    tai_qua_api(REL, "goi.tar.gz", f"{CV}/goi.tar.gz")      # ô 00: đường dự phòng qua api.github.com
 !cd {CV} && tar -xzf goi.tar.gz colab/chuan_bi.sh && timeout 600 bash colab/chuan_bi.sh
 !cat {CV}/goi_thong_tin.txt 2>/dev/null
 
@@ -23,4 +25,6 @@ TAI_MANG = True
 if TAI_MANG:
     name = CURRENT_PB.split("/")[-1]
     !python3 {CV}/py/lay_mang.py pb {CURRENT_PB} --rel {REL_NN} || echo "[!] Khong lay duoc {name} tu Release co_vua_mang"
+    if not (os.path.exists(CURRENT_PB) and os.path.getsize(CURRENT_PB) > 0):
+        tai_qua_api(REL_NN, name, CURRENT_PB)
 !ls -la /content/*_gen*.pb.gz /content/*_gen*.pt 2>/dev/null

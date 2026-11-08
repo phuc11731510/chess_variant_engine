@@ -9,5 +9,7 @@ if os.path.exists(CURRENT_PT) and os.path.getsize(CURRENT_PT) > 0:
 else:
     name = CURRENT_PT.split("/")[-1]
     !python3 {CV}/py/lay_mang.py pt {CURRENT_PT} --rel {REL_NN} || echo "[!] Khong lay duoc {name} tu Release co_vua_mang"
+    if not (os.path.exists(CURRENT_PT) and os.path.getsize(CURRENT_PT) > 0):
+        tai_qua_api(REL_NN, name, CURRENT_PT)                # ô 00: đường dự phòng qua api.github.com
 !python3 -c "import onnx, chess" && echo "[thu vien] onnx, chess: co"
 !ls -la {CURRENT_PT} 2>/dev/null
