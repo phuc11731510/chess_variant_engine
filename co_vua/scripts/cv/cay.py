@@ -100,10 +100,10 @@ class Cay:
                      "nhat_ky": []}
         self.con = {}
 
-    # -- dung lượng
+    # -- dung lượng (nới 1.25 lần chứ không gấp đôi: pool đời 5 đã 47 triệu ô, gấp đôi lúc gộp tốn thêm 1.3 GB, 8/11)
     def _them_node(self, k=1):
         if self.n + k > len(self.a["cha"]):
-            moi = max(2 * len(self.a["cha"]), self.n + k)
+            moi = max(len(self.a["cha"]) * 5 // 4 + 1024, self.n + k)
             for t, (kieu, v) in NODE.items():
                 x = np.full(moi, v, kieu)
                 x[:self.n] = self.a[t][:self.n]
@@ -114,7 +114,7 @@ class Cay:
 
     def _them_pool(self, k):
         if self.np_ + k > len(self.p["mv"]):
-            moi = max(2 * len(self.p["mv"]), self.np_ + k)
+            moi = max(len(self.p["mv"]) * 5 // 4 + 4096, self.np_ + k)
             for t, (kieu, v) in POOL.items():
                 x = np.full(moi, v, kieu)
                 x[:self.np_] = self.p[t][:self.np_]
@@ -144,9 +144,9 @@ class Cay:
             return c
         z = np.load(f)
         c.n = len(z["n_cha"])
-        c.a = {k: z[f"n_{k}"].copy() for k in NODE}
+        c.a = {k: z[f"n_{k}"] for k in NODE}            # mỗi lần đọc z[...] đã là một mảng mới
         c.np_ = len(z["p_mv"])
-        c.p = {k: z[f"p_{k}"].copy() for k in POOL}
+        c.p = {k: z[f"p_{k}"] for k in POOL}
         with open(os.path.join(thu_muc, "cay.json"), encoding="utf-8") as fj:
             c.meta = json.load(fj)
         c.meta["tep_mau"] = [t.replace("\\", "/") for t in c.meta["tep_mau"]]   # cây tạo trên Windows (thử)
@@ -157,30 +157,40 @@ class Cay:
         a = self.a
         idx = np.where((a["cha"][:self.n] >= 0) & (a["trang"][:self.n] < 2))[0]
         khoa = a["cha"][idx].astype(np.int64) * 65536 + a["nuoc"][idx]
+        self.con = None                                  # bỏ bảng cũ trước khi dựng bảng mới (khỏi giữ hai bảng)
         self.con = dict(zip(khoa.tolist(), idx.tolist()))
+
+    def la_gon(self):
+        """Pool gọn: đoạn của các node nằm liền nhau theo thứ tự node, không có ô bỏ lại (sau nen)."""
+        ml = self.a["ml"][:self.n].astype(np.int64)
+        dau = np.cumsum(ml) - ml
+        return int(ml.sum()) == self.np_ and bool(np.array_equal(self.a["ms"][:self.n], dau))
 
     def nen(self):
         """Bỏ node đã xoá, dồn pool (đoạn cũ của node được search lại bị bỏ lại khi nới đoạn)."""
         a, n = self.a, self.n
         giu = np.where(a["trang"][:n] < 2)[0]
+        if len(giu) == n and self.la_gon():              # không có gì để bỏ: khỏi chép lại cả cây
+            return
         moi = np.full(n, -1, np.int64)
         moi[giu] = np.arange(len(giu))
         for k in NODE:
-            a[k] = a[k][:n][giu].copy()
+            a[k] = a[k][:n][giu]                         # chỉ số mảng đã là bản mới
         a["cha"] = np.where(a["cha"] >= 0, moi[np.maximum(a["cha"], 0)], -1).astype(np.int32)
+        del moi
         self.n = len(giu)
-        # pool: chép các đoạn đang dùng theo thứ tự node
+        # pool: chép các đoạn đang dùng theo thứ tự node; ô thứ j của đoạn node i lấy từ ms_cu[i] + j
         ml = a["ml"][:self.n].astype(np.int64)
         tong = int(ml.sum())
-        p_moi = {k: np.zeros(max(tong, 1), POOL[k][0]) for k in POOL}
-        dau = np.concatenate(([0], np.cumsum(ml)[:-1])) if self.n else np.zeros(0, np.int64)
-        nguon = np.concatenate([np.arange(s, s + l) for s, l in zip(a["ms"][:self.n], ml) if l]) if tong else np.zeros(0, np.int64)
-        for k in POOL:
-            if tong:
-                p_moi[k][:tong] = self.p[k][nguon]
-        self.p = p_moi
+        dau = np.cumsum(ml) - ml
+        nguon = np.arange(tong, dtype=np.int64)
+        nguon += np.repeat(a["ms"][:self.n].astype(np.int64) - dau, ml)
+        for k in POOL:                                   # từng mảng một: lúc nào cũng chỉ thêm một mảng mới
+            x = self.p[k][nguon] if tong else np.zeros(1, POOL[k][0])
+            self.p[k] = x
+        del nguon
         self.np_ = tong
-        a["ms"] = dau.astype(np.int64)
+        a["ms"] = dau
         self._dung_con()
 
     # -- node
@@ -297,37 +307,68 @@ class Cay:
 
     # -- tính G, E, nhãn (phần 4, 5; phương án B, chủ dự án duyệt 7/11)
     def tinh(self):
+        """Cần pool gọn (gọi nen trước). Mảng theo ô pool (47 triệu ô ở đời 5) là phần tốn bộ nhớ: mỗi mảng float64
+        375 MB, nên chỉ giữ owner, pi, Qs và tạm một mảng; không dựng mảng chỉ số ô, không sắp khoá 64 bit (8/11:
+        bản trước lên 5.8 GB). Kết quả giống hệt bản trước."""
         a, p, n = self.a, self.p, self.n
+        if not self.la_gon():
+            raise RuntimeError("tinh cần pool gọn: gọi nen() trước")
         song = a["trang"][:n] == 0
+        ml = a["ml"][:n].astype(np.int64)
+        ms = a["ms"][:n]
+        so_o = self.np_
+        slot = slice(0, so_o)                            # pool gọn: ô của node i là ms[i] .. ms[i] + ml[i] - 1
         # thống kê search mỗi node
-        owner = np.repeat(np.arange(n), a["ml"][:n].astype(np.int64))
-        slot = np.concatenate([np.arange(s, s + l) for s, l in zip(a["ms"][:n], a["ml"][:n]) if l]) if owner.size else np.zeros(0, int)
-        ns = p["ns"][slot].astype(np.float64)
+        owner = np.repeat(np.arange(n, dtype=np.int64), ml)
+        ns = p["ns"][:so_o]                              # float32; các phép dưới tự nâng lên float64 như bản trước
+        co_ns = ns > 0
         tong = np.bincount(owner, ns, n)
-        pi = ns / np.maximum(tong[owner], 1e-12)
-        Qs = np.where(ns > 0, p["nq"][slot] / np.maximum(ns, 1e-12), 0.0)       # góc bên đi
-        Ds = np.where(ns > 0, p["nd"][slot] / np.maximum(ns, 1e-12), 0.0)
+        pi = np.maximum(tong, 1e-12)[owner]
+        np.divide(ns, pi, out=pi)
+        Qs = np.zeros(so_o)                              # góc bên đi
+        np.divide(p["nq"][:so_o], np.maximum(ns, 1e-12), out=Qs, where=co_ns, dtype=np.float64)
         Qbar = np.bincount(owner, pi * Qs, n)
-        om2 = np.maximum(np.bincount(owner, pi * (Qs - Qbar[owner]) ** 2, n), 1e-6)
-        pi2 = np.bincount(owner, pi * pi, n)
-        # nước nhiều lượt thăm nhất mỗi node -> q, d của nhãn
-        thu_tu = np.lexsort((ns, owner))
-        cuoi = np.r_[owner[thu_tu][1:] != owner[thu_tu][:-1], True]
+        x = Qbar[owner]
+        np.subtract(Qs, x, out=x)
+        x *= x
+        x *= pi
+        om2 = np.maximum(np.bincount(owner, x, n), 1e-6)
+        np.multiply(pi, pi, out=x)
+        pi2 = np.bincount(owner, x, n)
+        del x
+        # nước nhiều lượt thăm nhất mỗi node (hoà thì ô sau cùng, như lexsort bản trước) -> q, d của nhãn
+        co_ml = ml > 0
+        mx = np.zeros(n, np.float32)
+        if so_o:
+            mx[co_ml] = np.maximum.reduceat(ns, ms[co_ml])
+        dinh = np.flatnonzero(ns == mx[owner])
+        o = owner[dinh]
+        cuoi = np.r_[o[1:] != o[:-1], True] if len(o) else np.zeros(0, bool)
         best = np.full(n, -1)
-        best[owner[thu_tu][cuoi]] = thu_tu[cuoi]
+        best[o[cuoi]] = dinh[cuoi]
+        del dinh, o, cuoi
         co_search = best >= 0
-        q_ben = np.where(co_search, Qs[np.maximum(best, 0)], 0.0)
-        d_ben = np.where(co_search, Ds[np.maximum(best, 0)], 0.0)
-        # con đã chơi (sống hoặc gốc-cắt) của mỗi node, cùng pi của nước dẫn tới con
+        b = np.maximum(best, 0)
+        q_ben = np.where(co_search, Qs[b], 0.0) if so_o else np.zeros(n)
+        d_ben = np.zeros(n)
+        if so_o:
+            np.divide(p["nd"][b], np.maximum(ns[b], 1e-12), out=d_ben, where=co_search & co_ns[b], dtype=np.float64)
+        del Qs, co_ns
+        # con đã chơi (sống hoặc gốc-cắt) của mỗi node, cùng pi của nước dẫn tới con: dò đoạn của cha từng ô một
+        # (đoạn dài tối đa vài chục ô, mỗi nước một lần trong đoạn)
         con = np.where((a["cha"][:n] >= 0) & (a["trang"][:n] < 2))[0]
         cha = a["cha"][con]
-        khoa_pool = owner.astype(np.int64) * 65536 + p["mv"][slot]
-        sx = np.argsort(khoa_pool)
-        khoa_con = cha.astype(np.int64) * 65536 + a["nuoc"][con]
-        vt = np.searchsorted(khoa_pool[sx], khoa_con)
-        vt = np.minimum(vt, len(sx) - 1)
-        trung = khoa_pool[sx][vt] == khoa_con
-        pi_con = np.where(trung, pi[sx][vt], 0.0)
+        pi_con = np.zeros(len(con))
+        dau_c, dai_c, nuoc_c = ms[cha], ml[cha], a["nuoc"][con]
+        con_lai = np.flatnonzero(dai_c > 0)
+        j = 0
+        while con_lai.size:
+            vt = dau_c[con_lai] + j
+            trung = p["mv"][vt] == nuoc_c[con_lai]
+            pi_con[con_lai[trung]] = pi[vt[trung]]
+            j += 1
+            con_lai = con_lai[~trung & (dai_c[con_lai] > j)]
+        del dau_c, dai_c, nuoc_c, con_lai
         # kết quả ở lá (góc Trắng)
         G = np.zeros((n, 3))
         E = a["E"][:n].astype(np.float64).copy()
@@ -369,7 +410,7 @@ class Cay:
             a[k][:n] = np.where(song, G[:, j], a[k][:n])
         a["E"][:n] = np.where(song, E, a["E"][:n])
         a["cach"][:n] = np.where(song, cach, a["cach"][:n])
-        self._tam = dict(owner=owner, slot=slot, pi=pi, Qs=Qs, om2=om2, q_ben=q_ben, d_ben=d_ben, co_search=co_search,
+        self._tam = dict(owner=owner, slot=slot, pi=pi, om2=om2, q_ben=q_ben, d_ben=d_ben, co_search=co_search,
                          con=con, rho=rho, pi_con=pi_con)
         return self._tam
 
@@ -396,15 +437,29 @@ class Cay:
         chon = np.where(song & (a["mau_tep"][:n] >= 0))[0]
         # policy: trung bình pi các lần search (nhãn policy mới tắt)
         owner, slot, pi = t["owner"], t["slot"], t["pi"]
-        co = np.isin(owner, chon) & (self.p["ns"][slot] > 0)
-        o2, mv2, pi2 = owner[co], self.p["mv"][slot][co], pi[co]
-        tt = np.argsort(o2, kind="stable")
-        o2, mv2, pi2 = o2[tt], mv2[tt], pi2[tt]
-        dem = np.bincount(o2, minlength=n)[chon]
+        # (pool gọn: owner đã tăng dần nên các ô được chọn tự xếp theo node, khỏi sắp lại; đếm bằng reduceat theo
+        # đoạn, khỏi dựng mảng owner của ô được chọn -- mỗi mảng theo ô ~40 triệu phần tử, 8/11)
+        la_chon = np.zeros(n, bool)
+        la_chon[chon] = True
+        co = la_chon[owner]
+        co &= self.p["ns"][slot] > 0
+        co_ml = a["ml"][:n] > 0
+        dem_moi = np.zeros(n, np.int64)
+        if co.size:
+            dem_moi[co_ml] = np.add.reduceat(co.view(np.uint8), a["ms"][:n][co_ml], dtype=np.int64)
+        dem = dem_moi[chon]
+        mv2 = self.p["mv"][slot][co]
+        pi2 = np.empty(int(dem.sum()), np.float32)          # pi[co] theo từng khúc, khỏi tạo bản float64 cả mảng
+        k = 0
+        for dau in range(0, co.size, 1 << 23):
+            x = pi[dau:dau + (1 << 23)][co[dau:dau + (1 << 23)]]
+            pi2[k:k + len(x)] = x
+            k += len(x)
+        del co
         pol_off = np.concatenate(([0], np.cumsum(dem))).astype(np.int64)
         ra = {"tep": a["mau_tep"][chon], "hang": a["mau_hang"][chon], "den_di": den[chon].astype(np.uint8),
               "wdl": wdl[chon].astype(np.float32), "w": a["m"][chon].astype(np.float32),
-              "pol_off": pol_off, "pol_mv": mv2.astype(np.uint16), "pol_p": pi2.astype(np.float32),
+              "pol_off": pol_off, "pol_mv": mv2.astype(np.uint16), "pol_p": pi2,
               "so_buoc": np.int64(so_buoc)}
         tk = {"tau_q2": tau, "so_node_tau": int(gan.sum()), "so_mau": int(len(chon)),
               "wq_tb_theo_m": float((a["m"][chon] * wq[chon]).sum() / max(a["m"][chon].sum(), 1e-9)),
@@ -461,14 +516,17 @@ class Cay:
         a, n = self.a, self.n
         owner, slot = t["owner"], t["slot"]
         song = (a["trang"][:n] == 0) & (a["het"][:n] == 0) & t["co_search"]
-        ns = self.p["ns"][slot].astype(np.float64)
         # quét: mỗi node bốc một nước theo ns^(1/T)
-        w = np.where(song[owner], ns ** (1 / T_QUET), 0.0)
+        w = self.p["ns"][slot].astype(np.float64)
+        np.power(w, 1 / T_QUET, out=w)
+        w[~song[owner]] = 0.0
         tong = np.bincount(owner, w, n)
         cum = np.cumsum(w)
-        dau = cum - w
-        node_dau = np.full(n, -1.0)
-        node_dau[owner[::-1]] = dau[::-1]            # đầu đoạn của mỗi node trong cum
+        node_dau = np.full(n, -1.0)                  # đầu đoạn của mỗi node trong cum (pool gọn: ô đầu là ms)
+        co_ml = a["ml"][:n] > 0
+        d0 = a["ms"][:n][co_ml]
+        node_dau[co_ml] = cum[d0] - w[d0]
+        del w, d0
         nut = np.where(song & (tong > 0))[0]
         u = node_dau[nut] + rng.random(len(nut)) * tong[nut]
         chon = np.searchsorted(cum, u, side="right")
@@ -561,6 +619,7 @@ def cap_nhat(cach, g):
             pass
     if ev and so_s:
         c.meta["evals_moi_search"] = ev / so_s
+    c.nen()                                              # tinh cần pool gọn (gộp xong thì đoạn mới nằm cuối pool)
     c.tinh()
     so_buoc = _so_buoc_tt(cach, g) or max(1, int((c.a["trang"][:c.n] == 0).sum()) // 1024)
     nh, tk = c.nhan(so_buoc)
