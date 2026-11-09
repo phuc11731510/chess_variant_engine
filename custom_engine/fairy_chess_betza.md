@@ -1718,7 +1718,7 @@ Phần này ghi lại quy ước chữ hướng do bạn đề ra (dựa trên c
 - `vvN` (hay `ffbbN`): chỉ các nước $(\pm 1, \pm 2)$, 4 nước.
 - `lfF`: $l$ rộng giao $f$ hẹp trên $F$ là $(-1,1)$, không rỗng nên chỉ lấy giao: một đường chéo tiến-trái.
 - `llffF`: ép hợp, $l$ hẹp hợp $f$ hẹp trên $F$ là tiến-trái, lùi-trái, tiến-phải (3 đường chéo). Đây là trường hợp mà cụm hai chữ không viết được, vì giao của `l` và `f` trên atom chéo không rỗng.
-- `llffN`: $l$ hẹp là $(-2,\pm 1)$, $f$ hẹp là $(\pm 1, 2)$, hợp được 4 nước. Giao của hai tập này rỗng, nên cụm hai chữ `lfN` cũng cho kết quả hợp; riêng `lfN` lại đọc $l$ rộng hợp $f$ hẹp nên ra 6 nước. Hai cách viết cho kết quả khác nhau.
+- `llffN`: $l$ hẹp là $(-2,\pm 1)$, $f$ hẹp là $(\pm 1, 2)$, hợp được 4 nước. Để so sánh, `lfN` (hai chữ khác nhau) đọc $l$ rộng giao $f$ hẹp, chỉ còn đúng một nước $(-1,2)$. Hai cách viết cho kết quả hoàn toàn khác nhau.
 
 **Vì sao đề xuất đọc hẹp-hẹp cho cụm bốn chữ.**
 
