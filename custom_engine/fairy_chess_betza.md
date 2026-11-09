@@ -1018,8 +1018,26 @@ Nguồn: tệp *Proposed Betza Extended Notation (BEX Notation)* của David How
 **Trạng thái kiểm tra ý đồ của 21 mục dùng `[cl]` (đối chiếu với định nghĩa đề xuất `[cj]Y` ≡ `cY-mY`, tầm hạ cánh kế thừa từ `Y`):**
 
 - **18 mục cờ đam khớp ý đồ** (16 mục theo mô tả Wikipedia, cộng 2 mục Loca sau khi tra luật: Loca là "đi ngắn, bắt dài", quân bắt được đi qua bao nhiêu ô trống cũng được cả trước lẫn sau quân bị nhảy qua). Frisian khớp khi đọc `D` là ô kề theo ngang/dọc trên bàn một màu ô.
-- **3 mục lệch ý đồ** nếu dùng mặc định trên: Locust `mQ[cl]Q` (hạ cánh ngay sau, cần `mQ + cQ-mW`), Rook (Quang Trung) `mR[cl]R` (hạ cánh đúng một ô sau, cần `mR + cR-mW`), Dabbaba-checker `D[cl]W` (ô hạ cánh có thể bắt thêm quân, cần `cW-W`).
+- **3 mục lệch ý đồ** nếu dùng mặc định trên: Locust `mQ[cl]Q` (hạ cánh ngay sau quân bị bắt), Rook (Quang Trung) `mR[cl]R` (hạ cánh đúng một ô sau), Dabbaba-checker `D[cl]W` (ô hạ cánh có thể bắt thêm quân). Cách viết lại gọn bằng mở rộng `[cj]` ở đề xuất dưới đây.
 - **Chưa sửa ký hiệu trong bảng** vì định nghĩa `[cl]`/`[cj]` chưa được chốt. Ký hiệu của 21 mục vẫn là ký hiệu gốc của Wikipedia.
+
+**Đề xuất mở rộng `[cj]` để biểu diễn gọn 3 mục lệch (chờ bạn chốt):** đặt tham số hạ cánh ngay trong ngoặc vuông, theo tiền lệ `[ccM]`, `[crM]` của Bex.
+
+| Dạng | Nghĩa |
+|---|---|
+| `[cj]Y` | Mặc định: ô hạ cánh phải trống, tầm hạ cánh kế thừa từ `Y` (quân nhảy: ngay sau; quân trượt: bao xa cũng được) |
+| `[cj`$n$`]Y` | Hạ cánh cách quân bị bắt tối đa $n$ bước theo cùng vector hướng. `[cj1]Y` là hạ cánh ngay sau |
+| `[cjmc]Y` | Ô hạ cánh trống hoặc có quân địch; có quân địch thì bắt thêm (modality `m`, `c` đúng nghĩa Betza). Có thể kết hợp với số: `[cjmc1]Y` |
+
+Viết lại 3 mục:
+
+- Locust: `mQ[cj1]Q`
+- Rook (Quang Trung): `mR[cj1]R`
+- Dabbaba-checker: `D[cjmc]W`
+
+Tương đương với chuỗi nước: `[cjφn]Y` ≡ `cY-φY` với chặng sau cùng vector hướng với chặng đầu và tầm $n$ (nếu có). Hai nguyên tắc đi kèm: chữ `[cj]` chỉ nhảy qua đúng một quân, `[cl]` dành cho nhảy qua nhiều quân (Long Leaper); và 18 dòng cờ đam đổi `[cl]` thành `[cj]` cho đúng định nghĩa Bex.
+
+**Đính chính:** ở lượt trước mình gợi ý Locust là `mQ + cQ-mW`. Cách này sai với các hướng chéo, vì bước `W` không nằm dọc đường chéo của Tượng; muốn dùng chuỗi nước phải tách theo thành phần (`cR-mW` cho đường thẳng, `cB-mF` cho đường chéo). Dạng `[cj1]Q` tránh được lỗi này vì bước hạ cánh luôn theo đúng vector của chặng đầu.
 
 ### 3.6. Cùng một chữ nhưng nghĩa khác nhau tùy phiên bản
 
