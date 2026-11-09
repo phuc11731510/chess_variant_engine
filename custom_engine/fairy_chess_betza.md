@@ -1705,7 +1705,7 @@ Phần này ghi lại quy ước chữ hướng do bạn đề ra (dựa trên c
 1. Cụm **một chữ**: đọc theo nghĩa rộng. Ví dụ `fN` là mọi nước Mã có $y > 0$ (4 nước).
 2. Cụm **hai chữ khác nhau**: chữ thứ nhất đọc theo nghĩa rộng, chữ thứ hai đọc theo nghĩa hẹp. Lấy **giao** hai tập nước đi; nếu giao rỗng thì lấy **hợp**.
 3. Cụm **hai chữ giống nhau** (gấp đôi, như `ff`): đọc theo nghĩa hẹp của chữ đó. Ví dụ `ffN` chỉ gồm các nước Mã có $y \ge \lvert x \rvert$, tức $(\pm 1, 2)$.
-4. Cụm gồm **hai loại chữ, mỗi loại gấp đôi** (như `ffbb`): mỗi loại đọc theo nghĩa hẹp, rồi giao, nếu rỗng thì hợp.
+4. Cụm **bốn chữ** gồm hai loại chữ, mỗi loại gấp đôi (như `llff`, `ffbb`): đây là cách **ép lấy hợp**, không bao giờ lấy giao. Mỗi loại đọc theo nghĩa hẹp (đúng quy tắc 3 cho từng cặp gấp đôi), rồi lấy hợp hai tập. Thứ tự không quan trọng (`llff` = `ffll`), khác với cụm hai chữ khác nhau ở quy tắc 2. Cụm ba chữ (như `llf`) không hợp lệ. *(Đề xuất của mình về nghĩa hẹp-hẹp, chờ bạn xác nhận; xem lý do bên dưới.)*
 5. **Tối đa 2 loại chữ hướng** trong một cụm. Cần nhiều hơn thì viết tách thành các thành phần riêng.
 6. Quy tắc áp dụng **từng atom sau khi expand**. Ví dụ `fsQ` = `fsR` + `fsB` (đánh giá riêng cho phần `W` và phần `F`); `fsK` = `fsW` + `fsF`.
 
@@ -1716,6 +1716,18 @@ Phần này ghi lại quy ước chữ hướng do bạn đề ra (dựa trên c
 - `fsN`: $y>0$ và $\lvert x \rvert \ge \lvert y \rvert$, được $(\pm 2, 1)$. Còn `sfN`: $x \ne 0$ và $y \ge \lvert x \rvert$, được $(\pm 1, 2)$. **Thứ tự chữ có ý nghĩa** với atom xiên.
 - `fbN`: $f$ rộng giao $b$ hẹp là rỗng, nên lấy hợp: 4 nước tiến cộng 2 nước lùi hẹp $(\pm 1, -2)$, tổng 6 nước (bất đối xứng).
 - `vvN` (hay `ffbbN`): chỉ các nước $(\pm 1, \pm 2)$, 4 nước.
+- `lfF`: $l$ rộng giao $f$ hẹp trên $F$ là $(-1,1)$, không rỗng nên chỉ lấy giao: một đường chéo tiến-trái.
+- `llffF`: ép hợp, $l$ hẹp hợp $f$ hẹp trên $F$ là tiến-trái, lùi-trái, tiến-phải (3 đường chéo). Đây là trường hợp mà cụm hai chữ không viết được, vì giao của `l` và `f` trên atom chéo không rỗng.
+- `llffN`: $l$ hẹp là $(-2,\pm 1)$, $f$ hẹp là $(\pm 1, 2)$, hợp được 4 nước. Giao của hai tập này rỗng, nên cụm hai chữ `lfN` cũng cho kết quả hợp; riêng `lfN` lại đọc $l$ rộng hợp $f$ hẹp nên ra 6 nước. Hai cách viết cho kết quả khác nhau.
+
+**Vì sao đề xuất đọc hẹp-hẹp cho cụm bốn chữ.**
+
+1. Nhất quán với quy tắc 3: gấp đôi một chữ luôn có nghĩa hẹp, nên `ll` và `ff` trong `llff` được đọc đúng như khi đứng riêng.
+2. Đã được kiểm chứng trên dữ liệu: Heavenly Horse và Knave `ffbbN` khớp mô tả (4 nước Mã hẹp), Crab `ffNbsN` và Knight (Japanese) `ffN` cũng đọc hẹp.
+3. Không mất khả năng biểu diễn: tập "hợp rộng-rộng" (ví dụ 6 nước Mã của $l$ rộng hợp $f$ rộng) vẫn viết được bằng cách tách thành hai thành phần `lN` và `fN`, vì hai thành phần cạnh nhau vốn là hợp.
+4. Cụm bốn chữ có đúng một nghĩa, nên không cần thêm quy ước phụ để phân biệt rộng hay hẹp ở từng vị trí.
+
+Với atom thẳng hoặc chéo (`W`, `F`, `D`, `A`, `H`, `G`), nghĩa rộng và nghĩa hẹp của một chữ trùng nhau nên cách đọc cụm bốn chữ chỉ khác biệt trên atom xiên (`N`, `C`, `Z` và `(a,b)` không thẳng/chéo).
 
 ### 6.2. Kết quả kiểm tra
 
