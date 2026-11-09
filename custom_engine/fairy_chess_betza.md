@@ -1141,7 +1141,6 @@ Golden Bird: giữ theo ký hiệu Betza của Wikipedia (chỉ đổi `lr` thà
 Các mục chưa xử lý, ghi lại để quay lại sau:
 
 - **Lion (Japanese) `KANDcaKmabK`:** giữ nguyên; nước đi của Lion nằm ngoài ký hiệu Bex (chữ `b` ở chặng nối là quay lại, không phải chữ hướng của quy ước).
-- **Unicornio:** `t[NB]` (chéo ra xa) hay `t[NfB]` (chéo tiến theo bàn cờ) chưa phân định được từ nguồn.
 - **Điểm mở:** chuỗi `a` của XBetza (hiện chỉ Lion (Japanese) dùng).
 
 ## 5. Định nghĩa `[cj]` và `[cl]`
@@ -1277,10 +1276,9 @@ Gọi $s$ là ô xuất phát.
 | Ship, Twin Tower | `t[FvR]` | `t[fFfR]t[bFbR]` | Một bước chéo tiến rồi trượt thẳng lên; hoặc một bước chéo lùi rồi trượt thẳng xuống (ra xa theo cột). Giữ đúng mô tả "vertically outwards". Viết `t[FvR]` sẽ cho cả hướng vào trong (thêm các ô $(\pm 1, 0)$), vì chữ `v` ghi đè "ra xa" |
 | Snake | `t[vWB]` | giữ nguyên | Một bước tiến hoặc lùi rồi trượt chéo ra xa. `B` không có chữ hướng nên dùng mặc định "ra xa" |
 | Vivi | `t[vWfB]` | giữ nguyên | Một bước tiến hoặc lùi, rồi trượt chéo **tiến** theo bàn cờ (cả sau khi lùi một bước). Khớp mô tả của Betza: "forwards or backwards as Wazir then continues forwards as a Bishop" |
-| Unicornio (Grant Acedrex) | `t[NB] (or t[NfB])` | `t[NB]` | Bước Mã rồi trượt chéo ra xa. Wikipedia ghi `t[NB]` là cách hiểu "most probably"; cách hiểu thay thế `t[NfB]` (chéo tiến theo bàn cờ) chưa phân định được |
+| Unicornio (Grant Acedrex) | `t[NB] (or t[NfB])` | `t[NB]` | Bước Mã rồi trượt chéo ra xa. Đã chốt chọn `t[NB]`; Wikipedia cũng ghi đây là cách hiểu "most probably", cách hiểu thay thế `t[NfB]` bị bỏ |
 
 ### 6.3. Điểm chưa chắc
 
 - Việc dừng ở chặng 1 có hợp lệ (mục 6.1, điểm 2) lấy từ mô tả Gryphon của Piececlopedia và Fairy-Stockfish; các trang gốc của Betza chặn truy cập tự động nên chưa kiểm chứng.
 - Nhánh lùi của Vivi (bước lùi rồi vẫn trượt chéo tiến) dựa vào câu mô tả của Betza qua tóm tắt tìm kiếm, chưa đọc nguyên bài.
-- Unicornio: "ra xa" hay "tiến" là một chỗ hiểu lịch sử chưa rõ; bảng giữ cách thứ nhất theo Wikipedia.
