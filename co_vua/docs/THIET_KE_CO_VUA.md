@@ -387,6 +387,25 @@ Thế cờ sát phán quyết gần như tin hẳn vào kết quả ván. Thế 
 
 Ước lượng gộp cả cây ra $-0.023$, tức vô nghĩa (phương sai âm, kéo $w_q$ lên quá 1). Hai nguyên nhân: $E$ cộng dồn tuyến tính theo khoảng cách nên ở ván dài vượt cả độ dao động của kết quả ván (0.608); và thế cờ cách cuối ván rất xa chỉ có trong ván dài, mà ván dài phần lớn là hoà, nên $(z-q)^2$ ở đó nhỏ. Mạng đời 0 còn ngẫu nhiên ($q$ theo góc Trắng có độ lệch chuẩn chỉ 0.086), nên phép đo này thô, nhưng nó cho thấy cách ước lượng $\tau_q^2$ gộp cả cây không đứng vững. **Mình quyết định (4/11):** $\tau_q^2$ chỉ ước lượng từ các node có $E$ nhỏ (mặc định $E<0.05$, nơi phần trừ $E$ ít ảnh hưởng), và không bao giờ nhỏ hơn 0.01; mỗi đời log thêm $\tau_q^2$ theo từng nhóm khoảng cách như bảng trên. Việc $E$ có nên bị chặn trên bởi độ dao động kết quả ván hay không để mô phỏng quyết định (phần 14), vì chặn hay không chặn đều chưa biết là hại hơn lợi. Với số đời 0 này, $w_q$ trung bình theo nhóm là khoảng 2%, 10%, 25%, 42% và 63% (với $\tau_q^2\approx0.4$), so với 20% cố định của cách truyền thống.
 
+**Sửa 9/11: $\tau_q^2$ theo khoảng cách tới cuối ván.** Từ 7/11, $\tau_q^2$ được ước từ các node cách cuối ván tối đa 4 nửa nước rồi dùng chung cho mọi node; mỗi đời ra khoảng 0,019. Arena đời 10 của lần chạy 1: `tt_gen10` thắng 997, hoà 10, thua 5 trong 1012 ván (99%). Các ván thua nhanh, trung vị 34 nước. Ở nửa nước 20 đến 60, mạng truyền thống đánh giá trung bình $+0{,}94$, còn mạng cây vẫn đánh giá thế của mình $-0{,}07$. Màu quân không phải nguyên nhân (500 và 497 ván thắng), và arena dùng đúng tệp mạng.
+
+Mình đo trên cây đời 5. Sai số của $q$, ước bằng trung bình $(G-q)^2 - E$, tăng mạnh theo khoảng cách tới cuối ván:
+
+| Cách cuối ván (nửa nước) | $(G-q)^2 - E$ | $w_q$ khi dùng $\tau_q^2$ chung 0,019 |
+|---|---|---|
+| 0 đến 5 | 0,016 | 0,08 |
+| 10 đến 20 | 0,108 | 0,28 |
+| 40 đến 80 | 0,225 | 0,52 |
+| 80 đến 160 | 0,219 | 0,61 |
+
+Ở trung cuộc, con số dùng chung vì thế nhỏ hơn sai số thật khoảng 12 lần. Nhãn ở đó nghiêng hơn một nửa về $q$ của một mạng còn yếu: nhãn giá trị của cách cây mềm hẳn, trung bình $|v| = 0{,}39$ theo trọng số so với $0{,}82$ của cách truyền thống. Mạng học được đánh giá gần 0, nên $q$ gần 0, và vòng này tự duy trì.
+
+Bản sửa: $\tau_q^2$ ước riêng cho từng khoảng cách tới cuối ván, với các mốc 0, 5, 10, 20, 40, 80, 160. Mỗi khoảng lấy trung bình $(G-q)^2 - E$ trên các node của nó, không nhỏ hơn 0,01; khoảng nào ít hơn 1000 node thì dùng giá trị của khoảng gần cuối hơn. Mỗi đời log `tau_theo_cach`, $w_q$ trung bình và $|v|$ trung bình. Trên cây đời 5, $w_q$ trung bình theo trọng số giảm từ khoảng 0,56 xuống 0,20, và $|v|$ theo trọng số tăng lên 0,47.
+
+Cùng lúc sửa thêm một chỗ: cách cây phải học cùng số bước với cách truyền thống ở cùng đời (12.6). Khi cách truyền thống chưa có đời đó, mã cũ cho cách cây tự tính số node sống chia 1024, nên từ đời 4 cách cây học nhiều bước hơn (đời 10: 2838 so với 1845). Nay cách cây lấy số bước của đời gần nhất mà cách truyền thống đã có.
+
+Theo quyết định của bạn (9/11), cách cây chạy lại từ mạng đời 0 với bản sửa (lần chạy 2). Cách truyền thống đứng ở đời 10 làm mốc cho tới khi cách cây đời 10 mạnh hơn nó. Dữ liệu lần chạy 1 cất ở `Download/CoVua/cay_lan1_doi10`, mạng ở Release `co_vua_mang_cay_cu`, kết quả arena ở `arena/lan1_tt_gen10_vs_cay_gen10.txt`.
+
 **Với cờ vua:** nếu value head cho ra thắng, hòa, thua, thì $G$, $q$ và value target được tính riêng cho từng thành phần với cùng các trọng số.
 
 ---
