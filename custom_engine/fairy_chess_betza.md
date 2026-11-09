@@ -1680,3 +1680,77 @@ Nguồn: tệp *Proposed Betza Extended Notation (BEX Notation)* của David How
 - `d` trong `dhf`: xem 5.2.
 - `[cl]`: đã có định nghĩa gốc trong tài liệu Bex, xem 5.5; phần còn mở là ô hạ cánh.
 - Tọa độ `(a,b)` là phần mở rộng của Bex (ví dụ `(1,4)` cho Giraffe), không có trong Betza gốc.
+
+## 6. Quy ước chữ hướng và kiểm tra các quân
+
+Phần này ghi lại quy ước chữ hướng do bạn đề ra (dựa trên cách đọc của Wikipedia) và kết quả đối chiếu với toàn bộ các quân trong bảng. Đây là quy ước **tự định nghĩa**, không phải chuẩn chính thức; mục tiêu là chặt chẽ, tương thích Betza truyền thống và khớp mô tả của Wikipedia.
+
+### 6.1. Quy ước
+
+**Hệ tọa độ.** Quân đứng ở gốc $(0,0)$, mỗi điểm nguyên $(x,y)$ là một ô, $y$ tăng theo hướng tiến của quân, $x$ tăng về bên phải.
+
+**Sáu chữ và hai nghĩa.**
+
+| Chữ | Nghĩa rộng | Nghĩa hẹp |
+|---|---|---|
+| `f` | $y > 0$ | $y \ge \lvert x \rvert$ |
+| `b` | $y < 0$ | $-y \ge \lvert x \rvert$ |
+| `l` | $x < 0$ | $-x \ge \lvert y \rvert$ |
+| `r` | $x > 0$ | $x \ge \lvert y \rvert$ |
+| `s` | $x \ne 0$ (hợp của `l`, `r`) | $\lvert x \rvert \ge \lvert y \rvert$ (hợp của `l`, `r` hẹp) |
+| `v` | $y \ne 0$ (hợp của `f`, `b`) | $\lvert y \rvert \ge \lvert x \rvert$ (hợp của `f`, `b` hẹp) |
+
+**Cách đọc một cụm chữ hướng** (các chữ hướng đứng liền nhau trước một atom):
+
+1. Cụm **một chữ**: đọc theo nghĩa rộng. Ví dụ `fN` là mọi nước Mã có $y > 0$ (4 nước).
+2. Cụm **hai chữ khác nhau**: chữ thứ nhất đọc theo nghĩa rộng, chữ thứ hai đọc theo nghĩa hẹp. Lấy **giao** hai tập nước đi; nếu giao rỗng thì lấy **hợp**.
+3. Cụm **hai chữ giống nhau** (gấp đôi, như `ff`): đọc theo nghĩa hẹp của chữ đó. Ví dụ `ffN` chỉ gồm các nước Mã có $y \ge \lvert x \rvert$, tức $(\pm 1, 2)$.
+4. Cụm gồm **hai loại chữ, mỗi loại gấp đôi** (như `ffbb`): mỗi loại đọc theo nghĩa hẹp, rồi giao, nếu rỗng thì hợp.
+5. **Tối đa 2 loại chữ hướng** trong một cụm. Cần nhiều hơn thì viết tách thành các thành phần riêng.
+6. Quy tắc áp dụng **từng atom sau khi expand**. Ví dụ `fsQ` = `fsR` + `fsB` (đánh giá riêng cho phần `W` và phần `F`); `fsK` = `fsW` + `fsF`.
+
+**Ví dụ tính tay.**
+
+- `fsW`: $f$ rộng giao $s$ hẹp trên $W$ là rỗng, nên lấy hợp: tiến, trái, phải.
+- `fsF`: giao không rỗng (hai đường chéo tiến), nên chỉ lấy giao: tiến-trái, tiến-phải.
+- `fsN`: $y>0$ và $\lvert x \rvert \ge \lvert y \rvert$, được $(\pm 2, 1)$. Còn `sfN`: $x \ne 0$ và $y \ge \lvert x \rvert$, được $(\pm 1, 2)$. **Thứ tự chữ có ý nghĩa** với atom xiên.
+- `fbN`: $f$ rộng giao $b$ hẹp là rỗng, nên lấy hợp: 4 nước tiến cộng 2 nước lùi hẹp $(\pm 1, -2)$, tổng 6 nước (bất đối xứng).
+- `vvN` (hay `ffbbN`): chỉ các nước $(\pm 1, \pm 2)$, 4 nước.
+
+### 6.2. Kết quả kiểm tra
+
+Quét 110 mục có chữ hướng ngoài ngoặc `t[...]`, tính tập nước đi theo quy ước rồi đối chiếu với mô tả của Wikipedia. **99 mục khớp, 4 mục sai ý đồ, 7 mục nằm ngoài phạm vi quy ước hoặc cần bạn quyết.** Nhóm khớp gồm cả các quân khó như Barc `fsNbbN`, Crab `ffNbsN`, Scorpion (Winther) `mfsN`, Left/Right General `FvrW`/`FvlW`, Left/Right Quail, Blind Dog `sbWfF`, Charging Rook `fsRbK`, Evil Wolf `sfK`.
+
+**4 mục sai ý đồ** (ký hiệu hiện tại cho tập nước đi khác với mô tả):
+
+| Quân | Ký hiệu hiện tại | Kết quả theo quy ước | Ý đồ (theo Wikipedia) | Đề xuất |
+|---|---|---|---|---|
+| Cannon (Musketeer) | `DWFsN` | `sN` = cả 8 nước Mã ($x \ne 0$ với mọi nước Mã) | "limited Knight sideways", Parlett ghi "narrow" | `DWFssN` (4 nước $(\pm 2, \pm 1)$) |
+| Debtor | `vDsN` | `sN` = 8 nước Mã, tổng 10 hướng | "six-directional": Dabbaba dọc + Mã sang ngang | `vDssN` (4 nước Mã + 2 nước Dabbaba = 6) |
+| Fibnif | `fbNF` | `fbN` = 6 nước, bất đối xứng | "narrow Knight and Ferz" | `vvNF` hoặc `ffbbNF` (4 nước) |
+| Fortress (Musketeer) | `F3DfbN` | `fbN` = 6 nước | "narrow Knight" | `F3DvvN` hoặc `F3DffbbN` |
+
+Ghi chú: mình chưa tra luật của Musketeer Chess; kết luận cho Cannon và Fortress dựa vào mô tả "limited/narrow" của Wikipedia.
+
+**Cách ghi `ffbbN` của Heavenly Horse và Knave là đúng** (cụm hai loại, mỗi loại gấp đôi, cho 4 nước hẹp), nhưng có thể rút gọn thành `vvN`.
+
+**7 mục ngoài phạm vi quy ước hoặc cần bạn quyết:**
+
+| Quân | Ký hiệu | Vấn đề | Gợi ý |
+|---|---|---|---|
+| Charging Knight | `fhNsbK` | Chữ `h` không thuộc 6 chữ của quy ước. Mô tả: "forward as a Knight" | Bỏ `h`: `fNsbK` (4 nước Mã tiến) |
+| Colonel | `KfsRfhN` | Như trên | `KfsRfN` |
+| Forequeen | `fsQbhNbK` | Như trên (`bhN`) | `fsQbNbK` |
+| Horned Falcon (dạng viết thứ hai) | `BrlbRdhfWfD` | Cụm `rlb` có 3 loại chữ hướng, vi phạm quy tắc 5; `d`, `h` không xác định | Dùng dạng thứ nhất `BsbRfWfD` (khớp quy ước) |
+| Soaring Eagle (dạng viết thứ hai) | `RbBdhfFfA` | `dh` không xác định | Dùng dạng thứ nhất `RbBfFfA` (khớp) |
+| Golden Bird | `vRlrW2F3` | `lr` đúng quy ước (giao rỗng, lấy hợp, ra `L,R`) nhưng thừa; ghi chú Wikipedia nói "forward diagonals" trong khi `F3` là cả 4 đường chéo | `vRsW2F3`; nếu đúng là chỉ chéo tiến thì phải là `fF3` (cần xác nhận luật) |
+| Lion (Japanese) | `KANDcaKmabK` | `ab` là chặng nối (`a` = đi tiếp), chữ `b` ở chặng sau là *quay lại*, không phải hướng của quy ước | Giữ nguyên, ngoài phạm vi |
+
+**5 quân có chữ hướng nằm trong `t[...]`:** Ship và Twin Tower `t[FvR]`, Snake `t[vWB]`, Vivi `t[vWfB]`, Unicornio `t[NfB]`. Quy ước của bạn chưa nói chữ hướng ở **chặng tiếp theo** tính theo hướng bàn cờ hay theo hướng chặng trước. Mô tả của Wikipedia cho Vivi ("continues as a Bishop forwards") dùng hướng bàn cờ; XBetza thì đọc `f` ở chặng tiếp theo là "cùng hướng chặng trước". Cần bạn chốt.
+
+### 6.3. Các điểm cần bạn chốt thêm
+
+1. **Đánh giá theo từng atom sau khi expand** (như đã dùng ở trên) hay theo toàn bộ tập nước đi của `Q`, `K`? Hai cách khác nhau với `fsQ`: theo từng atom thì cho "Xe tiến + sang ngang, Tượng tiến"; theo cả tập thì phần giao (hai chéo tiến) không rỗng nên mất nước sang ngang của Xe. Mô tả Forequeen ("Queen forward or sideways") ủng hộ cách đầu.
+2. **Chữ `h`** (half) có giữ trong quy ước không. Hiện chỉ 3 quân dùng và đều đọc được nếu bỏ.
+3. **Chữ hướng ở chặng tiếp theo** trong `t[...]` và chuỗi `a`.
+4. **Gấp đôi ba lần trở lên** (như `fff`) chưa được quy ước; hiện không quân nào dùng.
