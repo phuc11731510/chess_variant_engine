@@ -1111,7 +1111,7 @@ Lưu ý: nguồn của Debtor và Fibnif là các trang cộng đồng trên che
 | Charging Knight | `fhNsbK` | Chữ `h` không thuộc 6 chữ của quy ước. Mô tả: "forward as a Knight" | Bỏ `h`: `fNsbK` (4 nước Mã tiến) |
 | Colonel | `KfsRfhN` | Như trên | `KfsRfN` |
 | Forequeen | `fsQbhNbK` | Như trên (`bhN`) | `fsQbNbK` |
-| Horned Falcon (dạng viết thứ hai) | `BrlbRdhfWfD` | Cụm `rlb` có 3 loại chữ hướng, vi phạm quy tắc 5; `d`, `h` không xác định | Dùng dạng thứ nhất `BsbRfWfD` (khớp quy ước) |
+| Horned Falcon (dạng viết thứ hai) | `BrlbRdhfWfD` | Cụm `rlb` có 3 loại chữ hướng, không hợp lệ theo mục 4.1. Nếu mở rộng quy tắc (chữ đầu rộng, các chữ sau hẹp, lấy giao, rỗng thì lấy hợp) thì trên atom `W` cho cùng kết quả `L,R,B` với `sb` ($r$ rộng ∩ $l$ hẹp ∩ $b$ hẹp là rỗng, nên lấy hợp). Nhưng không tương đương tổng quát: trên `F` thì `rlb` ra cả 4 đường chéo còn `sb` chỉ ra 2 đường chéo lùi; trên `N` thì ra 7 nước còn `sb` chỉ ra 2. `d`, `h` không xác định | Dùng dạng thứ nhất `BsbRfWfD` (khớp quy ước) |
 | Soaring Eagle (dạng viết thứ hai) | `RbBdhfFfA` | `dh` không xác định | Dùng dạng thứ nhất `RbBfFfA` (khớp) |
 | Golden Bird | `vRlrW2F3` | `lr` đúng quy ước (giao rỗng, lấy hợp, ra `L,R`) nhưng thừa; ghi chú Wikipedia nói "forward diagonals" trong khi `F3` là cả 4 đường chéo | `vRsW2F3`; nếu đúng là chỉ chéo tiến thì phải là `fF3` (cần xác nhận luật) |
 | Lion (Japanese) | `KANDcaKmabK` | `ab` là chặng nối (`a` = đi tiếp), chữ `b` ở chặng sau là *quay lại*, không phải hướng của quy ước | Giữ nguyên, ngoài phạm vi |
@@ -1129,7 +1129,7 @@ Lưu ý: nguồn của Debtor và Fibnif là các trang cộng đồng trên che
 Các mục chưa xử lý, ghi lại để quay lại sau:
 
 - **Chữ `h`:** Charging Knight `fhNsbK`, Colonel `KfsRfhN`, Forequeen `fsQbhNbK`. Mô tả đều đọc được nếu bỏ `h` (`fN`, `bN`).
-- **Dạng viết thứ hai không theo quy ước:** Horned Falcon `BrlbRdhfWfD` (cụm `rlb` có 3 loại chữ, và `dh`), Soaring Eagle `RbBdhfFfA` (`dh`). Dạng thứ nhất của hai quân này khớp quy ước.
+- **Dạng viết thứ hai không theo quy ước:** Horned Falcon `BrlbRdhfWfD` (cụm `rlb` có 3 loại chữ, chỉ tương đương `sb` trên atom `W`; và `dh`), Soaring Eagle `RbBdhfFfA` (`dh`). Dạng thứ nhất của hai quân này khớp quy ước.
 - **Golden Bird `vRlrW2F3`:** `lr` thừa (nên là `sW2`); và ghi chú Wikipedia nói chỉ chéo tiến trong khi `F3` là cả 4 đường chéo, cần xác nhận luật.
 - **Lion (Japanese) `KANDcaKmabK`:** chữ `b` ở chặng nối sau `a` là quay lại, không phải chữ hướng của quy ước.
 - **Chữ hướng trong `t[...]`:** Ship, Twin Tower `t[FvR]`; Snake `t[vWB]`; Vivi `t[vWfB]`; Unicornio `t[NfB]`. Chưa chốt hướng bàn cờ hay hướng chặng trước.
