@@ -34,7 +34,9 @@ GAMMA = 1 - 1 / W_DOI           # 8.4
 T_QUET = 0.5                    # 6.1
 TRAN_SEARCH_LAI = 0.20          # 9.3 (chủ dự án chốt 5/11)
 SAN_TAU_Q = 0.01                # phần 5
-CACH_CUOI_TAU = 4               # 7/11: tau_q^2 ước từ node cách cuối ván <= 4 nửa nước
+CACH_CUOI_TAU = 4               # 7/11: tau_q^2 ước từ node cách cuối ván <= 4 nửa nước (từ 9/11 chỉ còn để đếm)
+TAU_MOC = (0, 5, 10, 20, 40, 80, 160)   # 9/11: tau_q^2 riêng cho mỗi khoảng cách tới cuối ván [moc_k, moc_k+1)
+TAU_IT_NHAT = 1000              # khoảng ít node hơn thì dùng tau của khoảng gần cuối hơn
 EVALS_MOI_SEARCH = 490          # mặc định trước khi đo (đo đời 0 cách truyền thống, 4/11)
 DU_VIEC = 1.5                   # lập dư việc so với ngân sách (ước chi phí ván rẽ còn thô)
 
@@ -446,14 +448,26 @@ class Cay:
         G_ben = np.where(den[:, None], G[:, ::-1], G)       # Đen đi: đổi thắng <-> thua
         q_wdl = np.stack([(1 + t["q_ben"] - t["d_ben"]) / 2, t["d_ben"], (1 - t["q_ben"] - t["d_ben"]) / 2], 1).clip(0, 1)
         song = (a["trang"][:n] == 0) & t["co_search"] & (a["het"][:n] == 0)
-        # tau_q^2 từ node cách cuối ván <= 4 (7/11)
-        gan = song & (a["cach"][:n] <= CACH_CUOI_TAU)
+        # tau_q^2 = sai số bình phương của q, ước RIÊNG theo khoảng cách tới cuối ván (sửa 9/11): trung bình
+        # (G - q)^2 - E trên node của khoảng đó (E: phương sai của G, trừ đi để chỉ còn phần sai của q). Trước đây
+        # (7/11) chỉ ước từ node cách cuối <= 4 rồi dùng cho mọi node: 0.019, trong khi đo trên cây đời 5 sai số thật
+        # của q tăng từ 0.016 (cách cuối 0-5) lên 0.22 (40-160) -- nhãn trung cuộc nghiêng về q của mạng còn yếu, mạng
+        # đời 10 thua 99% (arena 9/11).
         G_s = (G[:, 0] - G[:, 2])
         q_trang = sg * t["q_ben"]
-        tau = max(float(np.mean((G_s[gan] - q_trang[gan]) ** 2)) if gan.any() else 0.0, SAN_TAU_Q)
         E = a["E"][:n].astype(np.float64)
+        cach_n = a["cach"][:n]
+        gan = song & (cach_n <= CACH_CUOI_TAU)
+        sai = (G_s - q_trang) ** 2 - E
+        khoang = np.searchsorted(TAU_MOC, cach_n, side="right") - 1
+        tau_k = []
+        for k in range(len(TAU_MOC)):
+            s = song & (khoang == k)
+            tau_k.append(max(float(np.mean(sai[s])), SAN_TAU_Q) if s.sum() >= TAU_IT_NHAT
+                         else (tau_k[-1] if tau_k else SAN_TAU_Q))
+        tau = tau_k[0]
         if CONG_TAC["nhan_value_moi"]:
-            wq = E / (E + tau)
+            wq = E / (E + np.asarray(tau_k)[khoang])
         else:
             wq = np.full(n, 0.2)
         wdl = wq[:, None] * q_wdl + (1 - wq[:, None]) * G_ben
@@ -488,8 +502,11 @@ class Cay:
               "pol_dem": dem.astype(np.uint8 if dem.max(initial=0) < 256 else np.uint16),
               "pol_mv": mv2.astype(np.uint16), "pol_q": pol_q,
               "so_buoc": np.int64(so_buoc)}
-        tk = {"tau_q2": tau, "so_node_tau": int(gan.sum()), "so_mau": int(len(chon)),
+        v = np.abs(wdl[chon, 0] - wdl[chon, 2])
+        tk = {"tau_q2": tau, "tau_theo_cach": [round(x, 4) for x in tau_k], "so_node_tau": int(gan.sum()),
+              "so_mau": int(len(chon)),
               "wq_tb_theo_m": float((a["m"][chon] * wq[chon]).sum() / max(a["m"][chon].sum(), 1e-9)),
+              "wq_tb": float(wq[chon].mean()) if len(chon) else 0.0, "v_tuyet_doi_tb": float(v.mean()) if len(chon) else 0.0,
               "E_tb": float(E[chon].mean()) if len(chon) else 0.0,
               "omega2_tb": float(t["om2"][chon].mean()) if len(chon) else 0.0}
         return ra, tk
@@ -681,13 +698,17 @@ def cap_nhat(cach, g):
 
 
 def _so_buoc_tt(cach, g):
-    """Số bước huấn luyện của cách truyền thống ở cùng đời (12.6: hai bên cùng số bước)."""
-    f = os.path.join(os.path.dirname(os.path.abspath(cach)), "tt", f"gen{g + 1}.hl.json")
-    try:
-        with open(f, encoding="utf-8") as fj:
-            return int(json.load(fj)["so_buoc"])
-    except (OSError, ValueError, KeyError):
-        return 0
+    """Số bước huấn luyện của cách truyền thống ở cùng đời (12.6: hai bên cùng số bước). Cách truyền thống chưa
+    huấn luyện tới đời đó (cách cây đi trước) thì lấy đời gần nhất nó đã có (sửa 9/11: trước đây trả 0, cách cây tự
+    tính số node sống / 1024 -- từ đời 4 cách cây học nhiều bước hơn, đời 10: 2838 so với 1845)."""
+    tt = os.path.join(os.path.dirname(os.path.abspath(cach)), "tt")
+    for k in range(g + 1, 0, -1):
+        try:
+            with open(os.path.join(tt, f"gen{k}.hl.json"), encoding="utf-8") as fj:
+                return int(json.load(fj)["so_buoc"])
+        except (OSError, ValueError, KeyError):
+            continue
+    return 0
 
 
 def sau_hl(cach, g, ngan_sach):
