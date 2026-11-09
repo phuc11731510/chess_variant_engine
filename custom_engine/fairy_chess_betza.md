@@ -1638,7 +1638,7 @@ Nguồn: tệp *Proposed Betza Extended Notation (BEX Notation)* của David How
 **Hệ quả với bảng Wikipedia**
 
 - Cách Wikipedia dùng `[cl]` cho cờ đam (`mfF[cl]fF`, `mB[cl]B`…) **mượn** ký hiệu của Bex nhưng lệch với định nghĩa gốc: cú nhảy của quân đam đúng một quân thì theo Bex phải là `[cj]`, và một cú nhảy bắt đúng một quân.
-- Vì tài liệu gốc không quy định ô hạ cánh, các mâu thuẫn mà mình liệt kê trước đó (cùng chuỗi `mR[cl]R` nhưng Rook (Quang Trung) hạ cánh ngay sau còn Checker King hạ cánh tùy ý; Frisian dùng `[cl]F` cho chéo nhưng `[cl]D` cho ngang/dọc; Dabbaba-checker bắt thêm quân ở ô hạ cánh) **là lỗi/cách dùng lỏng của người viết bảng Wikipedia**, không phải một luật Bex bị mình hiểu sai.
+- Vì tài liệu gốc không quy định ô hạ cánh, các mâu thuẫn mà mình liệt kê trước đó (cùng chuỗi `mR[cl]R` nhưng Rook (Quang Trung) hạ cánh ngay sau còn Checker King hạ cánh tùy ý; Dabbaba-checker bắt thêm quân ở ô hạ cánh) **là lỗi/cách dùng lỏng của người viết bảng Wikipedia**, không phải một luật Bex bị mình hiểu sai.
 - Locust (`mQ[cl]Q`, "hạ cánh ngay sau quân bị bắt") theo Bex nên là `mQ+[cj]Q` chứ không phải `[cl]`; `mQ+[cl]Q` là Long Leaper.
 - Cách viết chặt chẽ hơn cho quân đam vẫn là các chuỗi nước: MBN `fcF-mF`, Betza 2.0 `cR-mR`, XBetza `fcafmF` (xem các nguồn ở các mục trên). Bex cũng có chuỗi tương tự bằng `-`/`--`: `A-B` là nước A rồi nước B cùng hướng chung, `A--B` là hướng bất kỳ.
 
@@ -1649,6 +1649,8 @@ Nguồn: tệp *Proposed Betza Extended Notation (BEX Notation)* của David How
 - Modifier khác: `m` (chỉ đi, không bắt), `c` (phải bắt), `y` (hoàng gia, ví dụ Tướng cờ tướng `yW`), `e` (cho phép nhảy một nước vốn không nhảy, ví dụ Mã shogi `e(mfW-F)`), `n` (cấm nhảy, dùng đường ngắn nhất; Moo = Mao + Moa = `nN`), `i` (chỉ nước đầu), `j` (nhảy qua đúng một vật cản, ví dụ `j(mW-F)`), `p` (hop, ví dụ pháo `mR+cpR`), `g` (grasshopper), `z` (crooked, ví dụ `zB`), `q` (vòng tròn, ví dụ Rose `qN`).
 - Không có `t`, `k`, `d`, `a`, `o` làm modifier trong tài liệu Bex. Vậy các ký hiệu như `t[FR]`, `kW`, `dhf` trong bảng Wikipedia là từ nơi khác hoặc do người biên tập đặt.
 - Toán tử: nhóm `( )`, `-`, `--`, `+`, rider `*` (ví dụ `N*` = `NN`), giới hạn số lần `2-N` (từ 2 trở lên), đúng số lần `02`…`0N` (Tốt nước đầu `mfW02`), thăng cấp bằng `=Q,R,B,N`. Ví dụ Sư tử Chu shogi: `K+(DAN)+(K-K)+[crK]+(mK--[xo])`.
+
+> **Đính chính (Frisian):** trước đây mục này coi `[cl]F` (chéo) cùng `[cl]D` (ngang/dọc) của Frisian Checkers là không nhất quán. Đó là hiểu sai: ghi chú của Wikipedia nói quân nhảy qua quân "cùng màu ô". Bàn cờ chỉ dùng ô một màu nên ô kề theo ngang/dọc cách nhau 2 ô, tức đúng atom `D`. Vì vậy `[cl]F` + `[cl]D` nhất quán: quân kề tính theo ô chơi được, hạ cánh ở ô chơi được kế tiếp. Mình chưa tra lại luật Frisian từ nguồn riêng.
 
 ### 5.6. Cùng một chữ nhưng nghĩa khác nhau tùy phiên bản
 
