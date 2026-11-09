@@ -1,6 +1,6 @@
 # Danh sách quân cờ tiên (fairy chess) theo ký hiệu Betza
 
-Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wiki/List_of_fairy_chess_pieces) (cột **Betza**, lấy ngày 2026-11-07). Ký hiệu được giữ nguyên như Wikipedia ghi, kể cả các dạng tương đương (ví dụ `B = FF`, `A = (2,2)`). **Ngoại lệ:** ký hiệu của 10 quân đã được sửa theo quy ước chữ hướng ở mục 4 (Cannon (Musketeer), Debtor, Fibnif, Fortress (Musketeer); bỏ chữ `h` ở Charging Knight, Colonel, Forequeen; bỏ dạng viết thứ hai của Horned Falcon và Soaring Eagle; `lr` thành `s` ở Golden Bird), và 21 mục dùng `[cl]` đã đổi sang `[cj]` theo mục 5 (Sri Lankan Dām còn được thêm chữ `f` bị thiếu). Ký hiệu gốc của Wikipedia ghi ở mục 4.2 và 5.4.
+Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wiki/List_of_fairy_chess_pieces) (cột **Betza**, lấy ngày 2026-11-07). Ký hiệu được giữ nguyên như Wikipedia ghi, kể cả các dạng tương đương (ví dụ `B = FF`, `A = (2,2)`). **Ngoại lệ:** ký hiệu của 15 quân đã được sửa theo quy ước chữ hướng ở mục 4 và định nghĩa `t[...]` ở mục 6 (Cannon (Musketeer), Debtor, Fibnif, Fortress (Musketeer); bỏ chữ `h` ở Charging Knight, Colonel, Forequeen; bỏ dạng viết thứ hai của Horned Falcon và Soaring Eagle; `lr` thành `s` ở Golden Bird; Ship và Twin Tower đổi `t[FvR]` thành `t[fFfR]t[bFbR]`; Unicornio bỏ dạng thay thế `t[NfB]`; tách thành phần `Q`, `K` có cụm hai chữ hướng thành `sbWbF` ở Charging Knight, `fsRfB` ở Forequeen, `sfWfF` ở Evil Wolf và Pawn (Jetan)), và 21 mục dùng `[cl]` đã đổi sang `[cj]` theo mục 5 (Sri Lankan Dām còn được thêm chữ `f` bị thiếu). Ký hiệu gốc của Wikipedia ghi ở mục 4.2 và 5.4.
 
 - Có **412 mục** (quân/biến thể theo từng trò chơi) có ký hiệu Betza; các mục chưa có ký hiệu Betza (như Zigzag Nightrider, các quân Dragonchess, Chameleon, Duck…) đã bị bỏ qua.
 - Có **57 ký hiệu bị nhiều quân dùng chung** (đã gộp cả dạng tương đương như `B` = `FF`); mỗi nhóm được giải thích ở phần 2.
@@ -110,7 +110,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Champion (Carrera) | `RN` | [Nhóm 27](#g27) |
 | Champion (Omega Chess) | `WAD` |  |
 | Chancellor | `RN` | [Nhóm 27](#g27) |
-| Charging Knight | `fNsbK` |  |
+| Charging Knight | `fNsbWbF` |  |
 | Charging Rook | `fsRbK` |  |
 | Chariot | `R = WW` | [Nhóm 28](#g28) |
 | Checker King | `mB[cj]B` |  |
@@ -187,7 +187,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Emperor | `WN` | [Nhóm 40](#g40) |
 | Empress | `RN` | [Nhóm 27](#g27) |
 | Ensign | `mBcR` | [Nhóm 15](#g15) |
-| Evil Wolf | `sfK` | [Nhóm 41](#g41) |
+| Evil Wolf | `sfWfF` | [Nhóm 41](#g41) |
 | FAD | `FAD` |  |
 | Falafel | `FA` | [Nhóm 11](#g11) |
 | Falcon | `fBbR` |  |
@@ -209,7 +209,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Flying Ox | `vRB` |  |
 | Flying Stag | `vRK` |  |
 | Fool | `W = (0,1)` | [Nhóm 8](#g8) |
-| Forequeen | `fsQbNbK` |  |
+| Forequeen | `fsRfBbNbK` |  |
 | Forfer | `FR4` |  |
 | Fortress | `FD` | [Nhóm 34](#g34) |
 | Fortress (Musketeer) | `F3DvvN` |  |
@@ -331,7 +331,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Pawn (Chinese) | `fW; fsW (after crossing the river)` |  |
 | Pawn (Hiashatar) | `mfWcfFimfW3` |  |
 | Pawn (Japanese) | `fW` |  |
-| Pawn (Jetan) | `sfK` | [Nhóm 41](#g41) |
+| Pawn (Jetan) | `sfWfF` | [Nhóm 41](#g41) |
 | Pawn (Korean) | `sfW` | [Nhóm 33](#g33) |
 | Pawn (Shatranj) Pawn of piece(s) | `mfWcfF` |  |
 | Pawn (Torpedo) | `mfW2cefF` |  |
@@ -384,7 +384,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Scout | `WH` |  |
 | Sergeant | `fKimfnD` |  |
 | Señora | `cQmpQ` |  |
-| Ship | `t[FvR]` | [Nhóm 57](#g57) |
+| Ship | `t[fFfR]t[bFbR]` | [Nhóm 57](#g57) |
 | Short Rook | `R4 = W4` |  |
 | Side Mover | `WsR` |  |
 | Silver General | `FfW` | [Nhóm 38](#g38) |
@@ -414,12 +414,12 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Treacherous Fox | `FfbWAfbD` |  |
 | Tripper | `G = (3,3)` | [Nhóm 56](#g56) |
 | Troll | `mfWcfFGH` |  |
-| Twin Tower | `t[FvR]` | [Nhóm 57](#g57) |
+| Twin Tower | `t[fFfR]t[bFbR]` | [Nhóm 57](#g57) |
 | Ubi-Ubi | `NN (any direction)` |  |
 | Unicorn (Grant Acedrex) | `BimN` |  |
 | Unicorn (Musketeer) | `NC = NL` | [Nhóm 46](#g46) |
 | Unicorn (Unicorn Chess) | `BNN` | [Nhóm 13](#g13) |
-| Unicornio (Grant Acedrex) | `t[NB] (or t[NfB])` |  |
+| Unicornio (Grant Acedrex) | `t[NB]` |  |
 | Vanguard | `B (except F)` |  |
 | Vao | `mBcpB` | [Nhóm 12](#g12) |
 | Vertical Mover | `WfbR` |  |
@@ -776,7 +776,7 @@ Cùng sức mạnh Wazir + Mã. **Emperor** (Jelliss) và **Marquis** (Scirocco,
 
 <a id="g41"></a>
 
-### Nhóm 41: `sfK`
+### Nhóm 41: `sfWfF`
 
 **Gồm:** Evil Wolf, Pawn (Jetan)
 
@@ -904,7 +904,7 @@ Cùng nhảy đúng 3 ô chéo (3,3). **Tripper** (Gecko trong tiếng Đức) v
 
 <a id="g57"></a>
 
-### Nhóm 57: `t[FvR]`
+### Nhóm 57: `t[fFfR]t[bFbR]`
 
 **Gồm:** Ship, Twin Tower
 
@@ -1065,9 +1065,9 @@ Quy ước **tự định nghĩa** (không phải chuẩn chính thức), nhằm
 **Các nguyên tắc đi kèm.**
 
 1. **Tách thành phần là lấy hợp.** Hai thành phần đứng cạnh nhau (như `lN` và `fN`) vốn là hợp của hai tập nước đi. Vì vậy mọi tập "hợp rộng-rộng" đều viết được mà không cần thêm cú pháp.
-2. **Áp dụng cho từng atom sau khi expand.** `fsQ` = `fsR` + `fsB` (đánh giá riêng cho phần `W` và phần `F`); `fsK` = `fsW` + `fsF`. *(Đề xuất, đã được mô tả Forequeen ủng hộ; chưa được bạn chốt chính thức.)*
+2. **Đánh giá trên toàn bộ tập nước đi của thành phần, không expand `R`, `B`, `Q`, `K` trước.** `R` có 4 hướng thẳng, `B` có 4 hướng chéo, `Q` và `K` có 8 hướng; cụm chữ hướng lọc trên cả tập đó, và việc "giao rỗng thì lấy hợp" cũng xét trên cả tập. Hệ quả: `fsQ` ra đúng 2 đường chéo tiến (giao không rỗng) chứ không phải "Xe tiến và sang ngang, Tượng tiến"; `sbK` ra đúng 2 đường chéo lùi; `sfK` ra đúng 2 đường chéo tiến. Muốn ý đồ khác thì tách thành phần: `fsRfB`, `sbWbF`, `sfWfF`. Cụm một chữ không bị ảnh hưởng (`fK`, `bK` vẫn đúng).
 3. **Nghĩa rộng và nghĩa hẹp của một chữ trùng nhau trên atom thẳng hoặc chéo** (`W`, `F`, `D`, `A`, `H`, `G`), nên chỉ trên atom xiên (`N`, `C`, `Z` và `(a,b)` không thẳng/chéo) hai cách đọc mới cho kết quả khác nhau. Với atom chéo, nghĩa hẹp của hai chữ kề nhau có chung một đường chéo (ví dụ `f` hẹp và `l` hẹp cùng chứa tiến-trái), nên giao của chúng không rỗng; đó là lý do cần cụm bốn chữ để ép lấy hợp.
-4. **Chữ `h` không nằm trong quy ước này**; các quân từng dùng `h` đã được viết lại không có `h`. **Chữ hướng ở chặng tiếp theo** (trong `t[...]`, chuỗi `a`) cũng chưa nằm trong quy ước.
+4. **Chữ `h` không nằm trong quy ước này**; các quân từng dùng `h` đã được viết lại không có `h`. **Chữ hướng ở chặng tiếp theo** trong `t[...]` tính theo hướng bàn cờ (định nghĩa ở mục 6); chuỗi `a` của XBetza chưa nằm trong quy ước.
 
 **Ví dụ tính tay.**
 
@@ -1089,7 +1089,7 @@ Quy ước **tự định nghĩa** (không phải chuẩn chính thức), nhằm
 
 ### 4.2. Kết quả kiểm tra
 
-Quét 110 mục có chữ hướng ngoài ngoặc `t[...]`, tính tập nước đi theo quy ước rồi đối chiếu với mô tả của Wikipedia. **99 mục khớp ngay từ đầu, 4 mục sai ý đồ (đã sửa, xem dưới), 6 mục nằm ngoài phạm vi quy ước (đã sửa theo gợi ý, xem dưới) và 1 mục giữ nguyên (Lion (Japanese)).** Nhóm khớp gồm cả các quân khó như Barc `fsNbbN`, Crab `ffNbsN`, Scorpion (Winther) `mfsN`, Left/Right General `FvrW`/`FvlW`, Left/Right Quail, Blind Dog `sbWfF`, Charging Rook `fsRbK`, Evil Wolf `sfK`.
+Quét 110 mục có chữ hướng ngoài ngoặc `t[...]`, tính tập nước đi theo quy ước rồi đối chiếu với mô tả của Wikipedia. **99 mục khớp ngay từ đầu (tính theo cách đọc từng atom; 2 mục trong đó, Evil Wolf và Pawn (Jetan), cần tách thành phần sau khi chốt đọc theo toàn bộ tập của `K`), 4 mục sai ý đồ (đã sửa, xem dưới), 6 mục nằm ngoài phạm vi quy ước (đã sửa theo gợi ý, xem dưới) và 1 mục giữ nguyên (Lion (Japanese)).** Nhóm khớp gồm cả các quân khó như Barc `fsNbbN`, Crab `ffNbsN`, Scorpion (Winther) `mfsN`, Left/Right General `FvrW`/`FvlW`, Left/Right Quail, Blind Dog `sbWfF`, Charging Rook `fsRbK`.
 
 **4 mục sai ý đồ — đã tra nguồn và sửa trong các bảng ở phần 1–2:**
 
@@ -1102,15 +1102,25 @@ Quét 110 mục có chữ hướng ngoài ngoặc `t[...]`, tính tập nước 
 
 Lưu ý: nguồn của Debtor và Fibnif là các trang cộng đồng trên chessvariants, mình chưa kiểm chứng độc lập. Với Cannon và Fortress, mình dùng trang luật chính thức; riêng ví dụ ô cờ của Fortress trên trang đó có một lỗi gõ (ô f8), không ảnh hưởng tới các nước đi đã nêu.
 
+**4 mục sửa thêm sau khi chốt đánh giá trên toàn bộ tập nước đi của `Q`, `K`:**
+
+| Quân | Ký hiệu trước | Kết quả theo quy ước | Đã sửa thành |
+|---|---|---|---|
+| Charging Knight | `fNsbK` | `sbK` trên cả tập `K`: $s$ rộng giao $b$ hẹp chỉ còn 2 đường chéo lùi, mất sang ngang và lùi thẳng | `fNsbWbF` (lùi thẳng, ngang, 2 chéo lùi) |
+| Forequeen | `fsQbNbK` | `fsQ` chỉ còn 2 đường chéo tiến | `fsRfBbNbK` (Xe tiến và ngang, Tượng tiến) |
+| Evil Wolf, Pawn (Jetan) | `sfK` | chỉ còn 2 đường chéo tiến, mất tiến thẳng và ngang | `sfWfF` (tiến thẳng, ngang, 2 chéo tiến) |
+
+Colonel `KfsRfN` không bị ảnh hưởng vì cụm chữ hướng đi với `R`, một tập nước đi thẳng.
+
 **Cách ghi `ffbbN` của Heavenly Horse và Knave là đúng** (cụm hai loại, mỗi loại gấp đôi, cho 4 nước hẹp), nhưng có thể rút gọn thành `vvN`.
 
 **6 mục ngoài phạm vi quy ước đã được sửa theo gợi ý; 1 mục giữ nguyên:**
 
 | Quân | Ký hiệu cũ | Vấn đề | Đã sửa thành |
 |---|---|---|---|
-| Charging Knight | `fhNsbK` | Chữ `h` không thuộc 6 chữ của quy ước. Mô tả: "forward as a Knight" | Bỏ `h`: `fNsbK` (4 nước Mã tiến) |
+| Charging Knight | `fhNsbK` | Chữ `h` không thuộc 6 chữ của quy ước. Mô tả: "forward as a Knight" | Bỏ `h` và tách `sbK`: `fNsbWbF` |
 | Colonel | `KfsRfhN` | Như trên | `KfsRfN` |
-| Forequeen | `fsQbhNbK` | Như trên (`bhN`) | `fsQbNbK` |
+| Forequeen | `fsQbhNbK` | Như trên (`bhN`) | `fsRfBbNbK` (bỏ `h`, tách `fsQ`) |
 | Horned Falcon (dạng viết thứ hai) | `BrlbRdhfWfD` | Cụm `rlb` có 3 loại chữ hướng, không hợp lệ theo mục 4.1. Nếu mở rộng quy tắc (chữ đầu rộng, các chữ sau hẹp, lấy giao, rỗng thì lấy hợp) thì trên atom `W` cho cùng kết quả `L,R,B` với `sb` ($r$ rộng ∩ $l$ hẹp ∩ $b$ hẹp là rỗng, nên lấy hợp). Nhưng không tương đương tổng quát: trên `F` thì `rlb` ra cả 4 đường chéo còn `sb` chỉ ra 2 đường chéo lùi; trên `N` thì ra 7 nước còn `sb` chỉ ra 2. `d`, `h` không xác định | Dùng dạng thứ nhất `BsbRfWfD` (khớp quy ước) |
 | Soaring Eagle (dạng viết thứ hai) | `RbBdhfFfA` | `dh` không xác định | Dùng dạng thứ nhất `RbBfFfA` (khớp) |
 | Golden Bird | `vRlrW2F3` | `lr` đúng quy ước (giao rỗng, lấy hợp, ra `L,R`) nhưng thừa; ghi chú Wikipedia nói "forward diagonals" trong khi `F3` là cả 4 đường chéo | `vRsW2F3`; nếu đúng là chỉ chéo tiến thì phải là `fF3` (cần xác nhận luật) |
@@ -1118,13 +1128,13 @@ Lưu ý: nguồn của Debtor và Fibnif là các trang cộng đồng trên che
 
 Golden Bird chưa xác nhận được luật (ghi chú Wikipedia nói chéo tiến trong khi `F3` là cả 4 đường chéo), nên `F3` được giữ nguyên, chỉ đổi `lr` thành `s`.
 
-**5 quân có chữ hướng nằm trong `t[...]`:** Ship và Twin Tower `t[FvR]`, Snake `t[vWB]`, Vivi `t[vWfB]`, Unicornio `t[NfB]`. Quy ước của bạn chưa nói chữ hướng ở **chặng tiếp theo** tính theo hướng bàn cờ hay theo hướng chặng trước. Mô tả của Wikipedia cho Vivi ("continues as a Bishop forwards") dùng hướng bàn cờ; XBetza thì đọc `f` ở chặng tiếp theo là "cùng hướng chặng trước". Cần bạn chốt.
+**5 quân có chữ hướng nằm trong `t[...]`** đã được xử lý theo mục 6 (chữ hướng ở chặng sau tính theo hướng bàn cờ): Ship và Twin Tower đổi `t[FvR]` thành `t[fFfR]t[bFbR]`; Snake và Vivi giữ nguyên; Unicornio dùng `t[NB]`.
 
 ### 4.3. Các điểm cần bạn chốt thêm
 
-1. **Đánh giá theo từng atom sau khi expand** (như đã dùng ở trên) hay theo toàn bộ tập nước đi của `Q`, `K`? Hai cách khác nhau với `fsQ`: theo từng atom thì cho "Xe tiến + sang ngang, Tượng tiến"; theo cả tập thì phần giao (hai chéo tiến) không rỗng nên mất nước sang ngang của Xe. Mô tả Forequeen ("Queen forward or sideways") ủng hộ cách đầu.
+1. **Đánh giá theo toàn bộ tập nước đi của `Q`, `K`:** đã chốt (xem 4.1, nguyên tắc 2); các quân bị ảnh hưởng đã được tách thành phần.
 2. **Chữ `h`:** đã chốt bỏ; các quân từng dùng `h` đã được viết lại không có `h`.
-3. **Chữ hướng ở chặng tiếp theo** trong `t[...]` và chuỗi `a`.
+3. **Chữ hướng ở chặng tiếp theo** trong `t[...]`: đã chốt theo hướng bàn cờ (mục 6). Chuỗi `a` của XBetza vẫn chưa nằm trong quy ước.
 
 ### 4.4. Danh mục để tính sau
 
@@ -1132,8 +1142,8 @@ Các mục chưa xử lý, ghi lại để quay lại sau:
 
 - **Golden Bird `vRsW2F3`:** ghi chú Wikipedia nói chỉ chéo tiến trong khi `F3` là cả 4 đường chéo, cần xác nhận luật (nếu đúng thì `fF3`).
 - **Lion (Japanese) `KANDcaKmabK`:** giữ nguyên; nước đi của Lion nằm ngoài ký hiệu Bex (chữ `b` ở chặng nối là quay lại, không phải chữ hướng của quy ước).
-- **Chữ hướng trong `t[...]`:** Ship, Twin Tower `t[FvR]`; Snake `t[vWB]`; Vivi `t[vWfB]`; Unicornio `t[NfB]`. Chưa chốt hướng bàn cờ hay hướng chặng trước.
-- **Điểm mở ở 4.3:** đánh giá theo atom hay theo cả tập của `Q`, `K`.
+- **Unicornio:** `t[NB]` (chéo ra xa) hay `t[NfB]` (chéo tiến theo bàn cờ) chưa phân định được từ nguồn.
+- **Điểm mở:** chuỗi `a` của XBetza (hiện chỉ Lion (Japanese) dùng).
 
 ## 5. Định nghĩa `[cj]` và `[cl]`
 
@@ -1243,3 +1253,35 @@ Ghi chú:
 ### 5.6. Quan hệ với chuỗi nước
 
 Với cùng một vector hướng cho hai chặng, `[cj φ n]Y` tương đương `cY` rồi `φ Y′`, trong đó `Y′` là `Y` với tầm giới hạn $K_L$ và hướng cố định theo chặng đầu. Cách viết `cY-mY` (Betza 2.0 qua Wikipedia, MBN `fcF-mF`) khớp với `[cj]Y` khi hiểu "cùng hướng" là *cùng vector*; nếu hiểu là "cùng hướng chung" như Bex (`-`) thì khác nhau với các atom xiên và với atom chéo/thẳng dùng lẫn nhau (ví dụ chặng đầu theo đường chéo, chặng sau theo bước thẳng).
+
+## 6. Định nghĩa `t[A B]` (nước đi bẻ góc)
+
+Quy ước tự thiết kế, chốt theo **hướng bàn cờ** cho chữ hướng ở chặng thứ hai. `t[A B]` là cách Betza viết "đi một bước `A`, rồi tiếp tục theo `B`" (ví dụ Gryphon `t[FR]`: một bước chéo rồi trượt như Xe ra xa).
+
+### 6.1. Ngữ nghĩa
+
+Gọi $s$ là ô xuất phát.
+
+1. **Chặng 1:** một bước theo atom `A` (kèm chữ hướng của `A` nếu có, đọc theo mục 4.1). Gọi $u$ là vector bước và $p = s + u$ là ô đến. Nếu $p$ có quân bạn thì không đi được; nếu $p$ có quân địch thì chỉ bắt và dừng.
+2. **Dừng ở chặng 1 là hợp lệ:** nước đi có thể kết thúc ngay tại $p$ (nếu $p$ trống hoặc có quân địch). Chặng 2 là tùy chọn. *(Theo mô tả Piececlopedia "optionally continuing" và Fairy-Stockfish; chưa đọc được bài gốc của Betza.)*
+3. **Chặng 2 chỉ đi tiếp khi $p$ trống.** Hướng của chặng 2:
+   - Nếu `B` **có chữ hướng**: tập hướng $V(B)$ lấy theo mục 4.1 trong **hệ tọa độ bàn cờ** (không tính theo hướng chặng 1). Mặc định "ra xa" **không** áp dụng.
+   - Nếu `B` **không có chữ hướng**: các hướng $d$ của `B` thỏa $u \cdot d > 0$ ("ra xa": mỗi bước làm khoảng cách tới $s$ tăng).
+4. **Đi theo hướng $d$:** `B` là quân trượt thì đi $c \ge 1$ bước, các ô đi qua phải trống, ô cuối trống hoặc có quân địch (bắt). `B` là quân nhảy thì đúng một bước.
+
+**Vì sao chữ hướng ghi đè "ra xa".** Cách này biểu diễn được cả hai ý đồ khác nhau mà các nguồn đều dùng: "tiếp tục *ra xa*" (không có chữ hướng) và "tiếp tục *tiến*" theo bàn cờ (có chữ hướng). Ví dụ Snake "continues outwards", còn Vivi "continues forwards" (hai chữ này khác nghĩa trong cùng một bài của Betza). Nếu chữ hướng chỉ lọc thêm trên tập "ra xa" thì nhánh lùi của Vivi mất chặng 2.
+
+### 6.2. Áp dụng cho 5 quân có chữ hướng trong `t[...]`
+
+| Quân | Ký hiệu cũ | Ký hiệu mới | Kết quả theo định nghĩa |
+|---|---|---|---|
+| Ship, Twin Tower | `t[FvR]` | `t[fFfR]t[bFbR]` | Một bước chéo tiến rồi trượt thẳng lên; hoặc một bước chéo lùi rồi trượt thẳng xuống (ra xa theo cột). Giữ đúng mô tả "vertically outwards". Viết `t[FvR]` sẽ cho cả hướng vào trong (thêm các ô $(\pm 1, 0)$), vì chữ `v` ghi đè "ra xa" |
+| Snake | `t[vWB]` | giữ nguyên | Một bước tiến hoặc lùi rồi trượt chéo ra xa. `B` không có chữ hướng nên dùng mặc định "ra xa" |
+| Vivi | `t[vWfB]` | giữ nguyên | Một bước tiến hoặc lùi, rồi trượt chéo **tiến** theo bàn cờ (cả sau khi lùi một bước). Khớp mô tả của Betza: "forwards or backwards as Wazir then continues forwards as a Bishop" |
+| Unicornio (Grant Acedrex) | `t[NB] (or t[NfB])` | `t[NB]` | Bước Mã rồi trượt chéo ra xa. Wikipedia ghi `t[NB]` là cách hiểu "most probably"; cách hiểu thay thế `t[NfB]` (chéo tiến theo bàn cờ) chưa phân định được |
+
+### 6.3. Điểm chưa chắc
+
+- Việc dừng ở chặng 1 có hợp lệ (mục 6.1, điểm 2) lấy từ mô tả Gryphon của Piececlopedia và Fairy-Stockfish; các trang gốc của Betza chặn truy cập tự động nên chưa kiểm chứng.
+- Nhánh lùi của Vivi (bước lùi rồi vẫn trượt chéo tiến) dựa vào câu mô tả của Betza qua tóm tắt tìm kiếm, chưa đọc nguyên bài.
+- Unicornio: "ra xa" hay "tiến" là một chỗ hiểu lịch sử chưa rõ; bảng giữ cách thứ nhất theo Wikipedia.
