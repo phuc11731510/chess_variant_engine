@@ -1123,10 +1123,10 @@ Colonel `KfsRfN` không bị ảnh hưởng vì cụm chữ hướng đi với `
 | Forequeen | `fsQbhNbK` | Như trên (`bhN`) | `fsRfBbNbK` (bỏ `h`, tách `fsQ`) |
 | Horned Falcon (dạng viết thứ hai) | `BrlbRdhfWfD` | Cụm `rlb` có 3 loại chữ hướng, không hợp lệ theo mục 4.1. Nếu mở rộng quy tắc (chữ đầu rộng, các chữ sau hẹp, lấy giao, rỗng thì lấy hợp) thì trên atom `W` cho cùng kết quả `L,R,B` với `sb` ($r$ rộng ∩ $l$ hẹp ∩ $b$ hẹp là rỗng, nên lấy hợp). Nhưng không tương đương tổng quát: trên `F` thì `rlb` ra cả 4 đường chéo còn `sb` chỉ ra 2 đường chéo lùi; trên `N` thì ra 7 nước còn `sb` chỉ ra 2. `d`, `h` không xác định | Dùng dạng thứ nhất `BsbRfWfD` (khớp quy ước) |
 | Soaring Eagle (dạng viết thứ hai) | `RbBdhfFfA` | `dh` không xác định | Dùng dạng thứ nhất `RbBfFfA` (khớp) |
-| Golden Bird | `vRlrW2F3` | `lr` đúng quy ước (giao rỗng, lấy hợp, ra `L,R`) nhưng thừa; ghi chú Wikipedia nói "forward diagonals" trong khi `F3` là cả 4 đường chéo | `vRsW2F3`; nếu đúng là chỉ chéo tiến thì phải là `fF3` (cần xác nhận luật) |
+| Golden Bird | `vRlrW2F3` | `lr` đúng quy ước (giao rỗng, lấy hợp, ra `L,R`) nhưng thừa; ghi chú Wikipedia nói "forward diagonals" trong khi `F3` là cả 4 đường chéo | `vRsW2F3`; giữ `F3` theo Betza của Wikipedia (đã chốt, không xác minh luật) |
 | Lion (Japanese) | `KANDcaKmabK` | `ab` là chặng nối (`a` = đi tiếp), chữ `b` ở chặng sau là *quay lại*, không phải hướng của quy ước. Nước đi của Lion nằm ngoài ký hiệu Bex | Giữ nguyên |
 
-Golden Bird chưa xác nhận được luật (ghi chú Wikipedia nói chéo tiến trong khi `F3` là cả 4 đường chéo), nên `F3` được giữ nguyên, chỉ đổi `lr` thành `s`.
+Golden Bird: giữ theo ký hiệu Betza của Wikipedia (chỉ đổi `lr` thành `s`, cùng nghĩa). Không xác minh luật đi vì nhiều quân shogi biến thể rất khó tra lại; ghi chú "forward diagonals" của Wikipedia mâu thuẫn với `F3` nhưng được bỏ qua theo quyết định của bạn.
 
 **5 quân có chữ hướng nằm trong `t[...]`** đã được xử lý theo mục 6 (chữ hướng ở chặng sau tính theo hướng bàn cờ): Ship và Twin Tower đổi `t[FvR]` thành `t[fFfR]t[bFbR]`; Snake và Vivi giữ nguyên; Unicornio dùng `t[NB]`.
 
@@ -1140,7 +1140,6 @@ Golden Bird chưa xác nhận được luật (ghi chú Wikipedia nói chéo ti�
 
 Các mục chưa xử lý, ghi lại để quay lại sau:
 
-- **Golden Bird `vRsW2F3`:** ghi chú Wikipedia nói chỉ chéo tiến trong khi `F3` là cả 4 đường chéo, cần xác nhận luật (nếu đúng thì `fF3`).
 - **Lion (Japanese) `KANDcaKmabK`:** giữ nguyên; nước đi của Lion nằm ngoài ký hiệu Bex (chữ `b` ở chặng nối là quay lại, không phải chữ hướng của quy ước).
 - **Unicornio:** `t[NB]` (chéo ra xa) hay `t[NfB]` (chéo tiến theo bàn cờ) chưa phân định được từ nguồn.
 - **Điểm mở:** chuỗi `a` của XBetza (hiện chỉ Lion (Japanese) dùng).
