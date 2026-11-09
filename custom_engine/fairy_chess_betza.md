@@ -1,9 +1,9 @@
 # Danh sách quân cờ tiên (fairy chess) theo ký hiệu Betza
 
-Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wiki/List_of_fairy_chess_pieces) (cột **Betza**, lấy ngày 2026-11-07). Ký hiệu được giữ nguyên như Wikipedia ghi, kể cả các dạng tương đương (ví dụ `B = FF`, `A = (2,2)`). **Ngoại lệ:** 4 quân (Cannon (Musketeer), Debtor, Fibnif, Fortress (Musketeer)) có ký hiệu Wikipedia sai ý đồ theo quy ước chữ hướng ở mục 4 nên đã được sửa; ký hiệu gốc của Wikipedia ghi ở mục 4.2.
+Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wiki/List_of_fairy_chess_pieces) (cột **Betza**, lấy ngày 2026-11-07). Ký hiệu được giữ nguyên như Wikipedia ghi, kể cả các dạng tương đương (ví dụ `B = FF`, `A = (2,2)`). **Ngoại lệ:** ký hiệu của 4 quân (Cannon (Musketeer), Debtor, Fibnif, Fortress (Musketeer)) đã được sửa theo quy ước chữ hướng ở mục 4, và 21 mục dùng `[cl]` đã đổi sang `[cj]` theo mục 5 (Sri Lankan Dām còn được thêm chữ `f` bị thiếu). Ký hiệu gốc của Wikipedia ghi ở mục 4.2 và 5.4.
 
 - Có **412 mục** (quân/biến thể theo từng trò chơi) có ký hiệu Betza; các mục chưa có ký hiệu Betza (như Zigzag Nightrider, các quân Dragonchess, Chameleon, Duck…) đã bị bỏ qua.
-- Có **59 ký hiệu bị nhiều quân dùng chung** (đã gộp cả dạng tương đương như `B` = `FF`); mỗi nhóm được giải thích ở phần 2.
+- Có **57 ký hiệu bị nhiều quân dùng chung** (đã gộp cả dạng tương đương như `B` = `FF`); mỗi nhóm được giải thích ở phần 2.
 - Mục "Spy" của Wikipedia ghi 3 ký hiệu cho 3 trò chơi nên được tách thành 3 dòng.
 
 ## Ký hiệu Betza trong 1 phút
@@ -28,7 +28,8 @@ Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wik
 | `p` / `g` | Nhảy qua đúng 1 quân (pháo) / nhảy rồi đáp ngay sau quân chắn (grasshopper) |
 | `i` | Chỉ ở nước đầu |
 | `t[...]` | Nước đi hai chặng theo cách Wikipedia dùng (bước ban đầu rồi trượt "ra xa") |
-| `[cl]` | Bex: bắt quân bằng cách nhảy qua bao nhiêu quân cũng được (nhảy qua đúng một quân là `[cj]`), không ngầm định bắt thay thế. Bảng Wikipedia còn dùng lỏng ký hiệu này cho cú nhảy bắt của cờ đam |
+| `[cj]` | Bex: bắt quân bằng cách nhảy qua đúng một quân, có mở rộng tham số hạ cánh; định nghĩa ở mục 5 |
+| `[cl]` | Bex: bắt quân bằng cách nhảy qua nhiều quân (Long Leaper); định nghĩa ở mục 5.3 |
 
 Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/Betza%27s_funny_notation).
 
@@ -112,30 +113,30 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Charging Knight | `fhNsbK` |  |
 | Charging Rook | `fsRbK` |  |
 | Chariot | `R = WW` | [Nhóm 28](#g28) |
-| Checker King | `mB[cl]B` |  |
-| Checker King | `mB[cl]B[cl]DD` |  |
-| Checker King | `mF[cl]B` |  |
-| Checker King | `mF[cl]F` | [Nhóm 29](#g29) |
-| Checker King | `mK[cl]K or mQ[cl]Q` |  |
-| Checker King | `mQ[cl]R` |  |
-| Checker King | `mR[cl]R` | [Nhóm 30](#g30) |
-| Checker Man | `mF[cl]F` | [Nhóm 29](#g29) |
-| Checker Man | `mK[cl]K` |  |
-| Checker Man | `mfF[cl]B` |  |
-| Checker Man | `mfF[cl]F` |  |
-| Checker Man | `mfF[cl]F[cl]D` |  |
-| Checker Man | `mfF[cl]fF` |  |
-| Checker Man | `mfF[cl]fF[cl]fsW` |  |
-| Checker Man | `mfK[cl]K` |  |
-| Checker Man | `mfK[cl]fsW` |  |
-| Checker Man | `mfKmsW[cl]fsW` |  |
-| Checker Man | `mfsW[cl]fsW` |  |
-| Cheetah | `CZGH = LJGH` | [Nhóm 31](#g31) |
+| Checker King | `mB[cj]B` |  |
+| Checker King | `mB[cj]B[cj]DD` |  |
+| Checker King | `mF[cj]B` |  |
+| Checker King | `mF[cj]F` |  |
+| Checker King | `mK[cj]K or mQ[cj]Q` |  |
+| Checker King | `mQ[cj]R` |  |
+| Checker King | `mR[cj]R` |  |
+| Checker Man | `mK[cj]K` |  |
+| Checker Man | `mfF[cj]B` |  |
+| Checker Man | `mfF[cj]F` |  |
+| Checker Man | `mfF[cj]F` |  |
+| Checker Man | `mfF[cj]F[cj]D` |  |
+| Checker Man | `mfF[cj]fF` |  |
+| Checker Man | `mfF[cj]fF[cj]fsW` |  |
+| Checker Man | `mfK[cj]K` |  |
+| Checker Man | `mfK[cj]fsW` |  |
+| Checker Man | `mfKmsW[cj]fsW` |  |
+| Checker Man | `mfsW[cj]fsW` |  |
+| Cheetah | `CZGH = LJGH` | [Nhóm 29](#g29) |
 | Chicken General | `fW4bF` |  |
 | Cloud Eagle | `vRKfB3` |  |
 | Cockatrice | `B` | [Nhóm 16](#g16) |
 | Colonel | `KfsRfhN` |  |
-| Commoner | `WF` | [Nhóm 32](#g32) |
+| Commoner | `WF` | [Nhóm 30](#g30) |
 | Commuter | `(4,4)` |  |
 | Congo Pawn | `fWfF (fWfFmbR2 past the river)` |  |
 | Congo Superpawn | `sfWfFmbQ2` |  |
@@ -146,11 +147,11 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Crab | `ffNbsN` |  |
 | Crocodile (Congo) | `fRbsWF or bRfsWF towards the river, sRvWF inside` |  |
 | Crocodile (Modern) | `mBcpB` | [Nhóm 12](#g12) |
-| Crown Princess | `BNW` | [Nhóm 33](#g33) |
-| Crowned Bishop | `BW` | [Nhóm 34](#g34) |
+| Crown Princess | `BNW` | [Nhóm 31](#g31) |
+| Crowned Bishop | `BW` | [Nhóm 32](#g32) |
 | Crowned Rook | `RF` | [Nhóm 2](#g2) |
 | Dabbaba | `D = (0,2)` |  |
-| Dabbaba-checker | `D[cl]W` |  |
+| Dabbaba-checker | `D[cjmc]W` |  |
 | Dabbabante | `(0,2n)` |  |
 | Dabbabarider | `DD` |  |
 | Dayrider | `mKAADD` |  |
@@ -161,32 +162,32 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Dolphin | `R3mDmH` |  |
 | Donkey | `sWfbD` |  |
 | Dragon | `NmfWcfFimfnD` |  |
-| Dragon Horse | `BW` | [Nhóm 34](#g34) |
+| Dragon Horse | `BW` | [Nhóm 32](#g32) |
 | Dragon King | `RF` | [Nhóm 2](#g2) |
 | Drunk Elephant | `FsfW` |  |
-| Drunken Soldier | `sfW` | [Nhóm 35](#g35) |
+| Drunken Soldier | `sfW` | [Nhóm 33](#g33) |
 | Duchess | `(1,1)(0,1)(2,2)(0,2)(3,3)(0,3) = KADGH = WFADGH` |  |
 | Duke | `t[BW]t[WB]` |  |
-| Duke (Jelliss) | `FD` | [Nhóm 36](#g36) |
-| Duke (Musketeer chess) | `WDN` | [Nhóm 37](#g37) |
-| Dullahan | `FN` | [Nhóm 38](#g38) |
+| Duke (Jelliss) | `FD` | [Nhóm 34](#g34) |
+| Duke (Musketeer chess) | `WDN` | [Nhóm 35](#g35) |
+| Dullahan | `FN` | [Nhóm 36](#g36) |
 | Dwarf (Dragonchess) | `msfWcfF` |  |
 | Eagle | `fBbRWbB2` |  |
 | Eagle | `t[FR]` | [Nhóm 1](#g1) |
 | Edgehog | `Q (edges)` |  |
 | Edgehog (Limited) | `Q (see notes)` |  |
 | Elephant (Chinese) | `nA` |  |
-| Elephant (Ciccolini) | `Z = J = (2,3)` | [Nhóm 39](#g39) |
-| Elephant (Indian) | `FfW` | [Nhóm 40](#g40) |
+| Elephant (Ciccolini) | `Z = J = (2,3)` | [Nhóm 37](#g37) |
+| Elephant (Indian) | `FfW` | [Nhóm 38](#g38) |
 | Elephant (Korean) | `t[WnA]` |  |
 | Elephant (Modern) | `FA` | [Nhóm 11](#g11) |
-| Elephant (Musketeer) | `KAD = WFAD` | [Nhóm 41](#g41) |
+| Elephant (Musketeer) | `KAD = WFAD` | [Nhóm 39](#g39) |
 | Elephant (Persian) | `A = (2,2)` | [Nhóm 4](#g4) |
 | Elephant (von Wilpert) | `QNN` | [Nhóm 6](#g6) |
-| Emperor | `WN` | [Nhóm 42](#g42) |
+| Emperor | `WN` | [Nhóm 40](#g40) |
 | Empress | `RN` | [Nhóm 27](#g27) |
 | Ensign | `mBcR` | [Nhóm 15](#g15) |
-| Evil Wolf | `sfK` | [Nhóm 43](#g43) |
+| Evil Wolf | `sfK` | [Nhóm 41](#g41) |
 | FAD | `FAD` |  |
 | Falafel | `FA` | [Nhóm 11](#g11) |
 | Falcon | `fBbR` |  |
@@ -197,7 +198,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Ferocious Leopard | `FvW` |  |
 | Ferz | `F = (1,1)` | [Nhóm 3](#g3) |
 | Fibnif | `vvNF` |  |
-| Fiveleaper | `(0,5)(3,4)` | [Nhóm 44](#g44) |
+| Fiveleaper | `(0,5)(3,4)` | [Nhóm 42](#g42) |
 | Flamingo | `(1,6)` |  |
 | Flying Cock | `sWfF` |  |
 | Flying Dragon | `B2` |  |
@@ -210,44 +211,44 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Fool | `W = (0,1)` | [Nhóm 8](#g8) |
 | Forequeen | `fsQbhNbK` |  |
 | Forfer | `FR4` |  |
-| Fortress | `FD` | [Nhóm 36](#g36) |
+| Fortress | `FD` | [Nhóm 34](#g34) |
 | Fortress (Musketeer) | `F3DvvN` |  |
 | Fourleaper | `(0,4)` |  |
 | Free Bear | `sRBfA` |  |
 | Free Boar | `sRB` |  |
 | Free Gold | `RfB` |  |
-| Free King | `Q = RB` | [Nhóm 45](#g45) |
+| Free King | `Q = RB` | [Nhóm 43](#g43) |
 | Free Silver | `BfR` |  |
 | Frog | `FH` |  |
-| Fusilier | `mWcF` | [Nhóm 46](#g46) |
+| Fusilier | `mWcF` | [Nhóm 44](#g44) |
 | General (Chess.com) | `KN` | [Nhóm 25](#g25) |
 | General (Chinese) | `kW, "Flying General": cfR (against enemy General)` |  |
 | General (Ciccolini) | `BDD` |  |
-| General (Paulovits) | `KC = KL = WFC` | [Nhóm 47](#g47) |
+| General (Paulovits) | `KC = KL = WFC` | [Nhóm 45](#g45) |
 | Giraffe (Congo) | `ADmK` |  |
 | Giraffe (Giraffe Chess) | `C = L = (1,3)` | [Nhóm 20](#g20) |
 | Giraffe (Modern) | `(1,4)` |  |
-| Giraffe (Zaraffa) | `Z = J = (2,3)` | [Nhóm 39](#g39) |
+| Giraffe (Zaraffa) | `Z = J = (2,3)` | [Nhóm 37](#g37) |
 | Giraffe (Zurafa) | `t[(1,4)R]` |  |
 | Girlscout | `zR` |  |
 | Gliding Swallow | `R = WW` | [Nhóm 28](#g28) |
-| Gnu | `NC = NL` | [Nhóm 48](#g48) |
+| Gnu | `NC = NL` | [Nhóm 46](#g46) |
 | Gnurider | `NNCC = NNLL` |  |
 | Go-Between | `vW` |  |
-| Go-between (Chinese) | `mQ` | [Nhóm 49](#g49) |
+| Go-between (Chinese) | `mQ` | [Nhóm 47](#g47) |
 | Godzilla | `t[FR]t[WB]` |  |
 | Gold General | `WfF` |  |
 | Golden Bird | `vRlrW2F3` |  |
 | Goose | `fAbD` |  |
-| Gorilla | `FWC` | [Nhóm 47](#g47) |
+| Gorilla | `FWC` | [Nhóm 45](#g45) |
 | Grasshopper | `gQ` |  |
 | Graz Pawn | `fKimfnDimfnA` |  |
 | Great Horse | `fBvRsW2` |  |
 | Gryphon | `t[FR]` | [Nhóm 1](#g1) |
-| Guard | `WF (=K)` | [Nhóm 32](#g32) |
-| Guard | `mRcB` | [Nhóm 50](#g50) |
+| Guard | `WF (=K)` | [Nhóm 30](#g30) |
+| Guard | `mRcB` | [Nhóm 48](#g48) |
 | Half-Duck | `HFD` |  |
-| Hare | `(2,4)` | [Nhóm 51](#g51) |
+| Hare | `(2,4)` | [Nhóm 49](#g49) |
 | Harvester | `Bt[WB]` |  |
 | Hawk | `(2,2)(0,2)(3,3)(0,3) = ADGH` |  |
 | Heavenly Horse | `ffbbN` |  |
@@ -256,62 +257,62 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Hia | `Q2 (Hia power)` | [Nhóm 17](#g17) |
 | High Priestess | `FAN` |  |
 | Hippopotamus | `cN` |  |
-| Hobbit | `mWcF` | [Nhóm 46](#g46) |
+| Hobbit | `mWcF` | [Nhóm 44](#g44) |
 | Horned Falcon | `BsbRfWfD or BrlbRdhfWfD` |  |
 | Horse | `t[WF]` |  |
-| Hospitaller | `NA` | [Nhóm 52](#g52) |
+| Hospitaller | `NA` | [Nhóm 50](#g50) |
 | Howling Dog | `fRbW` |  |
 | Hunter | `fRbB` |  |
 | Ibis | `(1,5)` |  |
 | Immobilizer | `mQ (Immo-K)` |  |
 | Impala | `N(3,4)` |  |
 | Iron General | `fK` |  |
-| Jester (Brybelly) | `mQ` | [Nhóm 49](#g49) |
-| Joker | `KAND = WFAND` | [Nhóm 53](#g53) |
+| Jester (Brybelly) | `mQ` | [Nhóm 47](#g47) |
+| Joker | `KAND = WFAND` | [Nhóm 51](#g51) |
 | Judge | `KN` | [Nhóm 25](#g25) |
-| Kangaroo | `NA` | [Nhóm 52](#g52) |
-| Khon | `FfW` | [Nhóm 40](#g40) |
-| King | `K = WF` | [Nhóm 32](#g32) |
-| Kirin | `FD` | [Nhóm 36](#g36) |
+| Kangaroo | `NA` | [Nhóm 50](#g50) |
+| Khon | `FfW` | [Nhóm 38](#g38) |
+| King | `K = WF` | [Nhóm 30](#g30) |
+| Kirin | `FD` | [Nhóm 34](#g34) |
 | Knave | `sDffbbN` |  |
 | Kneen | `mNcQ` |  |
 | Knight | `N = (1,2)` |  |
 | Knight (Japanese) | `ffN` |  |
 | Knishop | `fNbB` |  |
 | Lance | `fR` |  |
-| Lancer | `(2,4)` | [Nhóm 51](#g51) |
+| Lancer | `(2,4)` | [Nhóm 49](#g49) |
 | Left General | `FvrW` |  |
 | Left Quail | `fRbrBblF` |  |
-| Leo | `mQcpQ` | [Nhóm 54](#g54) |
+| Leo | `mQcpQ` | [Nhóm 52](#g52) |
 | Leon | `CH = LH` |  |
 | Leopard (Musketeer) | `NB2` |  |
 | Liberated Horse | `fRbR2` |  |
 | Lion (Fairy) | `pQ` |  |
 | Lion (Japanese) | `KANDcaKmabK` |  |
-| Lion (Modern) | `KAND = WFAND` | [Nhóm 53](#g53) |
+| Lion (Modern) | `KAND = WFAND` | [Nhóm 51](#g51) |
 | Lion (Murray) | `ADcK` |  |
 | Lion Dog | `Q3` |  |
 | Llama | `CmfWcfFimfW2` |  |
 | Loco | `cBmpB` |  |
-| Locust | `mQ[cl]Q` |  |
-| Machine | `WD` | [Nhóm 55](#g55) |
+| Locust | `mQ[cj1]Q` |  |
+| Machine | `WD` | [Nhóm 53](#g53) |
 | Maharaja | `QN` | [Nhóm 5](#g5) |
 | Mammoth | `cR` |  |
-| Mammoth (Winther) | `KAD = WFAD` | [Nhóm 41](#g41) |
-| Mann | `WF = K` | [Nhóm 32](#g32) |
+| Mammoth (Winther) | `KAD = WFAD` | [Nhóm 39](#g39) |
+| Mann | `WF = K` | [Nhóm 30](#g30) |
 | Manticore | `t[WB]` | [Nhóm 7](#g7) |
-| Mao | `nN` | [Nhóm 56](#g56) |
-| Marquis | `WN` | [Nhóm 42](#g42) |
+| Mao | `nN` | [Nhóm 54](#g54) |
+| Marquis | `WN` | [Nhóm 40](#g40) |
 | Marshal | `RN` | [Nhóm 27](#g27) |
-| Mastodon | `KAD = WFAD` | [Nhóm 41](#g41) |
+| Mastodon | `KAD = WFAD` | [Nhóm 39](#g39) |
 | Megasaur | `cQcN` |  |
 | Mehari | `CC = LL` | [Nhóm 21](#g21) |
 | Metropolitan | `Bt[FR]` |  |
-| Minister | `WDN` | [Nhóm 37](#g37) |
+| Minister | `WDN` | [Nhóm 35](#g35) |
 | Minister (G.Vicente Maura) | `BN` | [Nhóm 9](#g9) |
 | Minister (Shatranj) | `F = (1,1)` | [Nhóm 3](#g3) |
-| Missionary | `BW` | [Nhóm 34](#g34) |
-| Moa | `nN` | [Nhóm 56](#g56) |
+| Missionary | `BW` | [Nhóm 32](#g32) |
+| Moa | `nN` | [Nhóm 54](#g54) |
 | N2R4 | `N2R4` |  |
 | Nao | `mNNcpNN` |  |
 | Newt | `AH` |  |
@@ -325,13 +326,13 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Paladin | `KN` | [Nhóm 25](#g25) |
 | Pancake | `pNNK` |  |
 | Pao | `mRcpR` | [Nhóm 22](#g22) |
-| Pasha | `KAD = WFAD` | [Nhóm 41](#g41) |
+| Pasha | `KAD = WFAD` | [Nhóm 39](#g39) |
 | Pawn | `mfWcefFimfnD` |  |
 | Pawn (Chinese) | `fW; fsW (after crossing the river)` |  |
 | Pawn (Hiashatar) | `mfWcfFimfW3` |  |
 | Pawn (Japanese) | `fW` |  |
-| Pawn (Jetan) | `sfK` | [Nhóm 43](#g43) |
-| Pawn (Korean) | `sfW` | [Nhóm 35](#g35) |
+| Pawn (Jetan) | `sfK` | [Nhóm 41](#g41) |
+| Pawn (Korean) | `sfW` | [Nhóm 33](#g33) |
 | Pawn (Shatranj) Pawn of piece(s) | `mfWcfF` |  |
 | Pawn (Torpedo) | `mfW2cefF` |  |
 | Pegasus | `NNgQ` |  |
@@ -339,27 +340,27 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Pegasus (Zacharias) | `t[NR]` |  |
 | Pheasant | `fDbF` |  |
 | Phoenix | `WA` | [Nhóm 19](#g19) |
-| Popess | `BNW` | [Nhóm 33](#g33) |
-| Priest | `FN` | [Nhóm 38](#g38) |
-| Priestess | `NA` | [Nhóm 52](#g52) |
-| Prince | `WF = K` | [Nhóm 32](#g32) |
-| Prince (Fairy) | `FN` | [Nhóm 38](#g38) |
+| Popess | `BNW` | [Nhóm 31](#g31) |
+| Priest | `FN` | [Nhóm 36](#g36) |
+| Priestess | `NA` | [Nhóm 50](#g50) |
+| Prince | `WF = K` | [Nhóm 30](#g30) |
+| Prince (Fairy) | `FN` | [Nhóm 36](#g36) |
 | Prince (Modern) | `WFmfW2` |  |
-| Prince (The Ouroboros King) | `WF = K` | [Nhóm 32](#g32) |
+| Prince (The Ouroboros King) | `WF = K` | [Nhóm 30](#g30) |
 | Prince Elephant (Betza) | `WFA` |  |
 | Princess | `BN` | [Nhóm 9](#g9) |
 | Princess (CEO) | `W2F2 = Q2` |  |
 | Pterodactyl | `(3,3)(5,5)(0,15)` |  |
-| Quadrapawn | `mWcF` | [Nhóm 46](#g46) |
-| Quartermaster | `K = WF` | [Nhóm 32](#g32) |
-| Queen | `Q = RB` | [Nhóm 45](#g45) |
+| Quadrapawn | `mWcF` | [Nhóm 44](#g44) |
+| Quartermaster | `K = WF` | [Nhóm 30](#g30) |
+| Queen | `Q = RB` | [Nhóm 43](#g43) |
 | Queen of the Night | `QNN` | [Nhóm 6](#g6) |
 | Quight | `mQcN` |  |
 | Raiding Falcon | `vRWfF` |  |
-| Raven | `RNN` | [Nhóm 57](#g57) |
+| Raven | `RNN` | [Nhóm 55](#g55) |
 | Reaper | `Rt[FR]` |  |
 | Reflecting Bishop | `B (bounce edges)` |  |
-| Revealer (Tamerlane) | `G = (3,3)` | [Nhóm 58](#g58) |
+| Revealer (Tamerlane) | `G = (3,3)` | [Nhóm 56](#g56) |
 | Reverse Chariot | `vR` |  |
 | Rhinoceros | `t[WB]` | [Nhóm 7](#g7) |
 | Rhubarb | `RF3` |  |
@@ -368,12 +369,12 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Rion | `pR` | [Nhóm 23](#g23) |
 | Roc | `AC = AL` |  |
 | Rook | `R = WW` | [Nhóm 28](#g28) |
-| Rook (Quang Trung) | `mR[cl]R` | [Nhóm 30](#g30) |
+| Rook (Quang Trung) | `mR[cj1]R` |  |
 | Rookhopper | `gR` |  |
-| Root-25-leaper | `(0,5)(3,4)` | [Nhóm 44](#g44) |
+| Root-25-leaper | `(0,5)(3,4)` | [Nhóm 42](#g42) |
 | Root-50-leaper | `(1,7)(5,5)` |  |
 | Rose | `qN` |  |
-| Roshop | `mRcB` | [Nhóm 50](#g50) |
+| Roshop | `mRcB` | [Nhóm 48](#g48) |
 | Royal Guard | `cQmK` |  |
 | Running Rabbit | `fRFbW` |  |
 | Rutabaga | `W2B` |  |
@@ -383,24 +384,24 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Scout | `WH` |  |
 | Sergeant | `fKimfnD` |  |
 | Señora | `cQmpQ` |  |
-| Ship | `t[FvR]` | [Nhóm 59](#g59) |
+| Ship | `t[FvR]` | [Nhóm 57](#g57) |
 | Short Rook | `R4 = W4` |  |
 | Side Mover | `WsR` |  |
-| Silver General | `FfW` | [Nhóm 40](#g40) |
+| Silver General | `FfW` | [Nhóm 38](#g38) |
 | Snake | `t[vWB]` |  |
 | Soaring Eagle | `RbBfFfA or RbBdhfFfA` |  |
 | Soldier (Chess.com) | `fWimfnD` |  |
 | Soldier (Silberschmidt) | `mfWmsWcfF` |  |
 | Sorcerer | `WZ` |  |
-| Sorceress | `mQcpQ` | [Nhóm 54](#g54) |
+| Sorceress | `mQcpQ` | [Nhóm 52](#g52) |
 | Spider (Musketeer) | `NDF2` |  |
 | Spy (Chess Empire) | `fsDfF` |  |
 | Spy (Courier Chess) | `W = (0,1)` | [Nhóm 8](#g8) |
-| Spy (Waterloo, Amsterdam Medieval) | `WF = K` | [Nhóm 32](#g32) |
-| Squire | `KAD = WFAD` | [Nhóm 41](#g41) |
+| Spy (Waterloo, Amsterdam Medieval) | `WF = K` | [Nhóm 30](#g30) |
+| Squire | `KAD = WFAD` | [Nhóm 39](#g39) |
 | Squirrel | `NAD` | [Nhóm 14](#g14) |
-| Stag | `(2,4)` | [Nhóm 51](#g51) |
-| Steward | `mWcF` | [Nhóm 46](#g46) |
+| Stag | `(2,4)` | [Nhóm 49](#g49) |
+| Steward | `mWcF` | [Nhóm 44](#g44) |
 | Stone General | `fF` |  |
 | Superpawn | `mfRcfB` |  |
 | Templar | `ND` | [Nhóm 24](#g24) |
@@ -408,15 +409,15 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Threeleaper | `H = (0,3)` |  |
 | Threerider | `HH` |  |
 | Tiger | `t[ZB]=t[JB]` |  |
-| Titan | `CZGH = LJGH` | [Nhóm 31](#g31) |
+| Titan | `CZGH = LJGH` | [Nhóm 29](#g29) |
 | Toad | `DH` |  |
 | Treacherous Fox | `FfbWAfbD` |  |
-| Tripper | `G = (3,3)` | [Nhóm 58](#g58) |
+| Tripper | `G = (3,3)` | [Nhóm 56](#g56) |
 | Troll | `mfWcfFGH` |  |
-| Twin Tower | `t[FvR]` | [Nhóm 59](#g59) |
+| Twin Tower | `t[FvR]` | [Nhóm 57](#g57) |
 | Ubi-Ubi | `NN (any direction)` |  |
 | Unicorn (Grant Acedrex) | `BimN` |  |
-| Unicorn (Musketeer) | `NC = NL` | [Nhóm 48](#g48) |
+| Unicorn (Musketeer) | `NC = NL` | [Nhóm 46](#g46) |
 | Unicorn (Unicorn Chess) | `BNN` | [Nhóm 13](#g13) |
 | Unicornio (Grant Acedrex) | `t[NB] (or t[NfB])` |  |
 | Vanguard | `B (except F)` |  |
@@ -428,23 +429,23 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Vouivre | `DNAC = DNAL` |  |
 | Waffle | `WA` | [Nhóm 19](#g19) |
 | Wallaby | `KgQ2 (over friendly pieces), KcjQ2` |  |
-| War Machine | `WD` | [Nhóm 55](#g55) |
-| Waran | `RNN` | [Nhóm 57](#g57) |
+| War Machine | `WD` | [Nhóm 53](#g53) |
+| Waran | `RNN` | [Nhóm 55](#g55) |
 | Warrior | `WFD` | [Nhóm 26](#g26) |
 | Wazir | `W = (0,1)` | [Nhóm 8](#g8) |
 | Whale | `vRbB` |  |
 | White Horse | `vRfB` |  |
-| Wildebeest | `NC = NL` | [Nhóm 48](#g48) |
+| Wildebeest | `NC = NL` | [Nhóm 46](#g46) |
 | Wildeguard | `KCZ = WFCZ = KLZ` |  |
 | Withdrawer | `mQ[cw]Q` |  |
 | Wizard | `FC = FL` |  |
 | Wood General | `fB2` |  |
-| Woody Rook | `WD` | [Nhóm 55](#g55) |
+| Woody Rook | `WD` | [Nhóm 53](#g53) |
 | Wyvern | `G(2,4)(1,5) = (3,3)(2,4)(1,5)` |  |
 | Yaksha | `fFbWsW3` |  |
 | Zabel Pawn | `mfWcfF final mfW2` |  |
-| Zaraffa | `Z = J = (2,3)` | [Nhóm 39](#g39) |
-| Zebra | `Z = J = (2,3)` | [Nhóm 39](#g39) |
+| Zaraffa | `Z = J = (2,3)` | [Nhóm 37](#g37) |
+| Zebra | `Z = J = (2,3)` | [Nhóm 37](#g37) |
 | Zebrarider | `ZZ = JJ` |  |
 | Zebu | `C(1,4) = L(1,4)` |  |
 | Zero | `(0,0)` |  |
@@ -679,247 +680,231 @@ Cùng nước đi của Xe (trượt ngang/dọc). **Chariot** (Chaturanga/Xiang
 
 <a id="g29"></a>
 
-### Nhóm 29: `mF[cl]F`
-
-**Gồm:** Checker King, Checker Man
-
-Cùng chuỗi ký hiệu như Wikipedia ghi: **Checker Man** (Sri Lankan Dām) đi một ô chéo và ăn bằng cách nhảy chéo qua quân đối phương, chỉ tiến lên; **Checker King** (cờ đam Mỹ/Ý) đi và ăn như vậy nhưng được đi lùi. Khác nhau ở hướng đi (chỉ tiến vs. cả tiến lẫn lùi). (Wikipedia ghi các Checker Man khác là `mfF[cl]F`, có thêm `f` cho hướng tiến.)
-
-<a id="g30"></a>
-
-### Nhóm 30: `mR[cl]R`
-
-**Gồm:** Checker King, Rook (Quang Trung)
-
-Cùng ký hiệu theo Wikipedia nhưng khác ngữ cảnh: **Checker King** (Greek/Turkish Checkers, Harzdame) là quân đam "bay" (đi bất kỳ khoảng cách như Xe, ăn bằng cách nhảy bắt); **Rook (Quang Trung)** là Xe thường nhưng khi ăn phải đáp xuống ô ngay sau quân bị ăn.
-
-<a id="g31"></a>
-
-### Nhóm 31: `CZGH = LJGH`
+### Nhóm 29: `CZGH = LJGH`
 
 **Gồm:** Cheetah, Titan
 
 Cùng một quân leaper (Camel + Zebra + Threeleaper + Tripper). **Cheetah** là tên hiện đại (Silverman/Cazaux); **Titan** là tên trong Fantasy Grand Chess (Hatch 2000). Chỉ khác tên.
 
-<a id="g32"></a>
+<a id="g30"></a>
 
-### Nhóm 32: `WF / WF (=K) / K = WF / WF = K`
+### Nhóm 30: `WF / WF (=K) / K = WF / WF = K`
 
 **Gồm:** Commoner, Guard, King, Mann, Prince, Prince (The Ouroboros King), Quartermaster, Spy (Waterloo, Amsterdam Medieval)
 
 Tất cả đi một ô theo mọi hướng. Khác biệt nằm ở vai trò/luật phụ: **King** là quân hoàng gia (bị chiếu). **Mann**, **Commoner**, **Guard**, **Spy (Waterloo, Amsterdam Medieval)** là Vua không hoàng gia. **Prince** là Vua không hoàng gia do Tốt của Vua thăng lên (Tamerlane, shogi lớn). **Prince (The Ouroboros King)** có thêm khả năng làm các quân hoàng gia trong phạm vi 3 ô trở nên bất tử. **Quartermaster** khi đi thì biến thành Tốt và để lại một Tốt ở ô cũ.
 
-<a id="g33"></a>
+<a id="g31"></a>
 
-### Nhóm 33: `BNW`
+### Nhóm 31: `BNW`
 
 **Gồm:** Crown Princess, Popess
 
 Cùng sức mạnh Princess/Archbishop + Wazir. **Crown Princess** (Knappen 2009) và **Popess** (Nelson 2003) chỉ khác tên.
 
-<a id="g34"></a>
+<a id="g32"></a>
 
-### Nhóm 34: `BW`
+### Nhóm 32: `BW`
 
 **Gồm:** Crowned Bishop, Dragon Horse, Missionary
 
 Cùng sức mạnh Tượng + Wazir. **Dragon Horse** (shogi), **Crowned Bishop**, **Missionary** (Pacey/Cazaux) chỉ khác tên.
 
-<a id="g35"></a>
+<a id="g33"></a>
 
-### Nhóm 35: `sfW`
+### Nhóm 33: `sfW`
 
 **Gồm:** Drunken Soldier, Pawn (Korean)
 
 Cùng nước đi: 1 ô tiến hoặc ngang. **Pawn (Korean)** là Tốt trong Janggi và Tốt cờ tướng sau khi qua sông; **Drunken Soldier** là tên khác của chính quân đó.
 
-<a id="g36"></a>
+<a id="g34"></a>
 
-### Nhóm 36: `FD`
+### Nhóm 34: `FD`
 
 **Gồm:** Duke (Jelliss), Fortress, Kirin
 
 Cùng sức mạnh Ferz + Dabbaba. **Kirin** (shogi lớn), **Fortress** (Pacific Chess), **Duke (Jelliss)**. Chỉ khác tên.
 
-<a id="g37"></a>
+<a id="g35"></a>
 
-### Nhóm 37: `WDN`
+### Nhóm 35: `WDN`
 
 **Gồm:** Duke (Musketeer chess), Minister
 
 Cùng sức mạnh Wazir + Dabbaba + Mã. **Minister** (Joyce 2005) và **Duke (Musketeer chess)** chỉ khác tên. (Tên "Duke" ở các trò khác chỉ quân khác: `FD`, `t[BW]t[WB]`.)
 
-<a id="g38"></a>
+<a id="g36"></a>
 
-### Nhóm 38: `FN`
+### Nhóm 36: `FN`
 
 **Gồm:** Dullahan, Priest, Prince (Fairy)
 
 Cùng sức mạnh Ferz + Mã. **Prince (Fairy)** (các nhà soạn bài cờ), **Priest** (Scirocco), **Dullahan** (Fearful Fairies) chỉ khác tên.
 
-<a id="g39"></a>
+<a id="g37"></a>
 
-### Nhóm 39: `Z = J = (2,3)`
+### Nhóm 37: `Z = J = (2,3)`
 
 **Gồm:** Elephant (Ciccolini), Giraffe (Zaraffa), Zaraffa, Zebra
 
 Cùng nhảy kiểu (2,3): 1 ô ngang/dọc rồi 2 ô chéo. **Zebra** (cờ cổ/bài cờ), **Zaraffa** và **Giraffe (Zaraffa)** (Grant Acedrex, Zanzibar), **Elephant (Ciccolini)** chỉ khác tên. (Giraffe trong Giraffe Chess lại là `C`.)
 
-<a id="g40"></a>
+<a id="g38"></a>
 
-### Nhóm 40: `FfW`
+### Nhóm 38: `FfW`
 
 **Gồm:** Elephant (Indian), Khon, Silver General
 
 Cùng nước đi: 1 ô chéo mọi hướng hoặc 1 ô tiến thẳng. **Silver General** (shogi), **Khon** (Makruk), **Elephant (Indian)** (al-Biruni c.1030) chỉ khác tên theo trò chơi.
 
-<a id="g41"></a>
+<a id="g39"></a>
 
-### Nhóm 41: `KAD = WFAD`
+### Nhóm 39: `KAD = WFAD`
 
 **Gồm:** Elephant (Musketeer), Mammoth (Winther), Mastodon, Pasha, Squire
 
 Cùng sức mạnh Mann + Alfil + Dabbaba (Vua không hoàng gia + Alibaba). **Pasha** (Paulovits), **Squire** (Renn Chess), **Mastodon**/**Mammoth (Winther)**, **Elephant (Musketeer)**: chỉ khác tên/trò chơi.
 
-<a id="g42"></a>
+<a id="g40"></a>
 
-### Nhóm 42: `WN`
+### Nhóm 40: `WN`
 
 **Gồm:** Emperor, Marquis
 
 Cùng sức mạnh Wazir + Mã. **Emperor** (Jelliss) và **Marquis** (Scirocco, Opulent Chess…) chỉ khác tên.
 
-<a id="g43"></a>
+<a id="g41"></a>
 
-### Nhóm 43: `sfK`
+### Nhóm 41: `sfK`
 
 **Gồm:** Evil Wolf, Pawn (Jetan)
 
 Cùng nước đi: như Vua nhưng không đi lùi. **Evil Wolf** (shogi lớn) và **Pawn (Jetan)** (Martian chess của Burroughs) chỉ khác tên.
 
-<a id="g44"></a>
+<a id="g42"></a>
 
-### Nhóm 44: `(0,5)(3,4)`
+### Nhóm 42: `(0,5)(3,4)`
 
 **Gồm:** Fiveleaper, Root-25-leaper
 
 Cùng quân leaper có bước dài 5 đơn vị ((0,5) và (3,4), tổng 12 hướng). **Fiveleaper** và **Root-25-leaper** chỉ khác tên.
 
-<a id="g45"></a>
+<a id="g43"></a>
 
-### Nhóm 45: `Q = RB`
+### Nhóm 43: `Q = RB`
 
 **Gồm:** Free King, Queen
 
 Cùng nước đi (trượt ngang/dọc/chéo). **Free King** (Chu shogi, gọi là Honno) và **Queen** (cờ vua) chỉ khác tên/trò chơi.
 
-<a id="g46"></a>
+<a id="g44"></a>
 
-### Nhóm 46: `mWcF`
+### Nhóm 44: `mWcF`
 
 **Gồm:** Fusilier, Hobbit, Quadrapawn, Steward
 
 Cùng ký hiệu: đi 1 ô ngang/dọc (mọi hướng), ăn 1 ô chéo (mọi hướng) — "Tốt bốn hướng". **Fusilier** là tên gốc (1770), **Hobbit** (Hobbit Chess); **Steward**/**Quadrapawn** (Centennial Chess) còn được mô tả là có thể đi 2 ô về phía trước như Tốt, điều mà ký hiệu này không biểu diễn.
 
-<a id="g47"></a>
+<a id="g45"></a>
 
-### Nhóm 47: `KC = KL = WFC / FWC`
+### Nhóm 45: `KC = KL = WFC / FWC`
 
 **Gồm:** General (Paulovits), Gorilla
 
 Cùng sức mạnh Camel + Ferz + Wazir. **Gorilla** (Chexx chess) và **General (Paulovits)** (Paulovits's Game 1890) chỉ khác tên/trò chơi.
 
-<a id="g48"></a>
+<a id="g46"></a>
 
-### Nhóm 48: `NC = NL`
+### Nhóm 46: `NC = NL`
 
 **Gồm:** Gnu, Unicorn (Musketeer), Wildebeest
 
 Cùng sức mạnh Mã + Camel. **Gnu**/**Wildebeest** (Wildebeest Chess) và **Unicorn (Musketeer)** chỉ khác tên.
 
-<a id="g49"></a>
+<a id="g47"></a>
 
-### Nhóm 49: `mQ`
+### Nhóm 47: `mQ`
 
 **Gồm:** Go-between (Chinese), Jester (Brybelly)
 
 Cùng nước đi: đi như Hậu nhưng không ăn được, cũng không bị ăn. **Go-between (Chinese)** (Seven Kingdoms) và **Jester (Brybelly)** (Faerie Chess) chỉ khác tên.
 
-<a id="g50"></a>
+<a id="g48"></a>
 
-### Nhóm 50: `mRcB`
+### Nhóm 48: `mRcB`
 
 **Gồm:** Guard, Roshop
 
 Cùng cách đi: đi như Xe, ăn như Tượng. **Roshop** (Parton 1961) và **Guard** (Enlarged & Improved Chess 1696) chỉ khác tên. (Ngược lại là `mBcR`, nhóm Biok/Ensign; không nhầm với Guard = Vua không hoàng gia `WF`.)
 
-<a id="g51"></a>
+<a id="g49"></a>
 
-### Nhóm 51: `(2,4)`
+### Nhóm 49: `(2,4)`
 
 **Gồm:** Hare, Lancer, Stag
 
 Cùng nhảy kiểu (2,4). **Stag**, **Hare** (Hase trong tiếng Đức), **Lancer**: chỉ khác tên.
 
-<a id="g52"></a>
+<a id="g50"></a>
 
-### Nhóm 52: `NA`
+### Nhóm 50: `NA`
 
 **Gồm:** Hospitaller, Kangaroo, Priestess
 
 Cùng sức mạnh Mã + Alfil. **Hospitaller** (Jelliss), **Kangaroo** (Outback Chess), **Priestess** (Joyce, Bagley-Jones) chỉ khác tên.
 
-<a id="g53"></a>
+<a id="g51"></a>
 
-### Nhóm 53: `KAND = WFAND`
+### Nhóm 51: `KAND = WFAND`
 
 **Gồm:** Joker, Lion (Modern)
 
 Cùng quân Lion "KAND" (đi/ăn mọi ô cách 1–2 ô theo mọi hướng, kể cả nước Mã). **Lion (Modern)** (Metamachy, Terachess, Scirocco) và **Joker** (Waterloo, Amsterdam Medieval Chess) giống hệt nhau.
 
-<a id="g54"></a>
+<a id="g52"></a>
 
-### Nhóm 54: `mQcpQ`
+### Nhóm 52: `mQcpQ`
 
 **Gồm:** Leo, Sorceress
 
 Cùng cách đi: đi như Hậu khi không ăn, ăn bằng cách nhảy qua đúng một quân chắn. **Leo** (Dawson/Akenhead) và **Sorceress** (Akenhead, Terachess) chỉ khác tên.
 
-<a id="g55"></a>
+<a id="g53"></a>
 
-### Nhóm 55: `WD`
+### Nhóm 53: `WD`
 
 **Gồm:** Machine, War Machine, Woody Rook
 
 Cùng sức mạnh Wazir + Dabbaba. **War Machine**, **Woody Rook** (Betza 1979) và **Machine** (Zanzibar, Terachess) chỉ khác tên.
 
-<a id="g56"></a>
+<a id="g54"></a>
 
-### Nhóm 56: `nN`
+### Nhóm 54: `nN`
 
 **Gồm:** Mao, Moa
 
 Cùng ký hiệu theo Wikipedia nhưng khác thứ tự bước: **Mao** (Mã cờ tướng) bước 1 ô ngang/dọc (ô này phải trống, nếu không bị cản chân) rồi 1 ô chéo; **Moa** thì bước chéo trước rồi ngang/dọc. Ký hiệu `nN` không phân biệt được hai kiểu này.
 
-<a id="g57"></a>
+<a id="g55"></a>
 
-### Nhóm 57: `RNN`
+### Nhóm 55: `RNN`
 
 **Gồm:** Raven, Waran
 
 Cùng sức mạnh Xe + Nightrider. **Raven** và **Waran** (Varan) chỉ khác tên.
 
-<a id="g58"></a>
+<a id="g56"></a>
 
-### Nhóm 58: `G = (3,3)`
+### Nhóm 56: `G = (3,3)`
 
 **Gồm:** Revealer (Tamerlane), Tripper
 
 Cùng nhảy đúng 3 ô chéo (3,3). **Tripper** (Gecko trong tiếng Đức) và **Revealer (Tamerlane)** (Full Tamerlane Chess; còn gọi Sentinel) chỉ khác tên.
 
-<a id="g59"></a>
+<a id="g57"></a>
 
-### Nhóm 59: `t[FvR]`
+### Nhóm 57: `t[FvR]`
 
 **Gồm:** Ship, Twin Tower
 
@@ -1015,29 +1000,7 @@ Nguồn: tệp *Proposed Betza Extended Notation (BEX Notation)* của David How
 
 > **Đính chính (Frisian):** trước đây mục này coi `[cl]F` (chéo) cùng `[cl]D` (ngang/dọc) của Frisian Checkers là không nhất quán. Đó là hiểu sai: ghi chú của Wikipedia nói quân nhảy qua quân "cùng màu ô". Bàn cờ chỉ dùng ô một màu nên ô kề theo ngang/dọc cách nhau 2 ô, tức đúng atom `D`. Vì vậy `[cl]F` + `[cl]D` nhất quán: quân kề tính theo ô chơi được, hạ cánh ở ô chơi được kế tiếp. Mình chưa tra lại luật Frisian từ nguồn riêng.
 
-**Trạng thái kiểm tra ý đồ của 21 mục dùng `[cl]` (đối chiếu với định nghĩa đề xuất `[cj]Y` ≡ `cY-mY`, tầm hạ cánh kế thừa từ `Y`):**
-
-- **18 mục cờ đam khớp ý đồ** (16 mục theo mô tả Wikipedia, cộng 2 mục Loca sau khi tra luật: Loca là "đi ngắn, bắt dài", quân bắt được đi qua bao nhiêu ô trống cũng được cả trước lẫn sau quân bị nhảy qua). Frisian khớp khi đọc `D` là ô kề theo ngang/dọc trên bàn một màu ô.
-- **3 mục lệch ý đồ** nếu dùng mặc định trên: Locust `mQ[cl]Q` (hạ cánh ngay sau quân bị bắt), Rook (Quang Trung) `mR[cl]R` (hạ cánh đúng một ô sau), Dabbaba-checker `D[cl]W` (ô hạ cánh có thể bắt thêm quân). Cách viết lại gọn bằng mở rộng `[cj]` ở đề xuất dưới đây.
-- **Chưa sửa ký hiệu trong bảng** vì định nghĩa `[cl]`/`[cj]` chưa được chốt. Ký hiệu của 21 mục vẫn là ký hiệu gốc của Wikipedia.
-
-**Đề xuất mở rộng `[cj]` để biểu diễn gọn 3 mục lệch (chờ bạn chốt):** đặt tham số hạ cánh ngay trong ngoặc vuông, theo tiền lệ `[ccM]`, `[crM]` của Bex.
-
-| Dạng | Nghĩa |
-|---|---|
-| `[cj]Y` | Mặc định: ô hạ cánh phải trống, tầm hạ cánh kế thừa từ `Y` (quân nhảy: ngay sau; quân trượt: bao xa cũng được) |
-| `[cj`$n$`]Y` | Hạ cánh cách quân bị bắt tối đa $n$ bước theo cùng vector hướng. `[cj1]Y` là hạ cánh ngay sau |
-| `[cjmc]Y` | Ô hạ cánh trống hoặc có quân địch; có quân địch thì bắt thêm (modality `m`, `c` đúng nghĩa Betza). Có thể kết hợp với số: `[cjmc1]Y` |
-
-Viết lại 3 mục:
-
-- Locust: `mQ[cj1]Q`
-- Rook (Quang Trung): `mR[cj1]R`
-- Dabbaba-checker: `D[cjmc]W`
-
-Tương đương với chuỗi nước: `[cjφn]Y` ≡ `cY-φY` với chặng sau cùng vector hướng với chặng đầu và tầm $n$ (nếu có). Hai nguyên tắc đi kèm: chữ `[cj]` chỉ nhảy qua đúng một quân, `[cl]` dành cho nhảy qua nhiều quân (Long Leaper); và 18 dòng cờ đam đổi `[cl]` thành `[cj]` cho đúng định nghĩa Bex.
-
-**Đính chính:** ở lượt trước mình gợi ý Locust là `mQ + cQ-mW`. Cách này sai với các hướng chéo, vì bước `W` không nằm dọc đường chéo của Tượng; muốn dùng chuỗi nước phải tách theo thành phần (`cR-mW` cho đường thẳng, `cB-mF` cho đường chéo). Dạng `[cj1]Q` tránh được lỗi này vì bước hạ cánh luôn theo đúng vector của chặng đầu.
+**Trạng thái kiểm tra ý đồ của 21 mục dùng `[cl]`:** đã đối chiếu với định nghĩa ở mục 5. 18 mục cờ đam khớp ý đồ ngay với `[cj]` mặc định (kể cả hai mục Loca và Frisian); 3 mục lệch (Locust, Rook (Quang Trung), Dabbaba-checker) khớp sau khi thêm tham số hạ cánh. Cả 21 ký hiệu trong bảng đã được sửa theo mục 5.4; ký hiệu gốc của Wikipedia ghi ở đó.
 
 ### 3.6. Cùng một chữ nhưng nghĩa khác nhau tùy phiên bản
 
@@ -1065,7 +1028,7 @@ Tương đương với chuỗi nước: `[cjφn]Y` ≡ `cY-φY` với chặng sa
 - `k` trong `kW` của General (Chinese): không tìm thấy nghĩa trong nguồn đã đọc được.
 - `(0,2n)` của Dabbabante: không phải toạ độ chuẩn; mình chỉ xếp vào `(a,b)`.
 - `d` trong `dhf`: xem 3.2.
-- `[cl]`: đã có định nghĩa gốc trong tài liệu Bex, xem 3.5; phần còn mở là ô hạ cánh.
+- `[cl]`, `[cj]`: đã có định nghĩa tự thiết kế ở mục 5 (Bex gốc không quy định ô hạ cánh).
 - Tọa độ `(a,b)` là phần mở rộng của Bex (ví dụ `(1,4)` cho Giraffe), không có trong Betza gốc.
 
 ## 4. Quy ước chữ hướng và kiểm tra các quân
@@ -1171,3 +1134,112 @@ Các mục chưa xử lý, ghi lại để quay lại sau:
 - **Lion (Japanese) `KANDcaKmabK`:** chữ `b` ở chặng nối sau `a` là quay lại, không phải chữ hướng của quy ước.
 - **Chữ hướng trong `t[...]`:** Ship, Twin Tower `t[FvR]`; Snake `t[vWB]`; Vivi `t[vWfB]`; Unicornio `t[NfB]`. Chưa chốt hướng bàn cờ hay hướng chặng trước.
 - **Điểm mở ở 4.3:** đánh giá theo atom hay theo cả tập của `Q`, `K`; giữ hay bỏ `h`.
+
+## 5. Định nghĩa `[cj]` và `[cl]`
+
+Đây là định nghĩa **tự thiết kế**, dựa trên tài liệu Bex (nơi `[cj]` là "nhảy qua một quân" và `[cl]` là "nhảy qua nhiều quân") và bổ sung các tham số mà Bex không quy định. Mục tiêu: mỗi ký hiệu cho ra đúng một tập nước đi xác định. Chữ hướng trong `Y` đọc theo quy ước ở mục 4.1.
+
+### 5.1. Cú pháp
+
+```
+nước-bắt-nhảy ::= "[cj" [ landing ] [ n ] "]" Y        (nhảy qua một quân)
+nước-bắt-lặp  ::= "[cl" [ landing ] [ n ] "]" Y        (nhảy qua nhiều quân)
+landing       ::= "m" | "mc" | "c"
+n             ::= số nguyên dương
+Y             ::= [cụm chữ hướng] [ "n" ] atom [ chữ số ]
+```
+
+- `Y` là một thành phần Betza thông thường: cụm chữ hướng (nếu có) rồi atom (`W F D N A H C Z G`, `(a,b)`, `R B Q K`, chữ lặp như `NN`) và chữ số giới hạn bước (nếu có). `Y` không chứa `m`, `c`, `p`, `g`, `i`.
+- `landing` là modality của ô hạ cánh, viết đúng thứ tự `m`, `mc`, `c` (`cm` không hợp lệ). Bỏ trống thì mặc định là `m`.
+- `n` là số bước hạ cánh tối đa. Bỏ trống thì kế thừa từ `Y`. `n = 0` không hợp lệ; dạng số 0 đứng đầu của Bex không dùng ở đây.
+- `X[cj…]Y` nghĩa là `X + [cj…]Y` (toán tử kết hợp của Bex): hai thành phần độc lập. Chữ hướng đứng trước ngoặc thuộc `X`; `Y` có chữ hướng riêng, vì vậy mới có `mfF[cj]fF`.
+
+### 5.2. Ngữ nghĩa của `[cj]`
+
+**Bước 1: tách `Y`.** Expand `R`=`WW`, `B`=`FF`, `Q`=`WWFF`, `K`=`WF`, `L`=`C`, `J`=`Z`. Với mỗi atom thu được, tập vector hướng $V$ lấy theo quy ước chữ hướng (mục 4.1). Tầm tiếp cận $K_Y$:
+
+- $K_Y = 1$ nếu atom là quân nhảy (viết đơn, không số);
+- $K_Y = k$ nếu atom có chữ số $k$ ($R4$ được hiểu là $W4$);
+- $K_Y = \infty$ nếu atom là quân trượt (viết lặp hoặc đến từ `R`, `B`, `Q`).
+
+Tầm hạ cánh $K_L = n$ nếu có số $n$, ngược lại $K_L = K_Y$ (kế thừa).
+
+**Bước 2: với mỗi atom và mỗi vector $v \in V$**, nước đi hợp lệ khi tồn tại số nguyên $a$ và $b$ với $1 \le a \le K_Y$, $1 \le b \le K_L$ thỏa:
+
+1. Ô $h = s + a\,v$ nằm trong bàn cờ và có **quân địch** (quân bị bắt).
+2. Mọi ô $s + i\,v$ với $1 \le i < a$ đều **trống**.
+3. Ô $l = h + b\,v$ nằm trong bàn cờ.
+4. Mọi ô $h + i\,v$ với $1 \le i < b$ đều **trống**.
+5. Ô $l$ thỏa modality hạ cánh: `m` (mặc định) thì trống; `mc` thì trống hoặc có quân địch; `c` thì có quân địch.
+
+Ở đây $s$ là ô quân đang đứng và $v$ là vector bước của atom (ví dụ $(0,2)$ với `D`, $(1,2)$ với một nước `N`).
+
+**Kết quả:** quân đi từ $s$ tới $l$; quân ở $h$ bị gỡ; nếu $l$ có quân địch (chỉ xảy ra với `mc`, `c`) thì quân đó cũng bị gỡ (bắt thay thế).
+
+**Các điểm biên được chốt:**
+
+1. **Cùng vector:** chặng tiếp cận và chặng hạ cánh dùng đúng một vector $v$; không đổi hướng giữa hai chặng. Với quân nhảy xiên như `N`, điều này nghĩa là $l = s + 2v$.
+2. **Quân bạn và quân địch khác đều chặn đường:** các ô trong điều kiện 2 và 4 phải trống, không phải "không có quân bạn".
+3. **Hai quân địch liền nhau:** với `m` (mặc định) không nhảy được vì ô hạ cánh bị chiếm; với `mc` thì hạ cánh lên quân thứ hai và bắt cả hai.
+4. **Không có quân để nhảy thì không có nước đi.** `[cj]` không bao giờ là nước đi không bắt.
+5. **Quân nhảy có vector dài** như `D`, `A`: $h$ cách $s$ đúng một vector và $l$ cách $h$ thêm một vector. Ô nằm giữa mỗi bước nhảy không được xét (trừ khi `Y` có chữ `n`, lúc đó áp dụng cho từng bước như định nghĩa thông thường).
+6. **Ô ngoài bàn cờ:** hạ cánh ra ngoài thì nước đi không hợp lệ.
+7. **Chỉ một cú nhảy.** Bắt liên tiếp nhiều cú (như cờ đam) nối bằng toán tử `--` của Bex. Luật bắt buộc bắt, bắt nhiều quân nhất, thăng cấp giữa chừng nằm ở tầng luật chơi, không thuộc ký hiệu.
+8. **Quân bị bắt chỉ bị gỡ khi nước đi kết thúc.**
+
+### 5.3. Ngữ nghĩa của `[cl]`
+
+`[cl…]Y` là chuỗi gồm $m \ge 1$ cú nhảy cùng vector $v$:
+
+1. Mỗi cú nhảy là một `[cj]` theo mục 5.2.
+2. Mọi cú nhảy trừ cú cuối: ô hạ cánh phải **trống** (ép modality `m`) và tầm hạ cánh là $K_L$. Ô hạ cánh của cú thứ $i$ là ô xuất phát của cú thứ $i+1$.
+3. Cú cuối cùng dùng đúng modality `landing` và số $n$ đã viết trong ngoặc.
+4. Quân bị bắt là tất cả các ô $h$ của mọi cú nhảy; mỗi quân chỉ bị bắt một lần (tự nhiên, vì cùng vector).
+5. Số cú nhảy $m$ không giới hạn. Giới hạn số cú nhảy (như `(cQ-mQ)4` của Long Leaper trong Betza 2.0) chưa có cú pháp riêng.
+
+Hiện chưa có quân nào trong danh sách dùng `[cl]` theo nghĩa này. Long Leaper của Ultima (`mQ+[cl]Q`) nằm ngoài bảng Wikipedia.
+
+### 5.4. Áp dụng cho 21 mục của Wikipedia
+
+| Quân | Trò chơi | Ký hiệu Wikipedia | Ký hiệu mới |
+|---|---|---|---|
+| Checker Man | cờ đam Mỹ/Tây Ban Nha/Ý | `mfF[cl]fF` | `mfF[cj]fF` |
+| Checker Man | Old German | `mfF[cl]fF[cl]fsW` | `mfF[cj]fF[cj]fsW` |
+| Checker Man | Ossetian (Tama) | `mfK[cl]K` | `mfK[cj]K` |
+| Checker Man | phần lớn các loại đam | `mfF[cl]F` | `mfF[cj]F` |
+| Checker Man | Loca | `mfF[cl]B` | `mfF[cj]B` |
+| Checker Man | Frisian | `mfF[cl]F[cl]D` | `mfF[cj]F[cj]D` |
+| Checker Man | Hy Lạp/Thổ Nhĩ Kỳ | `mfsW[cl]fsW` | `mfsW[cj]fsW` |
+| Checker Man | Croda, Dameo | `mfK[cl]fsW` | `mfK[cj]fsW` |
+| Checker Man | Armenia | `mfKmsW[cl]fsW` | `mfKmsW[cj]fsW` |
+| Checker Man | Sri Lankan Dām | `mF[cl]F` | `mfF[cj]F` (thêm `f` bị thiếu so với mô tả "forward") |
+| Checker Man | Alquerque | `mK[cl]K` | `mK[cj]K` |
+| Checker King | Mỹ/Ý | `mF[cl]F` | `mF[cj]F` |
+| Checker King | Old German | `mK[cl]K or mQ[cl]Q` | `mK[cj]K or mQ[cj]Q` |
+| Checker King | đam quốc tế (bay) | `mB[cl]B` | `mB[cj]B` |
+| Checker King | Loca | `mF[cl]B` | `mF[cj]B` |
+| Checker King | Frisian | `mB[cl]B[cl]DD` | `mB[cj]B[cj]DD` |
+| Checker King | Hy Lạp/Thổ Nhĩ Kỳ, Harzdame | `mR[cl]R` | `mR[cj]R` |
+| Checker King | Armenia | `mQ[cl]R` | `mQ[cj]R` |
+| Dabbaba-checker | | `D[cl]W` | `D[cjmc]W` |
+| Locust | bài cờ | `mQ[cl]Q` | `mQ[cj1]Q` |
+| Rook (Quang Trung) | Quang Trung Chess | `mR[cl]R` | `mR[cj1]R` |
+
+Ghi chú:
+
+- Các dòng đam khớp mô tả với tầm hạ cánh kế thừa: quân đi một ô thì hạ cánh ngay sau quân bị bắt; quân bay (`B`, `R`, `Q`) thì hạ cánh bao xa cũng được.
+- **Frisian:** `[cj]D` nghĩa là hurdle ở ô $s + (0,2)$ và hạ cánh ở $s + (0,4)$. Đúng với bàn cờ một màu ô, nơi ô kề theo ngang/dọc cách nhau 2 ô.
+- **Locust** và **Rook (Quang Trung)** dùng `1` để hạ cánh ngay sau quân bị bắt; **Dabbaba-checker** dùng `mc` để ô hạ cánh có thể có quân địch (bắt thêm quân thứ hai).
+- Hai dòng Loca khớp mô tả "move short, capture long": quân bắt đi qua bao nhiêu ô trống cũng được cả trước lẫn sau quân bị nhảy qua. Phần nhiều lần nhảy liên tiếp của Loca nằm ngoài ký hiệu.
+
+### 5.5. Ví dụ tính tay
+
+- `mfF[cj]fF` (đam Mỹ): từ ô $s$, vector $v \in \{(-1,1),(1,1)\}$, $K_Y = K_L = 1$. Nước bắt khi ô $s + v$ có quân địch và ô $s + 2v$ trống.
+- `mB[cj]B` (quân bay): bốn vector chéo, $K_Y = K_L = \infty$. Quân trượt qua các ô trống tới quân địch đầu tiên, rồi hạ cánh vào bất kỳ ô trống nào liền sau nó trên cùng đường chéo (dừng khi gặp ô có quân).
+- `mQ[cj1]Q` (Locust): tám vector, $K_Y = \infty$, $K_L = 1$. Quân trượt tới quân địch đầu tiên rồi hạ cánh đúng ô liền sau, nếu ô đó trống.
+- `D[cjmc]W` (Dabbaba-checker): bốn vector $W$, $K_Y = K_L = 1$. Quân địch ở ô kề thì bị bắt; hạ cánh ở ô thứ hai, ô đó trống hoặc có quân địch (bị bắt thêm). Thành phần `D` đứng trước vẫn cho nước nhảy 2 ô thông thường.
+- `mfF[cj]F[cj]D` (Frisian): `[cj]F` bắt chéo (hạ cánh $s + 2v$ với $v = (\pm 1, \pm 1)$) và `[cj]D` bắt ngang/dọc ($h = s + (0,\pm 2)$, $l = s + (0,\pm 4)$ hoặc tương tự theo trục ngang).
+
+### 5.6. Quan hệ với chuỗi nước
+
+Với cùng một vector hướng cho hai chặng, `[cj φ n]Y` tương đương `cY` rồi `φ Y′`, trong đó `Y′` là `Y` với tầm giới hạn $K_L$ và hướng cố định theo chặng đầu. Cách viết `cY-mY` (Betza 2.0 qua Wikipedia, MBN `fcF-mF`) khớp với `[cj]Y` khi hiểu "cùng hướng" là *cùng vector*; nếu hiểu là "cùng hướng chung" như Bex (`-`) thì khác nhau với các atom xiên và với atom chéo/thẳng dùng lẫn nhau (ví dụ chặng đầu theo đường chéo, chặng sau theo bước thẳng).
