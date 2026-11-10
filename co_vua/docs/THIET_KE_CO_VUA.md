@@ -444,6 +444,18 @@ Sau điểm rẽ, ở mỗi nước ván chơi nước có nhiều lượt thăm
 
 **Vì sao chọn ngẫu nhiên:** bước quét ở 6.1 đã quyết định nên rẽ ở đâu và với xác suất bao nhiêu. Chọn ngẫu nhiên giữ nguyên phân bố đó, chỉ thu nhỏ số lượng cho vừa ngân sách, và không thêm giả định hay tham số nào phải chỉnh. Khác với cắt lá ngẫu nhiên (8.3), ở đây ngẫu nhiên không làm phí dữ liệu, vì điểm rẽ chưa được chơi thì chưa tốn lần chạy mạng nào và đời sau vẫn có thể được quét ra lại. Các quy tắc ưu tiên theo tín hiệu dưới đây đều dựa trên tín hiệu nhiễu và cần ngưỡng phải chỉnh, nên ngược với phương châm ít phải tinh chỉnh. Ngoài ra, nếu cách mới vẫn hơn cách cũ khi chọn ngẫu nhiên thì kết luận càng chắc. Các tín hiệu ưu tiên dưới đây được ghi lại làm phương án thử sau, chỉ dùng nếu log (phần 15) cho thấy chọn ngẫu nhiên là chỗ đang làm cách mới yếu đi.
 
+**Số đo 10/11: quét đều mọi node làm cây thiếu hẳn trung cuộc.** Arena đời 10 của lần chạy 2 (đã có bản sửa $\tau_q^2$ ở phần 5): `tt_gen10` thắng 1003, hoà 5, thua 9 trong 1017 ván (98,9%). Trong các ván arena, ở nửa nước 30 đến 40 mạng cây kém trung bình 13 điểm quân mà vẫn tự đánh giá $0{,}00$; kém 22 điểm quân nó mới đánh giá $-0{,}56$. Đo trên cây đời 9 (2,19 triệu node dùng để học):
+
+| Nửa nước | Số node | Phần trong cây | Số mẫu hiệu dụng $\dfrac{(\sum m)^2}{\sum m^2}$ |
+|---|---|---|---|
+| 10 đến 20 | 12 403 | 0,6% | 3 208 |
+| 20 đến 30 | 17 331 | 0,8% | 4 216 |
+| 30 đến 40 | 22 674 | 1,0% | 5 451 |
+| 120 đến 200 | 640 614 | 29,2% | 136 811 |
+| từ 200 | 1 102 837 | 50,3% | 295 211 |
+
+Đúng ở nửa nước 20 cả cây chỉ có 1477 thế cờ khác nhau, tương đương khoảng 370 mẫu vì trọng số $m$ dồn vào vài đường chính. Cả cây tương đương khoảng 46 nghìn mẫu độc lập. Ván kết thúc trong cây dài trung vị 253 nửa nước, và chỉ 0,8% node mới của đời 9 nằm trước nửa nước 40. Lý do: mỗi node có cùng cơ hội được rẽ, mà node thì nằm chủ yếu ở phần đuôi của các ván dài, nên ván rẽ mới lại sinh thêm node ở đuôi, và vòng này tự tăng. Cách truyền thống thì mỗi ván đều đi lại từ đầu, nên mỗi đời có hàng nghìn thế cờ mới ở mọi độ sâu. Kết luận: phần "tiết kiệm" của cây (không chơi lại đoạn chung) chính là phần thiếu đa dạng ở khai cuộc và trung cuộc; quy tắc quét đều của 6.1 phải đổi trước lần chạy 3.
+
 **Phương án để sau: ưu tiên theo tín hiệu.** Muốn nhãn tại một node thay đổi rõ, node đó cần nhiều ván tách ngay bên dưới nó. Một thế cờ giữa ván thường chỉ có khoảng một ván độc lập cho mỗi nhánh, nên với cách chọn ngẫu nhiên cái sai hiếm vẫn chủ yếu phải chờ mạng tự tiến bộ. Các tín hiệu có thể dùng:
 
 - **Giá trị search tụt mạnh vài nửa nước sau một nước.** Tín hiệu này ít nhiễu vì rất gần, và đã được lưu sẵn. Ví dụ, sau một nước thí quân vô lý, đối phương ăn quân và $q$ rơi mạnh. Mất quân là điều mạng dễ nhận ra ở các thế ngay sau đó, nên $q$ phản ánh được việc nước thí quân kia không đền bù.
