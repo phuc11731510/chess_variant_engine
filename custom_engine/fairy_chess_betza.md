@@ -1159,7 +1159,7 @@ Y             ::= [cụm chữ hướng] [ "n" ] atom [ chữ số ]
 
 - `Y` là một thành phần Betza thông thường: cụm chữ hướng (nếu có) rồi atom (`W F D N A H C Z G`, `(a,b)`, `R B Q K`, chữ lặp như `NN`) và chữ số giới hạn bước (nếu có). `Y` không chứa `m`, `c`, `p`, `g`, `i`.
 - `landing` là modality của ô hạ cánh, viết đúng thứ tự `m`, `mc`, `c` (`cm` không hợp lệ). Bỏ trống thì mặc định là `m`.
-- `n` là hệ số hạ cánh tối đa $B_{max}$ (mục 5.2). Bỏ trống thì kế thừa từ `Y`. `n = 0` không hợp lệ; dạng số 0 đứng đầu của Bex không dùng ở đây.
+- `n` là hệ số hạ cánh tối đa $B_{\max}$ (mục 5.2). Bỏ trống thì kế thừa từ `Y`. `n = 0` không hợp lệ; dạng số 0 đứng đầu của Bex không dùng ở đây.
 - `X[cj…]Y` nghĩa là `X + [cj…]Y` (toán tử kết hợp của Bex): hai thành phần độc lập. Chữ hướng đứng trước ngoặc thuộc `X`; `Y` có chữ hướng riêng, vì vậy mới có `mfF[cj]fF`.
 
 ### 5.2. Ngữ nghĩa của `[cj]`
