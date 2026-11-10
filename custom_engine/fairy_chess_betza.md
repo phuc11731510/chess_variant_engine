@@ -1166,7 +1166,7 @@ Y             ::= [cụm chữ hướng] [ "n" ] atom [ chữ số ]
 
 **Bước 1: tách `Y`.** Expand `R`=`WW`, `B`=`FF`, `Q`=`WWFF`, `K`=`WF`, `L`=`C`, `J`=`Z`. Với mỗi atom thu được, tập vector hướng $V$ lấy theo quy ước chữ hướng (mục 4.1). Vector $v \in V$ là vector bước của atom: quân nhảy dùng chính vector nhảy (ví dụ $N$ có $(1,2)$, $D$ có $(0,2)$), quân trượt dùng vector đơn vị (ví dụ $W$ có $(0,1)$).
 
-Các nước đi nằm ở $s + a\,v$ và $h + b\,v$ với **hệ số nguyên** $a$, $b$ nhân vào $v$. Đây là hệ số trên vector, không phải số lần di chuyển của một quân nào. Hệ số tối đa của chặng tiếp cận là $A_{\max}$:
+Các nước đi nằm ở $s + a \cdot v$ và $h + b \cdot v$ với **hệ số nguyên** $a$, $b$ nhân vào $v$. Đây là hệ số trên vector, không phải số lần di chuyển của một quân nào. Hệ số tối đa của chặng tiếp cận là $A_{\max}$:
 
 - $A_{\max} = 1$ nếu atom là quân nhảy (viết đơn, không số);
 - $A_{\max} = k$ nếu atom có chữ số $k$ ($R4$ được hiểu là $W4$);
@@ -1180,15 +1180,15 @@ Hệ số tối đa của chặng hạ cánh là $B_{\max} = n$ nếu có số $
 | `N` | $(\pm1,\pm2),(\pm2,\pm1)$ | 1 | chỉ $s+v$, ví dụ $s+(1,2)$ |
 | `D` | $(\pm2,0),(0,\pm2)$ | 1 | chỉ $s+v$, ví dụ $s+(0,2)$ |
 | `W3` | $(\pm1,0),(0,\pm1)$ | 3 | $s+v$, $s+2v$, $s+3v$ |
-| `B` | $(\pm1,\pm1)$ | $\infty$ | $s+a\,v$ với mọi $a \ge 1$ |
-| `NN` | $(\pm1,\pm2),\dots$ | $\infty$ | $s+a\,v$, ví dụ $s+(a,2a)$ |
+| `B` | $(\pm1,\pm1)$ | $\infty$ | $s+a \cdot v$ với mọi $a \ge 1$ |
+| `NN` | $(\pm1,\pm2),\dots$ | $\infty$ | $s+a \cdot v$, ví dụ $s+(a,2a)$ |
 
 **Bước 2: với mỗi atom và mỗi vector $v \in V$**, nước đi hợp lệ khi tồn tại số nguyên $a$ và $b$ với $1 \le a \le A_{\max}$, $1 \le b \le B_{\max}$ thỏa:
 
-1. Ô $h = s + a\,v$ nằm trong bàn cờ và có **quân địch** (quân bị bắt).
-2. Mọi ô $s + i\,v$ với $1 \le i < a$ đều **trống**.
-3. Ô $l = h + b\,v$ nằm trong bàn cờ.
-4. Mọi ô $h + i\,v$ với $1 \le i < b$ đều **trống**.
+1. Ô $h = s + a \cdot v$ nằm trong bàn cờ và có **quân địch** (quân bị bắt).
+2. Mọi ô $s + i \cdot v$ với $1 \le i < a$ đều **trống**.
+3. Ô $l = h + b \cdot v$ nằm trong bàn cờ.
+4. Mọi ô $h + i \cdot v$ với $1 \le i < b$ đều **trống**.
 5. Ô $l$ thỏa modality hạ cánh: `m` (mặc định) thì trống; `mc` thì trống hoặc có quân địch; `c` thì có quân địch.
 
 Ở đây $s$ là ô quân đang đứng và $v$ là vector bước của atom (ví dụ $(0,2)$ với `D`, $(1,2)$ với một nước `N`).
@@ -1253,7 +1253,7 @@ Ghi chú:
 
 ### 5.5. Ví dụ tính tay
 
-- `mfF[cj]fF` (đam Mỹ): từ ô $s$, vector $v \in \{(-1,1),(1,1)\}$, $A_{\max} = B_{\max} = 1$. Nước bắt khi ô $s + v$ có quân địch và ô $s + 2v$ trống.
+- `mfF[cj]fF` (đam Mỹ): từ ô $s$, hai vector $v = (-1,1)$ và $v = (1,1)$, $A_{\max} = B_{\max} = 1$. Nước bắt khi ô $s + v$ có quân địch và ô $s + 2v$ trống.
 - `mB[cj]B` (quân bay): bốn vector chéo, $A_{\max} = B_{\max} = \infty$. Quân trượt qua các ô trống tới quân địch đầu tiên, rồi hạ cánh vào bất kỳ ô trống nào liền sau nó trên cùng đường chéo (dừng khi gặp ô có quân).
 - `mQ[cj1]Q` (Locust): tám vector, $A_{\max} = \infty$, $B_{\max} = 1$. Quân trượt tới quân địch đầu tiên rồi hạ cánh đúng ô liền sau, nếu ô đó trống.
 - `D[cjmc]W` (Dabbaba-checker): bốn vector $W$, $A_{\max} = B_{\max} = 1$. Quân địch ở ô kề thì bị bắt; hạ cánh ở ô thứ hai, ô đó trống hoặc có quân địch (bị bắt thêm). Thành phần `D` đứng trước vẫn cho nước nhảy 2 ô thông thường.
