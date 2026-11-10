@@ -1159,20 +1159,31 @@ Y             ::= [cụm chữ hướng] [ "n" ] atom [ chữ số ]
 
 - `Y` là một thành phần Betza thông thường: cụm chữ hướng (nếu có) rồi atom (`W F D N A H C Z G`, `(a,b)`, `R B Q K`, chữ lặp như `NN`) và chữ số giới hạn bước (nếu có). `Y` không chứa `m`, `c`, `p`, `g`, `i`.
 - `landing` là modality của ô hạ cánh, viết đúng thứ tự `m`, `mc`, `c` (`cm` không hợp lệ). Bỏ trống thì mặc định là `m`.
-- `n` là số bước hạ cánh tối đa. Bỏ trống thì kế thừa từ `Y`. `n = 0` không hợp lệ; dạng số 0 đứng đầu của Bex không dùng ở đây.
+- `n` là hệ số hạ cánh tối đa $B_{max}$ (mục 5.2). Bỏ trống thì kế thừa từ `Y`. `n = 0` không hợp lệ; dạng số 0 đứng đầu của Bex không dùng ở đây.
 - `X[cj…]Y` nghĩa là `X + [cj…]Y` (toán tử kết hợp của Bex): hai thành phần độc lập. Chữ hướng đứng trước ngoặc thuộc `X`; `Y` có chữ hướng riêng, vì vậy mới có `mfF[cj]fF`.
 
 ### 5.2. Ngữ nghĩa của `[cj]`
 
-**Bước 1: tách `Y`.** Expand `R`=`WW`, `B`=`FF`, `Q`=`WWFF`, `K`=`WF`, `L`=`C`, `J`=`Z`. Với mỗi atom thu được, tập vector hướng $V$ lấy theo quy ước chữ hướng (mục 4.1). Tầm tiếp cận $K_Y$:
+**Bước 1: tách `Y`.** Expand `R`=`WW`, `B`=`FF`, `Q`=`WWFF`, `K`=`WF`, `L`=`C`, `J`=`Z`. Với mỗi atom thu được, tập vector hướng $V$ lấy theo quy ước chữ hướng (mục 4.1). Vector $v \in V$ là vector bước của atom: quân nhảy dùng chính vector nhảy (ví dụ $N$ có $(1,2)$, $D$ có $(0,2)$), quân trượt dùng vector đơn vị (ví dụ $W$ có $(0,1)$).
 
-- $K_Y = 1$ nếu atom là quân nhảy (viết đơn, không số);
-- $K_Y = k$ nếu atom có chữ số $k$ ($R4$ được hiểu là $W4$);
-- $K_Y = \infty$ nếu atom là quân trượt (viết lặp hoặc đến từ `R`, `B`, `Q`).
+Các nước đi nằm ở $s + a\,v$ và $h + b\,v$ với **hệ số nguyên** $a$, $b$ nhân vào $v$. Đây là hệ số trên vector, không phải số lần di chuyển của một quân nào. Hệ số tối đa của chặng tiếp cận là $A_{\max}$:
 
-Tầm hạ cánh $K_L = n$ nếu có số $n$, ngược lại $K_L = K_Y$ (kế thừa).
+- $A_{\max} = 1$ nếu atom là quân nhảy (viết đơn, không số);
+- $A_{\max} = k$ nếu atom có chữ số $k$ ($R4$ được hiểu là $W4$);
+- $A_{\max} = \infty$ nếu atom là quân trượt (viết lặp hoặc đến từ `R`, `B`, `Q`).
 
-**Bước 2: với mỗi atom và mỗi vector $v \in V$**, nước đi hợp lệ khi tồn tại số nguyên $a$ và $b$ với $1 \le a \le K_Y$, $1 \le b \le K_L$ thỏa:
+Hệ số tối đa của chặng hạ cánh là $B_{\max} = n$ nếu có số $n$, ngược lại $B_{\max} = A_{\max}$ (kế thừa).
+
+| Atom trong `Y` | $v$ | $A_{\max}$ | Các ô có thể là $h$ |
+|---|---|---|---|
+| `F` | $(\pm1,\pm1)$ | 1 | chỉ $s+v$ |
+| `N` | $(\pm1,\pm2),(\pm2,\pm1)$ | 1 | chỉ $s+v$, ví dụ $s+(1,2)$ |
+| `D` | $(\pm2,0),(0,\pm2)$ | 1 | chỉ $s+v$, ví dụ $s+(0,2)$ |
+| `W3` | $(\pm1,0),(0,\pm1)$ | 3 | $s+v$, $s+2v$, $s+3v$ |
+| `B` | $(\pm1,\pm1)$ | $\infty$ | $s+a\,v$ với mọi $a \ge 1$ |
+| `NN` | $(\pm1,\pm2),\dots$ | $\infty$ | $s+a\,v$, ví dụ $s+(a,2a)$ |
+
+**Bước 2: với mỗi atom và mỗi vector $v \in V$**, nước đi hợp lệ khi tồn tại số nguyên $a$ và $b$ với $1 \le a \le A_{\max}$, $1 \le b \le B_{\max}$ thỏa:
 
 1. Ô $h = s + a\,v$ nằm trong bàn cờ và có **quân địch** (quân bị bắt).
 2. Mọi ô $s + i\,v$ với $1 \le i < a$ đều **trống**.
@@ -1200,7 +1211,7 @@ Tầm hạ cánh $K_L = n$ nếu có số $n$, ngược lại $K_L = K_Y$ (kế 
 `[cl…]Y` là chuỗi gồm $m \ge 1$ cú nhảy cùng vector $v$:
 
 1. Mỗi cú nhảy là một `[cj]` theo mục 5.2.
-2. Mọi cú nhảy trừ cú cuối: ô hạ cánh phải **trống** (ép modality `m`) và tầm hạ cánh là $K_L$. Ô hạ cánh của cú thứ $i$ là ô xuất phát của cú thứ $i+1$.
+2. Mọi cú nhảy trừ cú cuối: ô hạ cánh phải **trống** (ép modality `m`) và hệ số hạ cánh tối đa là $B_{\max}$. Ô hạ cánh của cú thứ $i$ là ô xuất phát của cú thứ $i+1$.
 3. Cú cuối cùng dùng đúng modality `landing` và số $n$ đã viết trong ngoặc.
 4. Quân bị bắt là tất cả các ô $h$ của mọi cú nhảy; mỗi quân chỉ bị bắt một lần (tự nhiên, vì cùng vector).
 5. Số cú nhảy $m$ không giới hạn. Giới hạn số cú nhảy (như `(cQ-mQ)4` của Long Leaper trong Betza 2.0) chưa có cú pháp riêng.
@@ -1235,22 +1246,22 @@ Hiện chưa có quân nào trong danh sách dùng `[cl]` theo nghĩa này. Long
 
 Ghi chú:
 
-- Các dòng đam khớp mô tả với tầm hạ cánh kế thừa: quân đi một ô thì hạ cánh ngay sau quân bị bắt; quân bay (`B`, `R`, `Q`) thì hạ cánh bao xa cũng được.
+- Các dòng đam khớp mô tả với hệ số hạ cánh tối đa kế thừa: quân đi một ô thì hạ cánh ngay sau quân bị bắt; quân bay (`B`, `R`, `Q`) thì hạ cánh bao xa cũng được.
 - **Frisian:** `[cj]D` nghĩa là hurdle ở ô $s + (0,2)$ và hạ cánh ở $s + (0,4)$. Đúng với bàn cờ một màu ô, nơi ô kề theo ngang/dọc cách nhau 2 ô.
 - **Locust** và **Rook (Quang Trung)** dùng `1` để hạ cánh ngay sau quân bị bắt; **Dabbaba-checker** dùng `mc` để ô hạ cánh có thể có quân địch (bắt thêm quân thứ hai).
 - Hai dòng Loca khớp mô tả "move short, capture long": quân bắt đi qua bao nhiêu ô trống cũng được cả trước lẫn sau quân bị nhảy qua. Phần nhiều lần nhảy liên tiếp của Loca nằm ngoài ký hiệu.
 
 ### 5.5. Ví dụ tính tay
 
-- `mfF[cj]fF` (đam Mỹ): từ ô $s$, vector $v \in \{(-1,1),(1,1)\}$, $K_Y = K_L = 1$. Nước bắt khi ô $s + v$ có quân địch và ô $s + 2v$ trống.
-- `mB[cj]B` (quân bay): bốn vector chéo, $K_Y = K_L = \infty$. Quân trượt qua các ô trống tới quân địch đầu tiên, rồi hạ cánh vào bất kỳ ô trống nào liền sau nó trên cùng đường chéo (dừng khi gặp ô có quân).
-- `mQ[cj1]Q` (Locust): tám vector, $K_Y = \infty$, $K_L = 1$. Quân trượt tới quân địch đầu tiên rồi hạ cánh đúng ô liền sau, nếu ô đó trống.
-- `D[cjmc]W` (Dabbaba-checker): bốn vector $W$, $K_Y = K_L = 1$. Quân địch ở ô kề thì bị bắt; hạ cánh ở ô thứ hai, ô đó trống hoặc có quân địch (bị bắt thêm). Thành phần `D` đứng trước vẫn cho nước nhảy 2 ô thông thường.
+- `mfF[cj]fF` (đam Mỹ): từ ô $s$, vector $v \in \{(-1,1),(1,1)\}$, $A_{\max} = B_{\max} = 1$. Nước bắt khi ô $s + v$ có quân địch và ô $s + 2v$ trống.
+- `mB[cj]B` (quân bay): bốn vector chéo, $A_{\max} = B_{\max} = \infty$. Quân trượt qua các ô trống tới quân địch đầu tiên, rồi hạ cánh vào bất kỳ ô trống nào liền sau nó trên cùng đường chéo (dừng khi gặp ô có quân).
+- `mQ[cj1]Q` (Locust): tám vector, $A_{\max} = \infty$, $B_{\max} = 1$. Quân trượt tới quân địch đầu tiên rồi hạ cánh đúng ô liền sau, nếu ô đó trống.
+- `D[cjmc]W` (Dabbaba-checker): bốn vector $W$, $A_{\max} = B_{\max} = 1$. Quân địch ở ô kề thì bị bắt; hạ cánh ở ô thứ hai, ô đó trống hoặc có quân địch (bị bắt thêm). Thành phần `D` đứng trước vẫn cho nước nhảy 2 ô thông thường.
 - `mfF[cj]F[cj]D` (Frisian): `[cj]F` bắt chéo (hạ cánh $s + 2v$ với $v = (\pm 1, \pm 1)$) và `[cj]D` bắt ngang/dọc ($h = s + (0,\pm 2)$, $l = s + (0,\pm 4)$ hoặc tương tự theo trục ngang).
 
 ### 5.6. Quan hệ với chuỗi nước
 
-Với cùng một vector hướng cho hai chặng, `[cj φ n]Y` tương đương `cY` rồi `φ Y′`, trong đó `Y′` là `Y` với tầm giới hạn $K_L$ và hướng cố định theo chặng đầu. Cách viết `cY-mY` (Betza 2.0 qua Wikipedia, MBN `fcF-mF`) khớp với `[cj]Y` khi hiểu "cùng hướng" là *cùng vector*; nếu hiểu là "cùng hướng chung" như Bex (`-`) thì khác nhau với các atom xiên và với atom chéo/thẳng dùng lẫn nhau (ví dụ chặng đầu theo đường chéo, chặng sau theo bước thẳng).
+Với cùng một vector hướng cho hai chặng, `[cj φ n]Y` tương đương `cY` rồi `φ Y′`, trong đó `Y′` là `Y` với hệ số tối đa $B_{\max}$ và hướng cố định theo chặng đầu. Cách viết `cY-mY` (Betza 2.0 qua Wikipedia, MBN `fcF-mF`) khớp với `[cj]Y` khi hiểu "cùng hướng" là *cùng vector*; nếu hiểu là "cùng hướng chung" như Bex (`-`) thì khác nhau với các atom xiên và với atom chéo/thẳng dùng lẫn nhau (ví dụ chặng đầu theo đường chéo, chặng sau theo bước thẳng).
 
 ## 6. Định nghĩa `t[A B]` (nước đi bẻ góc)
 
