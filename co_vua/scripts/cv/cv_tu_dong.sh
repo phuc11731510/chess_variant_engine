@@ -661,6 +661,12 @@ td_chuan_bi() {
     [ $rc = 0 ] || return $rc
     out=$(td_kiem_may_cl "$g")
   fi
+  if ! grep -q CO_ONNX <<<"$out" && [ -s "$TAI/$TD_BEN/gen$g.pb.gz" ]; then
+    # Release khong con .pb.gz cua doi nay (chi giu doi moi nhat; vd arena doi 5 khi tt da o doi 10) va may khong
+    # chuyen duoc tu .pt (11/11: 4 may ket o 02 gan 1 gio): dien thoai co san thi tai thang len may.
+    td_in "máy chưa có ${TD_BEN}_gen$g.pb.gz -> tải từ điện thoại lên"
+    tai_len "$TAI/$TD_BEN/gen$g.pb.gz" "/content/${TD_BEN}_gen$g.pb.gz" && out=$(td_kiem_may_cl "$g")
+  fi
   if ! grep -q CO_ONNX <<<"$out"; then
     # Thuong la loi tam thoi cua GitHub (vd HTTP 500) -- cua so khac van tai duoc. 5 phut sau chay lai
     # 02; 6 lan lien (30 phut) van khong co thi moi dung (va tra may, xem td_vong).
