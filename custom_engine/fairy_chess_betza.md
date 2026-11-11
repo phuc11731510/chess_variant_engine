@@ -1266,10 +1266,12 @@ Nước đi hợp lệ khi tồn tại $v$, $a$, $b$ với $1 \le a \le A_{\max}
 1. Ô $h = s + a \cdot v$ có quân, **quân bất kỳ màu**, và mọi ô $s + i \cdot v$ với $i < a$ trống. Nói cách khác $h$ là quân đầu tiên gặp trên hướng đó.
 2. Ô $l = h + b \cdot v$ nằm trong bàn cờ và mọi ô $h + i \cdot v$ với $i < b$ trống.
 3. Với `g`: $b = 1$ (đáp ngay sau quân bị nhảy). Với `p`: $b$ nhận mọi giá trị từ 1 tới $B_{\max}$.
-4. Ô $l$ theo modality `m` (mặc định), `mc` hoặc `c`. `m` và `c` luôn áp vào ô hạ cánh.
+4. Ô $l$ không có quân cùng phe. Nếu không viết `m` hay `c` thì ô $l$ được trống hoặc có quân địch, đúng quy ước chung của Betza (vừa đi vừa bắt). `m` chỉ cho ô $l$ trống; `c` chỉ cho ô $l$ có quân địch. `m` và `c` luôn áp vào ô hạ cánh.
 5. Nếu atom có `n`: **mọi** bước (cả $a$ bước của đoạn đầu lẫn $b$ bước của đoạn hạ cánh) phải có các ô giữa trống theo 7.1 và 7.5. Quân đứng ở ô giữa của một bước là vật cản của bước đó, không bao giờ là quân bị nhảy.
 
-Kết quả: quân đi từ $s$ tới $l$, **quân ở $h$ không bị bắt**.
+Kết quả: quân đi từ $s$ tới $l$; quân địch ở $l$ (nếu có) bị bắt; **quân ở $h$ không bị bắt**.
+
+**Mặc định của ô hạ cánh khác `[cj]`.** `[cj]` mặc định là `m` (ô hạ cánh phải trống), vì đó là nước bắt của cờ đam (5.1). `g` và `p` theo quy ước chung của Betza: không viết `m`/`c` nghĩa là ô hạ cánh trống hoặc có quân địch. Ví dụ pháo Hàn Quốc `pR` vừa đi vừa bắt khi nhảy qua một quân, còn pháo Trung Quốc phải viết tách `mRcpR` (đi không nhảy, bắt bằng cách nhảy).
 
 | | Quân bị nhảy qua | Quân bị nhảy bị bắt | Đoạn hạ cánh |
 |---|---|---|---|
