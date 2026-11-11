@@ -1371,7 +1371,7 @@ cộng thêm $\Delta x = 0$ nếu $a = 0$ và $\Delta y = 0$ nếu $b = 0$. Nói
 - `n[σ]` hợp lệ khi tồn tại $\pi \in \Pi_\sigma(v)$ có **mọi** ô giữa trống.
 - `p[σ]` hợp lệ khi tồn tại $\pi \in \Pi_\sigma(v)$ có **đúng một** ô giữa bị chiếm (quân bạn hay quân địch đều tính). Đây là phần mở rộng `p` của XBetza cho quân nhảy, do ta tự định nghĩa.
 
-Ô đích vẫn theo `m`, `c` bình thường. Với $\sigma \in \{o, d\}$ tập $\Pi_\sigma(v)$ chỉ có một phần tử nên "tồn tại" chỉ là điều kiện trên đường đó.
+Ô đích vẫn theo `m`, `c` bình thường. Với $\sigma = o$ hoặc $\sigma = d$ tập $\Pi_\sigma(v)$ chỉ có một phần tử nên "tồn tại" chỉ là điều kiện trên đường đó.
 
 **Điều đã kiểm tra** (chương trình, mọi $v = (a,b)$ với $0 \le b \le a \le 14$, 119 vector):
 
