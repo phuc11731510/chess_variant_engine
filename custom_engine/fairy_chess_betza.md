@@ -1312,7 +1312,7 @@ Mình viết chương trình thử mọi vector $(a,b)$ với $0 \le b \le a \le
 
 1. Luôn tồn tại đường đi trong $\Sigma$, và $k = \max(\lvert a \rvert, \lvert b \rvert)$ (độ dài đường đi bằng khoảng cách Vua từ $A$ tới $B$).
 2. Sau khi áp quy tắc "ưu tiên nước thẳng", **không bao giờ còn hai ứng viên cùng loại**, nên đường đi duy nhất.
-3. Không có điểm nguyên nào nằm đúng trên hai đường song song, nên "tính hay không tính nằm trên đường" cho cùng kết quả. Lý do: nếu $4(xb-ya)^2 = a^2+b^2$, đặt $g = \gcd(a,b)$ và $a = g a'$, $b = g b'$ thì $a'^2 + b'^2 = 4(xb'-ya')^2$, tức tổng hai bình phương nguyên tố cùng nhau chia hết cho 4. Bình phương chỉ có số dư 0 hoặc 1 khi chia 4, nên cả $a'$ và $b'$ phải chẵn, mâu thuẫn với nguyên tố cùng nhau.
+3. Không có điểm nguyên nào nằm đúng trên hai đường song song, nên "tính hay không tính nằm trên đường" cho cùng kết quả. Lý do: nếu $4(xb-ya)^2 = a^2+b^2$, đặt $g = \mathrm{gcd}(a,b)$ và $a = g a'$, $b = g b'$ thì $a'^2 + b'^2 = 4(xb'-ya')^2$, tức tổng hai bình phương nguyên tố cùng nhau chia hết cho 4. Bình phương chỉ có số dư 0 hoặc 1 khi chia 4, nên cả $a'$ và $b'$ phải chẵn, mâu thuẫn với nguyên tố cùng nhau.
 4. Bỏ hai đường vuông góc ở $A$ và $B$ (chỉ giữ hai đường song song) cũng không đổi đường đi.
 
 Việc hai nước (một thẳng, một chéo) cùng là ứng viên xảy ra ở khoảng một nửa số vector, ví dụ $(2,1)$. Khi đó quy tắc ưu tiên nước thẳng quyết định.
@@ -1354,7 +1354,7 @@ Bảng cho $a \ge b \ge 0$. Các hướng khác lấy bằng phép quay và phé
 
 **Tập đường không đi lùi $\mathcal M(v)$.** Với $v = (a,b)$, $\mathcal M(v)$ là tập mọi dãy $A = P_0, P_1, \dots, P_k = B$ với $k = \max(\lvert a \rvert, \lvert b \rvert)$, hai điểm liên tiếp cách nhau một nước Vua, và mỗi bước $(\Delta x, \Delta y)$ thỏa:
 
-$$\Delta x \cdot \operatorname{sgn}(a) \ge 0, \qquad \Delta y \cdot \operatorname{sgn}(b) \ge 0$$
+$$\Delta x \cdot \mathrm{sgn}(a) \ge 0, \qquad \Delta y \cdot \mathrm{sgn}(b) \ge 0$$
 
 cộng thêm $\Delta x = 0$ nếu $a = 0$ và $\Delta y = 0$ nếu $b = 0$. Nói cách khác, không bước nào đi ngược về phía xuất phát.
 
