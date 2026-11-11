@@ -72,6 +72,7 @@ td_dat_ben() { TD_BEN=$1; TB=$TAI/$1; mkdir -p "$TB"; }
 # doi do som hon, khong anh huong phep so sanh. TD_BEN_EP (hoi luc bat dau): ep cua so nay chi lam mot cach.
 TD_CAC_BEN_F=$TD/.cac_ben
 TD_BEN_EP=
+TD_GEN_EP=          # doi ep cho ban chep o 00 khi arena (td_o00)
 td_cac_ben() { local x; x=$(cat "$TD_CAC_BEN_F" 2>/dev/null); echo "${x:-tt}"; }
 # Tong so lan chay mang cong don cua cach dang dat (moi doi truoc + doi hien tai, tinh ca van dang do).
 td_cong_don() {
@@ -112,7 +113,12 @@ td_hai_ben() {
 td_o00() {
   mkdir -p "$TD/o_$$"
   TD_O00=$TD/o_$$/00_cau_hinh.py
-  doc "$D/00_cau_hinh.py" | sed -E "0,/^BEN[[:space:]]*=.*/s//BEN = \"$TD_BEN\"/; 0,/^GEN_CURRENT[[:space:]]*=[[:space:]]*[0-9]+/s//GEN_CURRENT = $(td_gen)/" > "$TD_O00"
+  # TD_GEN_EP (td_arena dat): arena doi k khac doi hien tai cua cach truyen thong (vd arena som doi 5 khi tt o doi 10).
+  # Truoc 11/11 o 02 tai tt_gen<doi hien tai> trong khi vong lap kiem tt_gen<k> (4 may ket gan 1 gio), va o 00 in
+  # "CACH tt . DOI 10 -> DOI 11" lam nguoi xem tuong dang sinh du lieu cho cach truyen thong.
+  doc "$D/00_cau_hinh.py" | sed -E "0,/^BEN[[:space:]]*=.*/s//BEN = \"$TD_BEN\"/; 0,/^GEN_CURRENT[[:space:]]*=[[:space:]]*[0-9]+/s//GEN_CURRENT = ${TD_GEN_EP:-$(td_gen)}/" > "$TD_O00"
+  [ -z "$TD_GEN_EP" ] ||
+    sed -i -E "s|^print\(f\"\[Cấu hình\].*|print(f\"[Cấu hình] ARENA đời {GEN_CURRENT}: tt_gen{GEN_CURRENT} đấu cay_gen{GEN_CURRENT} -- KHÔNG sinh dữ liệu, KHÔNG huấn luyện cách nào\")|" "$TD_O00"
 }
 
 # Moi dong thong bao cua vong lap cung duoc ghi vao $TD_NK (pid cua so, ngay gio, noi dung; bo mau): sau khi cua so
@@ -915,7 +921,8 @@ td_ar_mang() {
   return 2
 }
 # Giai doan 0 tren may cua cua so nay: o 08 (so van con thieu, tran theo han muc) -> ghi ket qua.
-td_arena() {
+td_arena() { local rc; TD_GEN_EP=$1; td_arena_lam "$@"; rc=$?; TD_GEN_EP=; return $rc; }
+td_arena_lam() {
   local g=$1 rc secs par duoi so f o08 muc tong ben_cu=$TD_BEN
   td_dat_ben tt; td_o00                       # may can goi chay + tt_gen$g (td_chuan_bi), roi them cay_gen$g
   td_chuan_bi "$g"; rc=$?
