@@ -24,7 +24,7 @@ Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wik
 | chữ lặp hoặc số (`NN`, `W3`) | Lặp nước đi theo cùng hướng (rider); số giới hạn số ô |
 | `m` / `c` | Chỉ đi / chỉ ăn |
 | `f` `b` `s` `v` `l` `r` | Tiến / lùi / ngang / dọc / trái / phải |
-| `n` | Không nhảy qua (bị cản chân, như Mã cờ tướng) |
+| `n` | Không nhảy qua (bị cản chân, như Mã cờ tướng); đường đi của nước xiên được định nghĩa ở mục 7 |
 | `p` / `g` | Nhảy qua đúng 1 quân (pháo) / nhảy rồi đáp ngay sau quân chắn (grasshopper) |
 | `i` | Chỉ ở nước đầu |
 | `t[...]` | Nước đi hai chặng theo cách Wikipedia dùng (bước ban đầu rồi trượt "ra xa") |
@@ -884,7 +884,7 @@ Cùng sức mạnh Wazir + Dabbaba. **War Machine**, **Woody Rook** (Betza 1979)
 
 **Gồm:** Mao, Moa
 
-Cùng ký hiệu theo Wikipedia nhưng khác thứ tự bước: **Mao** (Mã cờ tướng) bước 1 ô ngang/dọc (ô này phải trống, nếu không bị cản chân) rồi 1 ô chéo; **Moa** thì bước chéo trước rồi ngang/dọc. Ký hiệu `nN` không phân biệt được hai kiểu này.
+Cùng ký hiệu theo Wikipedia nhưng khác thứ tự bước: **Mao** (Mã cờ tướng) bước 1 ô ngang/dọc (ô này phải trống, nếu không bị cản chân) rồi 1 ô chéo; **Moa** thì bước chéo trước rồi ngang/dọc. Ký hiệu `nN` không phân biệt được hai kiểu này. Theo mục 7, `nN` luôn đi thẳng trước nên chỉ là Mao; Moa không viết được bằng `n` (xem 7.5).
 
 <a id="g55"></a>
 
@@ -943,6 +943,7 @@ Có. Quét toàn bộ 412 mục (chỉ tính các chữ `f b l r v s h`):
 - Theo bài Wikipedia, `n` và `j` chỉ **không mơ hồ** trên atom thuần ngang/dọc hoặc thuần chéo.
 - Trên Mã, `nN` mơ hồ: Mã cờ tướng bị cản ở ô liền kề theo hướng đi ngang/dọc trước, nhưng ký hiệu `nN` không nói được là đi theo thứ tự nào. Đây là lý do Mao và Moa trong danh sách đều ghi `nN`.
 - Bex giải quyết bằng chuỗi nước, ví dụ `mW-F` cho Mã cờ tướng, và đọc `nN` là quân có nhiều đường đi, chỉ cần một trong các đường ngắn nhất không bị chặn.
+- **Quy ước của ta:** `n` được định nghĩa chặt chẽ ở mục 7 (một đường đi duy nhất theo hình học, ưu tiên nước thẳng); khác với cách đọc "nhiều đường đi" của Bex/XBoard ở trên.
 - XBoard 4.8.0 chỉ kiểm tra **ô ở giữa** của nước nhảy, nên chỉ đúng với `N`, `A`, `D`.
 - `j` trên quân trượt (`B`, `R`) nghĩa là bỏ qua ô đầu tiên của đường đi, bất kể ô đó có gì.
 
@@ -1141,6 +1142,7 @@ Golden Bird: giữ theo ký hiệu Betza của Wikipedia (chỉ đổi `lr` thà
 Các mục chưa xử lý, ghi lại để quay lại sau:
 
 - **Lion (Japanese) `KANDcaKmabK`:** giữ nguyên; nước đi của Lion nằm ngoài ký hiệu Bex (chữ `b` ở chặng nối là quay lại, không phải chữ hướng của quy ước).
+- **Moa, Falcon (Falcon Chess), Saltador:** vẫn ghi ký hiệu gốc của Wikipedia (`nN`, `nCnZ`, `cnNmpN`), nhưng modifier `n` theo mục 7 chỉ có một đường đi nên không biểu diễn được "bước chéo trước" (Moa) hay "nhiều đường đi" (Falcon, Saltador); xem 7.5.
 - **Điểm mở:** chuỗi `a` của XBetza (hiện chỉ Lion (Japanese) dùng).
 
 ## 5. Định nghĩa `[cj]` và `[cl]`
@@ -1201,7 +1203,7 @@ Hệ số tối đa của chặng hạ cánh là $B_{\max} = n$ nếu có số $
 2. **Quân bạn và quân địch khác đều chặn đường:** các ô trong điều kiện 2 và 4 phải trống, không phải "không có quân bạn".
 3. **Hai quân địch liền nhau:** với `m` (mặc định) không nhảy được vì ô hạ cánh bị chiếm; với `mc` thì hạ cánh lên quân thứ hai và bắt cả hai.
 4. **Không có quân để nhảy thì không có nước đi.** `[cj]` không bao giờ là nước đi không bắt.
-5. **Quân nhảy có vector dài** như `D`, `A`: $h$ cách $s$ đúng một vector và $l$ cách $h$ thêm một vector. Ô nằm giữa mỗi bước nhảy không được xét (trừ khi `Y` có chữ `n`, lúc đó áp dụng cho từng bước như định nghĩa thông thường).
+5. **Quân nhảy có vector dài** như `D`, `A`: $h$ cách $s$ đúng một vector và $l$ cách $h$ thêm một vector. Ô nằm giữa mỗi bước nhảy không được xét (trừ khi `Y` có chữ `n`, lúc đó áp dụng cho từng bước theo mục 7).
 6. **Ô ngoài bàn cờ:** hạ cánh ra ngoài thì nước đi không hợp lệ.
 7. **Chỉ một cú nhảy.** Bắt liên tiếp nhiều cú (như cờ đam) nối bằng toán tử `--` của Bex. Luật bắt buộc bắt, bắt nhiều quân nhất, thăng cấp giữa chừng nằm ở tầng luật chơi, không thuộc ký hiệu.
 8. **Quân bị bắt chỉ bị gỡ khi nước đi kết thúc.**
@@ -1293,3 +1295,80 @@ Gọi $s$ là ô xuất phát.
 
 - Việc dừng ở chặng 1 có hợp lệ (mục 6.1, điểm 2) lấy từ mô tả Gryphon của Piececlopedia và Fairy-Stockfish; các trang gốc của Betza chặn truy cập tự động nên chưa kiểm chứng.
 - Nhánh lùi của Vivi (bước lùi rồi vẫn trượt chéo tiến) dựa vào câu mô tả của Betza qua tóm tắt tìm kiếm, chưa đọc nguyên bài.
+
+
+## 7. Định nghĩa modifier `n` (nhảy không qua ô giữa)
+
+Quy ước **tự thiết kế**, chốt theo ý của bạn. `n` đặt trước một atom nhảy nghĩa là nước nhảy đó có một "đường đi" gồm các ô nằm giữa ô đi và ô đến, và mọi ô trên đường đi phải trống. Với nước thẳng hoặc chéo thì đường đi là các ô nằm trên đường thẳng, giống Betza truyền thống. Với nước xiên (`N`, `C`, `Z`, `(a,b)`…) mục này chốt một đường đi duy nhất bằng hình học.
+
+### 7.1. Định nghĩa
+
+Dùng tịnh tiến để quân đứng ở $A=(0,0)$ và nước nhảy tới $B=(a,b)$, với $a, b$ nguyên và không đồng thời bằng 0. Mỗi ô là một điểm nguyên của mặt phẳng.
+
+**Bước 1: dải.** Kẻ đường thẳng $AB$. Kẻ hai đường song song với $AB$, cách $AB$ một khoảng $\tfrac12$ về hai phía (đi qua $C$ và $D$ trong mô tả). Dải $\Sigma$ là tập các điểm nguyên $P=(x,y)$ nằm giữa hai đường đó (nằm trên đường vẫn tính là nằm trong) và nằm giữa hai đường vuông góc với $AB$ tại $A$ và tại $B$:
+
+$$0 \le xa + yb \le a^2 + b^2, \qquad 4(xb - ya)^2 \le a^2 + b^2$$
+
+Điều kiện thứ hai là khoảng cách từ $P$ tới đường $AB$, bằng $\lvert xb - ya \rvert / \sqrt{a^2+b^2}$, không vượt quá $\tfrac12$.
+
+**Bước 2: đường đi.** Đường đi là dãy điểm $P_0 = A, P_1, \dots, P_k = B$ nằm trong $\Sigma$, hai điểm liên tiếp cách nhau một nước Vua (ngang, dọc hoặc chéo một ô), với $k$ nhỏ nhất có thể. Để chọn từng điểm: tại $P_i$, các ứng viên là những điểm Vua kề $P_i$ thuộc $\Sigma$ mà từ đó còn đi được tới $B$ trong $\Sigma$ bằng đúng $k-i-1$ nước Vua. **Nếu ứng viên gồm cả một nước thẳng (ngang/dọc) và một nước chéo thì chọn nước thẳng.**
+
+**Bước 3: điều kiện của `n`.** Các ô $P_1, \dots, P_{k-1}$ (không tính $A$ và $B$) đều phải **trống**. Ô có quân bạn hay quân địch đều cản. Ô đích $B$ vẫn theo `m`, `c` bình thường.
+
+### 7.2. Điều đã kiểm tra
+
+Mình viết chương trình thử mọi vector $(a,b)$ với $0 \le b \le a \le 14$ (119 vector; các hướng khác suy ra bằng đối xứng, vì quy tắc đối xứng qua phép quay và phép lật). Kết quả:
+
+1. Luôn tồn tại đường đi trong $\Sigma$, và $k = \max(\lvert a \rvert, \lvert b \rvert)$ (độ dài đường đi bằng khoảng cách Vua từ $A$ tới $B$).
+2. Sau khi áp quy tắc "ưu tiên nước thẳng", **không bao giờ còn hai ứng viên cùng loại**, nên đường đi duy nhất.
+3. Không có điểm nguyên nào nằm đúng trên hai đường song song, nên "tính hay không tính nằm trên đường" cho cùng kết quả. Lý do: nếu $4(xb-ya)^2 = a^2+b^2$, đặt $g = \gcd(a,b)$ và $a = g a'$, $b = g b'$ thì $a'^2 + b'^2 = 4(xb'-ya')^2$, tức tổng hai bình phương nguyên tố cùng nhau chia hết cho 4. Bình phương chỉ có số dư 0 hoặc 1 khi chia 4, nên cả $a'$ và $b'$ phải chẵn, mâu thuẫn với nguyên tố cùng nhau.
+4. Bỏ hai đường vuông góc ở $A$ và $B$ (chỉ giữ hai đường song song) cũng không đổi đường đi.
+
+Việc hai nước (một thẳng, một chéo) cùng là ứng viên xảy ra ở khoảng một nửa số vector, ví dụ $(2,1)$. Khi đó quy tắc ưu tiên nước thẳng quyết định.
+
+### 7.3. Ô cản của các nước thường gặp
+
+Bảng cho $a \ge b \ge 0$. Các hướng khác lấy bằng phép quay và phép lật.
+
+| Atom | Vector $(a,b)$ | Các ô cản |
+|---|---|---|
+| `W`, `F` | $(1,0)$, $(1,1)$ | không có (nước một ô) |
+| `D` | $(2,0)$ | $(1,0)$ |
+| `A` | $(2,2)$ | $(1,1)$ |
+| `H` | $(3,0)$ | $(1,0)$, $(2,0)$ |
+| `G` | $(3,3)$ | $(1,1)$, $(2,2)$ |
+| `N` | $(2,1)$ | $(1,0)$ |
+| `C` | $(3,1)$ | $(1,0)$, $(2,1)$ |
+| `Z` | $(3,2)$ | $(1,1)$, $(2,1)$ |
+| `(4,1)` | $(4,1)$ | $(1,0)$, $(2,0)$, $(3,1)$ |
+| `(4,3)` | $(4,3)$ | $(1,1)$, $(2,1)$, $(3,2)$ |
+
+**Mã cờ tướng (Mao, `nN`).** Nước tới $(1,2)$ (một ô sang phải, hai ô tiến) có ô cản $(0,1)$, tức ô liền ngay trước quân. Nước tới $(2,1)$ có ô cản $(1,0)$, tức ô liền bên phải. Đúng luật cản chân của Mã cờ tướng.
+
+**Vì sao $N$ chọn ô $(1,0)$ mà không phải $(1,1)$.** Cả hai điểm đều thuộc $\Sigma$ của $(2,1)$ (khoảng cách tới đường $AB$ lần lượt là $\tfrac{1}{\sqrt5}$ và $\tfrac{1}{\sqrt5}$, đều nhỏ hơn $\tfrac12$) và đều dẫn tới $B$ bằng một nước nữa, nên rơi vào quy tắc ưu tiên nước thẳng.
+
+### 7.4. Các trường hợp biên
+
+1. **Atom thẳng hoặc chéo:** đường đi là các điểm nguyên nằm giữa $A$ và $B$ trên đường thẳng; trùng với nghĩa truyền thống (bị cản bởi quân ở ô giữa). Với `W` và `F` không có ô giữa nên `n` không có tác dụng.
+2. **Quân trượt có `n`** (như `nNN`, `B4nD`): mỗi bước nhảy xét riêng từ ô đang đứng, ô cản là các ô giữa của chính bước nhảy đó. Các ô hạ cánh trung gian của quân trượt vẫn phải trống như thường.
+3. **Ô cản bị chiếm** (quân bạn hay quân địch) thì nước đi bị chặn. `n` không phân biệt nước đi hay nước bắt ở ô đích.
+4. **Tính theo chiều đi:** ô cản của $A \to B$ và của $B \to A$ không nhất thiết là cùng một ô. Ví dụ Mã: từ $A$ tới $A + (1,2)$ ô cản là $A + (0,1)$, còn chiều ngược lại ô cản là $A + (1,1)$. Điều này khớp với việc Mã cờ tướng chiếu nhau không đối xứng.
+5. **Chữ hướng:** chọn tập vector theo mục 4.1 trước, rồi tính ô cản riêng cho từng vector.
+6. **Trong `t[...]`:** mỗi chặng tính từ ô đầu của chặng đó. Với Elephant (Korean) `t[WnA]`, ô cản của chặng hai là ô chéo nằm giữa ô đầu chặng hai và ô đích.
+7. **Trong `[cj]` (mục 5):** nếu `Y` có `n` thì cả chặng tiếp cận ($s$ tới $h$) lẫn chặng hạ cánh ($h$ tới $l$) kiểm tra ô cản riêng. Ô $h$ không tính là ô cản của chặng tiếp cận.
+
+### 7.5. Kiểm tra các quân dùng `n` trong bảng
+
+| Quân | Ký hiệu | Kết quả |
+|---|---|---|
+| Mao | `nN` | Khớp |
+| Elephant (Chinese) | `nA` | Khớp (ô cản là ô chéo giữa) |
+| Elephant (Korean) | `t[WnA]` | Khớp. Đường đi: một bước thẳng, rồi hai bước chéo, ô cản là ô thẳng đầu tiên và ô chéo giữa chặng hai. Nếu viết `nZ` sẽ cho đường đi khác (chéo, thẳng, chéo), nên giữ `t[WnA]` |
+| Centurion | `NnAnD` | Khớp |
+| B4nD | `B4nD` | Khớp |
+| Berolina Pawn, Corporal, Dragon, Graz Pawn, Pawn, Scorpion (Winther), Sergeant, Soldier (Chess.com) | `...imfnA`, `...imfnD` | Khớp (ô cản là ô liền kề) |
+| **Moa** | `nN` | **Không khớp.** Moa bước chéo trước rồi ngang/dọc, còn `nN` theo mục này luôn đi thẳng trước (là Mao) |
+| **Falcon (Falcon Chess)** | `nCnZ` | **Không khớp.** Wikipedia mô tả Falcon có nhiều đường đi, mỗi đường gồm ba bước thẳng hoặc chéo, nên chỉ cần một đường trống. Mục này chỉ có một đường |
+| **Saltador** | `cnNmpN` | **Không khớp.** Wikipedia mô tả Saltador bắt như Mã khi một trong các ô trung gian trống (nhiều đường), và đi không bắt như Mã khi ô đó bị chiếm. Mục này chỉ có một đường |
+
+Ba dòng không khớp vẫn giữ ký hiệu gốc của Wikipedia trong bảng, vì chưa có cách viết khác trong hệ ký hiệu của ta. Chúng được ghi vào danh mục ở 4.4.
