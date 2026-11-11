@@ -3,7 +3,7 @@
 Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wiki/List_of_fairy_chess_pieces) (cột **Betza**, lấy ngày 2026-11-07). Ký hiệu được giữ nguyên như Wikipedia ghi, kể cả các dạng tương đương (ví dụ `B = FF`, `A = (2,2)`). **Ngoại lệ:** ký hiệu của 15 quân đã được sửa theo quy ước chữ hướng ở mục 4 và định nghĩa `t[...]` ở mục 6 (Cannon (Musketeer), Debtor, Fibnif, Fortress (Musketeer); bỏ chữ `h` ở Charging Knight, Colonel, Forequeen; bỏ dạng viết thứ hai của Horned Falcon và Soaring Eagle; `lr` thành `s` ở Golden Bird; Ship và Twin Tower đổi `t[FvR]` thành `t[fFfR]t[bFbR]`; Unicornio bỏ dạng thay thế `t[NfB]`; tách thành phần `Q`, `K` có cụm hai chữ hướng thành `sbWbF` ở Charging Knight, `fsRfB` ở Forequeen, `sfWfF` ở Evil Wolf và Pawn (Jetan)), và 21 mục dùng `[cl]` đã đổi sang `[cj]` theo mục 5 (Sri Lankan Dām còn được thêm chữ `f` bị thiếu). Ký hiệu gốc của Wikipedia ghi ở mục 4.2 và 5.4.
 
 - Có **412 mục** (quân/biến thể theo từng trò chơi) có ký hiệu Betza; các mục chưa có ký hiệu Betza (như Zigzag Nightrider, các quân Dragonchess, Chameleon, Duck…) đã bị bỏ qua.
-- Có **57 ký hiệu bị nhiều quân dùng chung** (đã gộp cả dạng tương đương như `B` = `FF`); mỗi nhóm được giải thích ở phần 2.
+- Có **56 ký hiệu bị nhiều quân dùng chung** (đã gộp cả dạng tương đương như `B` = `FF`); mỗi nhóm được giải thích ở phần 2.
 - Mục "Spy" của Wikipedia ghi 3 ký hiệu cho 3 trò chơi nên được tách thành 3 dòng.
 
 ## Ký hiệu Betza trong 1 phút
@@ -24,7 +24,7 @@ Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wik
 | chữ lặp hoặc số (`NN`, `W3`) | Lặp nước đi theo cùng hướng (rider); số giới hạn số ô |
 | `m` / `c` | Chỉ đi / chỉ ăn |
 | `f` `b` `s` `v` `l` `r` | Tiến / lùi / ngang / dọc / trái / phải |
-| `n` | Không nhảy qua (bị cản chân, như Mã cờ tướng); đường đi của nước xiên được định nghĩa ở mục 7 |
+| `n` | Không nhảy qua (bị cản chân, như Mã cờ tướng); đường đi của nước xiên được định nghĩa ở mục 7, bộ chọn `n[o]`, `n[d]`, `n[a]` ở 7.5 |
 | `p` / `g` | Nhảy qua đúng 1 quân (pháo) / nhảy rồi đáp ngay sau quân chắn (grasshopper) |
 | `i` | Chỉ ở nước đầu |
 | `t[...]` | Nước đi hai chặng theo cách Wikipedia dùng (bước ban đầu rồi trượt "ra xa") |
@@ -191,7 +191,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | FAD | `FAD` |  |
 | Falafel | `FA` | [Nhóm 11](#g11) |
 | Falcon | `fBbR` |  |
-| Falcon (Falcon Chess) | `nCnZ = nLnJ` |  |
+| Falcon (Falcon Chess) | `n[a]Cn[a]Z = n[a]Ln[a]J` |  |
 | Falcon (Falconry) | `CB3` |  |
 | Faro | `cRmpR` |  |
 | Ferfil | `FA` | [Nhóm 11](#g11) |
@@ -301,7 +301,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Mammoth (Winther) | `KAD = WFAD` | [Nhóm 39](#g39) |
 | Mann | `WF = K` | [Nhóm 30](#g30) |
 | Manticore | `t[WB]` | [Nhóm 7](#g7) |
-| Mao | `nN` | [Nhóm 54](#g54) |
+| Mao | `nN` |  |
 | Marquis | `WN` | [Nhóm 40](#g40) |
 | Marshal | `RN` | [Nhóm 27](#g27) |
 | Mastodon | `KAD = WFAD` | [Nhóm 39](#g39) |
@@ -312,7 +312,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Minister (G.Vicente Maura) | `BN` | [Nhóm 9](#g9) |
 | Minister (Shatranj) | `F = (1,1)` | [Nhóm 3](#g3) |
 | Missionary | `BW` | [Nhóm 32](#g32) |
-| Moa | `nN` | [Nhóm 54](#g54) |
+| Moa | `n[d]N` |  |
 | N2R4 | `N2R4` |  |
 | Nao | `mNNcpNN` |  |
 | Newt | `AH` |  |
@@ -357,10 +357,10 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Queen of the Night | `QNN` | [Nhóm 6](#g6) |
 | Quight | `mQcN` |  |
 | Raiding Falcon | `vRWfF` |  |
-| Raven | `RNN` | [Nhóm 55](#g55) |
+| Raven | `RNN` | [Nhóm 54](#g54) |
 | Reaper | `Rt[FR]` |  |
 | Reflecting Bishop | `B (bounce edges)` |  |
-| Revealer (Tamerlane) | `G = (3,3)` | [Nhóm 56](#g56) |
+| Revealer (Tamerlane) | `G = (3,3)` | [Nhóm 55](#g55) |
 | Reverse Chariot | `vR` |  |
 | Rhinoceros | `t[WB]` | [Nhóm 7](#g7) |
 | Rhubarb | `RF3` |  |
@@ -378,13 +378,13 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Royal Guard | `cQmK` |  |
 | Running Rabbit | `fRFbW` |  |
 | Rutabaga | `W2B` |  |
-| Saltador | `cnNmpN` |  |
+| Saltador | `cn[a]Nmp[a]N` |  |
 | Scorpion | `KgQ` |  |
 | Scorpion (Winther) | `mfWcefFimfnDmfsN` |  |
 | Scout | `WH` |  |
 | Sergeant | `fKimfnD` |  |
 | Señora | `cQmpQ` |  |
-| Ship | `t[fFfR]t[bFbR]` | [Nhóm 57](#g57) |
+| Ship | `t[fFfR]t[bFbR]` | [Nhóm 56](#g56) |
 | Short Rook | `R4 = W4` |  |
 | Side Mover | `WsR` |  |
 | Silver General | `FfW` | [Nhóm 38](#g38) |
@@ -412,9 +412,9 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Titan | `CZGH = LJGH` | [Nhóm 29](#g29) |
 | Toad | `DH` |  |
 | Treacherous Fox | `FfbWAfbD` |  |
-| Tripper | `G = (3,3)` | [Nhóm 56](#g56) |
+| Tripper | `G = (3,3)` | [Nhóm 55](#g55) |
 | Troll | `mfWcfFGH` |  |
-| Twin Tower | `t[fFfR]t[bFbR]` | [Nhóm 57](#g57) |
+| Twin Tower | `t[fFfR]t[bFbR]` | [Nhóm 56](#g56) |
 | Ubi-Ubi | `NN (any direction)` |  |
 | Unicorn (Grant Acedrex) | `BimN` |  |
 | Unicorn (Musketeer) | `NC = NL` | [Nhóm 46](#g46) |
@@ -430,7 +430,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Waffle | `WA` | [Nhóm 19](#g19) |
 | Wallaby | `KgQ2 (over friendly pieces), KcjQ2` |  |
 | War Machine | `WD` | [Nhóm 53](#g53) |
-| Waran | `RNN` | [Nhóm 55](#g55) |
+| Waran | `RNN` | [Nhóm 54](#g54) |
 | Warrior | `WFD` | [Nhóm 26](#g26) |
 | Wazir | `W = (0,1)` | [Nhóm 8](#g8) |
 | Whale | `vRbB` |  |
@@ -880,31 +880,23 @@ Cùng sức mạnh Wazir + Dabbaba. **War Machine**, **Woody Rook** (Betza 1979)
 
 <a id="g54"></a>
 
-### Nhóm 54: `nN`
-
-**Gồm:** Mao, Moa
-
-Cùng ký hiệu theo Wikipedia nhưng khác thứ tự bước: **Mao** (Mã cờ tướng) bước 1 ô ngang/dọc (ô này phải trống, nếu không bị cản chân) rồi 1 ô chéo; **Moa** thì bước chéo trước rồi ngang/dọc. Ký hiệu `nN` không phân biệt được hai kiểu này. Theo mục 7, `nN` luôn đi thẳng trước nên chỉ là Mao; Moa không viết được bằng `n` (xem 7.5).
-
-<a id="g55"></a>
-
-### Nhóm 55: `RNN`
+### Nhóm 54: `RNN`
 
 **Gồm:** Raven, Waran
 
 Cùng sức mạnh Xe + Nightrider. **Raven** và **Waran** (Varan) chỉ khác tên.
 
-<a id="g56"></a>
+<a id="g55"></a>
 
-### Nhóm 56: `G = (3,3)`
+### Nhóm 55: `G = (3,3)`
 
 **Gồm:** Revealer (Tamerlane), Tripper
 
 Cùng nhảy đúng 3 ô chéo (3,3). **Tripper** (Gecko trong tiếng Đức) và **Revealer (Tamerlane)** (Full Tamerlane Chess; còn gọi Sentinel) chỉ khác tên.
 
-<a id="g57"></a>
+<a id="g56"></a>
 
-### Nhóm 57: `t[fFfR]t[bFbR]`
+### Nhóm 56: `t[fFfR]t[bFbR]`
 
 **Gồm:** Ship, Twin Tower
 
@@ -943,7 +935,7 @@ Có. Quét toàn bộ 412 mục (chỉ tính các chữ `f b l r v s h`):
 - Theo bài Wikipedia, `n` và `j` chỉ **không mơ hồ** trên atom thuần ngang/dọc hoặc thuần chéo.
 - Trên Mã, `nN` mơ hồ: Mã cờ tướng bị cản ở ô liền kề theo hướng đi ngang/dọc trước, nhưng ký hiệu `nN` không nói được là đi theo thứ tự nào. Đây là lý do Mao và Moa trong danh sách đều ghi `nN`.
 - Bex giải quyết bằng chuỗi nước, ví dụ `mW-F` cho Mã cờ tướng, và đọc `nN` là quân có nhiều đường đi, chỉ cần một trong các đường ngắn nhất không bị chặn.
-- **Quy ước của ta:** `n` được định nghĩa chặt chẽ ở mục 7 (một đường đi duy nhất theo hình học, ưu tiên nước thẳng); khác với cách đọc "nhiều đường đi" của Bex/XBoard ở trên.
+- **Quy ước của ta:** `n` được định nghĩa chặt chẽ ở mục 7 (một đường đi duy nhất theo hình học, ưu tiên nước thẳng); bộ chọn `n[a]` ở 7.5 cho cách đọc "nhiều đường đi" của Bex/XBoard ở trên.
 - XBoard 4.8.0 chỉ kiểm tra **ô ở giữa** của nước nhảy, nên chỉ đúng với `N`, `A`, `D`.
 - `j` trên quân trượt (`B`, `R`) nghĩa là bỏ qua ô đầu tiên của đường đi, bất kể ô đó có gì.
 
@@ -995,7 +987,7 @@ Nguồn: tệp *Proposed Betza Extended Notation (BEX Notation)* của David How
 
 - Atom: `O` (0,0), `W F D N A H L J G`, `(N,M)`. Bex dùng `L`, `J` thay cho `C`, `Z`; `R`, `B` là quân trượt, `Q` = `R`+`B`, `K` = `W`+`F`.
 - Chữ hướng: chỉ có `f b r l s v`. **Không có `h`**.
-- Modifier khác: `m` (chỉ đi, không bắt), `c` (phải bắt), `y` (hoàng gia, ví dụ Tướng cờ tướng `yW`), `e` (cho phép nhảy một nước vốn không nhảy, ví dụ Mã shogi `e(mfW-F)`), `n` (cấm nhảy, dùng đường ngắn nhất; Moo = Mao + Moa = `nN`), `i` (chỉ nước đầu), `j` (nhảy qua đúng một vật cản, ví dụ `j(mW-F)`), `p` (hop, ví dụ pháo `mR+cpR`), `g` (grasshopper), `z` (crooked, ví dụ `zB`), `q` (vòng tròn, ví dụ Rose `qN`).
+- Modifier khác: `m` (chỉ đi, không bắt), `c` (phải bắt), `y` (hoàng gia, ví dụ Tướng cờ tướng `yW`), `e` (cho phép nhảy một nước vốn không nhảy, ví dụ Mã shogi `e(mfW-F)`), `n` (cấm nhảy, dùng đường ngắn nhất; Moo = Mao + Moa = `nN`; theo ký hiệu của ta Moo là `n[a]N`), `i` (chỉ nước đầu), `j` (nhảy qua đúng một vật cản, ví dụ `j(mW-F)`), `p` (hop, ví dụ pháo `mR+cpR`), `g` (grasshopper), `z` (crooked, ví dụ `zB`), `q` (vòng tròn, ví dụ Rose `qN`).
 - Không có `t`, `k`, `d`, `a`, `o` làm modifier trong tài liệu Bex. Vậy các ký hiệu như `t[FR]`, `kW`, `dhf` trong bảng Wikipedia là từ nơi khác hoặc do người biên tập đặt.
 - Toán tử: nhóm `( )`, `-`, `--`, `+`, rider `*` (ví dụ `N*` = `NN`), giới hạn số lần `2-N` (từ 2 trở lên), đúng số lần `02`…`0N` (Tốt nước đầu `mfW02`), thăng cấp bằng `=Q,R,B,N`. Ví dụ Sư tử Chu shogi: `K+(DAN)+(K-K)+[crK]+(mK--[xo])`.
 
@@ -1142,7 +1134,6 @@ Golden Bird: giữ theo ký hiệu Betza của Wikipedia (chỉ đổi `lr` thà
 Các mục chưa xử lý, ghi lại để quay lại sau:
 
 - **Lion (Japanese) `KANDcaKmabK`:** giữ nguyên; nước đi của Lion nằm ngoài ký hiệu Bex (chữ `b` ở chặng nối là quay lại, không phải chữ hướng của quy ước).
-- **Moa, Falcon (Falcon Chess), Saltador:** vẫn ghi ký hiệu gốc của Wikipedia (`nN`, `nCnZ`, `cnNmpN`), nhưng modifier `n` theo mục 7 chỉ có một đường đi nên không biểu diễn được "bước chéo trước" (Moa) hay "nhiều đường đi" (Falcon, Saltador); xem 7.5.
 - **Điểm mở:** chuỗi `a` của XBetza (hiện chỉ Lion (Japanese) dùng).
 
 ## 5. Định nghĩa `[cj]` và `[cl]`
@@ -1299,7 +1290,7 @@ Gọi $s$ là ô xuất phát.
 
 ## 7. Định nghĩa modifier `n` (nhảy không qua ô giữa)
 
-Quy ước **tự thiết kế**, chốt theo ý của bạn. `n` đặt trước một atom nhảy nghĩa là nước nhảy đó có một "đường đi" gồm các ô nằm giữa ô đi và ô đến, và mọi ô trên đường đi phải trống. Với nước thẳng hoặc chéo thì đường đi là các ô nằm trên đường thẳng, giống Betza truyền thống. Với nước xiên (`N`, `C`, `Z`, `(a,b)`…) mục này chốt một đường đi duy nhất bằng hình học.
+Quy ước **tự thiết kế**, chốt theo ý của bạn. `n` đặt trước một atom nhảy nghĩa là nước nhảy đó có một "đường đi" gồm các ô nằm giữa ô đi và ô đến, và mọi ô trên đường đi phải trống. Với nước thẳng hoặc chéo thì đường đi là các ô nằm trên đường thẳng, giống Betza truyền thống. Với nước xiên (`N`, `C`, `Z`, `(a,b)`…) mặc định mục này chốt một đường đi duy nhất bằng hình học; bộ chọn ở 7.5 cho phép chọn cách khác, kể cả "nhiều đường đi".
 
 ### 7.1. Định nghĩa
 
@@ -1352,23 +1343,67 @@ Bảng cho $a \ge b \ge 0$. Các hướng khác lấy bằng phép quay và phé
 1. **Atom thẳng hoặc chéo:** đường đi là các điểm nguyên nằm giữa $A$ và $B$ trên đường thẳng; trùng với nghĩa truyền thống (bị cản bởi quân ở ô giữa). Với `W` và `F` không có ô giữa nên `n` không có tác dụng.
 2. **Quân trượt có `n`** (như `nNN`, `B4nD`): mỗi bước nhảy xét riêng từ ô đang đứng, ô cản là các ô giữa của chính bước nhảy đó. Các ô hạ cánh trung gian của quân trượt vẫn phải trống như thường.
 3. **Ô cản bị chiếm** (quân bạn hay quân địch) thì nước đi bị chặn. `n` không phân biệt nước đi hay nước bắt ở ô đích.
-4. **Tính theo chiều đi:** ô cản của $A \to B$ và của $B \to A$ không nhất thiết là cùng một ô. Ví dụ Mã: từ $A$ tới $A + (1,2)$ ô cản là $A + (0,1)$, còn chiều ngược lại ô cản là $A + (1,1)$. Điều này khớp với việc Mã cờ tướng chiếu nhau không đối xứng.
+4. **Tính theo chiều đi:** ô cản của $A \to B$ và của $B \to A$ không nhất thiết là cùng một ô. Ví dụ Mã: từ $A$ tới $A + (1,2)$ ô cản là $A + (0,1)$, còn chiều ngược lại ô cản là $A + (1,1)$. Điều này khớp với việc Mã cờ tướng chiếu nhau không đối xứng. Bộ chọn `a` ở 7.5 thì đối xứng.
 5. **Chữ hướng:** chọn tập vector theo mục 4.1 trước, rồi tính ô cản riêng cho từng vector.
 6. **Trong `t[...]`:** mỗi chặng tính từ ô đầu của chặng đó. Với Elephant (Korean) `t[WnA]`, ô cản của chặng hai là ô chéo nằm giữa ô đầu chặng hai và ô đích.
 7. **Trong `[cj]` (mục 5):** nếu `Y` có `n` thì cả chặng tiếp cận ($s$ tới $h$) lẫn chặng hạ cánh ($h$ tới $l$) kiểm tra ô cản riêng. Ô $h$ không tính là ô cản của chặng tiếp cận.
 
-### 7.5. Kiểm tra các quân dùng `n` trong bảng
+### 7.5. Bộ chọn đường đi `n[σ]`, `p[σ]`
+
+`n` ở 7.1 chỉ xét một đường đi. Để viết được Moa, Falcon và Saltador, `n` (và `p`) nhận thêm một **bộ chọn** $\sigma$ đặt trong ngoặc vuông ngay sau modifier: `n[σ]`, `p[σ]`. Dùng ngoặc vuông để không đụng chữ `j` và các chữ `o`, `d`, `a` của XBetza (các chữ này chỉ có nghĩa trong ngoặc).
+
+**Tập đường không đi lùi $\mathcal M(v)$.** Với $v = (a,b)$, $\mathcal M(v)$ là tập mọi dãy $A = P_0, P_1, \dots, P_k = B$ với $k = \max(\lvert a \rvert, \lvert b \rvert)$, hai điểm liên tiếp cách nhau một nước Vua, và mỗi bước $(\Delta x, \Delta y)$ thỏa:
+
+$$\Delta x \cdot \operatorname{sgn}(a) \ge 0, \qquad \Delta y \cdot \operatorname{sgn}(b) \ge 0$$
+
+cộng thêm $\Delta x = 0$ nếu $a = 0$ và $\Delta y = 0$ nếu $b = 0$. Nói cách khác, không bước nào đi ngược về phía xuất phát.
+
+**Ba bộ chọn.** $\Pi_\sigma(v)$ là tập đường đi được xét:
+
+| $\sigma$ | $\Pi_\sigma(v)$ | Ghi chú |
+|---|---|---|
+| `o` (mặc định) | đúng một đường: đường đi trong dải ở 7.1, ưu tiên nước thẳng khi hòa | `n` viết không ngoặc nghĩa là `n[o]` |
+| `d` | đúng một đường: đường đi trong dải ở 7.1, nhưng ưu tiên nước **chéo** khi hòa | chỉ khác `o` ở các vector có hòa |
+| `a` | cả tập $\mathcal M(v)$ | mọi đường ngắn nhất không đi lùi |
+
+**Hai modifier dùng bộ chọn.**
+
+- `n[σ]` hợp lệ khi tồn tại $\pi \in \Pi_\sigma(v)$ có **mọi** ô giữa trống.
+- `p[σ]` hợp lệ khi tồn tại $\pi \in \Pi_\sigma(v)$ có **đúng một** ô giữa bị chiếm (quân bạn hay quân địch đều tính). Đây là phần mở rộng `p` của XBetza cho quân nhảy, do ta tự định nghĩa.
+
+Ô đích vẫn theo `m`, `c` bình thường. Với $\sigma \in \{o, d\}$ tập $\Pi_\sigma(v)$ chỉ có một phần tử nên "tồn tại" chỉ là điều kiện trên đường đó.
+
+**Điều đã kiểm tra** (chương trình, mọi $v = (a,b)$ với $0 \le b \le a \le 14$, 119 vector):
+
+1. Đường của `o` và đường của `d` luôn nằm trong $\mathcal M(v)$, nên `o` và `d` là trường hợp riêng của `a`.
+2. Với `d` đường đi vẫn duy nhất (không có hai ứng viên cùng loại).
+3. $\lvert \mathcal M(v) \rvert = 1$ ở 28 vector trong 119, trong đó có `D`, `A`, `H`, `G`. Ở các vector này cả ba bộ chọn trùng nhau và trùng nghĩa truyền thống.
+4. $\mathcal M(v)$ đối xứng khi đảo chiều đi: tập ô giữa của các đường $B \to A$ chính là tập ô giữa của các đường $A \to B$. Vì vậy `n[a]` có quan hệ chiếu hai chiều. `n[o]` và `n[d]` không có tính chất này (7.4, điểm 4).
+
+**Số đường và ô cản của vài nước thường gặp** (hướng $a \ge b \ge 0$):
+
+| Atom | $v$ | `n[o]` | `n[d]` | `n[a]` |
+|---|---|---|---|---|
+| `N` | $(2,1)$ | $(1,0)$ | $(1,1)$ | 2 đường: $(1,0)$ hoặc $(1,1)$ |
+| `C` | $(3,1)$ | $(1,0)$, $(2,1)$ | giống `o` | 3 đường |
+| `Z` | $(3,2)$ | $(1,1)$, $(2,1)$ | giống `o` | 3 đường |
+| `(4,1)` | $(4,1)$ | $(1,0)$, $(2,0)$, $(3,1)$ | $(1,0)$, $(2,1)$, $(3,1)$ | 4 đường |
+| `(4,3)` | $(4,3)$ | $(1,1)$, $(2,1)$, $(3,2)$ | $(1,1)$, $(2,2)$, $(3,2)$ | 4 đường |
+
+Với Falcon, 16 ô đích (8 ô `C` và 8 ô `Z`) mỗi ô có đúng 3 đường, khớp trang luật Falcon Chess của XBoard (mỗi đích 3 đường, mỗi đường 3 bước Vua gồm một chéo hai thẳng hoặc hai chéo một thẳng).
+
+### 7.6. Kiểm tra các quân dùng `n` và `p[...]` trong bảng
 
 | Quân | Ký hiệu | Kết quả |
 |---|---|---|
-| Mao | `nN` | Khớp |
+| Mao | `nN` (= `n[o]N`) | Khớp |
 | Elephant (Chinese) | `nA` | Khớp (ô cản là ô chéo giữa) |
 | Elephant (Korean) | `t[WnA]` | Khớp. Đường đi: một bước thẳng, rồi hai bước chéo, ô cản là ô thẳng đầu tiên và ô chéo giữa chặng hai. Nếu viết `nZ` sẽ cho đường đi khác (chéo, thẳng, chéo), nên giữ `t[WnA]` |
 | Centurion | `NnAnD` | Khớp |
 | B4nD | `B4nD` | Khớp |
 | Berolina Pawn, Corporal, Dragon, Graz Pawn, Pawn, Scorpion (Winther), Sergeant, Soldier (Chess.com) | `...imfnA`, `...imfnD` | Khớp (ô cản là ô liền kề) |
-| **Moa** | `nN` | **Không khớp.** Moa bước chéo trước rồi ngang/dọc, còn `nN` theo mục này luôn đi thẳng trước (là Mao) |
-| **Falcon (Falcon Chess)** | `nCnZ` | **Không khớp.** Wikipedia mô tả Falcon có nhiều đường đi, mỗi đường gồm ba bước thẳng hoặc chéo, nên chỉ cần một đường trống. Mục này chỉ có một đường |
-| **Saltador** | `cnNmpN` | **Không khớp.** Wikipedia mô tả Saltador bắt như Mã khi một trong các ô trung gian trống (nhiều đường), và đi không bắt như Mã khi ô đó bị chiếm. Mục này chỉ có một đường |
+| Moa | `n[d]N` (Wikipedia: `nN`) | Khớp: bước chéo trước rồi thẳng, ô cản là $(1,1)$ |
+| Falcon (Falcon Chess) | `n[a]Cn[a]Z` (Wikipedia: `nCnZ`) | Khớp: 16 ô đích, mỗi ô 3 đường, chỉ cần một đường trống |
+| Saltador | `cn[a]Nmp[a]N` (Wikipedia: `cnNmpN`) | Khớp theo mô tả: bắt khi một trong hai ô trung gian trống; đi không bắt khi ít nhất một trong hai ô bị chiếm (kể cả cả hai). Cách đọc `p` dựa trên mô tả cộng đồng và Julia's Fairies, chưa đọc luật gốc của Rittirsch |
 
-Ba dòng không khớp vẫn giữ ký hiệu gốc của Wikipedia trong bảng, vì chưa có cách viết khác trong hệ ký hiệu của ta. Chúng được ghi vào danh mục ở 4.4.
+Sau thay đổi này Mao (`nN`) và Moa (`n[d]N`) không còn chung ký hiệu, nên nhóm "nN" trước đây ở phần 2 đã bỏ và các nhóm sau được đánh số lại.
