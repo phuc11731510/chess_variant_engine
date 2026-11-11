@@ -378,7 +378,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Royal Guard | `cQmK` |  |
 | Running Rabbit | `fRFbW` |  |
 | Rutabaga | `W2B` |  |
-| Saltador | `cn[a]Nmp[a]N` |  |
+| Saltador | `cn[a]N` (thiếu nửa đi không bắt `mpN`, xem 7.6) |  |
 | Scorpion | `KgQ` |  |
 | Scorpion (Winther) | `mfWcefFimfnDmfsN` |  |
 | Scout | `WH` |  |
@@ -1134,6 +1134,7 @@ Golden Bird: giữ theo ký hiệu Betza của Wikipedia (chỉ đổi `lr` thà
 Các mục chưa xử lý, ghi lại để quay lại sau:
 
 - **Lion (Japanese) `KANDcaKmabK`:** giữ nguyên; nước đi của Lion nằm ngoài ký hiệu Bex (chữ `b` ở chặng nối là quay lại, không phải chữ hướng của quy ước).
+- **Saltador, nửa đi không bắt (`mpN` của Wikipedia):** cần quân ở ô giữa của nước Mã làm quân chắn, trái với định nghĩa `g`/`p` ở 5.7; chưa có cách viết.
 - **Điểm mở:** chuỗi `a` của XBetza (hiện chỉ Lion (Japanese) dùng).
 
 ## 5. Định nghĩa `[cj]` và `[cl]`
@@ -1256,6 +1257,36 @@ Ghi chú:
 
 Với cùng một vector hướng cho hai chặng, `[cj φ n]Y` tương đương `cY` rồi `φ Y′`, trong đó `Y′` là `Y` với hệ số tối đa $B_{\max}$ và hướng cố định theo chặng đầu. Cách viết `cY-mY` (Betza 2.0 qua Wikipedia, MBN `fcF-mF`) khớp với `[cj]Y` khi hiểu "cùng hướng" là *cùng vector*; nếu hiểu là "cùng hướng chung" như Bex (`-`) thì khác nhau với các atom xiên và với atom chéo/thẳng dùng lẫn nhau (ví dụ chặng đầu theo đường chéo, chặng sau theo bước thẳng).
 
+### 5.7. `g` và `p` (nhảy qua quân, không bắt quân bị nhảy)
+
+`g` và `p` dùng đúng khuôn của `[cj]` ở 5.2: cùng vector $v$ cho đoạn đi tới quân bị nhảy và đoạn hạ cánh, cùng hai hệ số tối đa $A_{\max}$ (đoạn tới quân bị nhảy, tính từ ô xuất phát) và $B_{\max}$ (đoạn hạ cánh, tính từ ô quân bị nhảy, mặc định bằng $A_{\max}$). Chữ số sau atom giới hạn **từng đoạn riêng**: đoạn đầu tối đa $K$ bước và đoạn hạ cánh cũng tối đa $K$ bước. Bước hạ cánh không tính vào chữ số của đoạn đầu.
+
+Nước đi hợp lệ khi tồn tại $v$, $a$, $b$ với $1 \le a \le A_{\max}$ và $1 \le b \le B_{\max}$ thỏa:
+
+1. Ô $h = s + a \cdot v$ có quân, **quân bất kỳ màu**, và mọi ô $s + i \cdot v$ với $i < a$ trống. Nói cách khác $h$ là quân đầu tiên gặp trên hướng đó.
+2. Ô $l = h + b \cdot v$ nằm trong bàn cờ và mọi ô $h + i \cdot v$ với $i < b$ trống.
+3. Với `g`: $b = 1$ (đáp ngay sau quân bị nhảy). Với `p`: $b$ nhận mọi giá trị từ 1 tới $B_{\max}$.
+4. Ô $l$ theo modality `m` (mặc định), `mc` hoặc `c`. `m` và `c` luôn áp vào ô hạ cánh.
+5. Nếu atom có `n`: **mọi** bước (cả $a$ bước của đoạn đầu lẫn $b$ bước của đoạn hạ cánh) phải có các ô giữa trống theo 7.1 và 7.5. Quân đứng ở ô giữa của một bước là vật cản của bước đó, không bao giờ là quân bị nhảy.
+
+Kết quả: quân đi từ $s$ tới $l$, **quân ở $h$ không bị bắt**.
+
+| | Quân bị nhảy qua | Quân bị nhảy bị bắt | Đoạn hạ cánh |
+|---|---|---|---|
+| `g` | quân bất kỳ | không | đúng 1 bước |
+| `p` | quân bất kỳ | không | từ 1 tới $B_{\max}$ bước |
+| `[cj]` | chỉ quân địch | có | từ 1 tới $B_{\max}$ bước |
+| `[cj1]` | chỉ quân địch | có | đúng 1 bước |
+
+**Ví dụ.**
+
+- `gF`: nhảy qua quân ở ô chéo kề bên, đáp ngay sau nó.
+- `gQ2`: quân bị nhảy ở ô 1 hoặc ô 2 tính từ ô xuất phát, đáp ngay sau nó (ô 2 hoặc ô 3).
+- `pQ2`: quân bị nhảy ở ô 1 hoặc ô 2, đáp xuống tối đa 2 ô sau nó.
+- `gnN`: quân bị nhảy ở ô đích của nước Mã, đáp ở ô Mã kế tiếp theo cùng vector; cả hai bước đều kiểm tra ô giữa theo `n`.
+
+**Lưu ý về Wallaby** (`KgQ2`, "restricted to 2 squares"): theo định nghĩa này, 2 là tầm tới quân bị nhảy. Mô tả của Wikipedia không nói rõ "2 ô" tính cả bước hạ cánh hay không, nên chưa kiểm chứng được cách đọc này.
+
 ## 6. Định nghĩa `t[A B]` (nước đi bẻ góc)
 
 Quy ước tự thiết kế, chốt theo **hướng bàn cờ** cho chữ hướng ở chặng thứ hai. `t[A B]` là cách Betza viết "đi một bước `A`, rồi tiếp tục theo `B`" (ví dụ Gryphon `t[FR]`: một bước chéo rồi trượt như Xe ra xa).
@@ -1346,11 +1377,11 @@ Bảng cho $a \ge b \ge 0$. Các hướng khác lấy bằng phép quay và phé
 4. **Tính theo chiều đi:** ô cản của $A \to B$ và của $B \to A$ không nhất thiết là cùng một ô. Ví dụ Mã: từ $A$ tới $A + (1,2)$ ô cản là $A + (0,1)$, còn chiều ngược lại ô cản là $A + (1,1)$. Điều này khớp với việc Mã cờ tướng chiếu nhau không đối xứng. Bộ chọn `a` ở 7.5 thì đối xứng.
 5. **Chữ hướng:** chọn tập vector theo mục 4.1 trước, rồi tính ô cản riêng cho từng vector.
 6. **Trong `t[...]`:** mỗi chặng tính từ ô đầu của chặng đó. Với Elephant (Korean) `t[WnA]`, ô cản của chặng hai là ô chéo nằm giữa ô đầu chặng hai và ô đích.
-7. **Trong `[cj]` (mục 5):** nếu `Y` có `n` thì cả chặng tiếp cận ($s$ tới $h$) lẫn chặng hạ cánh ($h$ tới $l$) kiểm tra ô cản riêng. Ô $h$ không tính là ô cản của chặng tiếp cận.
+7. **Trong `[cj]`, `g`, `p` (mục 5):** nếu `Y` có `n` thì cả chặng tiếp cận ($s$ tới $h$) lẫn chặng hạ cánh ($h$ tới $l$) kiểm tra ô cản riêng. Ô $h$ không tính là ô cản của chặng tiếp cận.
 
-### 7.5. Bộ chọn đường đi `n[σ]`, `p[σ]`
+### 7.5. Bộ chọn đường đi `n[σ]`
 
-`n` ở 7.1 chỉ xét một đường đi. Để viết được Moa, Falcon và Saltador, `n` (và `p`) nhận thêm một **bộ chọn** $\sigma$ đặt trong ngoặc vuông ngay sau modifier: `n[σ]`, `p[σ]`. Dùng ngoặc vuông để không đụng chữ `j` và các chữ `o`, `d`, `a` của XBetza (các chữ này chỉ có nghĩa trong ngoặc).
+`n` ở 7.1 chỉ xét một đường đi. Để viết được Moa, Falcon và Saltador, `n` nhận thêm một **bộ chọn** $\sigma$ đặt trong ngoặc vuông ngay sau modifier: `n[σ]`. Dùng ngoặc vuông để không đụng chữ `j` và các chữ `o`, `d`, `a` của XBetza (các chữ này chỉ có nghĩa trong ngoặc).
 
 **Tập đường không đi lùi $\mathcal M(v)$.** Với $v = (a,b)$, $\mathcal M(v)$ là tập mọi dãy $A = P_0, P_1, \dots, P_k = B$ với $k = \max(\lvert a \rvert, \lvert b \rvert)$, hai điểm liên tiếp cách nhau một nước Vua, và mỗi bước $(\Delta x, \Delta y)$ thỏa:
 
@@ -1366,10 +1397,7 @@ cộng thêm $\Delta x = 0$ nếu $a = 0$ và $\Delta y = 0$ nếu $b = 0$. Nói
 | `d` | đúng một đường: đường đi trong dải ở 7.1, nhưng ưu tiên nước **chéo** khi hòa | chỉ khác `o` ở các vector có hòa |
 | `a` | cả tập $\mathcal M(v)$ | mọi đường ngắn nhất không đi lùi |
 
-**Hai modifier dùng bộ chọn.**
-
-- `n[σ]` hợp lệ khi tồn tại $\pi \in \Pi_\sigma(v)$ có **mọi** ô giữa trống.
-- `p[σ]` hợp lệ khi tồn tại $\pi \in \Pi_\sigma(v)$ có **đúng một** ô giữa bị chiếm (quân bạn hay quân địch đều tính). Đây là phần mở rộng `p` của XBetza cho quân nhảy, do ta tự định nghĩa.
+**Điều kiện.** `n[σ]` hợp lệ khi tồn tại $\pi \in \Pi_\sigma(v)$ có **mọi** ô giữa trống.
 
 Ô đích vẫn theo `m`, `c` bình thường. Với $\sigma = o$ hoặc $\sigma = d$ tập $\Pi_\sigma(v)$ chỉ có một phần tử nên "tồn tại" chỉ là điều kiện trên đường đó.
 
@@ -1392,7 +1420,7 @@ cộng thêm $\Delta x = 0$ nếu $a = 0$ và $\Delta y = 0$ nếu $b = 0$. Nói
 
 Với Falcon, 16 ô đích (8 ô `C` và 8 ô `Z`) mỗi ô có đúng 3 đường, khớp trang luật Falcon Chess của XBoard (mỗi đích 3 đường, mỗi đường 3 bước Vua gồm một chéo hai thẳng hoặc hai chéo một thẳng).
 
-### 7.6. Kiểm tra các quân dùng `n` và `p[...]` trong bảng
+### 7.6. Kiểm tra các quân dùng `n` trong bảng
 
 | Quân | Ký hiệu | Kết quả |
 |---|---|---|
@@ -1404,6 +1432,6 @@ Với Falcon, 16 ô đích (8 ô `C` và 8 ô `Z`) mỗi ô có đúng 3 đườ
 | Berolina Pawn, Corporal, Dragon, Graz Pawn, Pawn, Scorpion (Winther), Sergeant, Soldier (Chess.com) | `...imfnA`, `...imfnD` | Khớp (ô cản là ô liền kề) |
 | Moa | `n[d]N` (Wikipedia: `nN`) | Khớp: bước chéo trước rồi thẳng, ô cản là $(1,1)$ |
 | Falcon (Falcon Chess) | `n[a]Cn[a]Z` (Wikipedia: `nCnZ`) | Khớp: 16 ô đích, mỗi ô 3 đường, chỉ cần một đường trống |
-| Saltador | `cn[a]Nmp[a]N` (Wikipedia: `cnNmpN`) | Khớp theo mô tả: bắt khi một trong hai ô trung gian trống; đi không bắt khi ít nhất một trong hai ô bị chiếm (kể cả cả hai). Cách đọc `p` dựa trên mô tả cộng đồng và Julia's Fairies, chưa đọc luật gốc của Rittirsch |
+| Saltador | `cn[a]N` (Wikipedia: `cnNmpN`) | Nửa bắt khớp: bắt như Mã khi một trong hai ô trung gian trống. Nửa đi không bắt (cần quân ở ô trung gian) **chưa biểu diễn được**: theo 5.7, quân bị nhảy qua nằm ở ô đáp của một bước, không nằm ở ô giữa, nên `mpN` không phải nước đó |
 
 Sau thay đổi này Mao (`nN`) và Moa (`n[d]N`) không còn chung ký hiệu, nên nhóm "nN" trước đây ở phần 2 đã bỏ và các nhóm sau được đánh số lại.
