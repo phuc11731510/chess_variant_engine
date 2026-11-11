@@ -1287,7 +1287,7 @@ Kết quả: quân đi từ $s$ tới $l$; quân địch ở $l$ (nếu có) b�
 - `pQ2`: quân bị nhảy ở ô 1 hoặc ô 2, đáp xuống tối đa 2 ô sau nó.
 - `gnN`: quân bị nhảy ở ô đích của nước Mã, đáp ở ô Mã kế tiếp theo cùng vector; cả hai bước đều kiểm tra ô giữa theo `n`.
 
-**Lưu ý về Wallaby** (`KgQ2`, "restricted to 2 squares"): theo định nghĩa này, 2 là tầm tới quân bị nhảy. Mô tả của Wikipedia không nói rõ "2 ô" tính cả bước hạ cánh hay không, nên chưa kiểm chứng được cách đọc này.
+**Wallaby** (`KgQ2 (over friendly pieces), KcjQ2`): giữ nguyên ký hiệu của Wikipedia. Theo định nghĩa này, 2 là tầm tới quân bị nhảy (quân chắn nằm trong 2 ô đầu) và ô hạ cánh là ô ngay sau quân chắn. Điều kiện "chỉ nhảy qua quân bạn" ghi trong ngoặc của Wikipedia là điều kiện thêm của quân này, không do `g` quy định (`g` nhảy qua quân bất kỳ màu).
 
 ## 6. Định nghĩa `t[A B]` (nước đi bẻ góc)
 
@@ -1435,5 +1435,7 @@ Với Falcon, 16 ô đích (8 ô `C` và 8 ô `Z`) mỗi ô có đúng 3 đườ
 | Moa | `n[d]N` (Wikipedia: `nN`) | Khớp: bước chéo trước rồi thẳng, ô cản là $(1,1)$ |
 | Falcon (Falcon Chess) | `n[a]Cn[a]Z` (Wikipedia: `nCnZ`) | Khớp: 16 ô đích, mỗi ô 3 đường, chỉ cần một đường trống |
 | Saltador | `cn[a]N` (Wikipedia: `cnNmpN`) | Nửa bắt khớp: bắt như Mã khi một trong hai ô trung gian trống. Nửa đi không bắt (cần quân ở ô trung gian) **chưa biểu diễn được**: theo 5.7, quân bị nhảy qua nằm ở ô đáp của một bước, không nằm ở ô giữa, nên `mpN` không phải nước đó |
+
+**Saltador khác ý đồ thế nào.** Ý đồ theo mô tả của Wikipedia: mỗi nước là một bước Mã, có hai ô giữa (ô liền kề theo trục dài của bước, và ô chéo kề nó). Quân bắt quân địch ở ô B khi ít nhất một ô giữa trống. Quân đi tới ô B trống khi ít nhất một ô giữa có quân. Còn `mpN` theo 5.7 nghĩa là: quân bị nhảy qua đứng ở ô đích của một bước Mã, quân đáp xuống ô Mã kế tiếp theo cùng vector. Ví dụ quân ở e5, hướng bước Mã $(1,2)$: Saltador đi tới f7 (ô trống) khi e6 hoặc f6 có quân, còn `mpN` đòi có quân ở f7 và đáp xuống g9. Hai nước hoàn toàn khác nhau, nên `mpN` không biểu diễn được nửa đi không bắt của Saltador.
 
 Sau thay đổi này Mao (`nN`) và Moa (`n[d]N`) không còn chung ký hiệu, nên nhóm "nN" trước đây ở phần 2 đã bỏ và các nhóm sau được đánh số lại.
