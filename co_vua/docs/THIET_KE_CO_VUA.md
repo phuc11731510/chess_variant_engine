@@ -456,6 +456,20 @@ Sau điểm rẽ, ở mỗi nước ván chơi nước có nhiều lượt thăm
 
 Đúng ở nửa nước 20 cả cây chỉ có 1477 thế cờ khác nhau, tương đương khoảng 370 mẫu vì trọng số $m$ dồn vào vài đường chính. Cả cây tương đương khoảng 46 nghìn mẫu độc lập. Ván kết thúc trong cây dài trung vị 253 nửa nước, và chỉ 0,8% node mới của đời 9 nằm trước nửa nước 40. Lý do: mỗi node có cùng cơ hội được rẽ, mà node thì nằm chủ yếu ở phần đuôi của các ván dài, nên ván rẽ mới lại sinh thêm node ở đuôi, và vòng này tự tăng. Cách truyền thống thì mỗi ván đều đi lại từ đầu, nên mỗi đời có hàng nghìn thế cờ mới ở mọi độ sâu. Kết luận: phần "tiết kiệm" của cây (không chơi lại đoạn chung) chính là phần thiếu đa dạng ở khai cuộc và trung cuộc; quy tắc quét đều của 6.1 phải đổi trước lần chạy 3.
 
+**Sửa 11/11: điểm rẽ được chơi bốc theo $m$ (lần chạy 3).** Bước quét ở 6.1 giữ nguyên: mạng phân vân ở node nào thì node đó thành điểm rẽ. Chỗ đổi là quy tắc ở đầu mục này. Ở đời 9 lần chạy 2, bước quét cho 1,16 triệu điểm rẽ trên 2,27 triệu node, mà ngân sách chỉ chơi được khoảng 12 nghìn (1%); xáo đều nghĩa là 1% đó rơi vào nơi nhiều node nhất, tức đuôi các ván dài. Nay điểm rẽ được bốc không lặp với xác suất tỉ lệ với $m$ của node (số ván đã đi qua, đã nhân $\gamma$): mỗi điểm rẽ nhận khoá $\dfrac{-\ln u}{m}$ với $u$ ngẫu nhiên đều trong $(0,1)$, rồi chơi theo khoá tăng dần. Bằng lời: lấy ngẫu nhiên một ván đã chơi, đi dọc theo nó, và rẽ ở chỗ mạng phân vân. Chủ dự án đồng ý thử (11/11), với điều kiện giữ bước quét temperature 0,5. Máy Colab tự quét (`tu_quet.py`) cũng xếp theo $m$ của cây nhỏ trên máy. Công tắc `re_theo_m`.
+
+Đo trên cây thật sau đời 9 của lần chạy 2, cùng ngân sách 200 triệu:
+
+| | Xáo đều | Bốc theo $m$ |
+|---|---|---|
+| Số ván rẽ | 12 452 | 8 589 |
+| Độ sâu điểm rẽ, trung vị (nửa nước) | 197 | 117 |
+| Ván rẽ bắt đầu trước nửa nước 40 | 3,8% | 17,5% |
+| Node mới ước có ở nửa nước 20 | 164 | 706 |
+| Node mới ước có ở nửa nước 40 | 473 | 1 493 |
+
+Số ván ít đi vì ván rẽ sớm dài hơn. Số thế cờ trung cuộc mới vẫn ít hơn cách truyền thống (mỗi ván của nó đều qua mọi độ sâu), và cây đo ở đây đã bị quy tắc cũ làm lệch, nên chưa biết mức này đủ chưa. Vì thế lần chạy 3 có arena sớm ở đời 3 (`tt_gen3` đấu `cay_gen3`): nếu vẫn thua đậm thì tăng tiếp phần ván rẽ sớm trước khi chạy tiếp. Dữ liệu lần chạy 2 cất ở `Download/CoVua/cay_lan2_doi10`, mạng ở Release `co_vua_mang_cay_cu` với tiền tố `lan2_`, kết quả arena ở `arena/lan2_tt_gen10_vs_cay_gen10.txt`.
+
 **Phương án để sau: ưu tiên theo tín hiệu.** Muốn nhãn tại một node thay đổi rõ, node đó cần nhiều ván tách ngay bên dưới nó. Một thế cờ giữa ván thường chỉ có khoảng một ván độc lập cho mỗi nhánh, nên với cách chọn ngẫu nhiên cái sai hiếm vẫn chủ yếu phải chờ mạng tự tiến bộ. Các tín hiệu có thể dùng:
 
 - **Giá trị search tụt mạnh vài nửa nước sau một nước.** Tín hiệu này ít nhiễu vì rất gần, và đã được lưu sẵn. Ví dụ, sau một nước thí quân vô lý, đối phương ăn quân và $q$ rơi mạnh. Mất quân là điều mạng dễ nhận ra ở các thế ngay sau đó, nên $q$ phản ánh được việc nước thí quân kia không đền bù.

@@ -28,6 +28,7 @@ CONG_TAC = {
     "nhan_value_moi": True,     # phần 4, 5: w_q q + (1 - w_q) G; tắt = 0.2 q + 0.8 G (G = kết quả ván ở node 1 ván)
     "search_lai": True,         # phần 9: tới 20% ngân sách
     "nhan_policy_moi": False,   # phần 7: pi' -- TẮT ở lần chạy chính (chủ dự án đồng ý 5/11)
+    "re_theo_m": True,          # 6.3 (11/11): điểm rẽ được chơi bốc theo m (số ván đi qua node); tắt = xáo đều
 }
 W_DOI = 4                       # 8.1: mỗi đời làm mới 1/4 cây (chủ dự án chốt 4/11)
 GAMMA = 1 - 1 / W_DOI           # 8.4
@@ -577,8 +578,19 @@ class Cay:
         chon = np.minimum(chon, len(cum) - 1)
         mv = self.p["mv"][slot][chon]
         da_choi = np.array([(int(s) * 65536 + int(m)) in self.con for s, m in zip(nut, mv)], bool)
-        diem = list(zip(nut[~da_choi].tolist(), mv[~da_choi].tolist()))
-        rng.shuffle(diem)
+        # Thứ tự chơi điểm rẽ (6.3, sửa 11/11): bốc không lặp theo m = số ván đã đi qua node (khoá -ln(u)/m tăng dần),
+        # tức "lấy ngẫu nhiên một ván đã chơi, đi dọc theo nó, rẽ ở chỗ mạng phân vân". Trước đây xáo đều: ngân sách
+        # chỉ chơi được ~1% điểm rẽ, mà node nằm chủ yếu ở đuôi các ván dài, nên ở đời 9 lần chạy 2 chỉ 0,8% node mới
+        # nằm trước nửa nước 40 và mạng không học được trung cuộc (arena đời 10: thua 98,9%).
+        nd, mvd = nut[~da_choi], mv[~da_choi]
+        if CONG_TAC["re_theo_m"] and len(nd):
+            khoa = -np.log(1.0 - rng.random(len(nd))) / np.maximum(a["m"][nd].astype(np.float64), 1e-9)
+            thu = np.argsort(khoa, kind="stable")
+            nd, mvd = nd[thu], mvd[thu]
+            diem = list(zip(nd.tolist(), mvd.tolist()))
+        else:
+            diem = list(zip(nd.tolist(), mvd.tolist()))
+            rng.shuffle(diem)
         e = float(self.meta.get("evals_moi_search", EVALS_MOI_SEARCH))
         # search lại theo ưu tiên (9.2, sửa 5/11)
         viec_s = []

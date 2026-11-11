@@ -1,7 +1,8 @@
 """tu_quet.py -- cây nhỏ trên máy Colab cho cách cây trò chơi: khi hết việc mà còn ngân sách (chắc chắn ở đời 0, khi
 cây trên điện thoại còn trống), máy tự quét các ván do chính nó chơi trong lần chạy này rồi rẽ tiếp, như 6.2 và 12.6
 (bước 5) của THIET_KE_CO_VUA.md. Mỗi node được quét đúng một lần, bốc một nước theo (số lượt thăm)^(1/T), T = 0.5;
-nước chưa ai chơi ở node đó thành một điểm rẽ. Danh sách điểm rẽ của mỗi lượt quét được xáo trộn.
+nước chưa ai chơi ở node đó thành một điểm rẽ. Danh sách điểm rẽ của mỗi lượt quét được xếp bằng cách bốc không lặp
+theo m = số ván (của máy này) đã đi qua node, như cay.py trên điện thoại (6.3, sửa 11/11).
 
 Đọc bản ghi treeplay dần dần từ van.bin (engine ghi trọn từng bản ghi khi một việc xong).
 """
@@ -35,6 +36,7 @@ class CayCucBo:
         self.con = {}               # (cha, nuoc) -> node
         self.da_quet = [False]
         self.het = [False]
+        self.m = [0]                # số ván G của máy này đã đi qua node
         self.so_lan_g = 0           # số lần search trong các việc G đã xong
         self.so_viec_g = 0
         self.so_lan_s = 0           # số lần search của các việc search lại (S) đã xong
@@ -47,7 +49,7 @@ class CayCucBo:
         if c is None or c < 0:           # -1 = chỗ giữ của một điểm rẽ đã giao
             c = len(self.cha)
             self.cha.append(cha); self.nuoc.append(m); self.tham.append(None)
-            self.da_quet.append(False); self.het.append(False)
+            self.da_quet.append(False); self.het.append(False); self.m.append(0)
             self.con[k] = c
         return c
 
@@ -74,8 +76,10 @@ class CayCucBo:
             so += 1
             if loai == 0:
                 s = 0
+                self.m[0] += 1
                 for m in dd:
                     s = self._node(s, m)
+                    self.m[s] += 1
                 for _ in range(so_lan):
                     nuoc, so_tham, *_r = _LAN.unpack_from(b, j)
                     j += _LAN.size
@@ -84,6 +88,7 @@ class CayCucBo:
                     if self.tham[s] is None:
                         self.tham[s] = (x[:, 0].copy(), x[:, 1].astype(np.float64))
                     s = self._node(s, nuoc)
+                    self.m[s] += 1
                 self.het[s] = True
                 self.so_lan_g += so_lan
                 self.so_viec_g += 1
@@ -102,7 +107,7 @@ class CayCucBo:
 
     def quet(self):
         """Quét các node chưa quét; trả về danh sách đường đi (danh sách nước UCI) của các ván rẽ, đã xáo trộn."""
-        ra = []
+        ra, khoa = [], []
         for s in range(len(self.cha)):
             if self.da_quet[s] or self.tham[s] is None or self.het[s]:
                 continue
@@ -114,6 +119,6 @@ class CayCucBo:
             m = int(mv[np.searchsorted(np.cumsum(w), self.rng.random() * w.sum(), side="right").clip(0, len(mv) - 1)])
             if (s, m) not in self.con:
                 ra.append([sang_uci(x) for x in self.duong(s) + [m]])
+                khoa.append(self.rng.expovariate(1.0) / max(self.m[s], 1))
                 self.con[(s, m)] = -1        # giữ chỗ: không rẽ lại cùng nước ở node này trong lần chạy
-        self.rng.shuffle(ra)
-        return ra
+        return [ra[i] for i in sorted(range(len(ra)), key=khoa.__getitem__)]
