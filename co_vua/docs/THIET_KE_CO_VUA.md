@@ -678,6 +678,20 @@ Mỗi node $s$ được lấy mẫu với xác suất tỉ lệ với $m(s)$, t�
 
 Chia đều ($\alpha = 0$) khá hơn đều đặn ở mọi số đo, nhưng chỉ lấp khoảng một phần tư khoảng cách policy và một phần tám khoảng cách value tới `tt_gen5`. Kết luận: độ đa dạng trong lúc huấn luyện là một phần của vấn đề nhưng không phải phần chính. Phần còn lại nằm ở chính các thế cờ trong cây (ít, và do mạng cây yếu chơi ra) hoặc ở nhãn; phép thử này chưa tách được hai thứ đó.
 
+
+**Thử 12/11: đổi chéo dữ liệu giữa hai cách.** Cùng script, cùng 1617 bước, cùng seed, chấm như trên. "Dữ liệu truyền thống" là cửa sổ đời 1 đến 4 của cách truyền thống (1,66 triệu mẫu, đúng dữ liệu `tt_gen5` đã học); "dữ liệu cây" là cây lần chạy 3 sau đời 4, bốc theo $m$.
+
+| Mạng khởi đầu | Dữ liệu | Mất mát policy | Mất mát value | Value khi kém từ 6 điểm quân | Kém 2 đến 5 |
+|---|---|---|---|---|---|
+| `tt_gen4` | truyền thống (kiểm script) | 2,706 | 0,745 | $-0{,}81$ | $-0{,}38$ |
+| `cay_gen4` | truyền thống | 2,695 | 0,693 | $-0{,}80$ | $-0{,}39$ |
+| `tt_gen4` | cây | 2,898 | 0,786 | $-0{,}56$ | $-0{,}16$ |
+| `cay_gen4` | cây ($\alpha = 1$) | 2,935 | 0,821 | $-0{,}55$ | $-0{,}21$ |
+
+Kết luận rõ: chỗ hỏng nằm hoàn toàn ở dữ liệu cây, không ở mạng hay ở các đời trước. Mạng cây đời 4 chỉ cần học một đời dữ liệu truyền thống là bằng `tt_gen5`; mạng truyền thống đời 4 học một đời dữ liệu cây thì tụt xuống mức mạng cây.
+
+Nhãn value trong dữ liệu cây cũng mềm hơn, đo theo trọng số bốc mẫu: khi bên đi kém từ 6 điểm quân, nhãn trung bình là $-0{,}60$ (truyền thống $-0{,}76$); kém 2 đến 5 là $-0{,}28$ (truyền thống $-0{,}35$); 28% nhãn có $|v| < 0{,}2$ (truyền thống 18%). Nhãn mềm hơn khoảng một phần năm, trong khi mạng học từ nó còn mềm hơn nhiều ($-0{,}16$ ở nhóm kém 2 đến 5). Vậy ngoài nhãn còn một phần do chính tập thế cờ (ít, lệch về vài đường chính và tàn cuộc dài). Chưa tách được phần nhãn mềm do $G$ (ván rẽ chơi temperature 0 dài và hay hoà) hay do phần trộn $q$.
+
 ---
 
 ## 11. Vòng lặp mỗi đời
