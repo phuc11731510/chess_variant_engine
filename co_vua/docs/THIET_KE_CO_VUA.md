@@ -705,6 +705,17 @@ Nhãn value trong dữ liệu cây cũng mềm hơn, đo theo trọng số bốc
 
 Đổi nhãn value gần như không đổi được AUC (0,79 đến 0,81), trong khi đổi sang dữ liệu truyền thống đưa AUC lên 0,88. Kết luận: chỗ hỏng không nằm ở công thức nhãn mà ở tập thế cờ của cây. Số mẫu độc lập tương đương của cả cây chỉ khoảng 39 nghìn (chia đều trong từng độ sâu: 46 nghìn), trong khi cửa sổ của cách truyền thống có 1,66 triệu thế cờ, gần như mỗi thế cờ một ván khác nhau. Với mạng và ngân sách này, số thế cờ khác nhau quan trọng hơn hẳn chất lượng nhãn.
 
+
+**Thử 12/11: mỗi node học đúng một lần.** Hiện giờ $m$ làm hai việc: quyết định nhãn tin kết quả ván bao nhiêu, và quyết định thế cờ được bốc bao nhiêu lần. Phép thử giữ việc thứ nhất, bỏ việc thứ hai: mỗi node được bốc như nhau (1,85 triệu thế cờ khác nhau), nhãn giữ nguyên. Cùng khởi đầu `cay_gen4`, 1617 bước. Phân bố node theo nửa nước: dưới 20 là 1,3%, 20 đến 40 là 2,9%, 40 đến 80 là 10,0%, 80 đến 120 là 14,0%, 120 đến 200 là 29,3%, từ 200 là 42,4%.
+
+| Mạng | Mất mát policy | Mất mát value | Value khi kém từ 6 điểm quân | Kém 2 đến 5 | AUC |
+|---|---|---|---|---|---|
+| `cay_gen4` + dữ liệu truyền thống | 2,695 | 0,693 | $-0{,}80$ | $-0{,}39$ | 0,884 |
+| `cay_gen4` + cây, bốc theo $m$ (hiện dùng) | 2,935 | 0,821 | $-0{,}55$ | $-0{,}21$ | 0,802 |
+| `cay_gen4` + cây, mỗi node một lần | 2,823 | 0,748 | $-0{,}69$ | $-0{,}24$ | 0,845 |
+
+Chỉ đổi cách bốc mẫu đã lấp khoảng một nửa khoảng cách AUC và policy, và gần hết khoảng cách mất mát value. Nửa còn lại có lẽ do thế cờ của cây dồn về tàn cuộc dài (chưa kiểm). Mình đề xuất dùng cách này cho lần chạy sau: $m$ chỉ còn là độ tin của nhãn, không còn là tần suất học.
+
 ---
 
 ## 11. Vòng lặp mỗi đời
