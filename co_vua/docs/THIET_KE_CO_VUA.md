@@ -666,6 +666,18 @@ Mỗi node $s$ được lấy mẫu với xác suất tỉ lệ với $m(s)$, t�
 
 **Ví dụ:** thế khởi đầu có $m=1000$ được lấy mẫu nhiều gấp 1000 lần một node có $m=1$, đúng như 1000 ván của cách cũ đều có thế khởi đầu. Khác biệt là mọi lần đều dùng cùng một nhãn đã tổng hợp.
 
+
+**Thử 12/11: cân mẫu theo $m^{\alpha}$ trong từng độ sâu.** Trọng số bốc mẫu là $m(s)^{\alpha}$, rồi nhân một hệ số theo độ sâu để tổng mỗi độ sâu vẫn bằng $\sum m$ (tỉ lệ khai cuộc, trung cuộc, tàn cuộc không đổi). Dữ liệu: cây lần chạy 3 sau đời 4 (1,85 triệu mẫu), cùng khởi đầu `cay_gen4`, 1617 bước, cùng seed, huấn luyện trên một máy T4. Chấm trên 147 nghìn thế cờ từ ván tự chơi đời 5 của cách truyền thống (chưa mạng nào học các ván này; phép chấm nghiêng về `tt_gen5` vì chính nó chơi các ván đó).
+
+| Mạng | Mẫu tương đương ở nửa nước 20 | Mất mát policy | Mất mát value | Value khi kém từ 6 điểm quân | Kém 2 đến 5 |
+|---|---|---|---|---|---|
+| `tt_gen5` | | 2,702 | 0,726 | $-0{,}83$ | $-0{,}42$ |
+| $\alpha = 1$ (như hiện giờ) | 369 | 2,935 | 0,821 | $-0{,}55$ | $-0{,}21$ |
+| $\alpha = 0{,}5$ | 1 133 | 2,905 | 0,812 | $-0{,}60$ | $-0{,}24$ |
+| $\alpha = 0$ | 2 035 | 2,878 | 0,810 | $-0{,}63$ | $-0{,}27$ |
+
+Chia đều ($\alpha = 0$) khá hơn đều đặn ở mọi số đo, nhưng chỉ lấp khoảng một phần tư khoảng cách policy và một phần tám khoảng cách value tới `tt_gen5`. Kết luận: độ đa dạng trong lúc huấn luyện là một phần của vấn đề nhưng không phải phần chính. Phần còn lại nằm ở chính các thế cờ trong cây (ít, và do mạng cây yếu chơi ra) hoặc ở nhãn; phép thử này chưa tách được hai thứ đó.
+
 ---
 
 ## 11. Vòng lặp mỗi đời
