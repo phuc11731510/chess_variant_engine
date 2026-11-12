@@ -46,6 +46,15 @@ if BEN == "cay":
         del _z
     !cd {CV}/py && python3 gop_mau_cay.py {HL}/mau_cay.npz {NHAN} {HL}/nhan_doi{GEN_CURRENT}.tep.txt {HL}
     MAU = [f"{HL}/mau_cay.npz"] if os.path.exists(f"{HL}/mau_cay.npz") else []
+    # Mọi trọng số bằng nhau (12/11: mỗi node được học như nhau): bỏ "w" để huan_luyen.py xáo trộn rồi đi lần lượt như
+    # cách truyền thống (mỗi node tối đa một lần), kể cả trên máy còn gói cũ (huan_luyen.py cũ bốc có lặp khi có "w").
+    if MAU:
+        _m = dict(_np.load(MAU[0]))
+        if "w" in _m and len(_m["w"]) and float(_m["w"].min()) == float(_m["w"].max()):
+            del _m["w"]
+            _np.savez(MAU[0], **_m)
+            print("[07] trọng số đều -> xáo trộn, mỗi node tối đa một lần mỗi lượt")
+        del _m
     SO_BUOC = int(_np.load(NHAN)["so_buoc"]) if os.path.exists(NHAN) else 0
     cac_doi = []
 else:

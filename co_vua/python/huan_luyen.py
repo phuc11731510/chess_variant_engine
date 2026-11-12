@@ -83,6 +83,11 @@ def main():
     # Cách cây trò chơi (gop_mau_cay.py): một tệp có thêm trọng số "w" (số ván đi qua node, phần 10 của thiết kế);
     # mỗi lô bốc mẫu theo w (có lặp lại) thay cho xáo trộn đều.
     trong_so = cac[0].get("w") if len(cac) == 1 else None
+    # Mọi trọng số bằng nhau (cách cây từ 12/11: mỗi node được học như nhau) -> xáo trộn rồi đi lần lượt như cách
+    # truyền thống: mỗi node tối đa một lần mỗi lượt. Bốc có lặp với trung bình 0,89 lượt mỗi node để ~41% node
+    # không được học lần nào, một số khác bị học 2-3 lần.
+    if trong_so is not None and len(trong_so) and float(trong_so.min()) == float(trong_so.max()):
+        trong_so = None
     du = TrenGPU(noi(cac), a.thiet_bi)
     if trong_so is not None:
         trong_so = torch.as_tensor(trong_so, dtype=torch.float64, device=a.thiet_bi)
