@@ -5,10 +5,10 @@
       fz_han_muc.json trong HOME của từng tài khoản -- xem fz_han_muc.py). In mỗi dòng
       "<ten>\t<loai>\t<mo ta>" theo thứ tự thử; tài khoản bỏ qua in "<ten>\tbo\t<lý do>".
         nap_lai    đã tới giờ nạp lại từ lần chụp          -> thử trước
-        xanh       còn >= 1 giờ T4 (nhiều trước)           -> thử (bị từ chối thì 10 phút sau thử lại)
+        xanh       còn >= 1 giờ 15 phút T4 (nhiều trước)           -> thử (bị từ chối thì 10 phút sau thử lại)
         chua_chup  chưa chụp lần nào / không rõ còn bao nhiêu -> thử sau cùng
         het        HẾT, không rõ giờ nạp lại               -> mỗi giờ thử một lần
-        bo         còn < 1 giờ (vàng) / HẾT chờ giờ nạp lại  -> bỏ qua
+        bo         còn < 1 giờ 15 phút (vàng) / HẾT chờ giờ nạp lại  -> bỏ qua
   python ~/fz_tu_dong.py hen <ten>|<HOME>|<lan thu cuoi> ...
       Sau một vòng xin không được: in "<giây epoch>\t<lý do>" = lúc nên xin lại (giờ nạp lại sớm
       nhất đã biết; HẾT không rõ giờ nạp: lần thử cuối + 1 giờ; còn tài khoản thử được: 10 phút).
@@ -45,6 +45,25 @@ import zipfile
 
 T4_UOC_TINH = 1.07        # CCU/giờ của một máy T4 (như fz_han_muc.py)
 MOT_GIO = 3600
+# Hạn mức T4 tối thiểu để xin (12/11): Colab từ chối T4 khi còn ≈ 1,07 giờ (25031006, 12/11), chủ dự án thấy còn
+# 1 giờ 10 phút đã không xin được -- trước đây ngưỡng là 1 giờ.
+GIO_T4_TOI_THIEU = 1.25
+# T4 bị từ chối khi lần đọc ngay sau đó còn từ chừng này giờ trở lên: coi là Colab tạm hết T4 (vẫn thử lại sau
+# 10 phút như trước), không phải tài khoản hết hạn mức.
+GIO_TU_CHOI_TAM = 2.0
+
+
+def bi_tu_choi(ch):
+    """Như fz_han_muc.bi_tu_choi, nhưng lần bị từ chối khi còn nhiều hạn mức (Colab tạm hết T4) không tính."""
+    h = ch.get("het_luc")
+    if not h:
+        return False
+    if h >= ch.get("luc", 0):
+        return True
+    c = ch.get("con_khi_tu_choi", "khong")
+    if c == "khong":
+        return False
+    return c is None or c / 1000 / T4_UOC_TINH < GIO_TU_CHOI_TAM
 
 
 def doc_chup(home):
@@ -66,7 +85,7 @@ def xep(ds, now=None):
             thu.append((3, 0, ten, "chua_chup", "chưa chụp hạn mức"))
             continue
         nap, luc = ch.get("nap_lai"), ch.get("luc", 0)
-        het = bool(ch.get("het_luc")) and ch["het_luc"] >= luc
+        het = bi_tu_choi(ch)
         # Bi tu choi SAU gio nap lai: lan nap do khong con gi -> HET, gio nap moi chua biet.
         het_sau_nap = het and bool(nap) and ch["het_luc"] >= nap
         if nap and now >= nap and luc < nap and not het_sau_nap:
@@ -74,12 +93,12 @@ def xep(ds, now=None):
             continue
         if het_sau_nap:
             nap = None                 # gio nap cu da qua va da dung -> "khong ro gio nap lai"
-        elif ch.get("con") is not None:
+        elif not het and ch.get("con") is not None:   # 12/11: tài khoản vừa bị từ chối không còn hiện "xanh"
             gio = ch["con"] / 1000 / T4_UOC_TINH
-            if gio >= 1:
+            if gio >= GIO_T4_TOI_THIEU:
                 thu.append((1, -gio, ten, "xanh", f"còn ≈ {gio:.1f} giờ T4"))
             else:
-                bo.append((ten, f"còn ≈ {int(gio * 60)} phút T4 (< 1 giờ)"))
+                bo.append((ten, f"còn ≈ {int(gio * 60)} phút T4 (< {int(GIO_T4_TOI_THIEU * 60)} phút)"))
             continue
         if het and nap and now < nap:
             bo.append((ten, "HẾT, chờ giờ nạp lại"))
@@ -113,7 +132,7 @@ def hen(ds, now=None):
             moc.append((now + 600, f"{ten}: chưa chụp hạn mức"))
             continue
         nap, luc = ch.get("nap_lai"), ch.get("luc", 0)
-        het = bool(ch.get("het_luc")) and ch["het_luc"] >= luc
+        het = bi_tu_choi(ch)
         het_sau_nap = het and bool(nap) and ch["het_luc"] >= nap
         if nap and now >= nap and luc < nap and not het_sau_nap:
             moc.append((now + 600, f"{ten}: đã tới giờ nạp lại"))
@@ -121,7 +140,7 @@ def hen(ds, now=None):
         if het_sau_nap:
             nap = None
         con = ch.get("con")
-        if not het and con is not None and con / 1000 / T4_UOC_TINH >= 1:
+        if not het and con is not None and con / 1000 / T4_UOC_TINH >= GIO_T4_TOI_THIEU:
             moc.append((now + 600, f"{ten}: còn hạn mức (Colab hết T4 tạm thời?)"))
         elif nap and nap > now:
             moc.append((nap, f"{ten}: nạp lại lúc {time.strftime('%H:%M', time.localtime(nap))}"))

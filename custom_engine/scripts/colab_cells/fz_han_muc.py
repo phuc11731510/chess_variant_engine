@@ -71,6 +71,18 @@ def ghi_chup(d):
     os.replace(tam, CHUP)
 
 
+# T4 bị từ chối rồi máy CPU tạm đọc hạn mức (vòng lặp, mục m): lần chụp đó mới hơn het_luc nên trước 12/11 dấu
+# "bị từ chối" mất, tài khoản hiện "còn ≈ 1,07 giờ" và các cửa sổ khác lại xin vào nó. Nay lần chụp trong vòng
+# TU_CHOI_GAN giây sau một lần bị từ chối giữ lại het_luc và ghi "con_khi_tu_choi" (hạn mức đọc được ngay sau đó).
+TU_CHOI_GAN = 30 * 60
+
+
+def bi_tu_choi(ch):
+    """Lần chụp này cho biết T4 đang bị từ chối (chưa có lần nạp lại / lần chụp nào mới hơn xoá đi)."""
+    h = ch.get("het_luc")
+    return bool(h) and (h >= ch.get("luc", 0) or "con_khi_tu_choi" in ch)
+
+
 def tom_tat(ch, bay_gio=None):
     """Một dòng: hạn mức lúc chụp + giờ nạp lại (hoặc 'đã tới giờ nạp lại')."""
     if not ch:
@@ -81,8 +93,9 @@ def tom_tat(ch, bay_gio=None):
     qua_nap = bool(nap) and now >= nap and ch.get("luc", 0) < nap and not ch.get("het_luc", 0) >= nap
     if qua_nap:
         dau = "ĐÃ TỚI giờ nạp lại -- có lẽ đã có hạn mức mới"
-    elif ch.get("het_luc") and ch["het_luc"] >= ch.get("luc", 0):
-        dau = f"HẾT (xin T4 bị từ chối lúc {luc(ch['het_luc'])})"
+    elif bi_tu_choi(ch):
+        dau = f"HẾT (xin T4 bị từ chối lúc {luc(ch['het_luc'])}" + (
+            f", khi còn ≈ {gio_phut(ch['con_khi_tu_choi'] / 1000 / T4_UOC_TINH)}" if ch.get("con_khi_tu_choi") is not None else "") + ")"
     elif ch.get("con") is not None:
         ccu = ch["con"] / 1000
         dau = f"còn {ccu:.2f} đơn vị ≈ {gio_phut(ccu / T4_UOC_TINH)} T4 (lúc {luc(ch['luc'])})"
@@ -125,7 +138,7 @@ def khoi(ch, bay_gio=None, lui="   "):
         dong.append(lui + mau(LAM, "ĐÃ TỚI giờ nạp lại"))
         dong.append(lui + mau(MO, f"lúc {luc(nap)} · h -> d xem mới"))
         return dong
-    if ch.get("het_luc") and ch["het_luc"] >= ch.get("luc", 0):
+    if bi_tu_choi(ch):
         dong.append(lui + mau(DO, "HẾT") + mau(MO, f"  T4 bị từ chối {luc(ch['het_luc'])}"))
     elif ch.get("con") is not None:
         ccu = ch["con"] / 1000
@@ -231,8 +244,13 @@ if may.upper() == "TAM":        # menu h -> d: máy CPU xin tạm chỉ để đ
 q = info["freeCcuQuotaInfo"]
 tok = q.get("remainingTokens")
 nap = q.get("nextRefillTimestampSec")
-ghi_chup({"luc": int(time.time()), "con": None if tok is None else int(tok),
-          "nap_lai": int(nap) if nap else None, "tieu": rate, "so_may": so_may})
+_moi = {"luc": int(time.time()), "con": None if tok is None else int(tok),
+        "nap_lai": int(nap) if nap else None, "tieu": rate, "so_may": so_may}
+_cu = doc_chup() or {}
+if _cu.get("het_luc") and time.time() - _cu["het_luc"] <= TU_CHOI_GAN:   # đọc ngay sau khi T4 bị từ chối
+    _moi["het_luc"] = _cu["het_luc"]
+    _moi["con_khi_tu_choi"] = _moi["con"]
+ghi_chup(_moi)
 if "--chup" in sys.argv:
     sys.exit(0)
 print("== Hạn mức Colab của tài khoản ==")
