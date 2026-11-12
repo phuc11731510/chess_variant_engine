@@ -29,6 +29,7 @@ CONG_TAC = {
     "search_lai": True,         # phần 9: tới 20% ngân sách
     "nhan_policy_moi": False,   # phần 7: pi' -- TẮT ở lần chạy chính (chủ dự án đồng ý 5/11)
     "re_theo_m": True,          # 6.3 (11/11): điểm rẽ được chơi bốc theo m (số ván đi qua node); tắt = xáo đều
+    "hoc_moi_node_mot_lan": True,   # 10 (12/11): mỗi node bốc như nhau khi học; m chỉ còn là độ tin của nhãn
 }
 W_DOI = 4                       # 8.1: mỗi đời làm mới 1/4 cây (chủ dự án chốt 4/11)
 GAMMA = 1 - 1 / W_DOI           # 8.4
@@ -498,18 +499,29 @@ class Cay:
             k += len(x)
         del co
         pol_q = _pi_uint16(pi2, dem)
+        # Trọng số bốc mẫu khi học (10, sửa 12/11). Trước đây w = m (số ván đi qua node): node gần gốc có m hàng chục
+        # nghìn nên bị học lại rất nhiều lần, cả cây chỉ tương đương ~39 nghìn mẫu độc lập (cách truyền thống: 1,66
+        # triệu). Thử trên cây lần chạy 3 sau đời 4 (cùng nhãn, cùng 1617 bước): mỗi node một lần đưa AUC từ 0,80 lên
+        # 0,845 (dữ liệu truyền thống: 0,88). m vẫn quyết định nhãn tin kết quả ván bao nhiêu (E, w_q), chỉ không còn
+        # quyết định tần suất học.
+        if CONG_TAC["hoc_moi_node_mot_lan"]:
+            w_hoc = np.ones(len(chon), np.float32)
+        else:
+            w_hoc = a["m"][chon].astype(np.float32)
         ra = {"tep": a["mau_tep"][chon], "hang": a["mau_hang"][chon], "den_di": den[chon].astype(np.uint8),
-              "wdl": wdl[chon].astype(np.float32), "w": a["m"][chon].astype(np.float32),
+              "wdl": wdl[chon].astype(np.float32), "w": w_hoc,
               "pol_dem": dem.astype(np.uint8 if dem.max(initial=0) < 256 else np.uint16),
               "pol_mv": mv2.astype(np.uint16), "pol_q": pol_q,
               "so_buoc": np.int64(so_buoc)}
         v = np.abs(wdl[chon, 0] - wdl[chon, 2])
+        w_hoc_tk = w_hoc.astype(np.float64)
         tk = {"tau_q2": tau, "tau_theo_cach": [round(x, 4) for x in tau_k], "so_node_tau": int(gan.sum()),
               "so_mau": int(len(chon)),
               "wq_tb_theo_m": float((a["m"][chon] * wq[chon]).sum() / max(a["m"][chon].sum(), 1e-9)),
               "wq_tb": float(wq[chon].mean()) if len(chon) else 0.0, "v_tuyet_doi_tb": float(v.mean()) if len(chon) else 0.0,
               "E_tb": float(E[chon].mean()) if len(chon) else 0.0,
-              "omega2_tb": float(t["om2"][chon].mean()) if len(chon) else 0.0}
+              "omega2_tb": float(t["om2"][chon].mean()) if len(chon) else 0.0,
+              "mau_hieu_dung": round(float(w_hoc_tk.sum() ** 2 / max((w_hoc_tk ** 2).sum(), 1e-12))) if len(chon) else 0}
         return ra, tk
 
     # -- giảm, cắt (phần 8)

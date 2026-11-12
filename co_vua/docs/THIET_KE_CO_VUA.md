@@ -714,7 +714,7 @@ Nhãn value trong dữ liệu cây cũng mềm hơn, đo theo trọng số bốc
 | `cay_gen4` + cây, bốc theo $m$ (hiện dùng) | 2,935 | 0,821 | $-0{,}55$ | $-0{,}21$ | 0,802 |
 | `cay_gen4` + cây, mỗi node một lần | 2,823 | 0,748 | $-0{,}69$ | $-0{,}24$ | 0,845 |
 
-Chỉ đổi cách bốc mẫu đã lấp khoảng một nửa khoảng cách AUC và policy, và gần hết khoảng cách mất mát value. Nửa còn lại có lẽ do thế cờ của cây dồn về tàn cuộc dài (chưa kiểm). Mình đề xuất dùng cách này cho lần chạy sau: $m$ chỉ còn là độ tin của nhãn, không còn là tần suất học.
+Chỉ đổi cách bốc mẫu đã lấp khoảng một nửa khoảng cách AUC và policy, và gần hết khoảng cách mất mát value. Nửa còn lại có lẽ do thế cờ của cây dồn về tàn cuộc dài (chưa kiểm). Mình đề xuất dùng cách này cho lần chạy sau: $m$ chỉ còn là độ tin của nhãn, không còn là tần suất học. **Chốt 12/11 (lần chạy 4):** chủ dự án chọn chỉ thử thay đổi này (công tắc `hoc_moi_node_mot_lan`), giữ nguyên cách rẽ nhánh của lần chạy 3 (quét temperature 0,5, điểm rẽ bốc theo $m$); ý cho mọi ván đi từ gốc với một quy tắc temperature 0,5 không dùng.
 
 ---
 
