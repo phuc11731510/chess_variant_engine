@@ -692,6 +692,19 @@ Kết luận rõ: chỗ hỏng nằm hoàn toàn ở dữ liệu cây, không �
 
 Nhãn value trong dữ liệu cây cũng mềm hơn, đo theo trọng số bốc mẫu: khi bên đi kém từ 6 điểm quân, nhãn trung bình là $-0{,}60$ (truyền thống $-0{,}76$); kém 2 đến 5 là $-0{,}28$ (truyền thống $-0{,}35$); 28% nhãn có $|v| < 0{,}2$ (truyền thống 18%). Nhãn mềm hơn khoảng một phần năm, trong khi mạng học từ nó còn mềm hơn nhiều ($-0{,}16$ ở nhóm kém 2 đến 5). Vậy ngoài nhãn còn một phần do chính tập thế cờ (ít, lệch về vài đường chính và tàn cuộc dài). Chưa tách được phần nhãn mềm do $G$ (ván rẽ chơi temperature 0 dài và hay hoà) hay do phần trộn $q$.
 
+
+**Thử 12/11: tách nhãn value.** Cùng cây, cùng thứ tự mẫu, chỉ đổi nhãn value; cùng khởi đầu `cay_gen4`, 1617 bước. AUC là xác suất mạng chấm một thế mà bên đi về sau thắng cao hơn một thế mà bên đi về sau thua; nó không đổi khi mạng chấm mềm hơn hay cứng hơn.
+
+| Mạng | Nhãn value | $\lvert v\rvert$ của nhãn | Mất mát policy | Mất mát value | AUC |
+|---|---|---|---|---|---|
+| `cay_gen4` + dữ liệu truyền thống | $0{,}2q + 0{,}8z$ | khoảng 0,8 | 2,695 | 0,693 | 0,884 |
+| `tt_gen5` | | | 2,702 | 0,726 | 0,873 |
+| `cay_gen4` + dữ liệu cây | trộn (hiện dùng) | 0,59 | 2,935 | 0,821 | 0,802 |
+| `cay_gen4` + dữ liệu cây | chỉ $G$ | 0,61 | 2,959 | 0,881 | 0,793 |
+| `cay_gen4` + dữ liệu cây | chỉ $q$ | 0,32 | 2,911 | 0,866 | 0,810 |
+
+Đổi nhãn value gần như không đổi được AUC (0,79 đến 0,81), trong khi đổi sang dữ liệu truyền thống đưa AUC lên 0,88. Kết luận: chỗ hỏng không nằm ở công thức nhãn mà ở tập thế cờ của cây. Số mẫu độc lập tương đương của cả cây chỉ khoảng 39 nghìn (chia đều trong từng độ sâu: 46 nghìn), trong khi cửa sổ của cách truyền thống có 1,66 triệu thế cờ, gần như mỗi thế cờ một ván khác nhau. Với mạng và ngân sách này, số thế cờ khác nhau quan trọng hơn hẳn chất lượng nhãn.
+
 ---
 
 ## 11. Vòng lặp mỗi đời
