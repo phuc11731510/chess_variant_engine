@@ -2,7 +2,7 @@
 cây trên điện thoại còn trống), máy tự quét các ván do chính nó chơi trong lần chạy này rồi rẽ tiếp, như 6.2 và 12.6
 (bước 5) của THIET_KE_CO_VUA.md. Mỗi node được quét đúng một lần, bốc một nước theo (số lượt thăm)^(1/T), T = 0.5;
 nước chưa ai chơi ở node đó thành một điểm rẽ. Danh sách điểm rẽ của mỗi lượt quét được xếp bằng cách bốc không lặp
-theo m = số ván (của máy này) đã đi qua node, như cay.py trên điện thoại (6.3, sửa 11/11).
+theo m^2, m = số ván (của máy này) đã đi qua node, như cay.py trên điện thoại (6.3, sửa 11/11; m^2 từ 14/11).
 
 Đọc bản ghi treeplay dần dần từ van.bin (engine ghi trọn từng bản ghi khi một việc xong).
 """
@@ -11,6 +11,8 @@ import struct
 
 import numpy as np
 
+# Mũ của m trong khoá bốc điểm rẽ (lần chạy 5, 14/11): khoá Exp(1)/m^2, tức bốc không lặp theo m^2, như cay.py.
+MU_M = 2
 MAGIC = b"CVG1"
 _DAU = struct.Struct("<4sIQBbBBHH")
 _LAN = struct.Struct("<HHIfffff")
@@ -119,6 +121,6 @@ class CayCucBo:
             m = int(mv[np.searchsorted(np.cumsum(w), self.rng.random() * w.sum(), side="right").clip(0, len(mv) - 1)])
             if (s, m) not in self.con:
                 ra.append([sang_uci(x) for x in self.duong(s) + [m]])
-                khoa.append(self.rng.expovariate(1.0) / max(self.m[s], 1))
+                khoa.append(self.rng.expovariate(1.0) / max(self.m[s], 1) ** MU_M)
                 self.con[(s, m)] = -1        # giữ chỗ: không rẽ lại cùng nước ở node này trong lần chạy
         return [ra[i] for i in sorted(range(len(ra)), key=khoa.__getitem__)]

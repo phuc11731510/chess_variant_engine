@@ -30,7 +30,10 @@ CONG_TAC = {
     "nhan_policy_moi": False,   # phần 7: pi' -- TẮT ở lần chạy chính (chủ dự án đồng ý 5/11)
     "re_theo_m": True,          # 6.3 (11/11): điểm rẽ được chơi bốc theo m (số ván đi qua node); tắt = xáo đều
     "hoc_moi_node_mot_lan": True,   # 10 (12/11): mỗi node bốc như nhau khi học; m chỉ còn là độ tin của nhãn
+    "hoc_du_moi_node": True,    # 12.6 (14/11, lần chạy 5): số bước học >= số mẫu / 1024 (mọi node được học ít nhất một
+                                # lần mỗi đời), không còn bằng đúng số bước của cách truyền thống
 }
+MU_M = 2                        # 6.3 (14/11, lần chạy 5): khoá điểm rẽ -ln(u)/m^MU_M (lần chạy 3, 4: 1)
 W_DOI = 4                       # 8.1: mỗi đời làm mới 1/4 cây (chủ dự án chốt 4/11)
 GAMMA = 1 - 1 / W_DOI           # 8.4
 T_QUET = 0.5                    # 6.1
@@ -508,6 +511,10 @@ class Cay:
             w_hoc = np.ones(len(chon), np.float32)
         else:
             w_hoc = a["m"][chon].astype(np.float32)
+        # Nới ràng buộc số bước (chủ dự án 14/11): cùng số bước với cách truyền thống thì ở đời 8 chỉ ~75% node được học;
+        # nay số bước đủ để đi qua mọi node một lần (huan_luyen.py xáo trộn rồi đi lần lượt khi trọng số đều).
+        if CONG_TAC["hoc_du_moi_node"]:
+            so_buoc = max(int(so_buoc), -(-len(chon) // 1024))
         ra = {"tep": a["mau_tep"][chon], "hang": a["mau_hang"][chon], "den_di": den[chon].astype(np.uint8),
               "wdl": wdl[chon].astype(np.float32), "w": w_hoc,
               "pol_dem": dem.astype(np.uint8 if dem.max(initial=0) < 256 else np.uint16),
@@ -596,7 +603,7 @@ class Cay:
         # nằm trước nửa nước 40 và mạng không học được trung cuộc (arena đời 10: thua 98,9%).
         nd, mvd = nut[~da_choi], mv[~da_choi]
         if CONG_TAC["re_theo_m"] and len(nd):
-            khoa = -np.log(1.0 - rng.random(len(nd))) / np.maximum(a["m"][nd].astype(np.float64), 1e-9)
+            khoa = -np.log(1.0 - rng.random(len(nd))) / np.maximum(a["m"][nd].astype(np.float64), 1e-9) ** MU_M
             thu = np.argsort(khoa, kind="stable")
             nd, mvd = nd[thu], mvd[thu]
             diem = list(zip(nd.tolist(), mvd.tolist()))
@@ -714,7 +721,7 @@ def cap_nhat(cach, g):
     with open(os.path.join(cach, f"nhan_doi{g}.tep.txt"), "w", encoding="utf-8") as f:
         f.write("".join(f"{i}\t{t}\n" for i, t in can_tep if t not in trong_kho) + (f"-1\tnhan_doi{g}.kho.txt\n" if lay else ""))
     tk.update({"doi": g, "node_moi": moi, "search": so_s, "van": so_v, "so_node": int(c.n),
-               "so_node_song": int((c.a["trang"][:c.n] == 0).sum()), "so_buoc": so_buoc, "giay": round(time.time() - t0, 1),
+               "so_node_song": int((c.a["trang"][:c.n] == 0).sum()), "so_buoc": int(nh["so_buoc"]), "giay": round(time.time() - t0, 1),
                "so_tep_mau": len(can_tep), "kho_lay": len(lay), "kho_lay_mb": round(sum(x[2] for x in lay) / 1e6)})
     c.meta["nhat_ky"].append(tk)
     c.luu(tm)
