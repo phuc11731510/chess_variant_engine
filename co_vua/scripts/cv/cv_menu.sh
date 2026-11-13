@@ -948,8 +948,16 @@ khoi_han_muc() {
 # m / c: xin may $1 (T4, rong = CPU) ten $S. Loi thi in gon (khong in traceback cua CLI); T4 bi tu
 # choi (503 Service Unavailable = thuong la HET han muc GPU mien phi) -> ghi nhan, chi cach xem gio
 # nap lai va doi tai khoan.
+# Endpoint cac may tai khoan dang giu (moi dong mot endpoint).
+ds_ep_may() {
+  local x
+  KHONG_HOI=1 COLAB_TO=60 colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]' |
+    while IFS= read -r x; do x=${x#*] }; echo "${x%% *}"; done
+}
 xin_may() {
-  local out rc loi
+  local out rc loi truoc x ep
+  # May tai khoan dang giu TRUOC khi xin: lenh xin bao loi ma co may moi -> may do la cua lan xin nay (xem duoi).
+  truoc=$(ds_ep_may)
   # KHONG_HOI: dau ra bi bat o day, loi nhac dang nhap khong ai thay (cua so dung hinh) -> khong hoi.
   # COLAB_TO: xin may khong lau qua 3 phut (treo thi bo, vong lap thu tai khoan khac).
   out=$(KHONG_HOI=1 COLAB_TO=180 colab new -s "$S" ${1:+--gpu "$1"} 2>&1); rc=$?
@@ -959,6 +967,21 @@ xin_may() {
     chup_han_muc "$TK" &          # dang giu may -> may chu tra han muc: chup nen
     return 0
   fi
+  # Lenh xin bao loi (hay gap: treo qua 3 phut) nhung may chu CO THE da cap may (13/11: ba tai khoan bao do ma van
+  # giu T4, nguoi dung phai tu dang nhap tung tai khoan de tra). Phien da ghi va dung duoc -> dung luon may do; con
+  # lai: tra moi may moi xuat hien (khong dong den may co tu truoc), khong de may mo coi tieu han muc.
+  if [ $rc != 0 ] && KHONG_HOI=1 COLAB_TO=60 colab status -s "$S" >/dev/null 2>&1; then
+    echo "${M_VANG}[!] Lệnh xin báo lỗi nhưng máy đã được cấp và dùng được -> dùng máy này${M_HET}"
+    kiem_may >/dev/null
+    chup_han_muc "$TK" &
+    return 0
+  fi
+  while IFS= read -r x; do
+    ep=${x#*] }; ep=${ep%% *}
+    [ -n "$ep" ] && ! grep -qxF "$ep" <<<"$truoc" || continue
+    echo "${M_VANG}[!] Lệnh xin báo lỗi nhưng máy chủ đã cấp máy $ep -> trả máy đó${M_HET}"
+    tra_mot "$x"
+  done < <(KHONG_HOI=1 COLAB_TO=60 colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]')
   if grep -q FZ_CAN_DANG_NHAP <<<"$out"; then
     echo "${M_DO}[!] Tài khoản $(ten_tk "$TK"): Colab CLI đòi đăng nhập lại${M_HET}"
     [ -f $CVD/fz_colab.py ] && py_colab $CVD/fz_colab.py --token 2>&1 | sed 's/^/    /'
