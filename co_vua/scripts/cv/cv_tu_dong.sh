@@ -901,6 +901,17 @@ td_ar_ghi() {
   [ $co = 0 ] && rmdir "$TAI/.khoa_dat_ten" 2>/dev/null
   return 0
 }
+# td_ar_ghi co thu lai: mot lan ssh hong (vd 429 vi trung phien, mang chap chon) khong duoc lam mat ket qua ca may.
+# Truoc day (14/11) loi mot lan ("ghi ket qua sau") roi vong lap van dung mem va tra may -> mat ~225 van arena doi 10.
+td_ar_ghi_chac() {
+  local i
+  for i in 1 2 3 4 5 6; do
+    td_ar_ghi "$1" && return 0
+    td_ngu 20 || return 1
+  done
+  td_in "${M_DO}[!] 6 lần không đọc được log ô 08 -- kết quả arena của máy $(ten_tk "$TK") không ghi được${M_HET}"
+  return 1
+}
 # Mang cay_gen$1 len may (tt_gen$1 da co nho td_chuan_bi): Release co_vua_mang (doi cu: chuyen tu .pt tren may), hoac
 # tu dien thoai. 0 = co, 1 = loi mang (thu lai), 2 = khong co o dau ca.
 td_ar_mang() {
@@ -963,7 +974,7 @@ td_arena_lam() {
   td_chay 08 "$f"; rc=$?
   TD_KIEU=
   case $rc in 3) td_mat_may; td_dat_ben "$ben_cu"; return ;; 4) return ;; 1) td_ngu 30; return ;; esac
-  td_ar_ghi "$g"
+  td_ar_ghi_chac "$g"
   tai_theo_o 08                               # ban ghi moi van arena + ket qua: minh chung
   td_ghi buoc=xong
   td_dat_ben "$ben_cu"
@@ -1014,7 +1025,7 @@ td_tiep_tuc() {
         TD_KIEU=
         case $rc in 3) td_mat_may; return ;; 4) return ;; esac
       fi
-      td_ar_ghi "$g2"; tai_theo_o 08; td_ghi buoc=xong ;;
+      td_ar_ghi_chac "$g2"; tai_theo_o 08; td_ghi buoc=xong ;;
     07:chay)
       if td_lay_hl "$g"; then
         TD_VAI=huan_luyen; td_ghi gen="$g" buoc=huan_luyen
