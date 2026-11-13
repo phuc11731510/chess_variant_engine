@@ -428,7 +428,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Vivi | `t[vWfB]` |  |
 | Vouivre | `DNAC = DNAL` |  |
 | Waffle | `WA` | [Nhóm 19](#g19) |
-| Wallaby | `KgQ2 (over friendly pieces), KcjQ2` |  |
+| Wallaby | `K[cj]K` |  |
 | War Machine | `WD` | [Nhóm 53](#g53) |
 | Waran | `RNN` | [Nhóm 54](#g54) |
 | Warrior | `WFD` | [Nhóm 26](#g26) |
@@ -1286,7 +1286,7 @@ Kết quả: quân đi từ $s$ tới $l$; quân địch ở $l$ (nếu có) b�
 - `pQ2`: quân bị nhảy ở ô 1 hoặc ô 2, đáp xuống tối đa 2 ô sau nó.
 - `gnN`: quân bị nhảy ở ô đích của nước Mã, đáp ở ô Mã kế tiếp theo cùng vector; cả hai bước đều kiểm tra ô giữa theo `n`.
 
-**Wallaby** (`KgQ2 (over friendly pieces), KcjQ2`): giữ nguyên ký hiệu của Wikipedia. Theo định nghĩa này, 2 là tầm tới quân bị nhảy (quân chắn nằm trong 2 ô đầu) và ô hạ cánh là ô ngay sau quân chắn. Điều kiện "chỉ nhảy qua quân bạn" ghi trong ngoặc của Wikipedia là điều kiện thêm của quân này, không do `g` quy định (`g` nhảy qua quân bất kỳ màu).
+**Wallaby** (Wikipedia: `KgQ2 (over friendly pieces), KcjQ2`) được chuẩn hóa thành `K[cj]K`. Phần `KcjQ2` là quân đam đi mọi hướng: nhảy qua quân địch ở ô kề rồi đáp xuống ô liền sau, quân bị nhảy bị bắt, nên viết `[cj]K` (đoạn tới quân bị nhảy 1 bước và đoạn hạ cánh 1 bước theo 5.2, tổng 2 ô). Phần `KgQ2 (over friendly pieces)` bị bỏ: nó chỉ có nghĩa khi nhảy qua quân bạn, một điều kiện xa với Betza truyền thống và không có trong hệ của ta. Nếu giữ `g` mà bỏ điều kiện đó thì khi quân bị nhảy qua là quân địch, `g` và `[cj]` cùng chọn một ô B nhưng khác hiệu ứng (một bên không bắt quân bị nhảy qua, một bên bắt), nên phần `g` không giữ lại.
 
 ## 6. Định nghĩa `t[A B]` (nước đi bẻ góc)
 
