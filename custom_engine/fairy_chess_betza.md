@@ -1134,6 +1134,7 @@ Golden Bird: giữ theo ký hiệu Betza của Wikipedia (chỉ đổi `lr` thà
 Các mục chưa xử lý, ghi lại để quay lại sau:
 
 - **Lion (Japanese) `KANDcaKmabK`:** giữ nguyên; nước đi của Lion nằm ngoài ký hiệu Bex (chữ `b` ở chặng nối là quay lại, không phải chữ hướng của quy ước).
+- **Năm modifier chưa định nghĩa** (chưa tính tới, vì một số phụ thuộc luật chơi): `i` (chỉ ở nước đầu của quân đó; 12 quân, gồm Pawn, Berolina Pawn, Corporal, Sergeant, Soldier (Chess.com)…), `e` (bắt qua đường; 4 quân: Pawn, Berolina Pawn, Pawn (Torpedo), Scorpion (Winther)), `z` (đường zigzag; Boa, Boyscout, Girlscout), `q` (đường tròn; Rose), `k` (quân hoàng gia; General (Chinese)). Các quân này vẫn ghi ký hiệu gốc của Wikipedia trong bảng.
 - **Điểm mở:** chuỗi `a` của XBetza (hiện chỉ Lion (Japanese) dùng).
 
 ## 5. Định nghĩa `[cj]` và `[cl]`
