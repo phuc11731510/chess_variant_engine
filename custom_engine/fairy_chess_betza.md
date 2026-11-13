@@ -2,10 +2,9 @@
 
 Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wiki/List_of_fairy_chess_pieces) (cột **Betza**, lấy ngày 2026-11-07). Ký hiệu được giữ nguyên như Wikipedia ghi, kể cả các dạng tương đương (ví dụ `B = FF`, `A = (2,2)`). **Ngoại lệ:** ký hiệu của 15 quân đã được sửa theo quy ước chữ hướng ở mục 4 và định nghĩa `t[...]` ở mục 6 (Cannon (Musketeer), Debtor, Fibnif, Fortress (Musketeer); bỏ chữ `h` ở Charging Knight, Colonel, Forequeen; bỏ dạng viết thứ hai của Horned Falcon và Soaring Eagle; `lr` thành `s` ở Golden Bird; Ship và Twin Tower đổi `t[FvR]` thành `t[fFfR]t[bFbR]`; Unicornio bỏ dạng thay thế `t[NfB]`; tách thành phần `Q`, `K` có cụm hai chữ hướng thành `sbWbF` ở Charging Knight, `fsRfB` ở Forequeen, `sfWfF` ở Evil Wolf và Pawn (Jetan)), và 21 mục dùng `[cl]` đã đổi sang `[cj]` theo mục 5 (Sri Lankan Dām còn được thêm chữ `f` bị thiếu). Ký hiệu gốc của Wikipedia ghi ở mục 4.2 và 5.4.
 
-- Có **411 mục** (quân/biến thể theo từng trò chơi) có ký hiệu Betza; các mục chưa có ký hiệu Betza (như Zigzag Nightrider, các quân Dragonchess, Chameleon, Duck…) đã bị bỏ qua.
+- Có **412 mục** (quân/biến thể theo từng trò chơi) có ký hiệu Betza; các mục chưa có ký hiệu Betza (như Zigzag Nightrider, các quân Dragonchess, Chameleon, Duck…) đã bị bỏ qua.
 - Có **56 ký hiệu bị nhiều quân dùng chung** (đã gộp cả dạng tương đương như `B` = `FF`); mỗi nhóm được giải thích ở phần 2.
 - Mục "Spy" của Wikipedia ghi 3 ký hiệu cho 3 trò chơi nên được tách thành 3 dòng.
-- Quân **Saltador** (Wikipedia: `cnNmpN`) đã bị loại khỏi danh sách theo quyết định của bạn, vì nước đi của nó khó suy ra từ ký hiệu và hệ ký hiệu của ta chưa biểu diễn được nửa đi không bắt.
 
 ## Ký hiệu Betza trong 1 phút
 
@@ -25,7 +24,7 @@ Nguồn: [List of fairy chess pieces — Wikipedia](https://en.wikipedia.org/wik
 | chữ lặp hoặc số (`NN`, `W3`) | Lặp nước đi theo cùng hướng (rider); số giới hạn số ô |
 | `m` / `c` | Chỉ đi / chỉ ăn |
 | `f` `b` `s` `v` `l` `r` | Tiến / lùi / ngang / dọc / trái / phải |
-| `n` | Không nhảy qua (bị cản chân, như Mã cờ tướng); đường đi của nước xiên được định nghĩa ở mục 7, bộ chọn `n[o]`, `n[d]`, `n[a]` ở 7.5 |
+| `n` | Không nhảy qua (bị cản chân, như Mã cờ tướng); đường đi của nước xiên được định nghĩa ở mục 7, bộ chọn `n[o]`, `n[d]`, `n[a]` ở 7.5, phủ định `!n` ở 7.6 |
 | `p` / `g` | Nhảy qua đúng 1 quân (pháo) / nhảy rồi đáp ngay sau quân chắn (grasshopper) |
 | `i` | Chỉ ở nước đầu |
 | `t[...]` | Nước đi hai chặng theo cách Wikipedia dùng (bước ban đầu rồi trượt "ra xa") |
@@ -379,6 +378,7 @@ Chi tiết đầy đủ: [Betza's funny notation](https://en.wikipedia.org/wiki/
 | Royal Guard | `cQmK` |  |
 | Running Rabbit | `fRFbW` |  |
 | Rutabaga | `W2B` |  |
+| Saltador | `cn[a]Nm!n[o]Nm!n[d]N` |  |
 | Scorpion | `KgQ` |  |
 | Scorpion (Winther) | `mfWcefFimfnDmfsN` |  |
 | Scout | `WH` |  |
@@ -918,7 +918,7 @@ Phần này tổng hợp từ bài Wikipedia [Betza's funny notation](https://en
 
 ### 3.2. Quân nào dùng từ 3 chữ hướng liền nhau trở lên?
 
-Có. Quét toàn bộ 411 mục (chỉ tính các chữ `f b l r v s h`):
+Có. Quét toàn bộ 412 mục (chỉ tính các chữ `f b l r v s h`):
 
 | Quân | Ký hiệu | Chuỗi chữ hướng liền nhau | Ý nghĩa |
 |---|---|---|---|
@@ -1382,7 +1382,7 @@ Bảng cho $a \ge b \ge 0$. Các hướng khác lấy bằng phép quay và phé
 
 ### 7.5. Bộ chọn đường đi `n[σ]`
 
-`n` ở 7.1 chỉ xét một đường đi. Để viết được Moa và Falcon, `n` nhận thêm một **bộ chọn** $\sigma$ đặt trong ngoặc vuông ngay sau modifier: `n[σ]`. Dùng ngoặc vuông để không đụng chữ `j` và các chữ `o`, `d`, `a` của XBetza (các chữ này chỉ có nghĩa trong ngoặc).
+`n` ở 7.1 chỉ xét một đường đi. Để viết được Moa, Falcon và Saltador, `n` nhận thêm một **bộ chọn** $\sigma$ đặt trong ngoặc vuông ngay sau modifier: `n[σ]`. Dùng ngoặc vuông để không đụng chữ `j` và các chữ `o`, `d`, `a` của XBetza (các chữ này chỉ có nghĩa trong ngoặc).
 
 **Tập đường không đi lùi $\mathcal M(v)$.** Với $v = (a,b)$, $\mathcal M(v)$ là tập mọi dãy $A = P_0, P_1, \dots, P_k = B$ với $k = \max(\lvert a \rvert, \lvert b \rvert)$, hai điểm liên tiếp cách nhau một nước Vua, và mỗi bước $(\Delta x, \Delta y)$ thỏa:
 
@@ -1421,7 +1421,31 @@ cộng thêm $\Delta x = 0$ nếu $a = 0$ và $\Delta y = 0$ nếu $b = 0$. Nói
 
 Với Falcon, 16 ô đích (8 ô `C` và 8 ô `Z`) mỗi ô có đúng 3 đường, khớp trang luật Falcon Chess của XBoard (mỗi đích 3 đường, mỗi đường 3 bước Vua gồm một chéo hai thẳng hoặc hai chéo một thẳng).
 
-### 7.6. Kiểm tra các quân dùng `n` trong bảng
+### 7.6. Phủ định `!n[σ]`
+
+Dấu `!` đặt ngay trước `n` đọc là "không phải": `!n[σ]` hợp lệ khi điều kiện của `n[σ]` **không** đúng.
+
+- `n[σ]` hợp lệ khi tồn tại $\pi \in \Pi_\sigma(v)$ có mọi ô giữa trống.
+- `!n[σ]` hợp lệ khi **không** tồn tại $\pi \in \Pi_\sigma(v)$ nào có mọi ô giữa trống.
+- Với $\sigma = o$ hoặc $\sigma = d$ (mỗi bộ chọn chỉ một đường), `!n[σ]` nghĩa là đường đó có ít nhất một ô giữa có quân (quân bạn hay quân địch đều tính).
+- `!n` viết không ngoặc nghĩa là `!n[o]`, giống `n` không ngoặc nghĩa là `n[o]`.
+
+**Quy ước.**
+
+1. `!` phủ định cả điều kiện của `n[σ]`, không phủ định từng ô. Với `[a]` (tồn tại một đường trống), `!n[a]` nghĩa là mọi đường đều có ô giữa bị chiếm. Không khuyên dùng `!n[a]` để khỏi nhầm.
+2. Atom bước một ô (`W`, `F`) không có ô giữa nên `n` luôn thỏa, `!n` không bao giờ thỏa (không có nước đi nào).
+3. `!n` chỉ dùng với atom nhảy đơn (một bước, không lặp, không `g`/`p`). Với quân trượt chưa định nghĩa.
+4. `m` và `c` đứng trước áp vào ô B như thường: `m!n[o]N` đòi ô B trống, `c!n[o]N` đòi ô B có quân địch.
+
+**Ví dụ: Saltador** (Wikipedia: `cnNmpN`). Mỗi nước là một bước Mã có hai ô giữa: ô liền kề theo trục dài (đường `o`) và ô chéo kề nó (đường `d`).
+
+- Nửa bắt: `cn[a]N`. Bắt quân địch ở ô B khi ít nhất một trong hai ô giữa trống.
+- Nửa đi không bắt: `m!n[o]N` cộng `m!n[d]N`. Đi tới ô B trống khi ô giữa theo đường `o` có quân, hoặc ô giữa theo đường `d` có quân.
+- Quân ở e5 muốn tới f7 (ô trống) thì cần e6 (đường `o`) hoặc f6 (đường `d`) có quân.
+
+Đã kiểm tra bằng chương trình trên 30000 thế cờ ngẫu nhiên: cách viết này trùng với mô tả của Wikipedia (bắt khi một ô giữa trống, đi không bắt khi một ô giữa có quân), không lệch trường hợp nào.
+
+### 7.7. Kiểm tra các quân dùng `n` trong bảng
 
 | Quân | Ký hiệu | Kết quả |
 |---|---|---|
@@ -1433,5 +1457,6 @@ Với Falcon, 16 ô đích (8 ô `C` và 8 ô `Z`) mỗi ô có đúng 3 đườ
 | Berolina Pawn, Corporal, Dragon, Graz Pawn, Pawn, Scorpion (Winther), Sergeant, Soldier (Chess.com) | `...imfnA`, `...imfnD` | Khớp (ô cản là ô liền kề) |
 | Moa | `n[d]N` (Wikipedia: `nN`) | Khớp: bước chéo trước rồi thẳng, ô cản là $(1,1)$ |
 | Falcon (Falcon Chess) | `n[a]Cn[a]Z` (Wikipedia: `nCnZ`) | Khớp: 16 ô đích, mỗi ô 3 đường, chỉ cần một đường trống |
+| Saltador | `cn[a]Nm!n[o]Nm!n[d]N` (Wikipedia: `cnNmpN`) | Khớp theo mô tả: bắt khi ít nhất một trong hai ô giữa trống, đi tới ô trống khi ít nhất một trong hai ô giữa có quân (7.6). `mpN` của Wikipedia theo 5.7 là nước khác, nên không dùng |
 
 Sau thay đổi này Mao (`nN`) và Moa (`n[d]N`) không còn chung ký hiệu, nên nhóm "nN" trước đây ở phần 2 đã bỏ và các nhóm sau được đánh số lại.
