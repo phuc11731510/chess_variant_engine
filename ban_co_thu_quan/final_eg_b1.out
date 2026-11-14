@@ -1,0 +1,6 @@
+{"piece":"F2t[WFF]","rounds":3,"attToMove":"248012/248012","defToMove":"485100/485100","pass":true,"failA":null,"failD":null,"sec":"34.4"}
+{"piece":"sWFFmWWcpWW","rounds":2,"attToMove":"360040/360040","defToMove":"472460/485100","pass":false,"failA":null,"failD":"R a1, X c1 a2","sec":"42.1"}
+{"piece":"CHmFF[cj1]FF","rounds":4,"attToMove":"343836/343836","defToMove":"456284/485100","pass":false,"failA":null,"failD":"R a1, X b1 c1","sec":"29.7"}
+{"piece":"DHmFFcpFF","rounds":4,"attToMove":"425720/425720","defToMove":"428432/485100","pass":false,"failA":null,"failD":"R a1, X b1 f1","sec":"32.6"}
+{"piece":"NGfrClfCblCrbC","rounds":6,"attToMove":"390104/390104","defToMove":"433480/485100","pass":false,"failA":null,"failD":"R a1, X b1 c1","sec":"18.9"}
+{"piece":"FZgF3","rounds":10,"attToMove":"412388/412388","defToMove":"455772/485100","pass":false,"failA":null,"failD":"R a1, X b1 c1","sec":"17.2"}

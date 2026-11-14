@@ -1,0 +1,65 @@
+cost 31.201 viol 2 err 0.0508 design 0
+    AFFmWWcpWW               1.07 0.99 0.95 avg 1.01 p W,F,A,rider,m,c,p
+    CHmFF[cj]FF              1.06 0.98 0.85 avg 0.96 cj cj,F,H,C,rider,m
+    nDt[FWW]                 0.78 0.90 1.01 avg 0.90 t t,W,F,D,rider,n
+    NAfrClfCblCrbC           1.05 0.80 0.56 avg 0.80 chiral A,N,C,f,b,l,r
+    FZmF4cpF4                0.98 0.77 0.59 avg 0.78 p F,Z,num,m,c,p
+    NGfrZlfZblZrbZ           0.97 0.74 0.52 avg 0.74 chiral G,N,Z,f,b,l,r
+    FGsWWvF                  0.77 0.66 0.56 avg 0.66 sv W,F,G,rider,s,v
+    WDgWW                    0.75 0.60 0.42 avg 0.59 g W,D,rider,g
+    WAt[WnA]                 0.66 0.57 0.47 avg 0.56 t t,W,A,n
+    DHgW3                    0.60 0.46 0.33 avg 0.46 g W,D,H,num,g
+    sWWvW                    0.44 0.40 0.38 avg 0.41 sv W,rider,s,v
+    nN[cj]nN                 0.24 0.28 0.26 avg 0.26 cj cj,N,n
+cost 37.325 viol 1 err 0.1165 design 3
+    vDFFmWWcpWW              1.00 0.97 0.95 avg 0.97 p W,F,D,rider,m,c,v,p
+    sWt[FWW]                 0.82 0.90 0.97 avg 0.90 t t,W,F,rider,s
+    nNCfrZlfZblZrbZ          0.93 0.79 0.62 avg 0.78 chiral N,C,Z,f,b,l,r,n
+    DHlfFFrbFFrfFlbF         0.96 0.78 0.60 avg 0.78 chiral F,D,H,rider,f,b,l,r
+    CHgFF                    0.97 0.71 0.47 avg 0.72 g F,H,C,rider,g
+    NAN[cj]N                 0.90 0.69 0.46 avg 0.68 cj cj,A,N
+    nNGmFFcpFF               0.71 0.70 0.64 avg 0.68 p F,G,N,rider,m,c,p,n
+    WAgW3                    0.86 0.62 0.39 avg 0.62 g W,A,num,g
+    ZnD                      0.56 0.47 0.37 avg 0.46 leap D,Z,n
+    nGvWWsW                  0.46 0.46 0.44 avg 0.45 sv W,G,rider,s,v,n
+    W2mW[cj]W                0.54 0.46 0.35 avg 0.45 cj cj,W,num,m
+    t[WnA]                   0.41 0.38 0.34 avg 0.38 t t,W,A,n
+cost 38.418 viol 3 err 0.0367 design 0
+    GFFmWWcpWW               1.09 1.01 0.96 avg 1.02 p W,F,G,rider,m,c,p
+    WCvWWsD                  1.08 0.90 0.72 avg 0.90 sv W,D,C,rider,s,v
+    Nt[FD]                   1.07 0.90 0.68 avg 0.88 t t,F,D,N
+    nNCfrZlfZblZrbZ          0.93 0.79 0.62 avg 0.78 chiral N,C,Z,f,b,l,r,n
+    ZmWW[cj1]WW              0.76 0.77 0.77 avg 0.77 cj cj,W,Z,rider,m
+    nHgWWFF                  0.78 0.71 0.61 avg 0.70 g W,F,H,rider,g,n
+    FHmF4cpF4                0.82 0.65 0.50 avg 0.66 p F,H,num,m,c,p
+    W2gFF                    0.68 0.54 0.38 avg 0.53 g W,F,rider,num,g
+    WGt[WnA]                 0.60 0.53 0.44 avg 0.52 t t,W,A,G,n
+    sDsWWvW                  0.53 0.45 0.40 avg 0.46 sv W,D,rider,s,v
+    nNfrNlfNblNrbN           0.39 0.34 0.27 avg 0.33 chiral N,f,b,l,r,n
+    nN[cj]nN                 0.24 0.28 0.26 avg 0.26 cj cj,N,n
+cost 45.733 viol 4 err 0.0229 design 0
+    ZGmWW[cj]WW              1.01 1.03 1.00 avg 1.02 cj cj,W,G,Z,rider,m
+    nNCmF4cpF4               1.07 0.98 0.82 avg 0.96 p F,N,C,num,m,c,p,n
+    WGt[fFfWW]t[bFbWW]       1.02 0.91 0.81 avg 0.92 t t,W,F,G,rider,f,b
+    vWgWWFF                  0.91 0.77 0.61 avg 0.76 g W,F,rider,v,g
+    Ct[WnA]                  0.90 0.75 0.60 avg 0.75 t t,W,A,C,n
+    ZvWWsW                   0.87 0.73 0.61 avg 0.74 sv W,Z,rider,s,v
+    DHmW4cpW4                0.79 0.68 0.53 avg 0.67 p W,D,H,num,m,c,p
+    FHlfFFrbFFrfFlbF         0.66 0.55 0.44 avg 0.55 chiral F,H,rider,f,b,l,r
+    nND                      0.53 0.49 0.41 avg 0.48 leap D,N,n
+    sDfWWbF                  0.45 0.37 0.31 avg 0.38 fb W,F,D,rider,f,b,s
+    nNfrNlfNblNrbN           0.39 0.34 0.27 avg 0.33 chiral N,f,b,l,r,n
+    nN[cj]nN                 0.24 0.28 0.26 avg 0.26 cj cj,N,n
+cost 50.997 viol 2 err 0.1190 design 6
+    WAt[fFfWW]t[bFbWW]       1.08 0.96 0.84 avg 0.96 t t,W,F,A,rider,f,b
+    nNHmFFcpFF               0.86 0.82 0.74 avg 0.81 p F,H,N,rider,m,c,p,n
+    WGmWW[cj]WW              0.78 0.81 0.81 avg 0.80 cj cj,W,G,rider,m
+    WAmW4cpW4                0.92 0.74 0.59 avg 0.75 p W,A,num,m,c,p
+    GgWWFF                   0.90 0.73 0.55 avg 0.73 g W,F,G,rider,g
+    FZgF3                    0.96 0.69 0.45 avg 0.70 g F,Z,num,g
+    DHfrZlfZblZrbZ           0.80 0.60 0.43 avg 0.61 chiral D,H,Z,f,b,l,r
+    nCsWWvW                  0.51 0.54 0.55 avg 0.53 sv W,C,rider,s,v,n
+    nAt[WnA]                 0.51 0.49 0.44 avg 0.48 t t,W,A,n
+    nNfrClfCblCrbC           0.47 0.44 0.37 avg 0.43 chiral N,C,f,b,l,r,n
+    sDfFFbW                  0.47 0.41 0.34 avg 0.40 fb W,F,D,rider,f,b,s
+    vDnN[cj]nN               0.39 0.40 0.34 avg 0.38 cj cj,D,N,v,n
