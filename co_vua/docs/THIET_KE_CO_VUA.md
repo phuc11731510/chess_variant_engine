@@ -720,6 +720,8 @@ Chỉ đổi cách bốc mẫu đã lấp khoảng một nửa khoảng cách AU
 
 **Chốt 14/11 (lần chạy 5, từ đời 0).** Chủ dự án không dùng cách dừng sớm tàn cuộc dài (mất tính tự nhiên của việc sinh ván). Cân lại lúc học cũng không bù được: trên cây sau đời 7, học mỗi node $\sqrt{m}$ lần chỉ đưa phần trước nước 40 từ 4,7% lên 8,0% mà ESS giảm từ 1,96 triệu xuống 0,81 triệu; học $m$ lần thì 20,7% với ESS 12 nghìn. Hai thay đổi: (1) khoá xếp điểm rẽ là $-\ln(u)/m^2$ thay cho $-\ln(u)/m$ (`MU_M = 2` trong `cay.py` và `tu_quet.py`); mô phỏng trên cây thật cho đời 8: tổng node mới không đổi (khoảng 339 nghìn, vì mỗi lần search tạo đúng một thế cờ mới), node mới trước nước 40 từ 16,6 nghìn lên 25,6 nghìn mỗi đời, phần sau nước 240 từ 17,9% xuống 10,4%; (2) nới ràng buộc số bước học: số bước là số lớn hơn giữa số bước của cách truyền thống ở cùng đời và số mẫu chia 1024 (công tắc `hoc_du_moi_node`), để mọi node được học ít nhất một lần mỗi đời. Từ lần chạy 5 hai cách chỉ còn cùng số lần chạy mạng khi sinh dữ liệu, không còn cùng số bước học (chủ dự án chấp nhận). Arena sớm ở đời 5. Dữ liệu lần chạy 4 cất ở `CoVua/cay_lan4_doi10`, mạng ở Release `co_vua_mang_cay_cu` với tiền tố `lan4_`.
 
+**Arena đời 7 lần chạy 5 (14/11).** `tt_gen7` thắng 490, hoà 50, thua 489 trên 1029 ván: 50,0% (95%: 47 đến 53%), 0 Elo. Lần chạy 4 ở đời 8: 70,3% (khoảng 150 Elo). Số bước học đời 6 lên 7: cây 2026 (2 074 172 mẫu / 1024), tt 1705. Node mới đời 6: 327 nghìn, trung vị nước 112, 8,6% trước nước 40, 25,2% từ nước 160 (lần chạy 4: 131; 6,9%; 35,8%). Chưa tách được phần đóng góp của khoá $m^2$ và của số bước học nhiều hơn.
+
 ---
 
 ## 11. Vòng lặp mỗi đời
