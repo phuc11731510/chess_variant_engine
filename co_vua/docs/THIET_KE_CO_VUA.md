@@ -722,6 +722,10 @@ Chỉ đổi cách bốc mẫu đã lấp khoảng một nửa khoảng cách AU
 
 **Arena đời 7 lần chạy 5 (14/11).** `tt_gen7` thắng 490, hoà 50, thua 489 trên 1029 ván: 50,0% (95%: 47 đến 53%), 0 Elo. Lần chạy 4 ở đời 8: 70,3% (khoảng 150 Elo). Số bước học đời 6 lên 7: cây 2026 (2 074 172 mẫu / 1024), tt 1705. Node mới đời 6: 327 nghìn, trung vị nước 112, 8,6% trước nước 40, 25,2% từ nước 160 (lần chạy 4: 131; 6,9%; 35,8%). Chưa tách được phần đóng góp của khoá $m^2$ và của số bước học nhiều hơn.
 
+**Chấm ván arena đời 7 bằng Stockfish 19 (14/11, chỉ để chẩn đoán).** Mỗi nước được chấm bằng điểm kỳ vọng (WDL của Stockfish, 50 nghìn node) mà bên vừa đi đánh mất. Từ nửa nước 30 trở đi, cây mất ít hơn tt ở mọi giai đoạn (30 đến 60: 0,062 so với 0,069 mỗi nước; 60 đến 100: 0,058 so với 0,063; từ 160: 0,015 so với 0,019). Ở 30 nửa nước đầu (arena bốc nước theo lượt thăm, temperature 1), nước nhiều lượt nhất của cây cũng tốt hơn của tt (mất 0,095 so với 0,102; hỏng, tức mất ít nhất 0,2: 16,0% so với 18,1%). Nhưng cây đi nước khác nước nhiều lượt nhất 76,5% số lần (tt 66,9%) vì $q$ các nước ứng viên của cây sát nhau hơn (độ lệch 0,021 so với 0,028; $|q|$ ở 20 nửa nước đầu 0,09 so với 0,24), dù prior phẳng như nhau (entropy 3,12 so với 3,02). Phần bốc nước phụ làm cây mất 1,14 điểm kỳ vọng mỗi ván, tt 0,83. Muốn cây bỏ nước nhất ngang tt thì temperature của cây phải là khoảng 0,68; không dùng vì đổi luật cho một bên. Quyết định: arena phụ để chẩn đoán, luật như nhau cho hai bên, temperature 1 chỉ trong 8 nửa nước đầu (`.arena_phu` = `7 8`, kết quả `tt_gen7_vs_cay_gen7_temp8.txt`); không tính là đạt mục tiêu, mục tiêu 55% vẫn đo bằng arena chính (30 nửa nước).
+
+**Thước đo công bằng (14/11).** Thước đo chính thức duy nhất vẫn là số lần chạy mạng khi sinh ván (15.3). Thời gian thật không dùng vì lẫn thời gian chết của script. Kiểm một lần các khoản phụ: cây học thêm khoảng 56 giây T4 mỗi đời (khoảng 0,4% ngân sách), gộp cây khoảng 8 phút CPU điện thoại mỗi đời (quy theo giá CPU so với GPU chỉ cỡ 0,3%); tổng dưới khoảng 1%, quá nhỏ so với ngưỡng 55% (khoảng 35 Elo).
+
 ---
 
 ## 11. Vòng lặp mỗi đời
