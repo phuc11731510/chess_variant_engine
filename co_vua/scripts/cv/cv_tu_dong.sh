@@ -59,7 +59,8 @@ TD_AR_VAN_F=$TD/.arena_van   # so van moi arena
 TD_AR_DIR=$TAI/arena         # ket qua arena cua vong lap (tren dien thoai, xem duoc)
 TD_KIEU=           # o dang xem la arena (td_xem / td_can_dung dem theo arena)
 TD_AR_G=           # doi cua arena dang lam (td_ar_viec)
-TD_AR_T=           # arena phu: so nua nuoc temperature 1 (rong = arena chinh, 30); td_ar_viec / td_tiep_tuc dat
+TD_AR_T_CHINH=8    # arena chinh: temperature 1 trong 8 nua nuoc dau (chot 15/11, truoc arena doi 10; truoc do 30)
+TD_AR_T=           # arena phu: so nua nuoc temperature 1 (rong = arena chinh); td_ar_viec / td_tiep_tuc dat
 TD_AR_PHU_F=$TD/.arena_phu   # arena phu (chan doan, 15/11): "<doi> <so nua nuoc temperature>", vd "7 8"
 # Goi chay tren may (o 02 giai goi.tar.gz vao day): PHAI khop CV cua o 00.
 CV_CL=/content/cv
@@ -823,7 +824,8 @@ td_gom_tai() {
 # tt_gen<k>_vs_cay_gen<k>.txt (moi may mot dong W= D= L= N=, W = tt thang); du van -> dong XONG kem ti le, Elo.
 td_ar_van() { local n; n=$(cat "$TD_AR_VAN_F" 2>/dev/null); so_nguyen "$n" && echo $((10#$n)) || echo 1000; }
 td_ar_day() { local x; x=$(cat "$TD_AR_DAY_F" 2>/dev/null); echo "${x:-10 20 30 40 50 60 70 80 90 100}"; }
-# Arena phu (TD_AR_T dat): tep rieng ..._temp<T>.txt, khong lan voi arena chinh (temperature 1 trong 30 nua nuoc).
+# Arena phu (TD_AR_T dat): tep rieng ..._temp<T>.txt, khong lan voi arena chinh (TD_AR_T_CHINH). Tep arena chinh
+# doi 7 tro ve truoc (va moi lan chay 1-4) la luat cu 30 nua nuoc; doi 7 lan chay 5 luat 8 o ..._temp8.txt.
 td_ar_tep() { echo "$TD_AR_DIR/tt_gen$1_vs_cay_gen$1${TD_AR_T:+_temp$TD_AR_T}.txt"; }
 # Doi k con viec arena: trong day, ca hai cach da co mang doi k tren dien thoai, chua XONG / BO_QUA, tong (ca van dang
 # do) < so van. In doi nho nhat nhu vay; 1 = khong co.
@@ -904,7 +906,7 @@ td_ar_ghi() {
   td_khoa && co=0
   if [[ "$kq" =~ ^FZ_ARENA\ W=([0-9]+)\ D=([0-9]+)\ L=([0-9]+)\ N=([0-9]+) ]]; then
     [ -f "$(td_ar_tep "$g")" ] ||
-      echo "# arena doi $g: tt_gen$g (A) vs cay_gen$g (B), 400 luot tham, temperature 1 trong ${TD_AR_T:-30} nua nuoc dau${TD_AR_T:+ (ARENA PHU, chan doan)}; W/D/L = tt thang/hoa/thua, moi may mot dong" > "$(td_ar_tep "$g")"
+      echo "# arena doi $g: tt_gen$g (A) vs cay_gen$g (B), 400 luot tham, temperature 1 trong ${TD_AR_T:-$TD_AR_T_CHINH} nua nuoc dau${TD_AR_T:+ (ARENA PHU, chan doan)}; W/D/L = tt thang/hoa/thua, moi may mot dong" > "$(td_ar_tep "$g")"
     [ "${BASH_REMATCH[4]}" -gt 0 ] && echo "$(date '+%Y-%m-%d %H:%M') $(ten_tk "$TK") W=${BASH_REMATCH[1]} D=${BASH_REMATCH[2]} L=${BASH_REMATCH[3]} N=${BASH_REMATCH[4]}" >> "$(td_ar_tep "$g")"
     td_in "arena máy $(ten_tk "$TK"): truyền thống thắng ${BASH_REMATCH[1]} / hoà ${BASH_REMATCH[2]} / thua ${BASH_REMATCH[3]}"
   else
@@ -980,7 +982,7 @@ td_arena_lam() {
   [ $so -ge 1 ] || return
   f=$TD/o_$$/$(basename "$o08")
   mkdir -p "$TD/o_$$"
-  sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^GAMES[[:space:]]*=[[:space:]]*[0-9]+/s//GAMES = $so/; s#^A_PB[[:space:]]*=.*#A_PB = \"/content/tt_gen$g.pb.gz\"#; s#^B_PB[[:space:]]*=.*#B_PB = \"/content/cay_gen$g.pb.gz\"#; s#--temp-plies [0-9]+#--temp-plies ${TD_AR_T:-30}#" \
+  sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^GAMES[[:space:]]*=[[:space:]]*[0-9]+/s//GAMES = $so/; s#^A_PB[[:space:]]*=.*#A_PB = \"/content/tt_gen$g.pb.gz\"#; s#^B_PB[[:space:]]*=.*#B_PB = \"/content/cay_gen$g.pb.gz\"#; s#--temp-plies [0-9]+#--temp-plies ${TD_AR_T:-$TD_AR_T_CHINH}#" \
     "$o08" > "$f"
   TD_G=$g; TD_KIEU=arena; TD_TONG_IN=
   td_ghi gen="$g" buoc=arena van=0 con=0 giao="$so" par="$par"
@@ -1030,9 +1032,9 @@ td_tiep_tuc() {
       [[ "$ar" =~ A=/content/tt_gen([0-9]+)\.pb\.gz\ +vs\ +B=/content/cay_gen([0-9]+)\.pb\.gz ]] || return 0
       g2=${BASH_REMATCH[1]}; g3=${BASH_REMATCH[2]}
       [ "$g2" = "$g3" ] || return 0                          # arena chay tay (khac doi), khong phai cua vong lap
-      # Arena phu hay chinh: doc --temp-plies trong chinh o tren may (30 = arena chinh).
+      # Arena phu hay chinh: doc --temp-plies trong chinh o tren may (TD_AR_T_CHINH = arena chinh).
       TD_AR_T=$(ssh_colab "grep -o -- '--temp-plies [0-9]*' $LOGD/08.ipy 2>/dev/null | head -1" 2>/dev/null | awk '{print $2}')
-      [ "${TD_AR_T:-30}" = 30 ] && TD_AR_T=
+      { [ -z "$TD_AR_T" ] || [ "$TD_AR_T" = "$TD_AR_T_CHINH" ]; } && TD_AR_T=
       if [ "$tt" = chay ]; then
         cfg=$(ssh_colab "pgrep -af '[a]rena\.py ' | head -1" 2>/dev/null)
         giao=$(sed -n 's/.* --giao \([0-9]*\).*/\1/p' <<<"$cfg"); par=$(sed -n 's/.* --song-song \([0-9]*\).*/\1/p' <<<"$cfg")
