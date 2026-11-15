@@ -21,6 +21,7 @@ Tệp này tổng hợp toàn bộ thiết kế đã bàn, áp dụng cho **cờ
 13. Rủi ro và những điều chưa biết
 14. Kế hoạch thử nghiệm
 15. Quan sát, ghi log và tinh chỉnh
+16. Hướng mở (đề xuất 15/11, chưa thử)
 
 Phụ lục A: Bảng ký hiệu. Phụ lục B: Các ý tưởng đã loại hoặc đã thay.
 
@@ -1142,6 +1143,22 @@ Nếu cách mới được thử nhiều cấu hình rồi lấy lần tốt nh�
 3. Cách cũ dùng mặc định của lc0 (2.5), vốn đã được nhiều người tinh chỉnh. Nếu một thay đổi tham số dùng chung giúp cách mới thì cũng thử nó cho cách cũ.
 4. Nhật ký ghi số cấu hình đã thử cho cách mới, để người đọc biết mức tinh chỉnh.
 5. Kết luận chỉ dựa vào thước đo chính ở phần 14; log chỉ dùng để tìm nguyên nhân.
+
+## 16. Hướng mở (đề xuất 15/11, chưa thử)
+
+Nhìn lại năm lần chạy: mọi bước tiến đều đến từ việc **thế cờ nào được đưa vào học** (quét đều sang bốc theo $m$, mỗi node học một lần, khoá $m^2$); đổi công thức nhãn gần như không đổi gì (phép thử 12/11, mục 10). Phần chọn dữ liệu hiện là một nhóm luật viết tay: ngưỡng quét T=0,5 (6.1), khoá $-\ln(u)/m^2$ (6.3), trần 20% và ưu tiên $m\cdot\hat\Delta/(k+1)$ của search lại (9.2), trọng số học "mỗi node một lần" (10). Hai hướng dưới đây thay các luật đó bằng một nguyên lý. Cả hai chưa thử; mỗi hướng phải thắng cách hiện tại trong phép thử ngoài vòng lặp (huấn luyện lại một đời từ dữ liệu cây có sẵn trên một T4, chấm trên thế cờ của cách truyền thống như phép thử 12/11) rồi mới vào một lần chạy, mỗi lần chạy chỉ đổi một thứ.
+
+### 16.1 Học theo xác suất mạng hiện tại đi tới node
+
+Lợi thế gốc của cách truyền thống: dữ liệu luôn là thế cờ mà mạng hiện tại thật sự gặp khi chơi. Cây thì giữ thế cờ do các mạng cũ đi tới, kể cả những đuôi tàn cuộc dài mà mạng hiện tại không còn đi vào (trung vị nước 112 đến 145 so với 58 của truyền thống, mục 10). Đề xuất: trọng số học của node $s$ là xác suất mạng hiện tại đi tới nó,
+
+$$r(s) = \prod_{(a \to b) \text{ trên đường từ gốc tới } s} \pi_{\text{hiện tại}}(b \mid a),$$
+
+trong đó $\pi$ là phân bố chọn nước của mạng hiện tại (policy, có thể kèm temperature như lúc tự chơi). Một quy tắc này thay cả $m$, $m^2$ và "mỗi node một lần": khai cuộc tự được trọng số lớn, nhánh mạng cũ đi lạc tự nhỏ dần, không còn số mũ để chọn. Bước quét T=0,5 (rẽ ở chỗ mạng phân vân) giữ nguyên; chỉ đổi việc học node nào nhiều hay ít. Chi phí: một lượt chạy policy của mạng mới trên mọi node mỗi đời (đã có khi tính nhãn), rồi nhân dọc cây. Điều cần thử: $r(s)$ lệch rất mạnh (tích nhiều số nhỏ), nên có thể phải trộn với trọng số đều, ví dụ $r(s)^{\beta}$ với $\beta$ từ 0 tới 1, và đo cỡ mẫu tương đương (ESS) như ở mục 10.
+
+### 16.2 Một hàng ưu tiên cho mọi lần chạy mạng
+
+Ngân sách mỗi đời đang chia theo luật cố định: ván rẽ ở các điểm rẽ (6.3), search lại tối đa 20% (9.2), mỗi phần một công thức ưu tiên riêng. Đề xuất: mọi việc (rẽ mới ở một node, search lại một node) vào chung một hàng, chấm bằng **lượng học được trên mỗi lần chạy mạng**, ví dụ độ bất định của nhãn ($E$, mục 4) hoặc độ lệch giữa prior và kết quả search, nhân với trọng số học của node (16.1), chia cho chi phí. Rẽ ở chỗ mạng phân vân vẫn là trường hợp riêng (phân vân = bất định cao), nhưng tỉ lệ giữa rẽ và search lại không còn là con số đặt tay. Hướng này lớn hơn 16.1 và nên làm sau.
 
 ---
 
