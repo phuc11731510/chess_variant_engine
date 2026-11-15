@@ -726,6 +726,8 @@ Chỉ đổi cách bốc mẫu đã lấp khoảng một nửa khoảng cách AU
 
 **Arena phụ đời 7 (15/11).** Temperature 1 trong 8 nửa nước đầu cho cả hai bên: tt thắng 472, hoà 48, thua 498 trên 1018 ván, 48,7% cho tt (95%: 46 đến 52%), khoảng 9 Elo nghiêng về cây. Bỏ phần bốc nước phụ chỉ đổi kết quả khoảng 1,3 điểm phần trăm, khớp với Stockfish (nước tự chọn của cây chỉ tốt hơn tt một chút). Chủ dự án nới mục tiêu: chỉ cần hai bên đấu cùng luật. Để khỏi chọn luật sau khi thấy kết quả, luật arena chính thức được chốt ngay (15/11, trước arena đời 10): temperature 1 trong 8 nửa nước đầu (`TD_AR_T_CHINH = 8` trong `cv_tu_dong.sh`, ô 08 `--temp-plies 8`); mục tiêu 55% đo bằng luật này. Luật cũ (30 nửa nước) chạy kèm ở đời 10 làm arena phụ (`.arena_phu` = `10 30`) để so được với lần chạy 1 đến 4.
 
+**Arena đời 10 lần chạy 5, luật cũ (15/11, arena phụ).** Temperature 1 trong 30 nửa nước đầu: tt thắng 438, hoà 56, thua 640 trên 1134 ván, 41,1% cho tt (95%: 38 đến 44%), tức cây 58,9%, khoảng 63 Elo nghiêng về cây. Lần đầu cây thắng rõ; cùng luật này lần chạy 4 đời 10 là 71,8% cho tt. Arena chính thức (8 nửa nước) chưa chạy vì vòng lặp được dừng mềm trong lúc arena phụ.
+
 **Thước đo công bằng (14/11).** Thước đo chính thức duy nhất vẫn là số lần chạy mạng khi sinh ván (15.3). Thời gian thật không dùng vì lẫn thời gian chết của script. Kiểm một lần các khoản phụ: cây học thêm khoảng 56 giây T4 mỗi đời (khoảng 0,4% ngân sách), gộp cây khoảng 8 phút CPU điện thoại mỗi đời (quy theo giá CPU so với GPU chỉ cỡ 0,3%); tổng dưới khoảng 1%, quá nhỏ so với ngưỡng 55% (khoảng 35 Elo).
 
 ---
