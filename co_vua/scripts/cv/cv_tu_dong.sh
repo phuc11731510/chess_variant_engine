@@ -890,8 +890,8 @@ td_ar_ket() {
     e = (p > 0 && p < 1) ? sprintf("%+.0f Elo", -400 * log(1 / p - 1) / log(10)) : "Elo ?"
     printf "%.1f%% (95%%: %.0f-%.0f%%), %s", 100 * p, 100 * (lo < 0 ? 0 : lo), 100 * (hi > 1 ? 1 : hi), e }')
   echo "XONG $(date '+%Y-%m-%d %H:%M') W=$w D=$d L=$l N=$n -- tt_gen$g (so voi cay_gen$g): $kq" >> "$(td_ar_tep "$g")"
-  td_in "${M_XANH}arena đời $g xong${M_HET}: truyền thống thắng $w / hoà $d / thua $l ($n ván) = ${M_DAM}$kq${M_HET} (dương = truyền thống mạnh hơn)"
-  td_in "(Download/CoVua/arena/tt_gen${g}_vs_cay_gen$g.txt)"
+  td_in "${M_XANH}arena${TD_AR_T:+ PHỤ (temperature $TD_AR_T nửa nước)} đời $g xong${M_HET}: truyền thống thắng $w / hoà $d / thua $l ($n ván) = ${M_DAM}$kq${M_HET} (dương = truyền thống mạnh hơn)"
+  td_in "(Download/CoVua/arena/$(basename "$(td_ar_tep "$g")"))"
 }
 # Ghi ket qua lan chay o 08 tren may nay (dong FZ_ARENA cua log) vao tep arena doi $1 -- mot lan moi lan chay
 # (08.da_ghi tren may = dong dau log da ghi), chi khi log dung la arena tt_gen$1 vs cay_gen$1.
