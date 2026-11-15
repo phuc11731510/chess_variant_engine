@@ -102,6 +102,10 @@ body.app-pr .sb,body:not(.app-pr) .pr{display:none!important}
   .tabs a{padding:8px 4px}
   input[type=checkbox]{width:20px;height:20px}
 }
+.sq.pq::after{content:"";position:absolute;inset:3px;border:3px solid #8a2be2;border-radius:6px;background:rgba(138,43,226,.22);pointer-events:none}
+.sq .bd.q{color:#7a1fd0}
+body.kind-yn .mk,body:not(.kind-yn) .yn{display:none!important}
+.noise{margin-top:6px;font-size:.88rem}
 </style>
 </head>
 <body>
@@ -121,10 +125,15 @@ body.app-pr .sb,body:not(.app-pr) .pr{display:none!important}
     <div class="boardwrap"><div class="board" id="board"></div></div>
     <div class="card pr">
       <h2>Câu hỏi</h2>
+      <div class="row" style="margin-bottom:8px"><div class="seg">
+        <input type="radio" name="prk" id="k-mark" value="mark"><label for="k-mark">Đánh dấu các ô</label>
+        <input type="radio" name="prk" id="k-yn" value="yn"><label for="k-yn">Ô này đi được không?</label>
+      </div></div>
       <div id="prq"></div>
-      <div class="row"><button id="prCheck">Kiểm tra (Enter)</button><button id="prClear">Xóa dấu</button><button id="prNext">Câu mới</button><button id="prBetza">Xem công thức Betza</button></div>
+      <div class="row"><button id="prYes" class="yn">Đi được (Y)</button><button id="prNo" class="yn">Không đi được (N)</button><button id="prCheck" class="mk">Kiểm tra (Enter)</button><button id="prClear" class="mk">Xóa dấu</button><button id="prNext">Câu mới</button><button id="prBetza">Xem công thức Betza</button></div>
       <div id="prres"></div>
-      <p class="muted" style="margin:8px 0 0">Bấm hoặc kéo chuột qua các ô để đánh dấu hoặc bỏ dấu. Sau khi kiểm tra: <b style="color:#0b6b2a">✓</b> ô đúng, <b style="color:#c01515">✗</b> ô bạn đánh dấu thừa, <b style="color:#a06a00">!</b> ô bạn bỏ sót, <b style="color:#e06800">X</b> quân bị ăn trong nước bắt nhảy.</p>
+      <p class="muted yn" style="margin:8px 0 0">Ô viền tím là ô được hỏi. Trả lời "Đi được" nếu quân đó có nước đi (hoặc nước ăn) tới ô ấy ngay trên bàn cờ hiện tại, tính cả việc bị quân cản đường. Một nửa số câu là ô đi được; nửa còn lại là ô không đi được, được chọn để dễ nhầm.</p>
+      <p class="muted mk" style="margin:8px 0 0">Bấm hoặc kéo chuột qua các ô để đánh dấu hoặc bỏ dấu. Sau khi kiểm tra: <b style="color:#0b6b2a">✓</b> ô đúng, <b style="color:#c01515">✗</b> ô bạn đánh dấu thừa, <b style="color:#a06a00">!</b> ô bạn bỏ sót, <b style="color:#e06800">X</b> quân bị ăn trong nước bắt nhảy.</p>
     </div>
     <div class="card sb">
       <h2>Quân đang chọn</h2>
@@ -1045,7 +1054,8 @@ $('legendtbl').addEventListener('input', e => {
   letters[c] = e.target.value.trim() || c; store.set('fbv3-letters', JSON.stringify(letters)); renderPalette(); render();
 });
 document.addEventListener('keydown', e => {
-  if (app === 'pr' && e.key === 'Enter' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') { e.preventDefault(); PR.q && PR.q.checked ? prNew() : prCheck(); return; }
+  if (app === 'pr' && e.key === 'Enter' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') { e.preventDefault(); if (PR.q && PR.q.checked) prNew(); else if (PR.kind === 'mark') prCheck(); return; }
+  if (app === 'pr' && PR.kind === 'yn' && e.target.tagName !== 'INPUT' && (e.key === 'y' || e.key === 'Y' || e.key === 'n' || e.key === 'N')) { e.preventDefault(); prAnswer(e.key === 'y' || e.key === 'Y'); return; }
   if (app === 'sb' && (e.ctrlKey || e.metaKey) && e.key === 'z' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') { e.preventDefault(); $('undo').onclick(); } });
 
 try { const v = store.get('fbv3-icons'); if (v !== null) useIcons = v === '1'; } catch (e) {}
@@ -1056,9 +1066,9 @@ try { const s = store.get('fbv3-board'); board = fromCode(s || document.querySel
 // ----- luyện tập nước đi -----
 let app = 'sb', paint = null;
 const BLOCKERS = PIECES.filter(p => !p.royal).map(p => p.code);
-const PR = { types: new Set(PIECES.map(p => p.code)), density: 0.4, side: 'w', q: null, stats: {}, showBetza: false };
-try { const o = JSON.parse(store.get('fbv3-pr') || 'null'); if (o) { if (Array.isArray(o.types)) PR.types = new Set(o.types.filter(c => BY[c])); if (o.density !== undefined) PR.density = o.density; if (o.side) PR.side = o.side; if (o.stats) PR.stats = o.stats; } } catch (e) {}
-function prSave() { store.set('fbv3-pr', JSON.stringify({ types: [...PR.types], density: PR.density, side: PR.side, stats: PR.stats })); }
+const PR = { types: new Set(PIECES.map(p => p.code)), density: 0.4, side: 'w', q: null, stats: {}, statsYN: {}, catStats: {}, kind: 'mark', showBetza: false };
+try { const o = JSON.parse(store.get('fbv3-pr') || 'null'); if (o) { if (Array.isArray(o.types)) PR.types = new Set(o.types.filter(c => BY[c])); if (o.density !== undefined) PR.density = o.density; if (o.side) PR.side = o.side; if (o.stats) PR.stats = o.stats; if (o.statsYN) PR.statsYN = o.statsYN; if (o.catStats) PR.catStats = o.catStats; if (o.kind) PR.kind = o.kind; } } catch (e) {}
+function prSave() { store.set('fbv3-pr', JSON.stringify({ types: [...PR.types], density: PR.density, side: PR.side, stats: PR.stats, statsYN: PR.statsYN, catStats: PR.catStats, kind: PR.kind })); }
 const rint = n => Math.floor(Math.random() * n);
 const isPawn = t => t === 'P' || t === 'T';
 function prNew() {
@@ -1077,9 +1087,83 @@ function prNew() {
     const mv = movesIn(bd, from);
     if (!mv.length && attempt < 59) continue;
     PR.q = { bd, from, t, side, moves: mv, ans: new Set(mv.map(m => m.to)), marks: new Set(), checked: false, res: null };
+    if (PR.kind === 'yn') { if (!mv.length) continue; ynSetup(PR.q); }
     break;
   }
   PR.showBetza = false; renderPractice();
+}
+// ----- câu hỏi "ô này đi được không?": chọn ô đáp án và ô gây nhiễu -----
+const STD_OFFSETS = (() => { const o = new Set(); for (const [a, b] of [[2, 0], [2, 2], [2, 1], [3, 0], [3, 3], [3, 1], [3, 2]]) for (const [x, y] of [[a, b], [b, a]]) for (const sx of [1, -1]) for (const sy of [1, -1]) o.add(x * sx + ',' + y * sy); return [...o].map(k => k.split(',').map(Number)); })();
+const QDIRS = [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+const gcdAbs = (a, b) => b ? gcdAbs(b, a % b) : Math.abs(a);
+const NOISE = {
+  leapNear: 'nằm sát một ô mà nước nhảy tới được (trong vùng 3×3 quanh ô đó), nhưng chính nó không phải điểm đến',
+  blocked: 'nếu bàn cờ trống thì quân đi tới được ô này, nhưng hiện giờ có quân chặn đường hoặc ô có quân mình',
+  occupy: 'đúng hình học nước đi, nhưng sai điều kiện ô đích (nước này chỉ đi không ăn, hoặc chỉ ăn không đi)',
+  rayEnd: 'nằm ngay sau điểm dừng của một đường trượt (quá giới hạn số ô, hoặc ngay sau quân cản)',
+  otherLine: 'nằm trên một hướng thẳng hoặc chéo mà quân này không trượt',
+  mirror: 'đối xứng (trái-phải, trước-sau hoặc xoay 180°) với một ô đi được, nhưng quân này không đi theo kiểu đối xứng đó',
+  foreign: 'cách quân đúng một bước nhảy của loại quân khác, còn quân này không có bước nhảy đó',
+  near: 'ô nằm gần quân nhưng không đi được',
+  any: 'ô không đi được',
+};
+function ynPick(bd, from, t, side, ans) {
+  const sd = side === 'w' ? 1 : -1, fx = from % 10, fy = Math.floor(from / 10), comps = BY[t].comps;
+  const at = (dx, dy) => { const x = fx + dx, y = fy + dy; return x >= 0 && x < 10 && y >= 0 && y < 10 ? y * 10 + x : -1; };
+  const cats = {};
+  const add = (cat, s) => { if (s >= 0 && s !== from && !ans.has(s)) (cats[cat] || (cats[cat] = new Set())).add(s); };
+  const leapDests = [], owned = new Set(), rays = new Map();
+  for (const c of comps) {
+    if (c.kind !== 'step' && c.kind !== 'hop' && c.kind !== 'cj') continue;
+    const slider = c.amax == null || c.amax > 1;
+    for (const v of c.vecs) {
+      const dx = v[0] * sd, dy = v[1] * sd;
+      if (slider) { const g = gcdAbs(dx, dy) || 1; rays.set(dx / g + ',' + dy / g, [dx / g, dy / g]); }
+      else { owned.add(dx + ',' + dy); if (Math.max(Math.abs(dx), Math.abs(dy)) >= 2) leapDests.push([dx, dy]); }
+    }
+  }
+  // 1. sát một ô nhảy tới được
+  for (const [dx, dy] of leapDests) { const s = at(dx, dy); if (s >= 0 && ans.has(s)) for (let ex = -1; ex <= 1; ex++) for (let ey = -1; ey <= 1; ey++) add('leapNear', at(dx + ex, dy + ey)); }
+  // 2. đi được nếu bàn trống nhưng đang bị chặn
+  const solo = new Array(100).fill(null); solo[from] = bd[from];
+  for (const m of movesIn(solo, from)) add('blocked', m.to);
+  // 3. sai điều kiện ô đích: đổi ô trống thành quân địch (hoặc bỏ quân địch đi) rồi xem có đi được không
+  for (let s = 0; s < 100; s++) {
+    if (s === from || ans.has(s) || (bd[s] && bd[s].c === side)) continue;
+    const b2 = bd.slice(); b2[s] = bd[s] ? null : { c: side === 'w' ? 'b' : 'w', t: 'P', moved: true };
+    if (movesIn(b2, from).some(m => m.to === s)) add('occupy', s);
+  }
+  // 4. ngay sau điểm dừng của đường trượt; 5. đường trượt mà quân không có
+  for (const [dx, dy] of rays.values()) {
+    let prev = -1;
+    for (let k = 1; ; k++) {
+      const s = at(dx * k, dy * k); if (s < 0) break;
+      if (!ans.has(s) && (k === 1 || ans.has(prev) || bd[prev])) add('rayEnd', s);
+      prev = s;
+    }
+  }
+  if (rays.size) for (const [dx, dy] of QDIRS) if (!rays.has(dx + ',' + dy)) for (let k = 1; k <= 9; k++) add('otherLine', at(dx * k, dy * k));
+  // 6. đối xứng của một ô đi được
+  for (const r of ans) { const rx = r % 10 - fx, ry = Math.floor(r / 10) - fy; add('mirror', at(-rx, ry)); add('mirror', at(rx, -ry)); add('mirror', at(-rx, -ry)); }
+  // 7. bước nhảy của loại quân khác
+  for (const [x, y] of STD_OFFSETS) { if (owned.has(x + ',' + y)) continue; const g = gcdAbs(x, y); if (rays.has(x / g + ',' + y / g)) continue; add('foreign', at(x, y)); }
+  let names = Object.keys(cats);
+  if (!names.length) { for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) add('near', at(dx, dy)); names = Object.keys(cats); }
+  if (!names.length) { for (let s = 0; s < 100; s++) add('any', s); names = Object.keys(cats); }
+  const cat = names[rint(names.length)], arr = [...cats[cat]];
+  return { cand: arr[rint(arr.length)], cat };
+}
+function ynSetup(q) {
+  q.yes = Math.random() < 0.5;
+  if (q.yes) { const arr = [...q.ans]; q.cand = arr[rint(arr.length)]; q.cat = 'yes'; }
+  else { const p = ynPick(q.bd, q.from, q.t, q.side, q.ans); q.cand = p.cand; q.cat = p.cat; }
+}
+function prAnswer(userYes) {
+  const q = PR.q; if (!q || q.checked || PR.kind !== 'yn') return;
+  q.checked = true; q.userYes = userYes; q.correct = userYes === q.yes;
+  const st = PR.statsYN[q.t] || (PR.statsYN[q.t] = { n: 0, ok: 0 }); st.n++; if (q.correct) st.ok++;
+  const ck = q.yes ? 'yes' : q.cat, cs = PR.catStats[ck] || (PR.catStats[ck] = { n: 0, ok: 0 }); cs.n++; if (q.correct) cs.ok++;
+  prSave(); renderPractice();
 }
 function prCheck() {
   const q = PR.q; if (!q || q.checked) return;
@@ -1092,7 +1176,7 @@ function prCheck() {
   prSave(); renderPractice();
 }
 let lastPaint = -1;
-function prDown(i) { const q = PR.q; if (!q || q.checked || i === q.from) return; paint = !q.marks.has(i); lastPaint = -1; prPaint(i); }
+function prDown(i) { const q = PR.q; if (!q || q.checked || i === q.from || PR.kind !== 'mark') return; paint = !q.marks.has(i); lastPaint = -1; prPaint(i); }
 function prPaint(i) {
   const q = PR.q; if (!q || q.checked || paint === null || i < 0) return;
   // kéo nhanh có thể nhảy qua ô: tô cả các ô nằm trên đoạn thẳng từ ô trước tới ô này
@@ -1108,7 +1192,9 @@ function prPaint(i) {
 function renderPractice() {
   const q = PR.q, el = $('board'); el.innerHTML = '';
   const hSet = new Set();
+  const yn = PR.kind === 'yn';
   if (q && q.checked) for (const m of q.moves) for (const c of m.caps) if (c !== m.to) hSet.add(c);
+  const mvTo = new Map(); if (q && yn && q.checked) for (const m of q.moves) mvTo.set(m.to, m);
   for (let r = 0; r < 10; r++) {
     const y = flipped ? r : 9 - r;
     const lab = document.createElement('div'); lab.className = 'coord'; lab.textContent = y + 1; el.appendChild(lab);
@@ -1120,6 +1206,10 @@ function renderPractice() {
         const marked = q.marks.has(i), inAns = q.ans.has(i);
         let badge = null;
         if (i === q.from) d.classList.add('target');
+        else if (yn) {
+          if (i === q.cand) { d.classList.add('pq'); badge = q.checked ? (q.yes ? ['k', '✓'] : ['w', '✗']) : ['q', '?']; }
+          else if (mvTo.has(i)) d.classList.add(mvTo.get(i).caps.some(c => c !== mvTo.get(i).to) ? 'cj' : 'mv');
+        }
         else if (!q.checked) { if (marked) d.classList.add('pm'); }
         else if (marked && inAns) { d.classList.add('pk'); badge = ['k', '✓']; }
         else if (marked) { d.classList.add('pw'); badge = ['w', '✗']; }
@@ -1141,10 +1231,16 @@ function renderPractice() {
   if (!q) { $('prq').innerHTML = '<span class="muted">Chưa chọn quân nào để luyện. Hãy bật ít nhất một quân ở khung "Chọn quân để luyện".</span>'; $('prres').innerHTML = ''; }
   else {
     const d = BY[q.t];
-    $('prq').innerHTML = `Quân <b>${d.name}</b> (${q.side === 'w' ? 'Trắng, đi lên' : 'Đen, đi xuống'}) ở <b>${sqName(q.from)}</b>. Đã đánh dấu <b>${q.marks.size}</b> ô.` +
+    $('prq').innerHTML = `Quân <b>${d.name}</b> (${q.side === 'w' ? 'Trắng, đi lên' : 'Đen, đi xuống'}) ở <b>${sqName(q.from)}</b>. ` +
+      (yn ? `Quân này có đi được tới ô <b>${sqName(q.cand)}</b> (viền tím) không?` : `Đã đánh dấu <b>${q.marks.size}</b> ô.`) +
       (isPawn(q.t) ? ` Quân này ${q.bd[q.from].moved ? 'đã đi rồi' : 'chưa đi (có chấm xanh)'}.` : '') +
       (PR.showBetza ? `<br>Công thức: <code>${d.betza}</code>` : '');
     if (!q.checked) $('prres').innerHTML = '';
+    else if (yn) {
+      $('prres').innerHTML = (q.correct ? '<span class="good">Đúng.</span> ' : '<b style="color:#c01515">Sai.</b> ') + `Ô ${sqName(q.cand)} ${q.yes ? '<b>đi được</b>' : '<b>không đi được</b>'}.` +
+        (q.yes ? '' : `<div class="noise">Ô này được chọn làm câu nhiễu vì ${NOISE[q.cat]}.</div>`) +
+        `<div class="noise muted">Các ô tô xanh là mọi nước đi của quân này (${q.ans.size} ô).</div>`;
+    }
     else {
       const r = q.res, perfect = !r.miss && !r.wrong;
       $('prres').innerHTML = perfect ? `<span class="good">Chính xác hoàn toàn: ${r.total} ô.</span>` :
@@ -1152,11 +1248,21 @@ function renderPractice() {
       if (r.total === 0) $('prres').innerHTML += ' (quân này không có nước đi nào)';
     }
   }
-  $('prCheck').disabled = !q || q.checked; $('prClear').disabled = !q || q.checked; $('prBetza').disabled = !q;
+  $('prCheck').disabled = !q || q.checked; $('prClear').disabled = !q || q.checked; $('prBetza').disabled = !q; $('prYes').disabled = !q || q.checked; $('prNo').disabled = !q || q.checked;
   $('prNext').textContent = q && q.checked ? 'Câu tiếp (Enter)' : 'Câu mới';
   renderPrStats();
 }
 function renderPrStats() {
+  if (PR.kind === 'yn') {
+    let t = '<tr><th></th><th>Quân</th><th class="num">Câu</th><th class="num">Đúng</th></tr>', N = 0, K = 0;
+    for (const p of PIECES) { const st = PR.statsYN[p.code]; if (!st) continue; N += st.n; K += st.ok;
+      t += `<tr><td>${pcHTML(p.code, 'w')}</td><td>${p.name}</td><td class="num">${st.n}</td><td class="num">${st.ok} (${Math.round(100 * st.ok / st.n)}%)</td></tr>`; }
+    t += N ? `<tr><th></th><th>Tổng</th><th class="num">${N}</th><th class="num">${K} (${Math.round(100 * K / N)}%)</th></tr>` : '<tr><td colspan="4" class="muted">Chưa có câu nào.</td></tr>';
+    const names = { yes: 'Ô đi được', leapNear: 'Sát ô nhảy tới được', blocked: 'Bị quân chặn / ô có quân mình', occupy: 'Sai điều kiện ô đích (đi / ăn)', rayEnd: 'Ngay sau điểm dừng đường trượt', otherLine: 'Hướng quân không trượt', mirror: 'Ô đối xứng', foreign: 'Bước nhảy quân khác', near: 'Ô gần quân', any: 'Ô không đi được' };
+    t += '<tr><th colspan="2">Theo loại ô</th><th class="num">Câu</th><th class="num">Đúng</th></tr>';
+    for (const k of ['yes', ...Object.keys(NOISE)]) { const cs = PR.catStats[k]; if (!cs) continue; t += `<tr><td colspan="2">${names[k]}</td><td class="num">${cs.n}</td><td class="num">${cs.ok} (${Math.round(100 * cs.ok / cs.n)}%)</td></tr>`; }
+    $('prstats').innerHTML = t; return;
+  }
   let t = '<tr><th></th><th>Quân</th><th class="num">Câu</th><th class="num">Hoàn hảo</th><th class="num">Thiếu</th><th class="num">Thừa</th></tr>';
   let N = 0, P = 0;
   for (const p of PIECES) {
@@ -1177,13 +1283,18 @@ function renderPrPalette() {
   }
 }
 $('prCheck').onclick = prCheck;
+$('prYes').onclick = () => prAnswer(true);
+$('prNo').onclick = () => prAnswer(false);
+function applyKind() { document.body.classList.toggle('kind-yn', PR.kind === 'yn'); document.querySelectorAll('input[name=prk]').forEach(r => { r.checked = r.value === PR.kind; }); }
+document.querySelectorAll('input[name=prk]').forEach(r => { r.onchange = () => { PR.kind = r.value; applyKind(); prSave(); prNew(); }; });
+applyKind();
 $('prClear').onclick = () => { if (PR.q && !PR.q.checked) { PR.q.marks.clear(); renderPractice(); } };
 $('prNext').onclick = prNew;
 $('prBetza').onclick = () => { PR.showBetza = !PR.showBetza; renderPractice(); };
 $('prAll').onclick = () => { PR.types = new Set(PIECES.map(p => p.code)); prSave(); renderPrPalette(); prNew(); };
 $('prNone').onclick = () => { PR.types = new Set(); prSave(); renderPrPalette(); prNew(); };
 $('prNoPawn').onclick = () => { PR.types = new Set(PIECES.filter(p => !isPawn(p.code)).map(p => p.code)); prSave(); renderPrPalette(); prNew(); };
-$('prReset').onclick = () => { if (confirm('Xóa toàn bộ thành tích luyện tập?')) { PR.stats = {}; prSave(); renderPrStats(); } };
+$('prReset').onclick = () => { if (confirm('Xóa toàn bộ thành tích luyện tập?')) { PR.stats = {}; PR.statsYN = {}; PR.catStats = {}; prSave(); renderPrStats(); } };
 document.querySelectorAll('input[name=prd]').forEach(r => { r.checked = Number(r.value) === PR.density; r.onchange = () => { PR.density = Number(r.value); prSave(); prNew(); }; });
 document.querySelectorAll('input[name=prs]').forEach(r => { r.checked = r.value === PR.side; r.onchange = () => { PR.side = r.value; prSave(); prNew(); }; });
 function setApp(a) {
