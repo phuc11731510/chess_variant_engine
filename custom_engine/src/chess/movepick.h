@@ -111,7 +111,20 @@ typedef Stats<int16_t, 29952, 2 * PIECE_SLOTS, SQUARE_NB> PieceToHistory;
 /// PieceToHistory instead of ButterflyBoards.
 typedef Stats<PieceToHistory, NOT_USED, 2 * PIECE_SLOTS, SQUARE_NB> ContinuationHistory;
 
-int history_slot(Piece pc);
+/// Since continuation history grows quadratically with the number of piece types,
+/// we need to reserve a limited number of slots and map piece types to these slots
+/// in order to reduce memory consumption to a reasonable level.
+constexpr auto HistorySlots = [] {
+    std::array<uint8_t, PIECE_NB> slots{};
+    for (int pc = 1; pc < PIECE_NB; ++pc)
+    {
+        int pt = pc % PIECE_TYPE_NB;
+        slots[pc] = (pt == KING ? PIECE_SLOTS - 1 : pt % (PIECE_SLOTS - 1)) + pc / PIECE_TYPE_NB * PIECE_SLOTS;
+    }
+    return slots;
+}();
+
+inline int history_slot(Piece pc) { return HistorySlots[pc]; }
 
 /// MovePicker class is used to pick one pseudo-legal move at a time from the
 /// current position. The most important method is next_move(), which returns a
@@ -126,6 +139,7 @@ class MovePicker {
 public:
   MovePicker(const MovePicker&) = delete;
   MovePicker& operator=(const MovePicker&) = delete;
+  ~MovePicker();
   MovePicker(const Position&, Move, Value, const GateHistory*, const CapturePieceToHistory*);
   MovePicker(const Position&, Move, Depth, const ButterflyHistory*,
                                            const GateHistory*,
@@ -161,7 +175,10 @@ private:
   Value threshold;
   Depth depth;
   int ply;
-  ExtMove moves[MAX_MOVES];
+  // Move buffer taken from a per-thread pool. Keeping it off the stack bounds
+  // the per-frame stack usage of the recursive search, which would otherwise
+  // overflow the 8MB thread stack in deep searches when MAX_MOVES is large.
+  ExtMove* moves;
 };
 
 } // namespace Stockfish

@@ -64,6 +64,7 @@ const Variant* currentNnueVariant;
 namespace Eval {
 
   bool useNNUE;
+  bool isChessVariant = true;
   string eval_file_loaded = "None";
 
   /// NNUE::init() tries to load a NNUE network at startup time, or when the engine
@@ -701,7 +702,7 @@ namespace {
     b1 = attacks_bb<ROOK  >(ksq, pos.pieces() ^ pos.pieces(Us, QUEEN));
     b2 = attacks_bb<BISHOP>(ksq, pos.pieces() ^ pos.pieces(Us, QUEEN));
 
-    std::function <Bitboard (Color, PieceType)> get_attacks = [this](Color c, PieceType pt) {
+    auto get_attacks = [this](Color c, PieceType pt) {
         return attackedBy[c][pt] | (pos.piece_drops() && pos.count_in_hand(c, pt) > 0 ? pos.drop_region(c, pt) & ~pos.pieces() : Bitboard(0));
     };
     for (PieceSet ps = pos.piece_types(); ps;)
@@ -1422,6 +1423,27 @@ namespace {
     Color strongSide = eg > VALUE_DRAW ? WHITE : BLACK;
     int sf = me->scale_factor(pos, strongSide);
 
+    if (pos.variant()->endgameEval == EG_EVAL_MISERE)
+    {
+        // Forcing a selfmate requires plenty of own material, so scale down
+        // with decreasing material. A bare king can never give mate.
+        int material = pos.non_pawn_material(strongSide) + pos.count<PAWN>(strongSide) * PawnValueEg;
+        sf = pos.count<ALL_PIECES>(~strongSide) == 1 ? int(SCALE_FACTOR_DRAW)
+           : std::min(int(SCALE_FACTOR_NORMAL), int(SCALE_FACTOR_NORMAL) * material / (MidgameLimit / 2));
+
+        // Same drawishness criteria as in the KXKX misere endgame: weak pawns on
+        // their seventh rank cannot be forced to mate, and a single mating pawn
+        // needs a strong minor piece or pawn to complete the mating net.
+        // Other weak pieces can still give mate, so scale down less then.
+        Bitboard matingPawns = pos.pieces(~strongSide, PAWN) & ~rank_bb(relative_rank(~strongSide, RANK_7, pos.max_rank()));
+        if (!matingPawns || (!more_than_one(matingPawns) && !pos.pieces(strongSide, BISHOP, KNIGHT, PAWN)))
+            sf = std::min(sf, int(SCALE_FACTOR_NORMAL) / (pos.count<ALL_PIECES>(~strongSide) == pos.count<PAWN>(~strongSide) + 1 ? 16 : 4));
+
+        // In misere the scale factor judges whether a selfmate can be forced at all,
+        // which matters in every game phase
+        mg = mg * ScaleFactor(sf) / SCALE_FACTOR_NORMAL;
+    }
+
     // If scale factor is not already specific, scale up/down via general heuristics
     if (sf == SCALE_FACTOR_NORMAL && !pos.captures_to_hand() && !pos.material_counting())
     {
@@ -1511,7 +1533,7 @@ namespace {
         return abs(mg_value(score) + eg_value(score)) / 2 > lazyThreshold + pos.non_pawn_material() / 64;
     };
 
-    if (lazy_skip(LazyThreshold1) && Options["UCI_Variant"] == "chess")
+    if (lazy_skip(LazyThreshold1) && Eval::isChessVariant)
         goto make_v;
 
     // Main evaluation begins here
@@ -1543,7 +1565,7 @@ namespace {
             + passed< WHITE>() - passed< BLACK>()
             + variant<WHITE>() - variant<BLACK>();
 
-    if (lazy_skip(LazyThreshold2) && Options["UCI_Variant"] == "chess")
+    if (lazy_skip(LazyThreshold2) && Eval::isChessVariant)
         goto make_v;
 
     score +=  threats<WHITE>() - threats<BLACK>()
@@ -1680,6 +1702,9 @@ std::string Eval::trace(Position& pos) {
 
   if (pos.checkers())
       return "Final evaluation: none (in check)";
+
+  if (pos.is_immediate_game_end())
+      return "Final evaluation: none (variant end)";
 
   std::stringstream ss;
   ss << std::showpoint << std::noshowpos << std::fixed << std::setprecision(2);

@@ -124,7 +124,6 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
       os << UCI::square(pos, pop_lsb(b)) << " ";
 
   if (    int(Tablebases::MaxCardinality) >= popcount(pos.pieces())
-      && Options["UCI_Variant"] == "chess"
       && !pos.can_castle(ANY_CASTLING))
   {
       StateInfo st;
@@ -1068,9 +1067,19 @@ Bitboard Position::slider_blockers(Bitboard sliders, Square s, Bitboard& pinners
                  | (attacks_bb<BISHOP>(s) & pieces(c, QUEEN, BISHOP, ARCHBISHOP))) & sliders;
       slidingSnipers = snipers;
   }
+  else if (var->fastAttacks2)
+  {
+      snipers = (  (attacks_bb<  ROOK>(s) & (  pieces(c, ROOK, QUEEN, DRAGON)
+                                             | (pieces(c, LANCE) & PseudoAttacks[~c][LANCE][s])))
+                 | (attacks_bb<BISHOP>(s) & pieces(c, BISHOP, QUEEN, DRAGON_HORSE))) & sliders;
+      // Like the generic path, skip sliders that already attack 's' directly
+      snipers &= ~(attacks_bb<ROOK>(s, pieces()) | attacks_bb<BISHOP>(s, pieces()));
+      slidingSnipers = snipers;
+  }
   else
   {
-      for (PieceSet ps = piece_types(); ps;)
+      // Only piece types with blockable attacks can be snipers
+      for (PieceSet ps = piece_types() & SniperTypes; ps;)
       {
           PieceType pt = pop_lsb(ps);
           Bitboard b = sliders & (PseudoAttacks[~c][pt][s] ^ LeaperAttacks[~c][pt][s]) & pieces(c, pt);
@@ -1158,6 +1167,81 @@ Bitboard Position::attackers_to(Square s, Bitboard occupied, Color c, Bitboard j
             | (attacks_bb<WAZIR>(s)               & pieces(c, WAZIR, DRAGON_HORSE, GOLD))
             | (LeaperAttacks[~c][SHOGI_KNIGHT][s] & pieces(c, SHOGI_KNIGHT))
             | (LeaperAttacks[~c][SHOGI_PAWN][s]   & pieces(c, SHOGI_PAWN, SILVER));
+  }
+
+  // Use a faster version for xiangqi pieces
+  if (var->fastAttacksXiangqi)
+  {
+      Bitboard b =  (attacks_bb<ROOK>(s, occupied) & pieces(c, ROOK))
+                  | ((rider_attacks_bb<RIDER_CANNON_H>(s, occupied) | rider_attacks_bb<RIDER_CANNON_V>(s, occupied)) & pieces(c, CANNON))
+                  | (LeaperAttacks[~c][SOLDIER][s] & pieces(c, SOLDIER));
+      if (board_bb(c, KING) & s)
+          b |= LeaperAttacks[~c][WAZIR][s] & pieces(c, KING);
+      if (board_bb(c, FERS) & s)
+          b |= LeaperAttacks[~c][FERS][s] & pieces(c, FERS);
+      if ((board_bb(c, ELEPHANT) & s) && (PseudoAttacks[~c][ELEPHANT][s] & pieces(c, ELEPHANT)))
+          b |= rider_attacks_bb<RIDER_ELEPHANT>(s, occupied) & pieces(c, ELEPHANT);
+      // The horse is asymmetric, so test each candidate horse from its own square
+      Bitboard horses = PseudoAttacks[~c][HORSE][s] & pieces(c, HORSE);
+      while (horses)
+      {
+          Square s2 = pop_lsb(horses);
+          if (rider_attacks_bb<RIDER_HORSE>(s2, occupied) & s)
+              b |= s2;
+      }
+      // Unpromoted soldiers
+      if (b & pieces(SOLDIER) && relative_rank(c, s, max_rank()) < var->soldierPromotionRank)
+          b ^= b & pieces(SOLDIER) & ~PseudoAttacks[~c][SHOGI_PAWN][s];
+      return b;
+  }
+
+  // Use a faster version for janggi pieces
+  if (var->fastAttacksJanggi)
+  {
+      Bitboard b =  (attacks_bb<ROOK>(s, occupied) & pieces(c, ROOK))
+                  | (LeaperAttacks[~c][SOLDIER][s] & pieces(c, SOLDIER));
+      // Cannons can not jump over or capture cannons
+      if (PseudoAttacks[WHITE][ROOK][s] & pieces(c, JANGGI_CANNON))
+      {
+          Bitboard occupiedNoCannons = occupied & ~janggiCannons;
+          b |=  (  (rider_attacks_bb<RIDER_CANNON_H>(s, occupied) & rider_attacks_bb<RIDER_CANNON_H>(s, occupiedNoCannons))
+                 | (rider_attacks_bb<RIDER_CANNON_V>(s, occupied) & rider_attacks_bb<RIDER_CANNON_V>(s, occupiedNoCannons)))
+              & pieces(c, JANGGI_CANNON);
+      }
+      if (board_bb(c, KING) & s)
+          b |= LeaperAttacks[~c][WAZIR][s] & pieces(c, KING);
+      if (board_bb(c, WAZIR) & s)
+          b |= LeaperAttacks[~c][WAZIR][s] & pieces(c, WAZIR);
+      // Horses and elephants are asymmetric, so test each candidate from its own square
+      Bitboard horses = PseudoAttacks[~c][HORSE][s] & pieces(c, HORSE);
+      while (horses)
+      {
+          Square s2 = pop_lsb(horses);
+          if (rider_attacks_bb<RIDER_HORSE>(s2, occupied) & s)
+              b |= s2;
+      }
+      Bitboard elephants = PseudoAttacks[~c][JANGGI_ELEPHANT][s] & pieces(c, JANGGI_ELEPHANT);
+      while (elephants)
+      {
+          Square s2 = pop_lsb(elephants);
+          if (rider_attacks_bb<RIDER_JANGGI_ELEPHANT>(s2, occupied) & s)
+              b |= s2;
+      }
+      // Palace moves
+      if (diagonal_lines() & s)
+      {
+          Bitboard diags =  (attacks_bb(~c, FERS, s, occupied) & pieces(c, KING, WAZIR))
+                          | (attacks_bb(~c, PAWN, s, occupied) & pieces(c, SOLDIER))
+                          | (rider_attacks_bb<RIDER_BISHOP>(s, occupied) & pieces(c, ROOK))
+                          | (  rider_attacks_bb<RIDER_CANNON_DIAG>(s, occupied)
+                             & rider_attacks_bb<RIDER_CANNON_DIAG>(s, occupied & ~janggiCannons)
+                             & pieces(c, JANGGI_CANNON));
+          b |= diags & diagonal_lines();
+      }
+      // Unpromoted soldiers
+      if (b & pieces(SOLDIER) && relative_rank(c, s, max_rank()) < var->soldierPromotionRank)
+          b ^= b & pieces(SOLDIER) & ~PseudoAttacks[~c][SHOGI_PAWN][s];
+      return b;
   }
 
   Bitboard b = 0;
@@ -1267,8 +1351,10 @@ bool Position::legal(Move m) const {
   if ((!checking_permitted() || (sittuyin_promotion() && type_of(m) == PROMOTION) || (!drop_checks() && type_of(m) == DROP)) && gives_check(m))
       return false;
 
-  // Illegal quiet moves
-  if (must_capture() && !capture(m) && has_capture())
+  // Illegal quiet moves (mandatory drops take precedence over mandatory captures)
+  if (   must_capture() && !capture(m)
+      && !(must_drop() && type_of(m) == DROP && count_in_hand(us, var->mustDropType) > 0)
+      && has_capture())
       return false;
 
   // Illegal non-drop moves
@@ -1487,6 +1573,14 @@ bool Position::legal(Move m) const {
 
   // Return early when without king
   if (!count<KING>(us))
+      return true;
+
+  // When not in check and all pins are known, only a pinned piece can expose the king.
+  // Pinned pieces still need the full test, since leapers can jump over the pinner.
+  if (   var->fastLegal
+      && !checkers()
+      && !(piece_types() & PinUnsafeTypes)
+      && (type_of(m) == DROP || !(blockers_for_king(us) & from)))
       return true;
 
   Bitboard janggiCannons = pieces(JANGGI_CANNON);
@@ -2820,7 +2914,9 @@ bool Position::see_ge(Move m, Value threshold) const {
       return extinction_value() < VALUE_ZERO;
 
   // Do not evaluate SEE if value would be unreliable
-  if (must_capture() || !checking_permitted() || is_gating(m) || count<CLOBBER_PIECE>() == count<ALL_PIECES>())
+  if (   endgame_eval() == EG_EVAL_MISERE
+      || must_capture() || !checking_permitted() || is_gating(m)
+      || count<CLOBBER_PIECE>() == count<ALL_PIECES>())
       return VALUE_ZERO >= threshold;
 
   int swap = PieceValue[MG][piece_on(to)] - threshold;
@@ -2974,7 +3070,15 @@ bool Position::is_optional_game_end(Value& result, int ply, int countStarted) co
   }
 
   // n-fold repetition
+#ifdef LCZERO_MCTS
+  // st->repetition is never computed in do_move() in this build (see there), so
+  // the upstream shortcut below would skip every n-fold check.
   if (n_fold_rule())
+#else
+  // Without a previous occurrence of the current position (see st->repetition)
+  // only the Janggi move repetition rule can end the game.
+  if (n_fold_rule() && (st->repetition || var->moveRepetitionIllegal))
+#endif
   {
       int end = captures_to_hand() ? st->pliesFromNull : std::min(st->rule50, st->pliesFromNull);
 
