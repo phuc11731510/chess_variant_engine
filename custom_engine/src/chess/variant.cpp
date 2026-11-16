@@ -1984,6 +1984,10 @@ Variant* Variant::conclude() {
     if (!doubleStepRegion[WHITE] && !doubleStepRegion[BLACK])
         doubleStep = false;
 
+    // The optional tier of promotion lies inside the promotion region
+    for (Color c : {WHITE, BLACK})
+        optionalPromotionRegion[c] &= promotionRegion[c];
+
     // Board mask. Variants might be initialized before bitboards, so do not use BoardSizeBB.
     boardBB = 0;
     for (File f = FILE_A; f <= maxFile && f < FILE_NB; ++f)

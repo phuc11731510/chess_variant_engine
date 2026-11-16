@@ -56,6 +56,12 @@ struct Variant {
   PieceSet promotionPawnTypes[COLOR_NB] = {piece_set(PAWN), piece_set(PAWN)};
   PieceSet promotionPieceTypes[COLOR_NB] = {piece_set(QUEEN) | ROOK | BISHOP | KNIGHT,
                                             piece_set(QUEEN) | ROOK | BISHOP | KNIGHT};
+  // Two-tier promotion (custom 10x10): on these squares of promotionRegion promoting is a CHOICE even
+  // with mandatoryPawnPromotion (the pawn may stay as it is), and the piece it may become is limited to
+  // optionalPromotionPieceTypes (none given: the same as promotionPieceTypes). Everywhere else in
+  // promotionRegion the rules above apply. Empty region (default): single tier, as in Fairy-Stockfish.
+  Bitboard optionalPromotionRegion[COLOR_NB] = {};
+  PieceSet optionalPromotionPieceTypes[COLOR_NB] = {};
   bool sittuyinPromotion = false;
   int promotionLimit[PIECE_TYPE_NB] = {}; // 0 means unlimited
   PieceType promotedPieceType[PIECE_TYPE_NB] = {};
@@ -211,6 +217,8 @@ struct Variant {
       // erase from promotion types to ensure consistency
       promotionPieceTypes[WHITE] &= ~piece_set(pt);
       promotionPieceTypes[BLACK] &= ~piece_set(pt);
+      optionalPromotionPieceTypes[WHITE] &= ~piece_set(pt);
+      optionalPromotionPieceTypes[BLACK] &= ~piece_set(pt);
   }
 
   void reset_pieces() {
@@ -220,6 +228,8 @@ struct Variant {
       // clear promotion types to ensure consistency
       promotionPieceTypes[WHITE] = NO_PIECE_SET;
       promotionPieceTypes[BLACK] = NO_PIECE_SET;
+      optionalPromotionPieceTypes[WHITE] = NO_PIECE_SET;
+      optionalPromotionPieceTypes[BLACK] = NO_PIECE_SET;
   }
 
   // Reset values that always need to be redefined

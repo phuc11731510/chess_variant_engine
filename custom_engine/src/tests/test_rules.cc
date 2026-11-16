@@ -131,6 +131,111 @@ void run_rules_tests() {
         std::cout << "  [OK] sergeant double-steps i3i5 on its 2nd move (region-based double-step)" << std::endl;
     }
 
+    // ------------------------------------------------------------------------
+    // Two-tier promotion (planned rules, see LUAT_BIEN_THE.md). The game's own variant has ONE tier
+    // (promotion compulsory on ranks 8-10), so this builds a variant on top of it: rank 8 (Black: 3)
+    // promotion is a choice, to n or y only; rank 9 (Black: 2) is compulsory, to all six pieces.
+    // ------------------------------------------------------------------------
+    {
+        std::cout << "  two-tier promotion (optional rank 8 / compulsory rank 9)..." << std::endl;
+        std::istringstream ini(R"([two_tier_promotion:custom_10x10_variant]
+startFen = k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 0 1
+castling = false
+promotionRegionWhite = *8 *9
+promotionRegionBlack = *3 *2
+optionalPromotionRegionWhite = *8
+optionalPromotionRegionBlack = *3
+optionalPromotionPieceTypes = n y
+)");
+        Stockfish::variants.parse_istream<false>(ini);
+        const auto found = Stockfish::variants.find("two_tier_promotion");
+        if (found == Stockfish::variants.end()) {
+            std::cerr << "[FAIL] two-tier promotion: the test variant did not load" << std::endl;
+            std::exit(1);
+        }
+        const Stockfish::Variant* tv = found->second;
+
+        // Plays `prelude` from `fen`, then returns the legal moves of the piece on `from`, sorted. Every
+        // legal move is also made and unmade: the key and the FEN must come back, and pseudo_legal must
+        // accept it (and reject the same move without its promotion where promotion is compulsory).
+        auto from_square = [&](const std::string& fen, const std::vector<std::string>& prelude, const std::string& from) {
+            Stockfish::Position pos;
+            Stockfish::StateListPtr states(new std::deque<Stockfish::StateInfo>(1));
+            pos.set(tv, fen, false, &states->back(), Stockfish::Threads.main());
+            for (std::string u : prelude) {
+                const Stockfish::Move m = Stockfish::UCI::to_move(pos, u);
+                if (m == Stockfish::MOVE_NONE) { std::cerr << "[FAIL] two-tier promotion: illegal prelude move " << u << " in " << fen << std::endl; std::exit(1); }
+                states->emplace_back();
+                pos.do_move(m, states->back());
+            }
+            std::vector<std::string> out;
+            for (const auto& m : Stockfish::MoveList<Stockfish::LEGAL>(pos)) {
+                const std::string s = Stockfish::UCI::move(pos, m);
+                if (s.compare(0, from.size(), from) != 0) continue;
+                out.push_back(s);
+                if (!pos.pseudo_legal(m)) { std::cerr << "[FAIL] two-tier promotion: legal move " << s << " is not pseudo-legal in " << fen << std::endl; std::exit(1); }
+                const Stockfish::Key key = pos.key();
+                const std::string before = pos.fen();
+                states->emplace_back();
+                pos.do_move(m, states->back());
+                pos.undo_move(m);
+                states->pop_back();
+                if (pos.key() != key || pos.fen() != before) { std::cerr << "[FAIL] two-tier promotion: do/undo of " << s << " does not restore " << fen << std::endl; std::exit(1); }
+            }
+            std::sort(out.begin(), out.end());
+            return out;
+        };
+        auto expect = [&](const char* what, const std::string& fen, const std::vector<std::string>& prelude,
+                          const std::string& from, std::vector<std::string> want) {
+            std::sort(want.begin(), want.end());
+            const std::vector<std::string> got = from_square(fen, prelude, from);
+            if (got != want) {
+                std::cerr << "[FAIL] two-tier promotion: " << what << "\n   fen " << fen << "\n   got:";
+                for (const auto& s : got) std::cerr << ' ' << s;
+                std::cerr << "\n   want:";
+                for (const auto& s : want) std::cerr << ' ' << s;
+                std::cerr << std::endl;
+                std::exit(1);
+            }
+        };
+        const std::string all6 = "bmnrvy";
+        auto six = [&](const std::string& move) {
+            std::vector<std::string> v;
+            for (char c : all6) v.push_back(move + c);
+            return v;
+        };
+        auto cat = [](std::vector<std::string> a, const std::vector<std::string>& b) { a.insert(a.end(), b.begin(), b.end()); return a; };
+
+        // Pawn to rank 8: stays, or becomes n / y.
+        expect("pawn e7 -> rank 8", "9k/10/10/4P5/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e7",
+               {"e7e8", "e7e8n", "e7e8y"});
+        // Pawn already on rank 8 -> rank 9: compulsory, all six.
+        expect("pawn e8 -> rank 9", "9k/10/4P5/10/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e8", six("e8e9"));
+        // Captures follow the same tiers.
+        expect("pawn e7 x d8 / push e8", "9k/10/3r6/4P5/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e7",
+               {"e7e8", "e7e8n", "e7e8y", "e7d8", "e7d8n", "e7d8y"});
+        expect("pawn e8 x d9 / push e9", "9k/3r6/4P5/10/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e8",
+               cat(six("e8e9"), six("e8d9")));
+        // Sergeant (the generic pawn-type path): same tiers on its three forward steps.
+        expect("sergeant e7 -> rank 8", "9k/10/10/4S5/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e7",
+               {"e7e8", "e7e8n", "e7e8y", "e7d8", "e7d8n", "e7d8y", "e7f8", "e7f8n", "e7f8y"});
+        expect("sergeant e8 -> rank 9", "9k/10/4S5/10/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e8",
+               cat(cat(six("e8e9"), six("e8d9")), six("e8f9")));
+        // Black is the mirror image (rank 3 optional, rank 2 compulsory).
+        expect("black pawn e4 -> rank 3", "k9/10/10/10/10/10/4p5/10/10/K9 b - - 8+8 0 1", {}, "e4",
+               {"e4e3", "e4e3n", "e4e3y"});
+        expect("black pawn e3 -> rank 2", "k9/10/10/10/10/10/10/4p5/10/K9 b - - 8+8 0 1", {}, "e3", six("e3e2"));
+        // En passant landing on rank 8 (optional): Black Sergeant e9-e7 passes e8, White pawn d7 may take
+        // it there, staying a pawn or becoming n / y.
+        expect("e.p. onto rank 8", "k9/4s5/10/3P6/10/10/10/10/10/K9 b - - 8+8 0 1", {"e9e7"}, "d7",
+               {"d7d8", "d7d8n", "d7d8y", "d7e8", "d7e8n", "d7e8y"});
+        // En passant landing on rank 9 (compulsory): Black Sergeant e10-e8 passes e9, White pawn d8.
+        expect("e.p. onto rank 9", "k3s5/10/3P6/10/10/10/10/10/10/K9 b - - 8+8 0 1", {"e10e8"}, "d8",
+               cat(six("d8d9"), six("d8e9")));
+        std::cout << "  [OK] two-tier promotion: rank 8 optional (n, y or stay), rank 9 compulsory (all six),"
+                     " pawn, sergeant, captures, e.p., both colours, do/undo, pseudo_legal" << std::endl;
+    }
+
     std::cout << "[PASS] RULES tests." << std::endl;
 }
 

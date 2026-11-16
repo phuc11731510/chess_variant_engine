@@ -1605,7 +1605,7 @@ bool Position::pseudo_legal(const Move m) const {
   {
       // We have already handled promotion moves, so destination
       // cannot be on the 8th/1st rank.
-      if (mandatory_pawn_promotion() && (promotion_zone(us) & to) && !sittuyin_promotion())
+      if (mandatory_pawn_promotion() && (compulsory_promotion_zone(us) & to) && !sittuyin_promotion())
           return false;
 
       if (   !(pawn_attacks_bb(us, from) & pieces(~us) & to)     // Not a capture

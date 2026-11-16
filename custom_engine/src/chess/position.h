@@ -167,9 +167,13 @@ public:
   const std::string& piece_to_char() const;
   const std::string& piece_to_char_synonyms() const;
   Bitboard promotion_zone(Color c) const;
+  Bitboard optional_promotion_zone(Color c) const;
+  Bitboard compulsory_promotion_zone(Color c) const;
   Square promotion_square(Color c, Square s) const;
   PieceType main_promotion_pawn_type(Color c) const;
   PieceSet promotion_piece_types(Color c) const;
+  PieceSet optional_promotion_piece_types(Color c) const;
+  PieceSet promotion_piece_types(Color c, Square to) const;
   bool sittuyin_promotion() const;
   int promotion_limit(PieceType pt) const;
   PieceType promoted_piece_type(PieceType pt) const;
@@ -493,6 +497,21 @@ inline Bitboard Position::promotion_zone(Color c) const {
   return var->promotionRegion[c];
 }
 
+/// Two-tier promotion: on the optional zone (a subset of the promotion zone) a pawn may also stay as
+/// it is, and may become only optional_promotion_piece_types; on the rest of the promotion zone it
+/// follows mandatory_pawn_promotion() and promotion_piece_types(). Without an optional zone (every
+/// variant but the custom one) both tiers are the single one of Fairy-Stockfish.
+
+inline Bitboard Position::optional_promotion_zone(Color c) const {
+  assert(var != nullptr);
+  return var->optionalPromotionRegion[c];
+}
+
+inline Bitboard Position::compulsory_promotion_zone(Color c) const {
+  assert(var != nullptr);
+  return var->promotionRegion[c] & ~var->optionalPromotionRegion[c];
+}
+
 inline Square Position::promotion_square(Color c, Square s) const {
   assert(var != nullptr);
   Bitboard b = promotion_zone(c) & forward_file_bb(c, s) & board_bb();
@@ -507,6 +526,17 @@ inline PieceType Position::main_promotion_pawn_type(Color c) const {
 inline PieceSet Position::promotion_piece_types(Color c) const {
   assert(var != nullptr);
   return var->promotionPieceTypes[c];
+}
+
+inline PieceSet Position::optional_promotion_piece_types(Color c) const {
+  assert(var != nullptr);
+  return var->optionalPromotionPieceTypes[c] ? var->optionalPromotionPieceTypes[c] : var->promotionPieceTypes[c];
+}
+
+// The types a pawn promoting on the square `to` may become.
+inline PieceSet Position::promotion_piece_types(Color c, Square to) const {
+  assert(var != nullptr);
+  return (var->optionalPromotionRegion[c] & to) ? optional_promotion_piece_types(c) : var->promotionPieceTypes[c];
 }
 
 inline bool Position::sittuyin_promotion() const {

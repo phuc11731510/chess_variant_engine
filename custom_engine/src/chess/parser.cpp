@@ -371,6 +371,8 @@ Variant* VariantParser<DoCheck>::parse(Variant* v) {
     parse_attribute("startFen", v->startFen);
     parse_attribute("promotionRegionWhite", v->promotionRegion[WHITE]);
     parse_attribute("promotionRegionBlack", v->promotionRegion[BLACK]);
+    parse_attribute("optionalPromotionRegionWhite", v->optionalPromotionRegion[WHITE]);
+    parse_attribute("optionalPromotionRegionBlack", v->optionalPromotionRegion[BLACK]);
     // Take the first promotionPawnTypes as the main promotionPawnType
     parse_attribute("promotionPawnTypes", v->mainPromotionPawnType[WHITE], v->pieceToChar);
     parse_attribute("promotionPawnTypes", v->mainPromotionPawnType[BLACK], v->pieceToChar);
@@ -384,6 +386,10 @@ Variant* VariantParser<DoCheck>::parse(Variant* v) {
     parse_attribute("promotionPieceTypes", v->promotionPieceTypes[BLACK], v->pieceToChar);
     parse_attribute("promotionPieceTypesWhite", v->promotionPieceTypes[WHITE], v->pieceToChar);
     parse_attribute("promotionPieceTypesBlack", v->promotionPieceTypes[BLACK], v->pieceToChar);
+    parse_attribute("optionalPromotionPieceTypes", v->optionalPromotionPieceTypes[WHITE], v->pieceToChar);
+    parse_attribute("optionalPromotionPieceTypes", v->optionalPromotionPieceTypes[BLACK], v->pieceToChar);
+    parse_attribute("optionalPromotionPieceTypesWhite", v->optionalPromotionPieceTypes[WHITE], v->pieceToChar);
+    parse_attribute("optionalPromotionPieceTypesBlack", v->optionalPromotionPieceTypes[BLACK], v->pieceToChar);
     parse_attribute("sittuyinPromotion", v->sittuyinPromotion);
     // promotion limit
     const auto& it_prom_limit = config.find("promotionLimit");
