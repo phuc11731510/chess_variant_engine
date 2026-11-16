@@ -1984,6 +1984,15 @@ Variant* Variant::conclude() {
     if (!doubleStepRegion[WHITE] && !doubleStepRegion[BLACK])
         doubleStep = false;
 
+    // Board mask. Variants might be initialized before bitboards, so do not use BoardSizeBB.
+    boardBB = 0;
+    for (File f = FILE_A; f <= maxFile && f < FILE_NB; ++f)
+        boardBB |= file_bb(f);
+    Bitboard ranks = 0;
+    for (Rank r = RANK_1; r <= maxRank && r < RANK_NB; ++r)
+        ranks |= rank_bb(r);
+    boardBB &= ranks;
+
     // Determine optimizations
     bool restrictedMobility = false;
     for (PieceSet ps = pieceTypes; !restrictedMobility && ps;)
@@ -1997,11 +2006,26 @@ Variant* Variant::conclude() {
                   && !restrictedMobility
                   && !cambodianMoves
                   && !diagonalLines;
-    fastAttacks2 =  !(pieceTypes & ~(SHOGI_PIECES | COMMON_STEP_PIECES))
+    fastAttacks2 =  !(pieceTypes & ~(CHESS_PIECES | SHOGI_PIECES | COMMON_STEP_PIECES))
                   && kingType == KING
                   && !restrictedMobility
                   && !cambodianMoves
                   && !diagonalLines;
+    fastAttacksXiangqi =  !(pieceTypes & ~XIANGQI_PIECES)
+                        && kingType == WAZIR
+                        && !cambodianMoves
+                        && !diagonalLines;
+    fastAttacksJanggi =  !(pieceTypes & ~JANGGI_PIECES)
+                       && kingType == WAZIR
+                       && !cambodianMoves;
+    // Only moving a pinned piece can expose the king to an attack
+    fastLegal =  kingType == KING
+               && !restrictedMobility
+               && !cambodianMoves
+               && !diagonalLines
+               && !flyingGeneral
+               && !blastOnCapture
+               && wallingRule == NO_WALLING;
 
     // Initialize calculated NNUE properties
     nnueKing =  pieceTypes & KING ? KING
@@ -2183,9 +2207,13 @@ void VariantMap::parse_istream(std::istream& file) {
         {
             if (DoCheck)
                 std::cerr << "Parsing variant: " << variant << std::endl;
-            Variant* v = !variant_template.empty() ? VariantParser<DoCheck>(attribs).parse((new Variant(*variants.find(variant_template)->second))->init())
-                                                   : VariantParser<DoCheck>(attribs).parse();
-            if (v->maxFile <= FILE_MAX && v->maxRank <= RANK_MAX)
+            VariantParser<DoCheck> parser(attribs);
+            Variant* v = !variant_template.empty() ? parser.parse((new Variant(*variants.find(variant_template)->second))->init())
+                                                   : parser.parse();
+            // Reject variants with unsupported combinations of options
+            for (const std::string& error : parser.get_errors())
+                std::cerr << "Variant '" << variant << "' rejected: " << error << std::endl;
+            if (v->maxFile <= FILE_MAX && v->maxRank <= RANK_MAX && parser.get_errors().empty())
             {
                 add(variant, v);
                 // In order to allow inheritance, we need to temporarily add configured variants
