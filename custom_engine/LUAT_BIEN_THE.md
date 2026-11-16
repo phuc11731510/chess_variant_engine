@@ -113,47 +113,92 @@ sách>` (mỗi dòng được kiểm); mạng đã học trên thế cờ cố �
 cần huấn luyện lại hoặc trộn dữ liệu mới từ sớm; GUI (Flutter/Android) chưa được kiểm với nhập thành
 ngoài hàng 1.
 
-## Kế hoạch dài hạn (CHƯA LÀM)
+## Chỉnh sửa riêng trong mã Fairy-Stockfish (`src/chess/`)
 
-Ghi lại mong muốn dài hạn của chủ dự án (2026-10-28). Chưa có mã nào được viết cho các mục dưới đây; vòng học tăng cường hiện tại giữ nguyên.
+Mã bàn cờ ở `src/chess/` là Fairy-Stockfish (FSF) đã sửa cho luật trên. Phần dưới liệt kê **mọi chỗ khác
+bản gốc và lý do**, để khi hợp nhất với FSF mới biết chỗ nào phải giữ. (Chỉ tính thư mục `src/chess/`;
+luật diễn đạt được bằng INI nằm ở `src/app/variant_setup.cc`, không phải FSF.)
 
-### 1. Lưu dữ liệu ván đấu đời 491–990
+**Mốc hợp nhất gần nhất (2026-11-16):** gốc `1b5bdd40` (FSF 2026-05-23, "Add Georgian chess") →
+`014b0775` (FSF 2026-11-15). Nhánh `hop-nhat-fairystockfish`, commit `9d8a37e`. Cách làm: hợp nhất ba
+chiều từng tệp (`git merge-file`: gốc, mã của dự án, FSF mới) trong thư mục tạm, không xung đột; rồi
+biên dịch và chạy `--test-*`, `--audit-rules`, `--audit-generation`, `fz_test`: đều qua.
 
-- Giữ toàn bộ ván tự đấu từ đời 491 tới đời 990, mỗi ván nguyên vẹn (không lọc bớt vị trí trước khi lưu). Gói zip hiện tại (mỗi ván một tệp con) đáp ứng điều này.
-- Dung lượng ước tính: khoảng 20 MB mỗi đời, tức khoảng 10 GB cho 500 đời.
-- Dùng cho: chưng cất (mục 2) và làm đích cho đầu dự đoán số nước còn lại.
+### A. Luật của biến thể (đổi hành vi bàn cờ)
 
-### 2. Chưng cất mạng tích chập sang mạng transformer (sau đời 990)
+1. **Bắt tốt qua đường (ep) cho Sergeant** (`position.cpp`, `movegen.cpp`). `enPassantTypes = p s`:
+   bước đôi thẳng hoặc chéo của Sergeant để lại ô ep; Sergeant đi vào ô ep luôn là ăn (movegen bỏ ô ep
+   khỏi `quiets`, ô ep ăn được từ `attacks` thay vì `attacks & ~quiets`). Quân bị ăn có thể cách hai
+   cột (trường hợp biên 2–4).
+2. **Ăn ep kèm phong cấp** (`types.h`, `movegen.cpp`, `position.cpp`, `uci.cpp`). Khi ô ep nằm trong vùng
+   phong cấp (Sergeant đi đôi từ hàng 2/9), nước ep mang thêm quân phong cấp: `ep_promotion_type(m)`
+   dùng lại trường phong cấp của nước `EN_PASSANT`. `movegen` sinh một nước cho mỗi quân phong cấp,
+   `do_move` / `undo_move` đổi quân và hoàn lại, `gives_check` tính chiếu trực tiếp theo quân mới,
+   `UCI::move` thêm chữ quân phong cấp để các nước khác nhau có chuỗi khác nhau. (Tốt không gặp tình
+   huống này vì Tốt bắt đầu hàng 3/8.)
+3. **Đếm chiếu theo số quân chiếu** (`position.cpp`, `do_move`): chiếu đôi = 2. FSF gốc tính 1 cho mỗi
+   nước chiếu; dự án tính ở cuối `do_move` khi đã biết `checkersBB`, số còn lại không âm, về 0 là thắng
+   (trường hợp biên 7). `check_counting` bật bằng `checkCounting = true` trong INI.
+4. **Nhập thành trên hàng bất kỳ** (`variant.h`, `parser.cpp`, `position.h/.cpp`, `movegen.cpp`,
+   `uci.cpp`, `pawns.cpp`). Thêm cờ `castlingAnyRank` (INI) và `Position::castling_setup_rank(c)`: khi
+   đọc FEN, hàng nhập thành là hàng của Hoàng gia nếu chỉ có một Hoàng gia. Mọi chỗ FSF dùng
+   `castling_rank(us)` để tính ô đích đổi thành `rank_of(from)` (hàng thực của quân): `legal`,
+   `gives_check`, `do_move`, `undo_move`, `castle`, movegen, UCI, `pawns.cpp`. Trường hợp biên 13–14:
+   - `castling_rook_by_letter()` chọn Xe theo chữ K/Q (Xe đầu tiên từ cột Xe của biến thể về phía cột a
+     hoặc cột cuối); `fen()` chỉ ghi K/Q khi đọc lại ra đúng Xe đó, không thì ghi chữ cột.
+   - `gives_check`: luôn kiểm chiếu mở do Xe rời ô (FSF chỉ kiểm khi `castlingRank > 1`).
+   - `uci.cpp`: nước nhập thành mà Hoàng gia đã đứng sẵn ở cột đích viết theo ký hiệu 960
+     (Hoàng gia → ô Xe), không viết `h2h2`.
+5. **Hết nước đi = thua, không hoà do thiếu quân**: cấu hình bằng INI (`stalemateValue = loss`), không
+   sửa mã FSF. Ghi ở đây để biết luật này không nằm trong `src/chess/`.
+6. **Định nghĩa biến thể** `[custom_10x10_variant]` trong `variants.ini` (bàn 10×10, thế cờ đầu, các quân
+   `v`, `y`, `s`, vùng đi đôi, vùng phong cấp, `promotionPieceTypes = b m n r v y`, `castlingAnyRank`...).
+   Đây là bản dự phòng cho công cụ FSF; bản chính dùng bởi engine là `variant_setup.cc`.
 
-- Mạng trò: transformer khoảng 1 GFLOP mỗi lần lượng giá.
-- **Policy:** mạng trò học policy THÔ của mạng thầy, làm mềm ở phía thầy với $\tau = 1.1$: đích là $p_i^{1/\tau}$ chuẩn hoá lại; mạng trò học ở nhiệt độ 1, nên policy thô của trò phẳng hơn của thầy (có chủ đích: chuẩn bị cho việc gần như học lại với luật mới ở mục 3).
-  - Phải đặt logits của nước KHÔNG hợp lệ thành −∞ trước khi chia nhiệt độ và tính softmax: lúc huấn luyện các ô đó bị che bằng −∞ nên logits thô của thầy ở đó không được huấn luyện, giá trị bất kỳ. Mặt nạ lấy từ phân phối đích trong dữ liệu (nước không hợp lệ = 0).
-  - Ví dụ mức làm mềm: prior 0,60 / 0,30 / 0,10 thành khoảng 0,578 / 0,308 / 0,113.
-- **Đầu dự đoán số nước còn lại (moves-left head):** thêm vào mạng trò. Đích = $n - i$ (ván dài $n$ nước, vị trí thứ $i$), tính từ dữ liệu ván ở mục 1 — không lấy từ mạng thầy (thầy không có đầu này).
-  - Kiểm tra trên gen 109: 1002 ván, mọi bản ghi đổi bên đi đều đặn (không thiếu nước), dài 49–400 nước, trung vị 170; 1 ván chạm giới hạn 400 nước (kết thúc hoà, $n - i$ bị cắt ngắn).
-  - Ván trong dữ liệu do mạng không có đầu này chơi, nên đích phản ánh cách chơi đó (bên thắng không vội kết thúc).
-- **Engine:** phần tìm kiếm của lc0 cho đầu này đã có (`MEvaluator`, các tham số `moves-left-*` trong `src/search/classic/params.cc`). Hiện bộ nạp ONNX cố định `has_mlh = false` và điền M = 50 (`src/lczero_chess/neural/onnx_backend.cc`), nên số hạng này bằng 0 trong PUCT. Cần sửa bộ nạp để đọc đầu ra M từ tệp ONNX và bật `has_mlh`.
-- **Mặt phẳng đầu vào vô dụng của mạng hiện tại** (tối ưu khi thiết kế mạng trò):
-  - Amazon (`a`): không có trong FEN khởi đầu, không phải quân phong cấp → 2 mặt phẳng (mình / đối thủ) × 8 thế lịch sử luôn bằng 0.
-  - Mặt phẳng phụ 6: không dùng (luôn 0). Mặt phẳng phụ 7: luôn bằng 1 (đánh dấu biên bàn cờ cho tích chập).
-- Sau chưng cất: học tăng cường tiếp trên mạng trò. Lưu ý: đích policy khi đó là phân phối lượt thăm của MCTS với prior của trò, nên độ phẳng do $\tau$ chỉ ảnh hưởng mấy đời đầu.
-- **Cần quyết định trước vòng học tăng cường của trò:** bật hiệu ứng số nước còn lại trong tìm kiếm khi tự đấu (dữ liệu mới có độ dài theo cách chơi mới) hay chỉ bật khi chơi GUI.
+### B. Khoá băm Zobrist (đúng luật lặp thế, bộ nhớ đệm mạng, tái lập)
 
-### 3. Đổi luật sau đợt chưng cất
+7. **Khoá ep theo ô, không theo cột** (`Zobrist::enpassant[SQUARE_NB]`): bước đôi thẳng của Sergeant
+   đánh dấu hai ô cùng một cột; khoá theo cột thì hai lần XOR triệt tiêu nhau, thế có quyền ep băm giống
+   thế không có. Cập nhật ở `set_state`, `key_after`, `do_move`, `undo`.
+8. **Khoá quyền nhập thành gắn với ô của Xe** (`Zobrist::castlingRook`, `Position::castling_key(cr)`):
+   với thế xáo trộn, cùng quyền K/Q nhưng do hai Xe khác nhau giữ cho nước đi khác nhau mà băm giống
+   nhau. Thay `Zobrist::castling[cr]` ở mọi chỗ.
+9. **Bộ sinh khoá và hạt giống** (`Position::init(seed)`, `random_zobrist_seed`, `zobrist_seed`,
+   `zobrist_cuckoo_max_kicks`): thay `PRNG` của FSF bằng xoshiro256** gieo bằng SplitMix64 (đầu ra
+   không tuyến tính trên GF(2)); hạt giống 10 chữ số, ngẫu nhiên mỗi lần chạy, lặp lại bằng
+   `--zobrist-seed`. Chèn vào bảng cuckoo có giới hạn 10000 lần đá, vượt thì thử hạt giống kế tiếp (FSF
+   gốc để vòng lặp không giới hạn: 1 hạt giống trong 20.000 làm treo lúc khởi động).
 
-Mỗi bên hiện có 4 Alibaba (`y:AD`, `customPiece2`): c2, h2, a3, j3 (bên kia c9, h9, a8, j8). Đổi 4 quân đó thành:
+### C. Chế độ `LCZERO_MCTS` (engine dùng bàn cờ này cho tìm kiếm MCTS kiểu lc0, không dùng đánh giá của FSF)
 
-| Quân mới | Betza | Ghi chú |
-|---|---|---|
-| Alibaba + Wazir | `ADW` | |
-| Grasshopper không ăn + King | `KmgQ` | phần King đi và ăn bình thường; phần grasshopper chỉ đi, không ăn; KHÔNG phải quân hoàng gia |
+Mọi thứ dưới đây bọc trong `#ifdef LCZERO_MCTS` / `#ifndef LCZERO_MCTS` để bản FSF thường vẫn dựng được.
 
-Bộ đọc Betza của Fairy-Stockfish nhận `m` và `g` (`src/chess/piece.cpp`).
+10. **Tắt NNUE và đánh giá cổ điển**: `evaluate.cpp` (`NNUE::init` đặt `useNNUE = false`, `verify` bỏ
+    qua), `nnue/evaluate_nnue.cpp` (hàm rỗng), `nnue/features/half_ka_v2*.cpp` (bỏ cả tệp), bỏ
+    `dirtyPiece`, `psq`, `pawnKey`, `materialKey`, `nonPawnMaterial` khỏi `StateInfo` / `Position`. Các
+    hàm đọc chúng (`pawn_key`, `psq_score`, `non_pawn_material`) trả 0. `do_move` và `undo_move` bỏ
+    mọi cập nhật liên quan (nhiều khối `#ifndef`).
+11. **Tắt tính lặp thế trong `do_move`** (`st->repetition = 0`): lặp thế do `PositionHistory` của
+    lc0 quản lý. **Hệ quả khi hợp nhất:** đường tắt của FSF "bỏ qua kiểm n-fold khi `st->repetition == 0`"
+    (#1063, 2026-11) làm kiểm n-fold của `is_optional_game_end` không bao giờ chạy; nhánh `LCZERO_MCTS`
+    dùng lại điều kiện cũ `if (n_fold_rule())`.
+12. **`StateInfo` xếp lại cho bộ nhớ đệm**: các trường `Bitboard` (16 byte) trước, rồi `int` / `Square`,
+    rồi nhỏ nhất; khối được chép mỗi nước phải nằm trong 128 byte (`static_assert(offsetof(StateInfo,
+    key) <= 128)`). `Position` chia thành con trỏ (không chép) và vùng POD chép bằng một `memcpy`.
+13. **`Position::copy_from(other, newSt)`**: sao chép bàn cờ bằng một `memcpy` (thay cho chép từng trường)
+    ; `do_move` / `undo` chép `StateInfo` bằng `memcpy` thay vì gán từng trường.
+    `Position::set_state` bỏ phần khởi tạo khoá tốt / vật chất.
+14. **Phát hiện thả quân** trong `do_move`: điều kiện `st->materialKey != previous->materialKey` đổi
+    thành `type_of(st->move) == DROP` (vì không còn `materialKey`).
 
-- **Phong cấp:** tốt được phong thành cả hai quân mới; hai quân này thay chỗ Knight và Alibaba trong danh sách phong cấp (hiện `promotionPieceTypes = b m n r v y`). Vẫn 6 loại phong cấp → đầu ra policy giữ 106 kênh (72 hướng Hậu × khoảng cách + 8 Mã + 8 Lạc đà + 18 phong cấp). Nước của grasshopper (theo 8 hướng Hậu), Wazir/King (1 ô) và Alibaba (2 ô) nằm trong 72 kênh đầu.
-- **Đầu vào:** bỏ Alibaba, thêm 2 loại quân; nếu một quân mới dùng chỗ của Alibaba và quân còn lại dùng chỗ của Amazon (vô dụng) thì mỗi bên vẫn 13 loại, 27 mặt phẳng mỗi thế, 226 mặt phẳng — không đổi kích thước. Nếu thiết kế lại đầu vào cho mạng trò thì tính sẵn chỗ cho 2 quân mới ngay từ lúc chưng cất (lúc đó các mặt phẳng này luôn 0), để khi đổi luật không phải sửa lớp đầu vào / đầu ra của mạng đã huấn luyện.
-- **Còn phải quyết định:**
-  - 4 ô Alibaba mỗi bên: ô nào thành quân nào (ví dụ 2 + 2).
-  - Ký tự FEN của hai quân mới (`k` đã là Hoàng gia).
-  - Quân nào nhận chỗ phong cấp của Knight, quân nào nhận chỗ của Alibaba.
-- **Phải cập nhật khi làm:** `src/app/variant_setup.cc` (khai báo quân, phong cấp), FEN khởi đầu (`src/app/uci_coords.cc`), bảng loại quân → mặt phẳng (`src/lczero_chess/chess/encoder.cc`), mã hoá phong cấp trong `MoveToNNIndex`, `LUAT_BIEN_THE.md`, bộ kiểm tra luật độc lập `--audit-rules`, phiên bản dữ liệu nếu đổi định dạng, bộ đọc Python và bài kiểm tra round-trip, hình quân trong GUI (Windows và Android), `python/do_gia_tri_quan.py` (thứ tự mặt phẳng).
+### D. Khi hợp nhất với FSF mới
+
+- Gốc ba chiều lần sau là `014b0775` (mã dự án hiện = FSF `014b0775` + các chỗ
+  trên). `git merge-file ours base theirs` từng tệp; tệp trong git của dự án dùng LF, FSF có thể CRLF.
+- Sau khi hợp nhất **bắt buộc** chạy: `custom_engine --test-board --test-ep --test-rules --test-perft
+  --test-history --audit-rules --audit-generation --test-adapter --test-selfplay --test-mcts`
+  và `fz_test`. Lần 2026-11-16 chính `--test-history` (kiểm n-fold ở mọi mốc luật 50 nước) bắt được
+  lỗi mục 11; các bài kiểm không đổ lỗi chữ nên không xung đột cũng không có nghĩa đúng hành vi.
+- Dễ gây hỏng nhất: tối ưu của FSF dựa vào trạng thái đã tắt ở mục C (`repetition`, `psq`, vật chất,
+  khoá tốt) hoặc giả định cờ 8×8 / quân chuẩn (đường tắt `attackers_to`, `fastAttacks`, `SniperTypes`,
+  `boardBB`, `blockers_for_king`).
