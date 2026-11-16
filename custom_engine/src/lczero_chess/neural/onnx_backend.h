@@ -5,17 +5,18 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "chess/nn_layout.h"
 #include "neural/backend.h"
 #include "utils/optionsdict.h"
 #include "onnxruntime_cxx_api.h"
 
 namespace lczero {
 
-constexpr size_t InputPlanesCount = 226;
-constexpr size_t BoardWidth = 10;
-constexpr size_t BoardHeight = 10;
-constexpr size_t InputBufferUnitSize = InputPlanesCount * BoardWidth * BoardHeight; // 22600
-constexpr size_t PolicyOutputSize = 10600; // 106 directions/promotions * 100 squares
+constexpr size_t InputPlanesCount = kInputPlanes;
+constexpr size_t BoardWidth = kBoardSize;
+constexpr size_t BoardHeight = kBoardSize;
+constexpr size_t InputBufferUnitSize = InputPlanesCount * BoardWidth * BoardHeight; // 20500
+constexpr size_t PolicyOutputSize = kPolicySize; // kMoveTypes (115) * 100 squares
 constexpr size_t ValueOutputSize = 3;     // WDL (Win, Draw, Loss)
 
 // --- Instrumentation: what actually reached the neural network ---------------

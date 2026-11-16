@@ -32,8 +32,7 @@ import trainingdata_reader as tr  # noqa: E402
 
 BUCKETS = [(0, 32, "ply 0-31"), (32, 100, "ply 32-99"), (100, 200, "ply 100-199"), (200, 10 ** 9, "ply >= 200")]
 TEMPS = [1.0, 0.5, 0.25, 0.1]
-KEEP = ("piece_planes", "ep_mask", "rule50_count", "checks_remaining_us", "checks_remaining_them",
-        "castling_us_ooo_sq", "castling_us_oo_sq", "castling_them_ooo_sq", "castling_them_oo_sq")
+KEEP = ("piece_planes", "ep_mask", "rule50_count", "checks_remaining_us", "checks_remaining_them")
 
 
 def bucket_of(ply):

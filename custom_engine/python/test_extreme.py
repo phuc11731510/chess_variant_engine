@@ -2,12 +2,12 @@
 
 Pure-Python + torch only (no engine, no CUDA) — fast and deterministic. Targets the
 convention-sensitive logic where a silent bug would corrupt training without crashing:
-  1. binary record layout round-trips (struct pack/unpack, 45940 B, field order)
+  1. binary record layout round-trips (struct pack/unpack, 49280 B, field order)
   2. wdl_from_qd invariants over a (q,d) sweep incl. inconsistent inputs
   3. qMix value target = q_ratio*q + (1-q_ratio)*z (exact)
   4. sparse cache == dense cache, bit-identical, over fuzz + degenerate records
   5. masked policy loss: ZERO gradient on illegal logits + value-correct + invariance
-  6. reconstruct_planes aux-plane semantics (edge, rule50, checks, castling, ep)
+  6. reconstruct_planes aux-plane semantics (edge, rule50, checks, ep)
   7. bitboard decode: s=rank*12+file mapping + padding columns never leak
   8. archive.py pack -> read_records_from_zip == reading the dir (bit-faithful)
   9. audit_generation.py passes clean games and catches each kind of corruption
@@ -32,6 +32,7 @@ sys.path.insert(0, HERE)
 
 import dataset as D
 import trainingdata_reader as R
+from nn_layout import (AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_ONES, AUX_RULE50, NUM_PLANES)
 from train import policy_loss
 
 PASS, FAIL = 0, 0
@@ -74,8 +75,6 @@ def make_rec(seed=0, n_legal=40, with_zeros=True):
     return dict(
         piece_planes=tuple(int(x) for x in pp),
         ep_mask=(int(r.integers(0, 2**63)), int(r.integers(0, 2**63))),
-        castling_us_ooo_sq=0, castling_us_oo_sq=19,       # a1, j2 (canonical)
-        castling_them_ooo_sq=255, castling_them_oo_sq=95,
         rule50_count=37, checks_remaining_us=6, checks_remaining_them=7,
         side_to_move=seed % 2, probabilities=pi,
         result_q=float(r.choice([-1.0, 0.0, 1.0])), result_d=0.0,
@@ -94,22 +93,21 @@ class _DS(D.FairyDataset):
 # --------------------------------------------------------------------------- #
 def test_struct_layout():
     print("\n[1] binary record layout (pack -> unpack)")
-    check(R.RECORD_SIZE == 45940, f"record size == 45940 (got {R.RECORD_SIZE})")
+    check(R.RECORD_SIZE == 49280, f"record size == 49280 (got {R.RECORD_SIZE})")
     pi = [-1.0] * R.POLICY_SIZE
     pi[123] = 0.25; pi[7777] = 0.75
     pp = list(range(R.HISTORY_PLANES * 2))           # 0,1,2,... distinct sentinels
-    fields = ([5, 1] + pi + pp +
-              [200, 0, 19, 255, 94,                  # rule50 + 4 castling squares
+    fields = ([7, 1] + pi + pp +
+              [200,                                  # rule50
                0xAAAA, 0xBBBB,                       # ep_mask
                6, 7, 1,                              # checks_us/them, side
                1.0, 0.0, 0.2, 0.1, -0.3, 0.15, 0.4, 0.05, 0.6, 0.2, 1.234,  # 11 floats
                300, 123, 7777])                      # visits, played_idx, best_idx
     rec = R.unpack_record(R._STRUCT.pack(*fields))
-    check(rec["version"] == 5 and rec["input_format"] == 1, "version/input_format")
+    check(rec["version"] == 7 and rec["input_format"] == 1, "version/input_format")
     # A version or input format the reader does not know must be refused, not read.
-    # (Version 6 is known: the fields of version 5, written by the engine as .bin
-    # when it is built without liblzma; see trainingdata_reader.KNOWN_VERSIONS.)
-    for bad_version, bad_format in ((0, 1), (7, 1), (8, 1), (5, 2)):
+    # (Versions 1-6 are a different layout: refused even though a record of the right size would parse.)
+    for bad_version, bad_format in ((0, 1), (6, 1), (8, 1), (7, 2)):
         try:
             R.unpack_record(R._STRUCT.pack(*([bad_version, bad_format] + fields[2:])))
             refused = False
@@ -118,13 +116,13 @@ def test_struct_layout():
         check(refused, f"version {bad_version} / input format {bad_format} refused")
     check(abs(rec["probabilities"][123] - 0.25) < 1e-6 and
           abs(rec["probabilities"][7777] - 0.75) < 1e-6, "probabilities[idx] preserved")
-    check(rec["piece_planes"][0] == 0 and rec["piece_planes"][431] == 431, "piece_planes order")
+    check(rec["piece_planes"][0] == 0 and rec["piece_planes"][2 * R.HISTORY_PLANES - 1] == 2 * R.HISTORY_PLANES - 1, "piece_planes order")
     # 1b. The fast path (np.frombuffer + a struct for the tail) must give exactly
     # what unpacking every field with _STRUCT gives, on random full-range values.
     g = np.random.default_rng(1)
-    rnd = ([5, 1] + [float(x) for x in g.standard_normal(R.POLICY_SIZE).astype(np.float32)] +
+    rnd = ([7, 1] + [float(x) for x in g.standard_normal(R.POLICY_SIZE).astype(np.float32)] +
            [int(x) for x in g.integers(0, 2**64, size=len(pp), dtype=np.uint64)] +
-           [int(g.integers(0, 256)), 3, 12, 255, 99,
+           [int(g.integers(0, 256)),
             int(g.integers(0, 2**64, dtype=np.uint64)), int(g.integers(0, 2**64, dtype=np.uint64)),
             5, 8, 0] + [float(x) for x in g.standard_normal(11).astype(np.float32)] +
            [int(g.integers(0, 2**32)), int(g.integers(0, 2**16)), int(g.integers(0, 2**16))])
@@ -139,31 +137,13 @@ def test_struct_layout():
           "fast unpack: piece_planes identical (full uint64 range)")
     check(fast["piece_planes"].base is None, "fast unpack: piece_planes owns its memory")
     tail = ref[2 + npl:]
-    got = ([fast["rule50_count"]] + [fast[k] for k in R.CASTLING_KEYS] + list(fast["ep_mask"]) +
+    got = ([fast["rule50_count"]] + list(fast["ep_mask"]) +
            [fast[k] for k in ("checks_remaining_us", "checks_remaining_them", "side_to_move",
                               "result_q", "result_d", "root_q", "root_d", "best_q", "best_d",
                               "played_q", "played_d", "orig_q", "orig_d", "policy_kld",
                               "visits", "played_idx", "best_idx")])
     check(got == list(tail), "fast unpack: every tail field identical")
-    check(rec["rule50_count"] == 200 and rec["castling_us_ooo_sq"] == 0 and
-          rec["castling_us_oo_sq"] == 19 and rec["castling_them_ooo_sq"] == 255 and
-          rec["castling_them_oo_sq"] == 94, "scalar aux fields (castling squares)")
-    # Up to version 4 the castling bytes were files (the rook on its first rank):
-    # read as squares, us on rank 0 and them on rank 9.
-    old = R.unpack_record(R._STRUCT.pack(*([4, 1] + fields[2:2 + R.POLICY_SIZE + len(pp)] +
-                                           [200, 1, 8, 255, 4] + fields[7 + R.POLICY_SIZE + len(pp):])))
-    check([old[k] for k in R.CASTLING_KEYS] == [1, 8, 255, 94],
-          f"version-4 castling files -> squares (got {[old[k] for k in R.CASTLING_KEYS]})")
-    # A byte that is neither a square/file nor 0xFF is refused.
-    for version, bad in ((5, 100), (5, 254), (4, 10)):
-        try:
-            R.unpack_record(R._STRUCT.pack(*([version, 1] + fields[2:2 + R.POLICY_SIZE + len(pp)] +
-                                             [200, bad, 255, 255, 255] +
-                                             fields[7 + R.POLICY_SIZE + len(pp):])))
-            refused = False
-        except ValueError:
-            refused = True
-        check(refused, f"castling byte {bad} in a version-{version} record refused")
+    check(rec["rule50_count"] == 200, "scalar aux field (rule50)")
     check(rec["ep_mask"] == (0xAAAA, 0xBBBB), "ep_mask pair")
     check(rec["checks_remaining_us"] == 6 and rec["checks_remaining_them"] == 7 and
           rec["side_to_move"] == 1, "checks + side")
@@ -314,32 +294,18 @@ def test_reconstruct_aux():
     rec = dict(
         piece_planes=tuple([0] * (R.HISTORY_PLANES * 2)),
         ep_mask=[np.uint64(0), np.uint64(0)],
-        castling_us_ooo_sq=2, castling_us_oo_sq=255,       # c1
-        castling_them_ooo_sq=97, castling_them_oo_sq=255,  # h10
         rule50_count=50, checks_remaining_us=3, checks_remaining_them=7,
     )
     ep = [np.uint64(0), np.uint64(0)]
     set_cell(ep, 4, 6)                                # ep bit at (rank4,file6)
     rec["ep_mask"] = (int(ep[0]), int(ep[1]))
     pl = R.reconstruct_planes(rec)
-    check(np.allclose(pl[AB + 7], 1.0), "aux7 board-edge plane all ones")
-    check(np.allclose(pl[AB + 6], 0.0), "aux6 unused plane all zeros")
-    check(np.allclose(pl[AB + 5], 0.5), "aux5 rule50 == 50/100")
-    check(np.allclose(pl[AB + 8], 3 / 10) and np.allclose(pl[AB + 9], 7 / 10),
-          "aux8/9 checks == n/10")
-    # castling: one bit on the rook's square; 0xFF -> nothing
-    check(pl[AB + 0, 0, 2] == 1.0 and pl[AB + 0].sum() == 1.0, "us_ooo square 2 -> (rank0,file2)")
-    check(pl[AB + 1].sum() == 0.0, "us_oo == 0xFF -> empty plane")
-    check(pl[AB + 2, 9, 7] == 1.0 and pl[AB + 2].sum() == 1.0, "them_ooo square 97 -> (rank9,file7)")
-    check(pl[AB + 3].sum() == 0.0, "them_oo == 0xFF -> empty plane")
-    # castling on any rank (a shuffled start): the bit lands on that rank
-    rec.update(castling_us_ooo_sq=11, castling_us_oo_sq=18,   # b2, i2
-               castling_them_ooo_sq=81, castling_them_oo_sq=88)  # b9, i9
-    pl = R.reconstruct_planes(rec)
-    got = [tuple(np.argwhere(pl[AB + k] == 1.0).ravel()) for k in range(4)]
-    check(got == [(1, 1), (1, 8), (8, 1), (8, 8)] and all(pl[AB + k].sum() == 1.0 for k in range(4)),
-          f"castling rooks on ranks 2 / 9 -> their squares (got {got})")
-    check(pl[AB + 4, 4, 6] == 1.0 and pl[AB + 4].sum() == 1.0, "ep plane decodes (rank4,file6)")
+    check(np.allclose(pl[AB + AUX_ONES], 1.0), "board-edge plane all ones")
+    check(np.allclose(pl[AB + AUX_RULE50], 0.5), "rule50 plane == 50/100")
+    check(np.allclose(pl[AB + AUX_CHECKS_US], 3 / 10) and np.allclose(pl[AB + AUX_CHECKS_THEM], 7 / 10),
+          "checks planes == n/10")
+    check(pl[AB + AUX_EN_PASSANT, 4, 6] == 1.0 and pl[AB + AUX_EN_PASSANT].sum() == 1.0, "ep plane decodes (rank4,file6)")
+    check(pl.shape == (NUM_PLANES, 10, 10), "input shape is [NUM_PLANES,10,10]")
 
 
 # --------------------------------------------------------------------------- #
@@ -386,10 +352,8 @@ def test_archive_roundtrip():
                         for k in np.argwhere(rec["probabilities"] >= 0).ravel():
                             pi[int(k)] = float(rec["probabilities"][int(k)])
                         pp = list(rec["piece_planes"])
-                        fields = ([5, 1] + pi + pp +
-                                  [rec["rule50_count"], rec["castling_us_ooo_sq"],
-                                   rec["castling_us_oo_sq"], rec["castling_them_ooo_sq"],
-                                   rec["castling_them_oo_sq"],
+                        fields = ([7, 1] + pi + pp +
+                                  [rec["rule50_count"],
                                    rec["ep_mask"][0], rec["ep_mask"][1],
                                    rec["checks_remaining_us"], rec["checks_remaining_them"],
                                    rec["side_to_move"],
@@ -417,7 +381,7 @@ def test_archive_roundtrip():
 # --------------------------------------------------------------------------- #
 # 9. audit_generation.py catches corrupted games (and passes clean ones)
 # --------------------------------------------------------------------------- #
-def _audit_game(rng, n_plies, white_result, version=4):
+def _audit_game(rng, n_plies, white_result, version=7):
     """A well-formed game: alternating side to move, one final result, pi over 30
     legal moves, best = most visited, repetition-free boards."""
     recs = []
@@ -441,7 +405,7 @@ def _audit_game(rng, n_plies, white_result, version=4):
 
 def _audit_pack(rec):
     fields = ([rec["version"], 1] + rec["pi"].tolist() + rec["pp"] +
-              [3, 255, 255, 255, 255, 0, 0, 8, 8, rec["stm"],
+              [3, 0, 0, 7, 7, rec["stm"],
                rec["result_q"], rec["result_d"], 0.1, 0.2, rec["best_q"], rec["best_d"],
                rec["best_q"], rec["best_d"], rec["orig_q"], rec["orig_d"], rec["kld"],
                800, rec["played"], rec["best"]])
@@ -497,45 +461,6 @@ def test_audit_generation():
 
 
 # --------------------------------------------------------------------------- #
-# 10. diff_focus: records without a raw eval (data < v4) are neither dropped
-#     like dull positions nor kept like surprising ones, whatever the file order
-# --------------------------------------------------------------------------- #
-def test_diff_focus_unknown_orig():
-    print("\n[10] diff_focus keeps records without a raw eval at the average rate")
-    rng = np.random.default_rng(10)
-    n = 1500
-
-    def pack(rule50, orig_q, kld):
-        pi = np.full(R.POLICY_SIZE, -1.0, dtype=np.float32)
-        legal = rng.choice(R.POLICY_SIZE, size=20, replace=False)
-        pi[legal] = 1.0 / 20
-        pp = [int(x) for x in rng.integers(1, 2**62, size=R.HISTORY_PLANES * 2)]
-        best_q, best_d = 0.1, 0.2
-        orig_d = best_d if orig_q == best_q else 0.3
-        fields = ([3, 1] + pi.tolist() + pp +
-                  [rule50, 255, 255, 255, 255, 0, 0, 8, 8, 0,
-                   1.0, 0.0, 0.1, 0.2, best_q, best_d, best_q, best_d, orig_q, orig_d, kld,
-                   800, int(legal[0]), int(legal[0])])
-        return R._STRUCT.pack(*fields)
-
-    with tempfile.TemporaryDirectory() as tmp:
-        # "a_..." is read first: the records without a raw eval come before any other.
-        with gzip.open(os.path.join(tmp, "a_unknown.gz"), "wb") as f:
-            for _ in range(n):
-                f.write(pack(11, 0.1, 0.0))                  # orig == best, kld 0: the copy
-        with gzip.open(os.path.join(tmp, "b_known.gz"), "wb") as f:
-            for _ in range(n):
-                f.write(pack(22, 0.7, 0.0))                  # surprise 0.6 -> keep 0.2 + 0.6 = 0.8
-        ds = D.FairyDataset(tmp, diff_focus=True, df_slope=1.0, df_kld_w=0.5, df_min=0.2)
-        kept_unknown = sum(1 for c in ds._cached if c["rule50_count"] == 11) / n
-        kept_known = sum(1 for c in ds._cached if c["rule50_count"] == 22) / n
-    check(abs(kept_known - 0.8) < 0.05, f"known records kept at {kept_known:.3f} (keep prob 0.8)")
-    check(abs(kept_unknown - 0.8) < 0.05,
-          f"records without a raw eval kept at {kept_unknown:.3f}, the average rate "
-          f"(0.2 would treat them as dull positions, 1.0 as surprising ones)")
-
-
-# --------------------------------------------------------------------------- #
 # 11. packed batches rebuilt on the device == the dense __getitem__ path
 # --------------------------------------------------------------------------- #
 def test_packed_equals_dense():
@@ -544,11 +469,7 @@ def test_packed_equals_dense():
     recs = []
     for seed in range(24):
         r = make_rec(seed=seed, n_legal=[40, 1, 0, 163][seed % 4])
-        # castling squares incl. both board corners, bit 63/64 boundary and "none"
-        sq = [0, 5, 9, 90, 99, 54, 255, 53][seed % 8]      # 54 -> bit 64, 53 -> bit 63
-        r.update(castling_us_ooo_sq=sq, castling_us_oo_sq=255 if seed % 3 else 99,
-                 castling_them_ooo_sq=[255, 90, 9][seed % 3], castling_them_oo_sq=sq,
-                 rule50_count=[0, 37, 99, 100, 255][seed % 5],
+        r.update(rule50_count=[0, 37, 99, 100, 255][seed % 5],
                  checks_remaining_us=seed % 9, checks_remaining_them=(seed * 5) % 9,
                  ep_mask=(0, 0) if seed % 2 else (2**63 + 5, 2**63 + 2**40))
         recs.append(ds._compact(r))
@@ -561,7 +482,7 @@ def test_packed_equals_dense():
         check(not cl or x.is_contiguous(memory_format=torch.channels_last),
               f"channels_last={cl}: memory format")
         check(torch.equal(x.contiguous().view(torch.int32), bx.view(torch.int32)),
-              f"channels_last={cl}: all 226 planes bit-identical (castling, e.p., scalars)")
+              f"channels_last={cl}: all NUM_PLANES planes bit-identical (e.p., scalars)")
         check(torch.equal(pi.contiguous().view(torch.int32), bp.view(torch.int32)),
               f"channels_last={cl}: policy bit-identical (-1 illegal, 0 legal-unvisited, 0-163 legal)")
         check(torch.equal(v, bv), f"channels_last={cl}: value target identical")
@@ -581,7 +502,6 @@ def main():
     test_bitboard_decode()
     test_archive_roundtrip()
     test_audit_generation()
-    test_diff_focus_unknown_orig()
     test_packed_equals_dense()
     print("\n" + "=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")

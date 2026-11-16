@@ -24,9 +24,9 @@ def main():
     rec_file = prefix + "_records.gz"
     dense_file = prefix + "_dense.bin"
 
-    print(f"RECORD_SIZE = {RECORD_SIZE} (expect 45940)")
+    print(f"RECORD_SIZE = {RECORD_SIZE} (expect 49280)")
     records = read_records(rec_file)
-    dense = np.fromfile(dense_file, dtype=np.float32).reshape(-1, 226, 10, 10)
+    dense = np.fromfile(dense_file, dtype=np.float32).reshape(-1, 205, 10, 10)
     assert len(records) == dense.shape[0], \
         f"case count mismatch: {len(records)} records vs {dense.shape[0]} dense"
     print(f"Loaded {len(records)} cases from {os.path.basename(rec_file)}")
@@ -48,9 +48,7 @@ def main():
         n_planes_set = int((recon != 0).any(axis=(1, 2)).sum())
         print(f"[OK] case {i}: planes match exactly  | side_to_move={rec['side_to_move']} "
               f"rule50={rec['rule50_count']} checks=({rec['checks_remaining_us']},{rec['checks_remaining_them']}) "
-              f"castle_sqs=({rec['castling_us_ooo_sq']},{rec['castling_us_oo_sq']},"
-              f"{rec['castling_them_ooo_sq']},{rec['castling_them_oo_sq']}) "
-              f"non-empty planes={n_planes_set} | sum(pi)={psum:.4f} "
+                           f"non-empty planes={n_planes_set} | sum(pi)={psum:.4f} "
               f"result_q={rec['result_q']} orig_q={rec['orig_q']:.3f} kld={rec['policy_kld']:.3f} "
               f"visits={rec['visits']}")
 

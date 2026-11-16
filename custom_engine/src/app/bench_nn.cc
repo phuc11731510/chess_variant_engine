@@ -119,7 +119,7 @@ lczero::EvalResult RunOnce(lczero::Backend* backend, const lczero::EvalPosition&
 
 // ---- Copy cost (E3 / E4) ----------------------------------------------------
 // The backend hands ORT PAGEABLE host buffers: each Run() copies the input
-// (batch x 22600 floats) to the GPU and the full policy (batch x 10600 floats)
+// (batch x 20500 floats) to the GPU and the full policy (batch x 11500 floats)
 // back. This times session->Run() alone (no encode, no softmax) four ways at
 // the same fixed batch, so the gap is exactly the copy cost:
 //   A  pageable in / pageable out          (what the backend does today)

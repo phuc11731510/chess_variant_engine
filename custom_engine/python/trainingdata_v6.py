@@ -1,7 +1,7 @@
 """Compact per-game training-data container (".xz", data version 6).
 
 One self-play game = one file. Instead of N fixed 45940-byte records (92% of
-which is a dense probabilities[10600] array that is -1 almost everywhere), the
+which is a dense probabilities[POLICY_SIZE] array that is -1 almost everywhere), the
 game is stored column by column and xz-compressed. Measured on 100 real games
 (gen4): 472 -> ~100 bytes per position, LOSSLESS -- decode() rebuilds every
 record bit-identical to the 45940-byte form (test_v6.py checks every field of
@@ -19,14 +19,14 @@ Three facts make it small:
      first record of a game, or a broken chain) is stored in full (FLAG_FULL).
      The writer checks the chain itself, so the rebuild is exact by construction.
   3. Anything else survives too: a record whose illegal slots are not exactly
-     -1 (or whose policy holds NaN) keeps its whole probabilities[10600]
+     -1 (or whose policy holds NaN) keeps its whole probabilities[POLICY_SIZE]
      (FLAG_DENSE_PI) -- never the engine's output, but "lossless" holds for any
      45940-byte record, not only for well-formed ones.
   4. Column layout: all indices together, all counts together, all boards
      together... so xz sees long runs of similar bytes.
 
 Payload (little-endian), then xz (LZMA2 preset 9e, 1 MiB dictionary, CRC64):
-  header  4s magic "FZD6", u32 container revision (=1), u32 data_version,
+  header  4s magic "FZD6", u32 container revision (=2), u32 data_version,
           u32 input_format, u32 N records, u32 L legal entries (all records),
           u32 LF legal entries stored as float32, u32 F full records
   u8   flags[N]                 bit0 FLAG_FULL, bit1 FLAG_FLOAT_PI, bit2 FLAG_DENSE_PI
@@ -34,20 +34,18 @@ Payload (little-endian), then xz (LZMA2 preset 9e, 1 MiB dictionary, CRC64):
   u16  legal_delta[L]           per record: first index, then differences (> 0)
   u16  counts[L - LF]           records without FLAG_FLOAT_PI, in order
   f32  pi_float[LF]             records with FLAG_FLOAT_PI, in order
-  f32  pi_dense[D][10600]       records with FLAG_DENSE_PI, in order (D from flags)
-  u64  cur[N][27][2]            ply-0 board planes
-  u64  hist[F][7][27][2]        plies 1..7 of the FLAG_FULL records, in order
+  f32  pi_dense[D][POLICY_SIZE]      records with FLAG_DENSE_PI, in order (D from flags)
+  u64  cur[N][PLANES_PER_BOARD][2]          ply-0 board planes
+  u64  hist[F][7][PLANES_PER_BOARD][2]      plies 1..7 of the FLAG_FULL records, in order
   u8   rule50[N]
-  u8   castling[4][N]           us_ooo, us_oo, them_ooo, them_oo (rook square / 0xFF)
   u64  ep[N][2]
   u8   checks_us[N], checks_them[N], side_to_move[N]
   f32  floats[11][N]            result_q/d, root_q/d, best_q/d, played_q/d, orig_q/d, policy_kld
   u32  visits[N]
   u16  played_idx[N], best_idx[N]
 
-data_version keeps the MEANING of the fields (1..5 for converted old games, 6
-for games the engine writes in this container): dataset.py's sign / castling /
-orig_q rules still apply per version. The C++ writer/reader
+data_version keeps the MEANING of the fields (7 since the new rules; the container revision is 2: no
+castling column, 25 planes per ply). The C++ writer/reader
 (src/lczero_chess/trainingdata/) implement the same layout.
 """
 
@@ -56,22 +54,21 @@ import struct
 
 import numpy as np
 
+from nn_layout import MOVE_HISTORY, PIECE_KINDS, PLANES_PER_BOARD, POLICY_SIZE
+
 MAGIC = b"FZD6"
-CONTAINER_REVISION = 1
-DATA_VERSION = 6
+CONTAINER_REVISION = 2
+DATA_VERSION = 7
 FLAG_FULL = 1
 FLAG_FLOAT_PI = 2
 FLAG_DENSE_PI = 4
 _MINUS_ONE = np.float32(-1.0).view(np.uint32)
-PLY_PLANES = 27
-N_PLY = 8
-REP_PLANE = 26
-POLICY_SIZE = 10600
+PLY_PLANES = PLANES_PER_BOARD
+N_PLY = MOVE_HISTORY
+REP_PLANE = 2 * PIECE_KINDS
 _HEADER = struct.Struct("<4s7I")
 FLOAT_KEYS = ("result_q", "result_d", "root_q", "root_d", "best_q", "best_d",
               "played_q", "played_d", "orig_q", "orig_d", "policy_kld")
-CASTLING_KEYS = ("castling_us_ooo_sq", "castling_us_oo_sq",
-                 "castling_them_ooo_sq", "castling_them_oo_sq")
 # xz settings: strongest preset; the dictionary only needs to cover one game
 # (~90 KB raw, the longest a few hundred KB), which keeps the encoder at ~11 MB
 # of RAM instead of ~674 MB for plain `xz -9`.
@@ -111,11 +108,11 @@ def _mirror(words):
 
 
 def other_frame(ply):
-    """Board planes [..., 27, 2] seen by the other side: us/them groups swapped,
+    """Board planes [..., PLY_PLANES, 2] seen by the other side: us/them groups swapped,
     ranks mirrored. The repetition plane is a flag (all squares or none): copied."""
     out = np.empty_like(ply)
-    out[..., 0:13, :] = _mirror(ply[..., 13:26, :])
-    out[..., 13:26, :] = _mirror(ply[..., 0:13, :])
+    out[..., 0:PIECE_KINDS, :] = _mirror(ply[..., PIECE_KINDS:REP_PLANE, :])
+    out[..., PIECE_KINDS:REP_PLANE, :] = _mirror(ply[..., 0:PIECE_KINDS, :])
     out[..., REP_PLANE, :] = ply[..., REP_PLANE, :]
     return out
 
@@ -191,8 +188,6 @@ def encode_game(records):
         cur.astype("<u8").tobytes(), _cat(hist, "<u8"),
         np.array([r["rule50_count"] for r in records], np.uint8).tobytes(),
     ]
-    for key in CASTLING_KEYS:
-        cols.append(np.array([r[key] for r in records], np.uint8).tobytes())
     cols.append(np.array([r["ep_mask"] for r in records], "<u8").tobytes())
     for key in ("checks_remaining_us", "checks_remaining_them", "side_to_move"):
         cols.append(np.array([r[key] for r in records], np.uint8).tobytes())
@@ -231,10 +226,10 @@ def decode_arrays(data, where=""):
       version, input_format, n,
       legal_idx  uint16[L], legal_start int64[N+1] (record k owns [s[k], s[k+1])),
       legal_pi   float32[L],
-      dense_rec  int[D], dense_pi float32[D, 10600]  (FLAG_DENSE_PI records: their
+      dense_rec  int[D], dense_pi float32[D, POLICY_SIZE]  (FLAG_DENSE_PI records: their
                  whole policy; their legal_idx/legal_pi ranges are empty),
-      planes     uint64[N, 8, 27, 2] (all 8 plies, rebuilt),
-      rule50, castling uint8[4, N], ep uint64[N, 2], checks_us, checks_them, stm,
+      planes     uint64[N, 8, PLY_PLANES, 2] (all 8 plies, rebuilt),
+      rule50 uint8[N], ep uint64[N, 2], checks_us, checks_them, stm,
       floats     dict key -> float32[N], visits, played_idx, best_idx.
     Raises ValueError on a damaged or inconsistent file."""
     try:
@@ -267,7 +262,6 @@ def decode_arrays(data, where=""):
     cur = c.take("<u8", n * PLY_PLANES * 2).reshape(n, PLY_PLANES, 2)
     hist = c.take("<u8", f * (N_PLY - 1) * PLY_PLANES * 2).reshape(f, N_PLY - 1, PLY_PLANES, 2)
     rule50 = c.take(np.uint8, n)
-    castling = c.take(np.uint8, 4 * n).reshape(4, n)
     ep = c.take("<u8", 2 * n).reshape(n, 2)
     checks_us, checks_them, stm = (c.take(np.uint8, n) for _ in range(3))
     floats = {k: c.take("<f4", n) for k in FLOAT_KEYS}
@@ -304,7 +298,7 @@ def decode_arrays(data, where=""):
         "legal_idx": idx.astype(np.uint16), "legal_start": start, "legal_pi": pi,
         "dense_rec": np.nonzero(dn)[0], "dense_pi": pid,
         "planes": _rebuild_planes(flags, cur, hist),
-        "rule50": rule50, "castling": castling, "ep": ep,
+        "rule50": rule50, "ep": ep,
         "checks_us": checks_us, "checks_them": checks_them, "stm": stm,
         "floats": floats, "visits": visits, "played_idx": played_idx, "best_idx": best_idx,
     }
@@ -365,7 +359,7 @@ def decode_game(data, where="", dense=True):
     """Compressed game -> list of record dicts, the same keys and values as
     trainingdata_reader.unpack_record gives for the 45940-byte form, plus
     'legal_idx' / 'legal_pi' (the sparse policy, which dataset.py uses instead of
-    scanning the dense one). 'probabilities' is a read-only float32[10600] view;
+    scanning the dense one). 'probabilities' is a read-only float32[POLICY_SIZE] view;
     dense=False leaves it out (saves building 42 KB per position)."""
     a = decode_arrays(data, where)
     n, start = a["n"], a["legal_start"]
@@ -379,7 +373,6 @@ def decode_game(data, where="", dense=True):
     planes = a["planes"].reshape(n, N_PLY * PLY_PLANES * 2)
     fl = {k: a["floats"][k].tolist() for k in FLOAT_KEYS}
     rule50, visits = a["rule50"].tolist(), a["visits"].tolist()
-    cast = [a["castling"][i].tolist() for i in range(4)]
     ep = a["ep"].tolist()
     cu, ct, stm = a["checks_us"].tolist(), a["checks_them"].tolist(), a["stm"].tolist()
     pidx, bidx = a["played_idx"].tolist(), a["best_idx"].tolist()
@@ -398,8 +391,6 @@ def decode_game(data, where="", dense=True):
             r["legal_pi"] = a["legal_pi"][start[k]:start[k + 1]]
         if probs is not None:
             r["probabilities"] = probs[k]
-        for i, key in enumerate(CASTLING_KEYS):
-            r[key] = cast[i][k]
         r["ep_mask"] = tuple(ep[k])
         r["checks_remaining_us"] = cu[k]
         r["checks_remaining_them"] = ct[k]

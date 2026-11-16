@@ -1,13 +1,14 @@
 """Reader for FairyZero TrainingDataV1 records (10x10 variant).
 
-Mirrors the C++ struct `TrainingDataV1` (#pragma pack(1), 45940 bytes) and the
+Mirrors the C++ struct `TrainingDataV1` (#pragma pack(1), 49280 bytes) and the
 plane reconstruction of `UnpackInputPlanes` / `EncodePlanesIntoRecord`.
 
 THE 3 CONVENTIONS THIS MUST MATCH (locked by the T5 round-trip test):
-  1. policy index = MoveToNNIndex (probabilities[10600]).
+  1. policy index = MoveToNNIndex (probabilities[POLICY_SIZE]).
   2. value order  = [Win, Draw, Loss] from side-to-move (q = win - loss).
-  3. input planes = [226, 10, 10]; piece-plane bit s = rank*12 + file (Stockfish
-     12-stride). Aux planes rebuilt from scalars; castling: the rook's square.
+  3. input planes = [NUM_PLANES, 10, 10]; piece-plane bit s = rank*12 + file
+     (Stockfish 12-stride). Aux planes rebuilt from scalars.
+The numbers (planes, policy size) are in nn_layout.py.
 """
 
 import gzip
@@ -18,23 +19,15 @@ import zipfile
 import numpy as np
 
 import trainingdata_v6
-
-POLICY_SIZE = 10600
-HISTORY_PLANES = 216          # 27 planes/ply * 8 ply
-NUM_PLANES = 226
-AUX_BASE = 216
-NO_CASTLING_SQ = 0xFF
-# The four castling fields, in record (and aux-plane 0-3) order.
-CASTLING_KEYS = ("castling_us_ooo_sq", "castling_us_oo_sq",
-                 "castling_them_ooo_sq", "castling_them_oo_sq")
-BOARD = 10
+from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_ONES, AUX_RULE50, BOARD,
+                       HISTORY_PLANES, NUM_PLANES, POLICY_SIZE)
 
 # Little-endian, packed (matches #pragma pack(1)). Field order == the C++ struct.
 _FMT = ("<"
         "II"                       # version, input_format
-        f"{POLICY_SIZE}f"          # probabilities[10600]
-        f"{HISTORY_PLANES * 2}Q"   # piece_planes[216][2]  (lo,hi per plane)
-        "5B"                       # rule50, 4x castling rook square
+        f"{POLICY_SIZE}f"          # probabilities[POLICY_SIZE]
+        f"{HISTORY_PLANES * 2}Q"   # piece_planes[HISTORY_PLANES][2]  (lo,hi per plane)
+        "B"                        # rule50
         "2Q"                       # ep_mask[2]
         "3B"                       # checks_us, checks_them, side_to_move
         "11f"                      # result_q/d, root_q/d, best_q/d, played_q/d, orig_q/d, policy_kld
@@ -42,32 +35,27 @@ _FMT = ("<"
         "2H")                      # played_idx, best_idx
 _STRUCT = struct.Struct(_FMT)
 RECORD_SIZE = _STRUCT.size
-assert RECORD_SIZE == 45940, f"record size {RECORD_SIZE} != 45940 (layout drift!)"
+assert RECORD_SIZE == 49280, f"record size {RECORD_SIZE} != 49280 (layout drift!)"
 
 
-# Record versions this reader understands (src/lczero_chess/trainingdata/
-# trainingdata_v1.h keeps the history; the layout has never changed). Anything
-# else is refused: a future version may change what a field means, and a record
-# that parses by size alone would then be read wrong without any error.
-# Version 6 has the fields and meanings of version 5; the engine writes it in the
-# compact per-game .xz container (trainingdata_v6.py), or -- built without
-# liblzma -- as these 45940-byte records in a .bin file.
-KNOWN_VERSIONS = (1, 2, 3, 4, 5, 6)
-# From version 5 the castling bytes are the rook's square (rank*10 + file,
-# canonical frame); before, the rook was always on its side's first rank and
-# the byte was its file. unpack_record() turns an old file into that square.
-FIRST_CASTLING_SQUARE_VERSION = 5
+# The one record version this reader understands (src/lczero_chess/trainingdata/trainingdata_v1.h keeps the
+# history). Version 7 is a new layout (new rules: 205-plane input, 11500-entry policy, no castling), so records of
+# versions 1-6 cannot be read at all, not even by size. Anything else is refused: a future version may change what
+# a field means, and a record that parses by size alone would then be read wrong without any error.
+# The engine writes it in the compact per-game .xz container (trainingdata_v6.py), or -- built without liblzma --
+# as these 49280-byte records in a .bin file.
+KNOWN_VERSIONS = (7,)
 INPUT_FORMAT_10X10 = 1
 
 
 # unpack_record reads the two big arrays straight from the buffer (np.frombuffer)
-# and struct-unpacks only the header and the 76-byte tail. Unpacking the whole
+# and struct-unpacks only the header and the tail. Unpacking the whole
 # record with _STRUCT built ~11000 Python numbers per record and was ~60% of a
 # training run's load time; the arrays are bit-identical (test_extreme.py 1b).
 _HEAD = struct.Struct("<II")
 _OFF_PROBS = _HEAD.size
 _OFF_PLANES = _OFF_PROBS + POLICY_SIZE * 4
-_TAIL = struct.Struct("<5B2Q3B11fI2H")    # == the tail of _FMT, from rule50 on
+_TAIL = struct.Struct("<B2Q3B11fI2H")    # == the tail of _FMT, from rule50 on
 _OFF_TAIL = _OFF_PLANES + HISTORY_PLANES * 2 * 8
 assert _OFF_TAIL + _TAIL.size == RECORD_SIZE, "tail layout drift"
 _U64 = np.dtype("<u8")
@@ -75,10 +63,10 @@ _F32 = np.dtype("<f4")
 
 
 def unpack_record(buf):
-    """Unpack a 45940-byte record into a dict.
+    """Unpack a 49280-byte record into a dict.
 
-    probabilities: float32[10600], a READ-ONLY view into `buf` (no copy; copy it
-    before writing). piece_planes: its own uint64[432] (lo,hi per plane), so a
+    probabilities: float32[POLICY_SIZE], a READ-ONLY view into `buf` (no copy; copy it
+    before writing). piece_planes: its own uint64[2 * HISTORY_PLANES] (lo,hi per plane), so a
     compact cache holding it does not keep the whole 46 KB buffer alive."""
     version, input_format = _HEAD.unpack_from(buf, 0)
     if version not in KNOWN_VERSIONS or input_format != INPUT_FORMAT_10X10:
@@ -94,17 +82,6 @@ def unpack_record(buf):
     v = _TAIL.unpack_from(buf, _OFF_TAIL)
     i = 0
     r["rule50_count"] = v[i]; i += 1
-    old_castling = r["version"] < FIRST_CASTLING_SQUARE_VERSION
-    for k, key in enumerate(CASTLING_KEYS):
-        c = v[i]; i += 1
-        if c != NO_CASTLING_SQ:
-            if old_castling:            # a file: us on rank 0, them on rank 9
-                if c >= BOARD:
-                    raise ValueError(f"castling file {c} in a version-{r['version']} record")
-                c += 0 if k < 2 else (BOARD - 1) * BOARD
-            elif c >= BOARD * BOARD:
-                raise ValueError(f"castling square {c} in a version-{r['version']} record")
-        r[key] = c
     r["ep_mask"] = (v[i], v[i + 1]); i += 2
     r["checks_remaining_us"] = v[i]; i += 1
     r["checks_remaining_them"] = v[i]; i += 1
@@ -151,30 +128,20 @@ def _unpack_block(words):
 
 
 def reconstruct_planes(rec):
-    """Rebuild the dense [226, 10, 10] float32 NN input from a record.
+    """Rebuild the dense [NUM_PLANES, 10, 10] float32 NN input from a record.
 
     Must reproduce the C++ UnpackInputPlanes output bit/value-exactly.
     """
     planes = np.zeros((NUM_PLANES, BOARD, BOARD), dtype=np.float32)
     pp = np.asarray(rec["piece_planes"], dtype=np.uint64).reshape(HISTORY_PLANES, 2)
-    planes[:HISTORY_PLANES] = _unpack_block(pp)                      # 216 history planes
-    # aux 4: en passant plane (bitboard mask).
-    planes[AUX_BASE + 4] = _unpack_block(np.asarray(rec["ep_mask"], dtype=np.uint64))
-    # aux 0..3: one bit on the square of each castling right's rook (canonical
-    # frame, like the pieces), for us ooo / us oo / them ooo / them oo.
-    for k, key in enumerate(CASTLING_KEYS):
-        s = rec[key]
-        if s != NO_CASTLING_SQ:
-            planes[AUX_BASE + k, s // BOARD, s % BOARD] = 1.0
-    # aux 5: rule50 normalized; aux 6: unused (zeros); aux 7: board-edge (all ones).
-    planes[AUX_BASE + 5, :, :] = rec["rule50_count"] / 100.0
-    planes[AUX_BASE + 7, :, :] = 1.0
-    # aux 8/9: remaining checks normalized by 10 (max Fairy-SF can express; N<=9).
-    # MUST match encoder.cc (/ 10.0f). The 10 is Fairy-SF's representable ceiling,
-    # NOT the rule's N -- so this scale is independent of the N-checks value
-    # (8 since 2026-09-21, was 7) and old generations stay comparable.
-    planes[AUX_BASE + 8, :, :] = rec["checks_remaining_us"] / 10.0
-    planes[AUX_BASE + 9, :, :] = rec["checks_remaining_them"] / 10.0
+    planes[:HISTORY_PLANES] = _unpack_block(pp)                      # history planes
+    planes[AUX_BASE + AUX_EN_PASSANT] = _unpack_block(np.asarray(rec["ep_mask"], dtype=np.uint64))
+    planes[AUX_BASE + AUX_RULE50, :, :] = rec["rule50_count"] / 100.0
+    planes[AUX_BASE + AUX_ONES, :, :] = 1.0                          # board edge
+    # Remaining checks normalized by 10 (the most Fairy-SF can express; N<=9). MUST match encoder.cc (/ 10.0f).
+    # The 10 is that ceiling, NOT the rule N, so the scale does not depend on the N-checks value.
+    planes[AUX_BASE + AUX_CHECKS_US, :, :] = rec["checks_remaining_us"] / 10.0
+    planes[AUX_BASE + AUX_CHECKS_THEM, :, :] = rec["checks_remaining_them"] / 10.0
     return planes
 
 
@@ -182,7 +149,7 @@ def _iter_stream(f, where=""):
     """Yield fixed-size records from an open binary stream until EOF.
 
     A generator (not a list) so callers can compact+discard each record's dense
-    probabilities[10600] (~42KB) immediately instead of holding them all at once."""
+    probabilities[POLICY_SIZE] (~46KB) immediately instead of holding them all at once."""
     while True:
         buf = f.read(RECORD_SIZE)
         if not buf:
@@ -221,7 +188,7 @@ def iter_records_from_zip(zip_path):
     """Stream records from a .zip bundle of .gz/.bin games one at a time.
 
     Unlike read_records_from_zip (which materializes EVERY record's dense
-    probabilities[10600] before returning), this yields one record at a time so
+    probabilities[POLICY_SIZE] before returning), this yields one record at a time so
     the caller can compact+discard it. Peak RAM stays ~10x lower — this is what
     used to exhaust Colab's RAM at load time before a single training step ran."""
     with zipfile.ZipFile(zip_path) as zf:

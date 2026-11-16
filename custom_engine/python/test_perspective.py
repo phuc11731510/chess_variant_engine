@@ -4,7 +4,7 @@ import onnxruntime as ort
 # Board dimensions
 BoardWidth = 10
 BoardHeight = 10
-PolicyOutputSize = 10600
+PolicyOutputSize = 11500
 
 # Square mapping helper (same as sq_to_tensor_lut in encoder.cc)
 def sq_to_flat(sq):

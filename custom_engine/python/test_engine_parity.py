@@ -80,7 +80,7 @@ def main():
     worst = dict(q=0.0, d=0.0, p=0.0, onnx_p=0.0, onnx_v=0.0)
     bad = 0
     for k, (q, d, idx, p) in enumerate(engine):
-        if len(set(idx.tolist())) != len(idx) or (idx >= 10600).any():
+        if len(set(idx.tolist())) != len(idx) or (idx >= 11500).any():
             print(f"[FAIL] case {k}: policy indices not unique / out of range")
             bad += 1
             continue

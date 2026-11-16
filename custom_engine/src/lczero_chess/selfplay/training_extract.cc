@@ -155,7 +155,7 @@ void EncodePlanesIntoRecord(const PositionHistory& history,
   EncodePositionForNN(history, kMoveHistory, FillEmptyHistory::FEN_ONLY,
                       &planes, &transform);
 
-  // 216 history piece planes -> 128-bit bitboard masks, split into a WELL-DEFINED
+  // kHistoryPlanes history piece planes -> 128-bit bitboard masks, split into a WELL-DEFINED
   // on-disk order: word[0] = squares 0-63, word[1] = squares 64-127. Extract via
   // shift/mask (NOT memcpy) so the format is independent of the internal
   // Stockfish::Bitboard layout (struct {hi,lo} vs __int128); Python then reads
@@ -176,8 +176,7 @@ void EncodePlanesIntoRecord(const PositionHistory& history,
   for (int p = 0; p < kHistoryPlanes; ++p) {
     split(planes[p].mask, rec.piece_planes[p]);
   }
-  // En-passant plane is aux index 4 (kAuxPlaneBase + 4).
-  split(planes[kAuxPlaneBase + 4].mask, rec.ep_mask);
+  split(planes[kAuxPlaneBase + kAuxEnPassant].mask, rec.ep_mask);
 
   // --- Scalar aux read directly from the position (raw; Python normalizes) ---
   const Position& last = history.Last();
@@ -192,29 +191,6 @@ void EncodePlanesIntoRecord(const PositionHistory& history,
       std::clamp(static_cast<int>(pos.checks_remaining(us)), 0, 255));
   rec.checks_remaining_them = static_cast<uint8_t>(
       std::clamp(static_cast<int>(pos.checks_remaining(them)), 0, 255));
-
-  // Castling: the rook's SQUARE in the canonical frame (rank * 10 + file, ranks
-  // flipped when Black is to move, as in the NN input), 0xFF if no right. The
-  // rook may start on any rank (castlingAnyRank), so its file alone is not enough.
-  const bool flip = us == Stockfish::BLACK;
-  auto castle_sq = [&](Stockfish::CastlingRights cr) -> uint8_t {
-    if (!pos.can_castle(cr)) return kNoCastlingSquare;
-    const Stockfish::Square s = pos.castling_rook_square(cr);
-    const int rank = static_cast<int>(Stockfish::rank_of(s));
-    return static_cast<uint8_t>((flip ? 9 - rank : rank) * 10 + static_cast<int>(Stockfish::file_of(s)));
-  };
-  const Stockfish::CastlingRights us_ooo =
-      (us == Stockfish::WHITE) ? Stockfish::WHITE_OOO : Stockfish::BLACK_OOO;
-  const Stockfish::CastlingRights us_oo =
-      (us == Stockfish::WHITE) ? Stockfish::WHITE_OO : Stockfish::BLACK_OO;
-  const Stockfish::CastlingRights them_ooo =
-      (us == Stockfish::WHITE) ? Stockfish::BLACK_OOO : Stockfish::WHITE_OOO;
-  const Stockfish::CastlingRights them_oo =
-      (us == Stockfish::WHITE) ? Stockfish::BLACK_OO : Stockfish::WHITE_OO;
-  rec.castling_us_ooo_sq = castle_sq(us_ooo);
-  rec.castling_us_oo_sq = castle_sq(us_oo);
-  rec.castling_them_ooo_sq = castle_sq(them_ooo);
-  rec.castling_them_oo_sq = castle_sq(them_oo);
 }
 
 }  // namespace lczero

@@ -1,17 +1,17 @@
 """FairyZero network — lc0-style SE-ResNet 10x128 for the 10x10 variant.
 
 Architecture faithful to lc0 (lczero-training tfprocess.py):
-  - stem: conv 226->128 (3x3, no bias) + BN + ReLU
+  - stem: conv NUM_PLANES (205)->128 (3x3, no bias) + BN + ReLU
   - 10 residual blocks: conv-BN-ReLU -> conv-BN -> SE -> +skip -> ReLU
   - SE block (scale + bias, lc0 hallmark):
         GAP -> FC(c/ratio) + ReLU -> FC(2c) -> split(gamma, beta)
         out = sigmoid(gamma) * x + beta
-  - policy head: conv 1x1 to 106 type-planes -> flatten = type*100+rank*10+file = MoveToNNIndex
+  - policy head: conv 1x1 to POLICY_TYPES (115) type-planes -> flatten = type*100+rank*10+file = MoveToNNIndex
   - value head : conv 1x1 -> FC -> FC(3) WDL logits
 
 I/O contract (matches C++ OnnxComputation):
-  input  [batch,226,10,10] "input"
-  policy [batch,10600]     "policy"  -> raw logits (engine softmaxes legal moves)
+  input  [batch,205,10,10] "input"
+  policy [batch,11500]     "policy"  -> raw logits (engine softmaxes legal moves)
   value  [batch,3]         "value"   -> WDL probs (softmax added by ExportNet)
 """
 
@@ -19,10 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-NUM_PLANES = 226
-POLICY_SIZE = 10600
-POLICY_TYPES = 106          # 106 * 100 (squares) = 10600
-BOARD = 10
+from nn_layout import BOARD, MOVE_TYPES as POLICY_TYPES, NUM_PLANES, POLICY_SIZE  # noqa: E402,F401  (205 planes, 115 * 100)
 
 
 class SqueezeExcitation(nn.Module):
@@ -62,7 +59,7 @@ class ResidualBlock(nn.Module):
 
 
 class FairyNet(nn.Module):
-    """forward returns (policy_logits[B,10600], value_logits[B,3])."""
+    """forward returns (policy_logits[B,POLICY_SIZE], value_logits[B,3])."""
 
     def __init__(self, channels=128, blocks=10, se_ratio=8, dropout=0.0):
         super().__init__()
@@ -71,10 +68,10 @@ class FairyNet(nn.Module):
         self.stem_bn = nn.BatchNorm2d(channels)
         self.tower = nn.Sequential(*[ResidualBlock(channels, se_ratio) for _ in range(blocks)])
 
-        # Policy head: 3x3 conv -> 1x1 conv to 106 type-planes.
+        # Policy head: 3x3 conv -> 1x1 conv to POLICY_TYPES type-planes.
         self.pol_conv = nn.Conv2d(channels, channels, 3, padding=1, bias=False)
         self.pol_bn = nn.BatchNorm2d(channels)
-        self.pol_head = nn.Conv2d(channels, POLICY_TYPES, 1)  # [B,106,10,10]
+        self.pol_head = nn.Conv2d(channels, POLICY_TYPES, 1)  # [B,POLICY_TYPES,10,10]
 
         # Value head: 1x1 conv -> FC -> FC(3) logits.
         self.val_conv = nn.Conv2d(channels, 32, 1, bias=False)
@@ -87,8 +84,8 @@ class FairyNet(nn.Module):
         h = self.tower(h)
 
         p = F.relu(self.pol_bn(self.pol_conv(h)))
-        p = self.pol_head(p)                  # [B,106,10,10]
-        policy = p.flatten(1)                 # [B,10600] = type*100 + rank*10 + file
+        p = self.pol_head(p)                  # [B,POLICY_TYPES,10,10]
+        policy = p.flatten(1)                 # [B,POLICY_SIZE] = type*100 + rank*10 + file
 
         v = F.relu(self.val_bn(self.val_conv(h)))
         v = v.flatten(1)

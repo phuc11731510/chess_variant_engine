@@ -46,7 +46,7 @@ def check(cond, msg):
 
 
 def write_games(path, n_records, seed):
-    """Synthetic but well-formed version-4 records (random planes, a masked policy
+    """Synthetic but well-formed current-version records (random planes, a masked policy
     over 40 legal moves, alternating side to move, one decisive result)."""
     rng = np.random.default_rng(seed)
     with gzip.open(path, "wb") as f:
@@ -59,8 +59,8 @@ def write_games(path, n_records, seed):
                 1, 2**62, size=(R.HISTORY_PLANES, 2))
             stm = i % 2
             z = 1.0 if stm == 0 else -1.0
-            fields = ([4, 1] + pi.tolist() + [int(x) for x in planes.reshape(-1)] +
-                      [i % 100, 1, 8, 1, 8, 0, 0, 8, 8, stm,
+            fields = ([7, 1] + pi.tolist() + [int(x) for x in planes.reshape(-1)] +
+                      [i % 100, 0, 0, 7, 7, stm,
                        z, 0.0, 0.1, 0.2, 0.3 * z, 0.1, 0.3 * z, 0.1, 0.2 * z, 0.2, 0.5,
                        800, int(legal[0]), int(legal[0])])
             f.write(R._STRUCT.pack(*fields))

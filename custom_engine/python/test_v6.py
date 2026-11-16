@@ -26,6 +26,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import trainingdata_reader as tr  # noqa: E402
 import trainingdata_v6 as v6  # noqa: E402
+from nn_layout import PIECE_KINDS, PLANES_PER_BOARD, POLICY_SIZE  # noqa: E402
 
 FAILS = []
 
@@ -55,15 +56,15 @@ rng = np.random.default_rng(20260928)
 
 
 def rand_board():
-    """27 planes x (lo, hi): a few pieces on real squares (files 0-9, ranks 0-9)."""
-    b = np.zeros((27, 2), np.uint64)
+    """PLANES_PER_BOARD planes x (lo, hi): a few pieces on real squares (files 0-9, ranks 0-9)."""
+    b = np.zeros((PLANES_PER_BOARD, 2), np.uint64)
     for _ in range(rng.integers(2, 30)):
-        p = int(rng.integers(0, 26))
+        p = int(rng.integers(0, 2 * PIECE_KINDS))
         s = int(rng.integers(0, 10)) * 12 + int(rng.integers(0, 10))
         b[p, s // 64] |= np.uint64(1) << np.uint64(s % 64)
     if rng.random() < 0.2:                       # repetition plane: all squares
-        b[26, 0] = np.uint64(0xFFFFFFFFFFFFFFFF)
-        b[26, 1] = np.uint64(0x00FFFFFFFFFFFFFF)
+        b[2 * PIECE_KINDS, 0] = np.uint64(0xFFFFFFFFFFFFFFFF)
+        b[2 * PIECE_KINDS, 1] = np.uint64(0x00FFFFFFFFFFFFFF)
     return b
 
 
@@ -73,7 +74,7 @@ def synth_game(n, broken_at=(), float_at=(), empty_at=(), zero_at=(), dense_at=(
     above the board (bit 125), which the frame change cannot carry."""
     recs, prev = [], None
     for k in range(n):
-        planes = np.zeros((8, 27, 2), np.uint64)
+        planes = np.zeros((8, PLANES_PER_BOARD, 2), np.uint64)
         planes[0] = rand_board()
         if k in hibit_at:
             planes[0, 3, 1] |= np.uint64(1) << np.uint64(61)
@@ -83,10 +84,10 @@ def synth_game(n, broken_at=(), float_at=(), empty_at=(), zero_at=(), dense_at=(
             for d in range(1, 8):
                 planes[d] = rand_board()
         prev = planes
-        pi = np.full(10600, -1.0, np.float32)
+        pi = np.full(POLICY_SIZE, -1.0, np.float32)
         visits = 801
         if k not in empty_at:
-            legal = np.sort(rng.choice(10600, size=int(rng.integers(1, 120)), replace=False))
+            legal = np.sort(rng.choice(POLICY_SIZE, size=int(rng.integers(1, 120)), replace=False))
             if k in float_at:
                 pi[legal] = rng.random(len(legal)).astype(np.float32)
             elif k in zero_at:
@@ -97,15 +98,13 @@ def synth_game(n, broken_at=(), float_at=(), empty_at=(), zero_at=(), dense_at=(
                 pi[legal] = cnt.astype(np.float32) / np.float32(800)
             if k in dense_at:
                 pi[legal[0]] = np.nan
-                pi[(legal[-1] + 1) % 10600] = -0.5
-        r = {"version": 6, "input_format": 1, "probabilities": pi,
+                pi[(legal[-1] + 1) % POLICY_SIZE] = -0.5
+        r = {"version": v6.DATA_VERSION, "input_format": 1, "probabilities": pi,
              "piece_planes": planes.reshape(-1), "rule50_count": int(rng.integers(0, 256)),
-             "castling_us_ooo_sq": 0xFF, "castling_us_oo_sq": int(rng.integers(0, 100)),
-             "castling_them_ooo_sq": 90, "castling_them_oo_sq": 0xFF,
              "ep_mask": (int(rng.integers(0, 2**63)), int(rng.integers(0, 2**63))),
              "checks_remaining_us": 8, "checks_remaining_them": int(rng.integers(0, 9)),
              "side_to_move": k & 1, "visits": visits,
-             "played_idx": int(rng.integers(0, 10600)), "best_idx": 65535}
+             "played_idx": int(rng.integers(0, POLICY_SIZE)), "best_idx": 65535}
         for key in v6.FLOAT_KEYS:
             r[key] = float(np.float32(rng.standard_normal()))
         r["policy_kld"] = float(np.float32(3.4e38))
@@ -217,9 +216,7 @@ if len(sys.argv) > 1:
                 if np.asarray(c[k]).tobytes() != np.asarray(e[k]).tobytes() or \
                         np.asarray(c[k]).dtype != np.asarray(e[k]).dtype:
                     return False
-            for k in ("castling_us_ooo_sq", "castling_us_oo_sq", "castling_them_ooo_sq",
-                      "castling_them_oo_sq", "rule50_count", "checks_remaining_us",
-                      "checks_remaining_them"):
+            for k in ("rule50_count", "checks_remaining_us", "checks_remaining_them"):
                 if c[k] != e[k]:
                     return False
         return True

@@ -6,30 +6,31 @@
 namespace lczero {
 
 namespace {
-// PieceType -> piece-plane index (0..12), or -1 for types this variant never uses.
-// Replaces a per-square switch with an O(1) table lookup in the encode hot path.
-// PieceType values are sparse (KING=63, CUSTOM_PIECE_1=39, ...) so a full
-// PIECE_TYPE_NB-wide table is the safe, branch-free form.
-struct PieceTypeToPlaneLUT {
-    int lut[Stockfish::PIECE_TYPE_NB];
-    constexpr PieceTypeToPlaneLUT() : lut{} {
-        for (int i = 0; i < Stockfish::PIECE_TYPE_NB; ++i) lut[i] = -1;
-        lut[Stockfish::PAWN]           = 0;
-        lut[Stockfish::KNIGHT]         = 1;
-        lut[Stockfish::BISHOP]         = 2;
-        lut[Stockfish::ROOK]           = 3;
-        lut[Stockfish::QUEEN]          = 4;
-        lut[Stockfish::KING]           = 5;
-        lut[Stockfish::AMAZON]         = 6;
-        lut[Stockfish::CHANCELLOR]     = 7;
-        lut[Stockfish::ARCHBISHOP]     = 8;
-        lut[Stockfish::CENTAUR]        = 9;
-        lut[Stockfish::CUSTOM_PIECE_1] = 10;
-        lut[Stockfish::CUSTOM_PIECE_2] = 11;
-        lut[Stockfish::CUSTOM_PIECE_3] = 12;
+// The piece kinds of the variant in plane order (nn_layout.h: kPieceKinds). The same order is the plane
+// index of a piece on the input, so changing it changes what a network means.
+constexpr Stockfish::PieceType kPieceKindOrder[kPieceKinds] = {
+    Stockfish::PAWN,           Stockfish::KNIGHT,         Stockfish::BISHOP,         Stockfish::ROOK,
+    Stockfish::QUEEN,          Stockfish::KING,           Stockfish::CENTAUR,        Stockfish::CUSTOM_PIECE_1,
+    Stockfish::CUSTOM_PIECE_2, Stockfish::CUSTOM_PIECE_3, Stockfish::CUSTOM_PIECE_4, Stockfish::CUSTOM_PIECE_5};
+
+// The pieces a pawn can promote to, in the order of their policy slots (types kPromotionBase + 3 * i + direction).
+constexpr Stockfish::PieceType kPromotionOrder[kPromotionPieces] = {
+    Stockfish::KNIGHT,         Stockfish::BISHOP,         Stockfish::ROOK,           Stockfish::QUEEN,
+    Stockfish::CENTAUR,        Stockfish::CUSTOM_PIECE_1, Stockfish::CUSTOM_PIECE_2, Stockfish::CUSTOM_PIECE_4,
+    Stockfish::CUSTOM_PIECE_5};
+
+// PieceType -> index in the two tables above, or -1. PieceType values are sparse (KING = 63, CUSTOM_PIECE_1 =
+// 39, ...), so these are PIECE_TYPE_NB-wide tables: one load per lookup, no branches in the encode hot path.
+struct PieceTypeLUT {
+    int8_t plane[Stockfish::PIECE_TYPE_NB];
+    int8_t promotion[Stockfish::PIECE_TYPE_NB];
+    constexpr PieceTypeLUT() : plane{}, promotion{} {
+        for (int i = 0; i < Stockfish::PIECE_TYPE_NB; ++i) plane[i] = promotion[i] = -1;
+        for (int i = 0; i < kPieceKinds; ++i) plane[kPieceKindOrder[i]] = static_cast<int8_t>(i);
+        for (int i = 0; i < kPromotionPieces; ++i) promotion[kPromotionOrder[i]] = static_cast<int8_t>(i);
     }
 };
-constexpr auto kPieceTypeToPlane = PieceTypeToPlaneLUT();
+constexpr PieceTypeLUT kPieceLut;
 }  // namespace
 
 // Hàm mã hóa lịch sử thế cờ thành các mặt phẳng đầu vào (InputPlanes) cho Neural Network
@@ -68,9 +69,9 @@ void EncodePositionForNN(
     // Đặt bit của một quân `pc` tại ô `sq` vào mặt phẳng tương ứng cho bước lịch sử `d`.
     auto emit_piece = [&](Stockfish::Piece pc, Stockfish::Square sq, int d) {
         if (pc == Stockfish::NO_PIECE) return;
-        const int plane_idx = kPieceTypeToPlane.lut[Stockfish::type_of(pc)];
+        const int plane_idx = kPieceLut.plane[Stockfish::type_of(pc)];
         if (plane_idx < 0) return;
-        const int plane_offset = (Stockfish::color_of(pc) == us) ? 0 : 13;  // mình / đối thủ
+        const int plane_offset = (Stockfish::color_of(pc) == us) ? 0 : kPieceKinds;  // mình / đối thủ
         const int dest_plane = d * kPlanesPerBoard + plane_offset + plane_idx;
         const Stockfish::Square dest_sq =
             is_flipped ? Stockfish::relative_square(Stockfish::BLACK, sq, Stockfish::RANK_10) : sq;
@@ -128,71 +129,58 @@ void EncodePositionForNN(
             }
         }
         
-        // Mặt phẳng thứ 27 của mỗi bước lịch sử: Chỉ thị trạng thái lặp lại thế cờ
+        // Mặt phẳng cuối của mỗi bước lịch sử: Chỉ thị trạng thái lặp lại thế cờ
         if (rep >= 1) {
-            (*output_planes)[d * kPlanesPerBoard + 26].Fill(1.0f);
+            (*output_planes)[d * kPlanesPerBoard + 2 * kPieceKinds].Fill(1.0f);
         }
     }
     
-    // Mã hóa các mặt phẳng phụ trợ (Auxiliary Planes) ở phần cuối
+    // Mã hóa các mặt phẳng phụ trợ (enum AuxPlane, nn_layout.h) ở phần cuối
     const auto& raw_pos = last_position.GetBoard().GetRawPosition();
-    
-    Stockfish::CastlingRights us_ooo   = (us == Stockfish::WHITE) ? Stockfish::WHITE_OOO : Stockfish::BLACK_OOO;
-    Stockfish::CastlingRights us_oo    = (us == Stockfish::WHITE) ? Stockfish::WHITE_OO  : Stockfish::BLACK_OO;
-    Stockfish::CastlingRights them_ooo = (us == Stockfish::WHITE) ? Stockfish::BLACK_OOO : Stockfish::WHITE_OOO;
-    Stockfish::CastlingRights them_oo  = (us == Stockfish::WHITE) ? Stockfish::BLACK_OO  : Stockfish::WHITE_OO;
 
-    // Plane 0-3: Quyền nhập thành Queenside & Kingside của Ta và Đối thủ
-    if (raw_pos.can_castle(us_ooo)) {
-        Stockfish::Square rook_sq = raw_pos.castling_rook_square(us_ooo);
-        if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        (*output_planes)[kAuxPlaneBase + 0].mask |= Stockfish::square_bb(rook_sq);
-    }
-    if (raw_pos.can_castle(us_oo)) {
-        Stockfish::Square rook_sq = raw_pos.castling_rook_square(us_oo);
-        if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        (*output_planes)[kAuxPlaneBase + 1].mask |= Stockfish::square_bb(rook_sq);
-    }
-    if (raw_pos.can_castle(them_ooo)) {
-        Stockfish::Square rook_sq = raw_pos.castling_rook_square(them_ooo);
-        if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        (*output_planes)[kAuxPlaneBase + 2].mask |= Stockfish::square_bb(rook_sq);
-    }
-    if (raw_pos.can_castle(them_oo)) {
-        Stockfish::Square rook_sq = raw_pos.castling_rook_square(them_oo);
-        if (is_flipped) rook_sq = Stockfish::relative_square(Stockfish::BLACK, rook_sq, Stockfish::RANK_10);
-        (*output_planes)[kAuxPlaneBase + 3].mask |= Stockfish::square_bb(rook_sq);
-    }
-    
-    // Plane 4: Ô cờ có khả năng ăn tốt qua đường (En Passant)
+    // Các ô có thể bị ăn tốt qua đường (En Passant), lật góc nhìn khi Đen đi
     Stockfish::Bitboard ep = raw_pos.ep_squares();
-    if (ep) {
-        if (is_flipped) {
-            Stockfish::Bitboard flipped_ep = 0;
-            while (ep) {
-                Stockfish::Square sq = Stockfish::pop_lsb(ep);
-                flipped_ep |= Stockfish::square_bb(Stockfish::relative_square(Stockfish::BLACK, sq, Stockfish::RANK_10));
-            }
-            ep = flipped_ep;
+    if (ep && is_flipped) {
+        Stockfish::Bitboard flipped_ep = 0;
+        while (ep) {
+            Stockfish::Square sq = Stockfish::pop_lsb(ep);
+            flipped_ep |= Stockfish::square_bb(Stockfish::relative_square(Stockfish::BLACK, sq, Stockfish::RANK_10));
         }
-        (*output_planes)[kAuxPlaneBase + 4].mask = ep;
+        ep = flipped_ep;
     }
-    
-    // Plane 5: Đếm luật 50 nước đi (chuẩn hóa rule50 / 100.0f)
-    (*output_planes)[kAuxPlaneBase + 5].Fill(static_cast<float>(last_position.GetRule50Ply()) / 100.0f);
-    
-    // Plane 7: Đầy 1.0f giúp mạng nơ-ron nhận biết biên bàn cờ 10x10
-    (*output_planes)[kAuxPlaneBase + 7].Fill(1.0f);
-    
-    // Plane 8 & 9: Số lượt chiếu còn lại, chuẩn hóa checks / 10.0f.
+    (*output_planes)[kAuxPlaneBase + kAuxEnPassant].mask = ep;
+
+    // Đếm luật 50 nước đi (chuẩn hóa rule50 / 100.0f)
+    (*output_planes)[kAuxPlaneBase + kAuxRule50].Fill(static_cast<float>(last_position.GetRule50Ply()) / 100.0f);
+
+    // Đầy 1.0f giúp mạng nơ-ron nhận biết biên bàn cờ 10x10
+    (*output_planes)[kAuxPlaneBase + kAuxOnes].Fill(1.0f);
+
+    // Số lượt chiếu còn lại, chuẩn hóa checks / 10.0f.
     //
     // Mẫu số 10 CỐ Ý không bằng N của luật: nó là trần Fairy-SF biểu diễn được
     // (CHECKS_NB = 11, và FEN ghi 1 chữ số nên N tối đa 9), nên mọi N khả thi
     // (0-9) đều cho giá trị ≤ 1.0. Nhờ vậy thang chuẩn hóa ĐỘC LẬP với luật:
-    // đổi N-checks không cần sửa encoder, cũng không làm lệch dữ liệu cũ.
-    // Luật hiện tại là 8-checks (trước 2026-09-21 là 7-checks).
-    (*output_planes)[kAuxPlaneBase + 8].Fill(static_cast<float>(raw_pos.checks_remaining(us)) / 10.0f);
-    (*output_planes)[kAuxPlaneBase + 9].Fill(static_cast<float>(raw_pos.checks_remaining(them)) / 10.0f);
+    // đổi N-checks không cần sửa encoder. Luật hiện tại là 7-checks.
+    (*output_planes)[kAuxPlaneBase + kAuxChecksUs].Fill(static_cast<float>(raw_pos.checks_remaining(us)) / 10.0f);
+    (*output_planes)[kAuxPlaneBase + kAuxChecksThem].Fill(static_cast<float>(raw_pos.checks_remaining(them)) / 10.0f);
+}
+
+bool EncoderCoversVariant(const Stockfish::Variant& v, std::string* why) {
+    auto fail = [&](const char* what, Stockfish::PieceType pt) {
+        if (why) *why = std::string(what) + " '" + v.pieceToChar[Stockfish::make_piece(Stockfish::BLACK, pt)] + "'";
+        return false;
+    };
+    for (Stockfish::PieceSet ps = v.pieceTypes; ps;) {
+        const Stockfish::PieceType pt = Stockfish::pop_lsb(ps);
+        if (kPieceLut.plane[pt] < 0) return fail("the encoder has no input plane for the piece", pt);
+    }
+    for (const Stockfish::Color c : {Stockfish::WHITE, Stockfish::BLACK})
+        for (Stockfish::PieceSet ps = v.promotionPieceTypes[c] | v.optionalPromotionPieceTypes[c]; ps;) {
+            const Stockfish::PieceType pt = Stockfish::pop_lsb(ps);
+            if (kPieceLut.promotion[pt] < 0) return fail("the encoder has no policy slot for promoting to", pt);
+        }
+    return true;
 }
 
 
@@ -285,7 +273,7 @@ void UnpackInputPlanes(
     }
 }
 
-// Hàm mã hóa một nước đi thực tế (Move) thành một chỉ số index trong mảng phẳng NN 10,600 phần tử
+// Hàm mã hóa một nước đi thực tế (Move) thành một chỉ số index trong mảng phẳng NN kPolicySize phần tử
 uint16_t MoveToNNIndex(Move move, int transform) {
     if (move.is_null()) return 65535;
 
@@ -304,41 +292,24 @@ uint16_t MoveToNNIndex(Move move, int transform) {
     }
 
     // Ô cờ xuất phát được làm phẳng từ 0 đến 99 (cho bàn cờ 10x10)
-    int from_flat = from_rank * 10 + from_file;
+    int from_flat = from_rank * kBoardSize + from_file;
 
     // Tính toán khoảng cách và hướng đi dọc theo trục X và Y
     int dx = to_file - from_file;
     int dy = to_rank - from_rank;
 
-    // 1. Kiểm tra nước đi Phong cấp (Promotion, KỂ CẢ EN_PASSANT bắt-qua-đường rơi
-    //    vào hàng phong cấp) -> Kênh 88 đến 105
+    // 1. Nước đi Phong cấp (Promotion, KỂ CẢ EN_PASSANT bắt-qua-đường rơi vào hàng phong cấp)
+    //    -> kênh kPromotionBase .. kMoveTypes - 1: quân phong cấp x hướng (ăn trái, đi thẳng, ăn phải)
     Stockfish::PieceType promo_type = Stockfish::promotion_type(move);
     if (promo_type == Stockfish::NO_PIECE_TYPE && Stockfish::type_of(move) == Stockfish::EN_PASSANT)
         promo_type = Stockfish::ep_promotion_type(move);   // ep capture landing on a promotion rank
     if (promo_type != Stockfish::NO_PIECE_TYPE) {
-        int piece_idx = -1;
-        // Xác định loại quân phong cấp (6 loại quân)
-        switch (promo_type) {
-            case Stockfish::BISHOP:         piece_idx = 0; break;
-            case Stockfish::ROOK:           piece_idx = 1; break;  // đổi luật: Archbishop -> Rook (giữ slot 1)
-            case Stockfish::CENTAUR:        piece_idx = 2; break;
-            case Stockfish::KNIGHT:         piece_idx = 3; break;
-            case Stockfish::CUSTOM_PIECE_1: piece_idx = 4; break;
-            case Stockfish::CUSTOM_PIECE_2: piece_idx = 5; break;
-            default: break;
-        }
+        const int piece_idx = kPieceLut.promotion[promo_type];
+        const int dir_idx = dx + 1;   // dx = -1 / 0 / +1
+        if (piece_idx >= 0 && dir_idx >= 0 && dir_idx < kPromotionDirections)
+            return (kPromotionBase + piece_idx * kPromotionDirections + dir_idx) * kBoardSquares + from_flat;
 
-        int dir_idx = -1;
-        if (dx == -1) dir_idx = 0;      // Ăn chéo trái
-        else if (dx == 0) dir_idx = 1;  // Đi thẳng lên
-        else if (dx == 1) dir_idx = 2;   // Ăn chéo phải
-
-        if (piece_idx != -1 && dir_idx != -1) {
-            int type_idx = 88 + piece_idx * 3 + dir_idx;
-            return type_idx * 100 + from_flat;
-        }
-
-        // GUARD: một nước PROMOTION không map được (quân phong cấp ngoài 6 loại,
+        // GUARD: một nước PROMOTION không map được (quân phong cấp ngoài kPromotionOrder,
         // hoặc hướng lạ) TUYỆT ĐỐI không được rơi xuyên xuống nhánh nước-tia bên
         // dưới — nếu rơi xuyên sẽ trả nhầm index của một nước đi-thẳng. Báo lỗi rõ.
 #ifndef NDEBUG
@@ -347,7 +318,7 @@ uint16_t MoveToNNIndex(Move move, int transform) {
         return 65535;
     }
 
-    // 2. Kiểm tra nước nhảy của Mã (Knight moves) -> Kênh 72 đến 79
+    // 2. Kiểm tra nước nhảy của Mã (Knight moves) -> kênh kKnightBase .. +7
     int abs_dx = std::abs(dx);
     int abs_dy = std::abs(dy);
     if ((abs_dx == 1 && abs_dy == 2) || (abs_dx == 2 && abs_dy == 1)) {
@@ -363,11 +334,11 @@ uint16_t MoveToNNIndex(Move move, int transform) {
         else if (dx == -1 && dy == 2)  knight_idx = 7;
 
         if (knight_idx != -1) {
-            return (72 + knight_idx) * 100 + from_flat;
+            return (kKnightBase + knight_idx) * kBoardSquares + from_flat;
         }
     }
 
-    // 3. Kiểm tra nước nhảy của Lạc đà (Camel moves) -> Kênh 80 đến 87
+    // 3. Kiểm tra nước nhảy của Lạc đà (Camel moves) -> kênh kCamelBase .. +7
     if ((abs_dx == 1 && abs_dy == 3) || (abs_dx == 3 && abs_dy == 1)) {
         // 8 hướng nhảy của Lạc đà theo chiều kim đồng hồ
         int camel_idx = -1;
@@ -381,11 +352,11 @@ uint16_t MoveToNNIndex(Move move, int transform) {
         else if (dx == -1 && dy == 3)  camel_idx = 7;
 
         if (camel_idx != -1) {
-            return (80 + camel_idx) * 100 + from_flat;
+            return (kCamelBase + camel_idx) * kBoardSquares + from_flat;
         }
     }
 
-    // 4. Kiểm tra nước đi dạng tia (Sliding / Alibaba moves) -> Kênh 0 đến 71
+    // 4. Kiểm tra nước đi dạng tia (Sliding / Alibaba moves) -> kênh 0 .. kSlideTypes - 1
     int dir_idx = -1;
     int distance = 0;
     if (dx == 0 && dy > 0)       { dir_idx = 0; distance = dy; }       // Hướng Bắc
@@ -400,7 +371,7 @@ uint16_t MoveToNNIndex(Move move, int transform) {
     // Khoảng cách tối đa cho phép trên bàn cờ 10x10 là 9 ô cờ
     if (dir_idx != -1 && distance >= 1 && distance <= 9) {
         int type_idx = dir_idx * 9 + (distance - 1);
-        return type_idx * 100 + from_flat;
+        return type_idx * kBoardSquares + from_flat;
     }
 
 #ifndef NDEBUG
@@ -409,20 +380,20 @@ uint16_t MoveToNNIndex(Move move, int transform) {
     return 65535;
 }
 
-// Hàm giải mã ngược từ chỉ số index của mảng phẳng NN 10,600 phần tử thành nước đi thực tế (Move)
+// Hàm giải mã ngược từ chỉ số index của mảng phẳng NN kPolicySize phần tử thành nước đi thực tế (Move)
 Move MoveFromNNIndex(int idx, int transform) {
-    if (idx < 0 || idx >= 10600) return Move(Stockfish::MOVE_NONE);
+    if (idx < 0 || idx >= kPolicySize) return Move(Stockfish::MOVE_NONE);
 
     // Tách chỉ số index thành loại nước đi (type_idx) và ô cờ xuất phát (from_flat)
-    int type_idx = idx / 100;
-    int from_flat = idx % 100;
-    int from_file = from_flat % 10;
-    int from_rank = from_flat / 10;
+    int type_idx = idx / kBoardSquares;
+    int from_flat = idx % kBoardSquares;
+    int from_file = from_flat % kBoardSize;
+    int from_rank = from_flat / kBoardSize;
     Stockfish::Square from = Stockfish::make_square(static_cast<Stockfish::File>(from_file), static_cast<Stockfish::Rank>(from_rank));
 
     Move res = MOVE_NONE;
-    // 1. Giải mã nước đi dạng tia (Sliding moves) -> Kênh 0 đến 71
-    if (type_idx >= 0 && type_idx <= 71) {
+    // 1. Giải mã nước đi dạng tia (Sliding moves) -> kênh 0 .. kSlideTypes - 1
+    if (type_idx >= 0 && type_idx < kSlideTypes) {
         int dir_idx = type_idx / 9;
         int distance = (type_idx % 9) + 1;
         int dx = 0, dy = 0;
@@ -446,9 +417,9 @@ Move MoveFromNNIndex(int idx, int transform) {
             res = Stockfish::make_move(from, to);
         }
     }
-    // 2. Giải mã nước nhảy của Mã (Knight moves) -> Kênh 72 đến 79
-    else if (type_idx >= 72 && type_idx <= 79) {
-        int knight_idx = type_idx - 72;
+    // 2. Giải mã nước nhảy của Mã (Knight moves) -> kênh kKnightBase .. +7
+    else if (type_idx >= kKnightBase && type_idx < kCamelBase) {
+        int knight_idx = type_idx - kKnightBase;
         static const int dx_list[] = {1, 2, 2, 1, -1, -2, -2, -1};
         static const int dy_list[] = {2, 1, -1, -2, -2, -1, 1, 2};
         int dx = dx_list[knight_idx];
@@ -460,9 +431,9 @@ Move MoveFromNNIndex(int idx, int transform) {
             res = Stockfish::make_move(from, to);
         }
     }
-    // 3. Giải mã nước nhảy của Lạc đà (Camel moves) -> Kênh 80 đến 87
-    else if (type_idx >= 80 && type_idx <= 87) {
-        int camel_idx = type_idx - 80;
+    // 3. Giải mã nước nhảy của Lạc đà (Camel moves) -> kênh kCamelBase .. +7
+    else if (type_idx >= kCamelBase && type_idx < kPromotionBase) {
+        int camel_idx = type_idx - kCamelBase;
         static const int dx_list[] = {1, 3, 3, 1, -1, -3, -3, -1};
         static const int dy_list[] = {3, 1, -1, -3, -3, -1, 1, 3};
         int dx = dx_list[camel_idx];
@@ -474,24 +445,13 @@ Move MoveFromNNIndex(int idx, int transform) {
             res = Stockfish::make_move(from, to);
         }
     }
-    // 4. Giải mã nước đi Phong cấp (Promotion moves) -> Kênh 88 đến 105
-    else if (type_idx >= 88 && type_idx <= 105) {
-        int promo_idx = type_idx - 88;
-        int piece_idx = promo_idx / 3;
-        int dir_idx = promo_idx % 3;
+    // 4. Giải mã nước đi Phong cấp (Promotion moves) -> kênh kPromotionBase .. kMoveTypes - 1
+    else if (type_idx >= kPromotionBase && type_idx < kMoveTypes) {
+        const int promo_idx = type_idx - kPromotionBase;
+        const Stockfish::PieceType promo_pt = kPromotionOrder[promo_idx / kPromotionDirections];
+        const int dir_idx = promo_idx % kPromotionDirections;
 
-        Stockfish::PieceType promo_pt = Stockfish::NO_PIECE_TYPE;
-        switch (piece_idx) {
-            case 0: promo_pt = Stockfish::BISHOP; break;
-            case 1: promo_pt = Stockfish::ROOK; break;  // đổi luật: Archbishop -> Rook (giữ slot 1)
-            case 2: promo_pt = Stockfish::CENTAUR; break;
-            case 3: promo_pt = Stockfish::KNIGHT; break;
-            case 4: promo_pt = Stockfish::CUSTOM_PIECE_1; break;
-            case 5: promo_pt = Stockfish::CUSTOM_PIECE_2; break;
-            default: break;
-        }
-
-        // Tịnh tiến hàng đích lên 1 đơn vị: hỗ trợ chính xác cả việc phong cấp tại hàng 9 hoặc hàng 10
+        // Tịnh tiến hàng đích lên 1 đơn vị: hỗ trợ chính xác cả việc phong cấp tại hàng 8 hay hàng 9
         Stockfish::Rank to_rank = static_cast<Stockfish::Rank>(from_rank + 1);
 
         int to_file = from_file + (dir_idx - 1);

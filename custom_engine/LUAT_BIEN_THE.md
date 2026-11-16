@@ -77,6 +77,26 @@ huấn luyện (plane đếm chiếu) phải đổi theo.
 - Ký hiệu Betza trong bảng trên đúng ý chủ dự án.
 - Thế cờ đầu: chủ dự án sẽ nói sau (phải thay `e`, `h`).
 
+### Bộ mã hoá mạng nơ-ron (đã làm, nhánh `luat-moi`, 2026-11-16)
+
+Toàn bộ con số nằm ở `src/lczero_chess/chess/nn_layout.h` (nguồn chính) và `python/nn_layout.py` (`python/test_layout.py` kiểm hai bên khớp).
+
+| | Cũ | Mới |
+|---|---|---|
+| Loại quân mỗi bên | 13 | **12**: Tốt, Mã, Tượng, Xe, Hậu, Hoàng gia, Centaur, wildebeest, Alibaba, Sergeant, Pháo, Grasshopper |
+| Mặt phẳng mỗi bước lịch sử | 27 | **25** (12 + 12 + lặp thế) |
+| Mặt phẳng phụ trợ | 10 | **5**: ep, rule50, toàn 1, số chiếu còn lại của hai bên (bỏ 4 mặt phẳng nhập thành và 1 mặt phẳng trống) |
+| Đầu vào | 226 | **205** |
+| Quân phong cấp có ô policy | 6 | **9**: Mã, Tượng, Xe, Hậu, Centaur, wildebeest, Alibaba, Pháo, Grasshopper |
+| Chỉ số policy | 106 loại x 100 = 10600 | **115 loại x 100 = 11500** (88 loại nước đi như cũ + 9 quân x 3 hướng phong cấp) |
+| Bản ghi huấn luyện | 45940 byte, version 6 | **49280 byte, version 7** (bỏ 4 byte nhập thành); container `.xz` bản 2 |
+
+- Hình học nước đi không đổi: nước của Hoàng gia (viền 5×5), Pháo, Grasshopper, Alibaba, Centaur đều rơi vào các loại trượt / Mã / Lạc đà sẵn có. Nước Tốt đi lên hàng 8 **không phong cấp** dùng ô nước thường (trước đây không bao giờ xuất hiện), nên không đụng ô phong cấp.
+- `EncoderCoversVariant` (encoder.cc) kiểm mọi quân và mọi quân phong cấp của luật có chỗ trong mạng; `setup_custom_variant()` gọi nó và thoát nếu thiếu. Vì vậy **engine không chạy với luật cũ trên nhánh này** cho tới khi `variant_setup.cc` đổi sang luật mới.
+- Dữ liệu và mạng của các đời trước **không đọc được** (`KNOWN_VERSIONS = (7,)`). `python/chuyen_v6.py` (đổi dữ liệu cũ sang container) hết tác dụng.
+
+Còn phải làm để chạy lại được: `variant_setup.cc` (luật mới, thế cờ đầu của chủ dự án), oracle luật và các test cũ dựa trên luật cũ (`test_board`, `test_ep`, `test_rules`, `test_app`, ...), `GUI`.
+
 ### FSF có làm được không
 
 - **Đã thử (2026-11-16, FSF `014b0775` dựng riêng, `largeboards=yes`)**: mọi ký hiệu Betza trong bảng chạy đúng ý: Hoàng gia `KmnDmnAmnN` (viền 3×3 đi + ăn; 16 ô viền 5×5 chỉ đi, bị cản bởi ô giữa / ô chân đúng như đã mô tả), Centaur `KnN` (cản chân, ăn được), Alibaba `ADmW` và Tượng `BmW` (Wazir không ăn), Pháo `mRcpRW` (ăn qua đúng 1 ngòi, Wazir ăn được), Grasshopper `gQK`.

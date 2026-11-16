@@ -7,7 +7,8 @@
 
 namespace lczero {
 
-// Compact per-game container (".xz", training-data version 6).
+// Compact per-game container (".xz", introduced with training-data version 6; the records inside are
+// the current ones, see kTrainingDataVersion).
 //
 // The byte layout, and why it is small and still lossless, are documented once,
 // in python/trainingdata_v6.py (the Python side reads what this writes, and both
@@ -18,14 +19,14 @@ namespace lczero {
 // ones, which fall back to wider storage (FLAG_FLOAT_PI / FLAG_DENSE_PI / FLAG_FULL).
 
 constexpr char kGameV6Magic[4] = {'F', 'Z', 'D', '6'};
-constexpr uint32_t kGameV6Revision = 1;
+constexpr uint32_t kGameV6Revision = 2;
 constexpr uint8_t kGameV6FlagFull = 1;
 constexpr uint8_t kGameV6FlagFloatPi = 2;
 constexpr uint8_t kGameV6FlagDensePi = 4;
 
-// The same 27 board planes (128-bit masks as [lo, hi]) seen by the other side:
-// us/them piece planes swapped, ranks mirrored; the repetition plane (26) copied.
-void OtherFrame(const uint64_t in[27][2], uint64_t out[27][2]);
+// The same kPlanesPerBoard board planes (128-bit masks as [lo, hi]) seen by the other side:
+// us/them piece planes swapped, ranks mirrored; the repetition plane (the last) copied.
+void OtherFrame(const uint64_t in[kPlanesPerBoard][2], uint64_t out[kPlanesPerBoard][2]);
 
 // Builds the uncompressed payload of one game, record by record.
 class GameV6Encoder {
@@ -40,13 +41,13 @@ class GameV6Encoder {
  private:
   uint32_t version_ = 0, input_format_ = 0;
   bool have_prev_ = false;
-  uint64_t expect_[7][27][2];  // plies 1..7 the next record has if the chain holds
+  uint64_t expect_[kMoveHistory - 1][kPlanesPerBoard][2];  // plies 1..7 the next record has if the chain holds
 
   std::vector<uint8_t> flags_;
   std::vector<uint16_t> n_legal_, delta_, counts_;
   std::vector<float> pi_float_, pi_dense_;
   std::vector<uint64_t> cur_, hist_;
-  std::vector<uint8_t> rule50_, castling_[4], checks_us_, checks_them_, stm_;
+  std::vector<uint8_t> rule50_, checks_us_, checks_them_, stm_;
   std::vector<uint64_t> ep_;
   std::vector<float> floats_[11];
   std::vector<uint32_t> visits_;

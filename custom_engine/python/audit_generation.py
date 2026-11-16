@@ -38,11 +38,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import numpy as np
 from trainingdata_reader import is_game_member, iter_records, _iter_member
+from nn_layout import PIECE_KINDS
+
+# 64-bit words of the piece planes of one board (ours + theirs, lo and hi word each); the repetition flag follows
+BOARD_WORDS = 2 * 2 * PIECE_KINDS
 
 # N of the N-checks win rule = the value the starting FEN carries in its "N+N"
-# field. 8 since 2026-09-21 (was 7). Must match the startFen in
+# field. 7 under the new rules (2026-11-16; it was 8 from 2026-09-21). Must match the startFen in
 # src/app/variant_setup.cc / src/lczero_chess/chess/board.cc.
-MAX_CHECKS = 8
+MAX_CHECKS = 7
 
 
 def _records(path):
@@ -114,14 +118,13 @@ def main():
             else:
                 orig_copy_legacy += 1
         pp = r["piece_planes"]
-        # Position identity: pieces of the current board (planes 0-25; plane 26
-        # is the repetition flag itself) + castling, e.p., checks, side to move.
-        key = (tuple(pp[:52]), r["castling_us_ooo_sq"], r["castling_us_oo_sq"],
-               r["castling_them_ooo_sq"], r["castling_them_oo_sq"], tuple(r["ep_mask"]),
+        # Position identity: pieces of the current board (the first 2 * PIECE_KINDS planes; the plane after them
+        # is the repetition flag itself) + e.p., checks, side to move.
+        key = (tuple(pp[:BOARD_WORDS]), tuple(r["ep_mask"]),
                r["checks_remaining_us"], r["checks_remaining_them"], r["side_to_move"])
         count = seen.get(key, 0)
         seen[key] = count + 1
-        flagged = pp[52] != 0 or pp[53] != 0
+        flagged = pp[BOARD_WORDS] != 0 or pp[BOARD_WORDS + 1] != 0
         kind = "strict" if r["version"] >= 3 else "legacy"
         if count >= 1 and not flagged:
             rep[kind]["missed"] += 1

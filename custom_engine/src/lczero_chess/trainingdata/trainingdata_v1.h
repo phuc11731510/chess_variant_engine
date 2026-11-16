@@ -1,20 +1,22 @@
 #pragma once
 #include <cstdint>
 
+#include "../chess/nn_layout.h"
+
 namespace lczero {
 
 // On-disk training-data record for the 10x10 FairyZero variant.
 //
 // Adapted from Lc0's V6TrainingData but resized for this project:
-//   - policy:  probabilities[10600]  (Lc0 chess uses 1858)  — layout = MoveToNNIndex
-//   - planes:  216 history planes (27 planes/ply x 8 ply) stored sparsely as
+//   - policy:  probabilities[kPolicySize] (Lc0 chess uses 1858)  — layout = MoveToNNIndex
+//   - planes:  kHistoryPlanes history planes (kPlanesPerBoard per ply x 8 ply) stored sparsely as
 //              128-bit bitboard masks (2 x uint64); aux planes stored as scalars.
 //   - value:   WDL (Win/Draw/Loss) from side-to-move perspective.
 //
 // IMPORTANT (3 conventions that MUST match the Python reader):
 //   1. policy index = MoveToNNIndex (type*100 + from_rank*10 + from_file)
 //   2. value order  = [Win, Draw, Loss], side-to-move perspective
-//   3. plane order  = encoder order: [ply][27 planes], each plane a 128-bit mask
+//   3. plane order  = encoder order: [ply][kPlanesPerBoard planes], each plane a 128-bit mask
 //      (bit s = rank*12 + file in Stockfish 12-stride coords).
 //
 // The struct is byte-packed; the static_assert below locks the layout so the
@@ -48,14 +50,12 @@ namespace lczero {
 //      container (trainingdata/game_v6.h, python/trainingdata_v6.py; ~4.8x
 //      smaller than .gz) that decodes back to these records bit for bit. A build
 //      without liblzma still writes these 45940-byte records (.gz / .bin).
-constexpr uint32_t kTrainingDataVersion = 6;
+//   7: new rules (2026-11-16), a new layout, so NOTHING of version <= 6 can be read with it: 12 piece
+//      kinds per side instead of 13 (25 planes per ply, 200 history planes), no castling (the four
+//      castling bytes are gone, and with them the castling aux planes), 9 promotion pieces (11500
+//      policy entries instead of 10600), a 205-plane input. nn_layout.h is the one place for the numbers.
+constexpr uint32_t kTrainingDataVersion = 7;
 constexpr uint32_t kInputFormat10x10 = 1;
-
-// Sentinel for "no castling right" in the castling fields.
-constexpr uint8_t kNoCastlingSquare = 0xFF;
-
-constexpr int kPolicySize = 10600;     // 106 move types x 100 from-squares
-constexpr int kHistoryPlanes = 216;    // 27 planes/ply x 8 ply
 
 #pragma pack(push, 1)
 struct TrainingDataV1 {
@@ -63,21 +63,13 @@ struct TrainingDataV1 {
   uint32_t input_format;  // = kInputFormat10x10
 
   // Policy target pi (visit distribution); only legal-move indices are non-zero.
-  float probabilities[kPolicySize];  // 10600 * 4 = 42400 bytes
+  float probabilities[kPolicySize];  // 11500 * 4 = 46000 bytes
 
-  // 216 history piece-planes as 128-bit bitboard masks ([lo64, hi64] per plane).
-  uint64_t piece_planes[kHistoryPlanes][2];  // 216 * 16 = 3456 bytes
+  // kHistoryPlanes (200) history piece-planes as 128-bit bitboard masks ([lo64, hi64] per plane).
+  uint64_t piece_planes[kHistoryPlanes][2];  // 200 * 16 = 3200 bytes
 
   // --- Scalar auxiliary planes (reconstructed by the Python reader) ---
   uint8_t rule50_count;
-  // Castling: the SQUARE (rank * 10 + file, 0-99) of the right's rook in the
-  // canonical frame (ranks flipped when Black is to move, like every plane),
-  // or kNoCastlingSquare. The reader sets that bit in aux planes 0-3. Before
-  // version 5 this was the rook's file (see the version history).
-  uint8_t castling_us_ooo_sq;
-  uint8_t castling_us_oo_sq;
-  uint8_t castling_them_ooo_sq;
-  uint8_t castling_them_oo_sq;
   uint64_t ep_mask[2];  // en-passant plane (128-bit mask)
   uint8_t checks_remaining_us;
   uint8_t checks_remaining_them;
@@ -100,8 +92,8 @@ struct TrainingDataV1 {
 };
 #pragma pack(pop)
 
-// Layout lock: 8 + 42400 + 3456 + 24 + 48 + 4 = 45940.
-static_assert(sizeof(TrainingDataV1) == 45940,
+// Layout lock: 8 + 46000 + 3200 + 20 + 48 + 4 = 49280.
+static_assert(sizeof(TrainingDataV1) == 49280,
               "TrainingDataV1 layout changed; update Python reader + this size.");
 
 }  // namespace lczero

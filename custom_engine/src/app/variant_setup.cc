@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cctype>
 
+#include "chess/encoder.h"
 #include "bitboard.h"
 #include "endgame.h"
 #include "position.h"
@@ -129,6 +130,14 @@ checkCounting = true
     const Variant* v = variants.find("custom_10x10_variant")->second;
     if (!v) {
         std::cerr << "[FATAL] custom_10x10_variant not found!" << std::endl;
+        std::exit(1);
+    }
+    // The network input and policy are laid out for a fixed set of pieces (lczero_chess/chess/nn_layout.h):
+    // a piece the encoder does not know would silently vanish from the network input.
+    std::string unsupported;
+    if (!lczero::EncoderCoversVariant(*v, &unsupported)) {
+        std::cerr << "[FATAL] custom_10x10_variant does not fit the encoder: " << unsupported
+                  << " (update variant_setup.cc to the new rules, or the encoder)." << std::endl;
         std::exit(1);
     }
     UCI::init_variant(v);

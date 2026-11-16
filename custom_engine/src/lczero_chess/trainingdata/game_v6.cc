@@ -11,12 +11,12 @@
 namespace lczero {
 
 static_assert(std::endian::native == std::endian::little,
-              "the v6 container is little-endian, like the 45940-byte records");
+              "the v6 container is little-endian, like the 49280-byte records");
 
 namespace {
 
-constexpr int kPly = 27;
-constexpr int kPlies = 8;
+constexpr int kPly = kPlanesPerBoard;
+constexpr int kPlies = kMoveHistory;
 constexpr int kFloats = 11;  // result_q/d, root_q/d, best_q/d, played_q/d, orig_q/d, policy_kld
 
 uint32_t Bits(float f) {
@@ -63,7 +63,7 @@ bool PolicyCounts(const float* pi, const uint16_t* idx, size_t n, uint32_t visit
 
 }  // namespace
 
-void OtherFrame(const uint64_t in[27][2], uint64_t out[27][2]) {
+void OtherFrame(const uint64_t in[kPlanesPerBoard][2], uint64_t out[kPlanesPerBoard][2]) {
   auto mirror = [](const uint64_t w[2], uint64_t o[2]) {
     const unsigned __int128 v = (static_cast<unsigned __int128>(w[1]) << 64) | w[0];
     unsigned __int128 m = 0;
@@ -71,12 +71,13 @@ void OtherFrame(const uint64_t in[27][2], uint64_t out[27][2]) {
     o[0] = static_cast<uint64_t>(m);
     o[1] = static_cast<uint64_t>(m >> 64);
   };
-  for (int p = 0; p < 13; ++p) {
-    mirror(in[p + 13], out[p]);
-    mirror(in[p], out[p + 13]);
+  for (int p = 0; p < kPieceKinds; ++p) {
+    mirror(in[p + kPieceKinds], out[p]);
+    mirror(in[p], out[p + kPieceKinds]);
   }
-  out[26][0] = in[26][0];
-  out[26][1] = in[26][1];
+  constexpr int kRepetition = 2 * kPieceKinds;
+  out[kRepetition][0] = in[kRepetition][0];
+  out[kRepetition][1] = in[kRepetition][1];
 }
 
 bool GameV6Encoder::Add(const TrainingDataV1& r) {
@@ -134,10 +135,6 @@ bool GameV6Encoder::Add(const TrainingDataV1& r) {
 
   // --- Scalars, column by column.
   rule50_.push_back(r.rule50_count);
-  castling_[0].push_back(r.castling_us_ooo_sq);
-  castling_[1].push_back(r.castling_us_oo_sq);
-  castling_[2].push_back(r.castling_them_ooo_sq);
-  castling_[3].push_back(r.castling_them_oo_sq);
   uint64_t ep[2];
   std::memcpy(ep, r.ep_mask, sizeof(ep));
   ep_.push_back(ep[0]);
@@ -174,7 +171,6 @@ std::string GameV6Encoder::Payload() const {
   Append(&s, cur_);
   Append(&s, hist_);
   Append(&s, rule50_);
-  for (const auto& c : castling_) Append(&s, c);
   Append(&s, ep_);
   Append(&s, checks_us_);
   Append(&s, checks_them_);
@@ -241,7 +237,6 @@ bool DecodeGameV6Payload(const std::string& payload, std::vector<TrainingDataV1>
   const char* cur = take(static_cast<size_t>(n) * kPly * 2, 8);
   const char* hist = take(static_cast<size_t>(f) * 7 * kPly * 2, 8);
   const char* rule50 = take(n, 1);
-  const char* castling = take(4u * n, 1);
   const char* ep = take(2u * n, 8);
   const char* checks_us = take(n, 1);
   const char* checks_them = take(n, 1);
@@ -250,7 +245,7 @@ bool DecodeGameV6Payload(const std::string& payload, std::vector<TrainingDataV1>
   const char* visits = take(n, 4);
   const char* played = take(n, 2);
   const char* best = take(n, 2);
-  if (!delta || !counts || !pif || !pid || !cur || !hist || !rule50 || !castling || !ep ||
+  if (!delta || !counts || !pif || !pid || !cur || !hist || !rule50 || !ep ||
       !checks_us || !checks_them || !stm || !floats || !visits || !played || !best)
     return fail("truncated v6 game");
   if (pos != payload.size()) return fail("v6 game has trailing bytes");
@@ -314,10 +309,6 @@ bool DecodeGameV6Payload(const std::string& payload, std::vector<TrainingDataV1>
 
     // Scalars.
     r.rule50_count = static_cast<uint8_t>(rule50[k]);
-    r.castling_us_ooo_sq = static_cast<uint8_t>(castling[k]);
-    r.castling_us_oo_sq = static_cast<uint8_t>(castling[n + k]);
-    r.castling_them_ooo_sq = static_cast<uint8_t>(castling[2u * n + k]);
-    r.castling_them_oo_sq = static_cast<uint8_t>(castling[3u * n + k]);
     std::memcpy(r.ep_mask, ep + static_cast<size_t>(k) * 16, 16);
     r.checks_remaining_us = static_cast<uint8_t>(checks_us[k]);
     r.checks_remaining_them = static_cast<uint8_t>(checks_them[k]);

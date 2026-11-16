@@ -16,9 +16,9 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from trainingdata_reader import (is_game_member, iter_games, reconstruct_planes,
-                                 AUX_BASE, BOARD, CASTLING_KEYS, HISTORY_PLANES,
-                                 NO_CASTLING_SQ, NUM_PLANES, POLICY_SIZE)
+from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_ONES, AUX_RULE50, BOARD,
+                       HISTORY_PLANES, NUM_PLANES, POLICY_SIZE)
+from trainingdata_reader import is_game_member, iter_games, reconstruct_planes
 
 
 def wdl_from_qd(q, d):
@@ -190,12 +190,12 @@ def _diff_focus_keep(rec, slope, kld_w, pmin):
 
 
 class FairyDataset(Dataset):
-    """Yields (input[226,10,10], pi[10600], value[3]).
+    """Yields (input[NUM_PLANES,10,10], pi[POLICY_SIZE], value[3]).
 
     Two in-RAM cache representations (both produce identical training tensors):
       * sparse=True  (default, 8.2.2): per record keep only the compact bitboard
         words (~3.5KB), scalars, and the LEGAL policy entries as (idx, val) pairs
-        (~0.6-0.9KB). Dense [226,10,10] planes and the dense [10600] policy are
+        (~0.6-0.9KB). Dense [NUM_PLANES,10,10] planes and the dense [POLICY_SIZE] policy are
         rebuilt lazily in __getitem__. ~4KB/record -> a 100k buffer fits in ~400MB,
         avoiding the Colab OOM the dense path would hit (~13GB).
       * sparse=False: cache the fully-dense tensors (faster per-item, much more RAM).
@@ -223,7 +223,7 @@ class FairyDataset(Dataset):
         self._records = None
 
         # Stream records one at a time and, for the default sparse cache, compact
-        # each immediately — the raw dict (with its dense 42KB probabilities[10600])
+        # each immediately — the raw dict (with its dense 42KB probabilities[POLICY_SIZE])
         # is freed right away instead of accumulating. Peak RAM ~= compact form
         # (~4KB/rec) rather than raw (~45KB/rec). The old eager path materialized
         # EVERY raw record before compacting, which exhausted Colab's RAM at load
@@ -267,7 +267,7 @@ class FairyDataset(Dataset):
             dense_cache if dense_cache is not None else raw_records)
         kept = 0
         # The compact cache only needs the legal policy slots: v6 games then skip
-        # building the dense probabilities[10600] of every position.
+        # building the dense probabilities[POLICY_SIZE] of every position.
         records = iter_games(games, sparse=compact_cache is not None)
         for r in records:
             k = _keep(r)
@@ -309,7 +309,7 @@ class FairyDataset(Dataset):
 
     def _build(self, r):
         """Dense tensors (used by sparse=False cache and by streaming)."""
-        x = torch.from_numpy(reconstruct_planes(r))                       # [226,10,10] f32
+        x = torch.from_numpy(reconstruct_planes(r))                       # [NUM_PLANES,10,10] f32
         pi = torch.from_numpy(np.array(r["probabilities"], dtype=np.float32))  # own copy:
         # the reader's array is a read-only view into the record buffer
         value = torch.from_numpy(self._value(r))                          # [3]
@@ -330,10 +330,6 @@ class FairyDataset(Dataset):
         return {
             "piece_planes": np.asarray(r["piece_planes"], dtype=np.uint64),  # no copy (reader)
             "ep_mask": np.asarray(r["ep_mask"], dtype=np.uint64),
-            "castling_us_ooo_sq": r["castling_us_ooo_sq"],
-            "castling_us_oo_sq": r["castling_us_oo_sq"],
-            "castling_them_ooo_sq": r["castling_them_ooo_sq"],
-            "castling_them_oo_sq": r["castling_them_oo_sq"],
             "rule50_count": r["rule50_count"],
             "checks_remaining_us": r["checks_remaining_us"],
             "checks_remaining_them": r["checks_remaining_them"],
@@ -369,28 +365,17 @@ class FairyDataset(Dataset):
 # step vs 351 ms of GPU work). The tensors are bit-identical to __getitem__ with
 # packed=False (test_extreme.py 11 checks every plane and policy slot).
 # --------------------------------------------------------------------------- #
-N_MASKS = HISTORY_PLANES + 5           # 216 history + 4 castling (aux 0-3) + e.p. (aux 4)
-
-# Castling right on square s (rank*10+file) -> the 128-bit mask (lo, hi) with bit
-# rank*12+file set, as the reader's planes; row 100 = NO_CASTLING_SQ (no bit).
-_CASTLE_MASK = np.zeros((BOARD * BOARD + 1, 2), dtype=np.uint64)
-for _s in range(BOARD * BOARD):
-    _b = (_s // BOARD) * 12 + _s % BOARD
-    _CASTLE_MASK[_s, _b // 64] = np.uint64(1) << np.uint64(_b % 64)
-
-
-def _castle_row(sq):
-    return BOARD * BOARD if sq == NO_CASTLING_SQ else sq
+N_MASKS = HISTORY_PLANES + 1           # history planes + the e.p. plane (the first aux plane, so it follows them)
+assert AUX_EN_PASSANT == 0
 
 
 def pack_compact(c):
-    """One compact record -> (masks int64[221,2], scalars f32[3], pi_idx, pi_val, value).
+    """One compact record -> (masks int64[N_MASKS,2], scalars f32[3], pi_idx, pi_val, value).
     The scalars are computed exactly as reconstruct_planes does (float64 division
     rounded to float32), so the planes rebuilt from them are bit-identical."""
     masks = np.empty((N_MASKS, 2), dtype=np.uint64)
     masks[:HISTORY_PLANES] = np.asarray(c["piece_planes"], dtype=np.uint64).reshape(HISTORY_PLANES, 2)
-    masks[HISTORY_PLANES:HISTORY_PLANES + 4] = _CASTLE_MASK[[_castle_row(c[k]) for k in CASTLING_KEYS]]
-    masks[HISTORY_PLANES + 4] = np.asarray(c["ep_mask"], dtype=np.uint64)
+    masks[HISTORY_PLANES] = np.asarray(c["ep_mask"], dtype=np.uint64)
     scal = np.array([c["rule50_count"] / 100.0, c["checks_remaining_us"] / 10.0,
                      c["checks_remaining_them"] / 10.0], dtype=np.float32)
     return masks.view(np.int64), scal, c["pi_idx"], c["pi_val"], c["value"]
@@ -420,7 +405,7 @@ _BIT_T = torch.from_numpy(
 
 
 def unpack_batch(batch, device, channels_last=False):
-    """collate_packed batch -> (x f32[B,226,10,10], pi f32[B,10600], value f32[B,3])
+    """collate_packed batch -> (x f32[B,NUM_PLANES,10,10], pi f32[B,POLICY_SIZE], value f32[B,3])
     on `device`; x in channels_last memory format when asked (same values)."""
     masks, scal, idx, val, value = (t.to(device, non_blocking=True) for t in batch)
     b = masks.size(0)
@@ -428,14 +413,13 @@ def unpack_batch(batch, device, channels_last=False):
     fmt = torch.channels_last if channels_last else torch.contiguous_format
     x = torch.empty((b, NUM_PLANES, BOARD, BOARD), dtype=torch.float32, device=device,
                     memory_format=fmt)
-    # masks[:, :, word] -> [B,221,10,10] = the word holding each cell's bit; the
+    # masks[:, :, word] -> [B,N_MASKS,10,10] = the word holding each cell's bit; the
     # arithmetic shift of a negative int64 is harmless: only bit 0 is kept.
     x[:, :N_MASKS] = torch.bitwise_and(torch.bitwise_right_shift(masks[:, :, word], bit), 1)
-    x[:, AUX_BASE + 5] = scal[:, 0, None, None]          # rule50 / 100
-    x[:, AUX_BASE + 6] = 0.0                              # unused
-    x[:, AUX_BASE + 7] = 1.0                              # board edge
-    x[:, AUX_BASE + 8] = scal[:, 1, None, None]          # checks us / 10
-    x[:, AUX_BASE + 9] = scal[:, 2, None, None]          # checks them / 10
+    x[:, AUX_BASE + AUX_RULE50] = scal[:, 0, None, None]         # rule50 / 100
+    x[:, AUX_BASE + AUX_ONES] = 1.0                              # board edge
+    x[:, AUX_BASE + AUX_CHECKS_US] = scal[:, 1, None, None]      # checks us / 10
+    x[:, AUX_BASE + AUX_CHECKS_THEM] = scal[:, 2, None, None]     # checks them / 10
     pi = torch.full((b, POLICY_SIZE + 1), -1.0, dtype=torch.float32, device=device)
     pi.scatter_(1, idx, val)
     return x, pi[:, :POLICY_SIZE], value

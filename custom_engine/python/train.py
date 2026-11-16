@@ -22,6 +22,7 @@ from torch.optim.swa_utils import AveragedModel, SWALR
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet, ExportNet, NUM_PLANES, POLICY_SIZE  # noqa: E402
+from nn_layout import AUX_BASE, AUX_PLANES  # noqa: E402
 from dataset import (FairyDataset, collate_packed, game_mtimes, list_games,  # noqa: E402
                      newest_generation, split_games, unpack_batch)
 from run_seed import resolve_seed  # noqa: E402
@@ -132,19 +133,19 @@ def verify_onnx(path, net=None):
     outs = [io_info(o) for o in m.graph.output]
     print(f"[verify] inputs={ins}")
     print(f"[verify] outputs={outs}")
-    assert ins[0][0] == "input" and list(ins[0][1]) == ["batch", 226, 10, 10], f"bad input {ins[0]}"
+    assert ins[0][0] == "input" and list(ins[0][1]) == ["batch", NUM_PLANES, 10, 10], f"bad input {ins[0]}"
     out_names = {n for n, _ in outs}
     assert out_names == {"policy", "value"}, f"bad outputs {out_names}"
     for n, d in outs:
         if n == "policy":
-            assert list(d) == ["batch", 10600], f"bad policy shape {d}"
+            assert list(d) == ["batch", POLICY_SIZE], f"bad policy shape {d}"
         if n == "value":
             assert list(d) == ["batch", 3], f"bad value shape {d}"
 
     sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
-    x = np.random.randn(2, 226, 10, 10).astype(np.float32)
+    x = np.random.randn(2, NUM_PLANES, 10, 10).astype(np.float32)
     pol, val = sess.run(["policy", "value"], {"input": x})
-    assert pol.shape == (2, 10600), pol.shape
+    assert pol.shape == (2, POLICY_SIZE), pol.shape
     assert val.shape == (2, 3), val.shape
     vsum = val.sum(axis=1)
     assert np.allclose(vsum, 1.0, atol=1e-4), f"value (WDL) must sum to 1, got {vsum}"
@@ -153,8 +154,8 @@ def verify_onnx(path, net=None):
         # Same numbers from ONNX Runtime and PyTorch, on inputs shaped like real
         # planes (0/1 squares, scalar aux planes), not only the right shapes.
         rng = np.random.default_rng(0)
-        xr = (rng.random((8, 226, 10, 10)) < 0.08).astype(np.float32)
-        xr[:, 216:226] = rng.random((8, 10, 1, 1)).astype(np.float32)
+        xr = (rng.random((8, NUM_PLANES, 10, 10)) < 0.08).astype(np.float32)
+        xr[:, AUX_BASE:] = rng.random((8, AUX_PLANES, 1, 1)).astype(np.float32)
         o_pol, o_val = sess.run(["policy", "value"], {"input": xr})
         was_training = net.training
         net.eval()
@@ -184,7 +185,7 @@ def main():
     ap.add_argument("--workers", type=int, default=None,
                     help="DataLoader worker processes (default: auto = CPU count on GPU, else 0)")
     ap.add_argument("--pin-memory", action="store_true", help="pin host memory (faster CPU->GPU copy)")
-    # NOT streaming: it keeps every raw record (dense 10600-float policy + planes as
+    # NOT streaming: it keeps every raw record (dense POLICY_SIZE-float policy + planes as
     # Python ints: 51 KB each, measured, vs 4.8 KB in the default sparse cache), then
     # rebuilds each item from it. Its help used to say "lower RAM" -- the opposite.
     ap.add_argument("--no-cache", action="store_true",
@@ -252,7 +253,7 @@ def main():
         device = "cpu"
     use_amp = args.amp and device == "cuda"
     # DataLoader throughput (#1): with the sparse cache, every __getitem__ rebuilds the
-    # [226,10,10] planes on the CPU, so without worker processes the GPU starves waiting
+    # [NUM_PLANES,10,10] planes on the CPU, so without worker processes the GPU starves waiting
     # for them. Default workers to the CPU count ONLY on GPU (Linux/Colab 'fork' shares
     # the cache cheaply via copy-on-write); keep 0 on CPU-only, where Windows 'spawn'
     # would pickle the whole in-RAM cache into each worker. pin_memory only speeds

@@ -18,7 +18,7 @@ namespace lczero {
 //       default), orig_q/d, policy_kld. All value targets are from the
 //       side-to-move perspective.
 //
-// Does NOT touch piece_planes / scalar-aux / castling / result_q-d (those are
+// Does NOT touch piece_planes / scalar-aux / result_q-d (those are
 // filled by the plane encoder and by AssignResult at game end).
 //
 // Returns the best (max-visit) move, for the caller's move-selection logic.
@@ -42,13 +42,12 @@ void AssignResult(TrainingDataV1& rec, GameResult abs_result, bool black_to_move
 
 // Fills the input-plane fields of `rec` from the position at history.Last()
 // using the canonical encoder (EncodePositionForNN):
-//   - piece_planes[216][2] : the 216 history piece planes as 128-bit masks.
+//   - piece_planes[kHistoryPlanes][2] : the history piece planes as 128-bit masks.
 //   - ep_mask[2]           : the en-passant plane mask.
-//   - scalar aux           : rule50_count, checks_remaining_us/them, side_to_move,
-//                            and castling_*_sq (rook square rank*10+file, 0xFF if none).
+//   - scalar aux           : rule50_count, checks_remaining_us/them, side_to_move.
 // All planes/squares are in the canonical (side-to-move) frame, matching what the
 // NN sees at inference. The scalar aux is stored raw; the Python reader rebuilds
-// the normalized aux planes (rule50/checks/board-edge) and the castling planes.
+// the normalized aux planes (rule50/checks/board-edge).
 void EncodePlanesIntoRecord(const PositionHistory& history, TrainingDataV1& rec);
 
 }  // namespace lczero

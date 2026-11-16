@@ -435,13 +435,14 @@ int nn_index(const OMove& m, bool black) {
 
 bool parse_fen(const std::string& fen, OState& st);
 
-// Dense [226][100] NN input for the current position, lc0 layout (see encoder.h).
+// Dense [kInputPlanes][100] NN input for the current position, lc0 layout (see encoder.h).
 void planes_of(const std::vector<OState>& hist, const std::vector<int>& reps, float* dense) {
-    std::fill(dense, dense + 226 * 100, 0.0f);
+    std::fill(dense, dense + lczero::kInputPlanes * 100, 0.0f);
     const OState& cur = hist.back();
     const int us = cur.stm, them = us ^ 1;
     auto canon = [&](int s) { return (us == kB ? 9 - rk(s) : rk(s)) * 10 + fl(s); };
-    static const int plane_of_type[NPT] = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    // oracle type (P N B R Q K A E H M V Y S) -> plane; A, E, H have none in the new layout (removed pieces)
+    static const int plane_of_type[NPT] = {-1, 0, 1, 2, 3, 4, 5, -1, -1, -1, 6, 7, 8, 9};
     const int n = static_cast<int>(hist.size());
     // lc0 FEN_ONLY: an empty history board is a copy of the first position, unless that is the variant start.
     static const OState kStartState = [] {
@@ -456,26 +457,25 @@ void planes_of(const std::vector<OState>& hist, const std::vector<int>& reps, fl
         for (int s = 0; s < 100; ++s) {
             const int8_t pc = h.b[s];
             if (!pc) continue;
-            const int pl = d * 27 + (col(pc) == us ? 0 : 13) + plane_of_type[typ(pc)];
+            const int kind = plane_of_type[typ(pc)];
+            if (kind < 0) continue;
+            const int pl = d * lczero::kPlanesPerBoard + (col(pc) == us ? 0 : lczero::kPieceKinds) + kind;
             dense[pl * 100 + canon(s)] = 1.0f;
         }
         if (reps[d < n ? n - 1 - d : 0] >= 1)
-            std::fill(dense + (d * 27 + 26) * 100, dense + (d * 27 + 27) * 100, 1.0f);
+            std::fill(dense + (d * lczero::kPlanesPerBoard + 2 * lczero::kPieceKinds) * 100,
+                      dense + (d * lczero::kPlanesPerBoard + 2 * lczero::kPieceKinds + 1) * 100, 1.0f);
     }
-    auto set = [&](int p, int s) { dense[(216 + p) * 100 + canon(s)] = 1.0f; };
-    auto fill = [&](int p, float v) { std::fill(dense + (216 + p) * 100, dense + (217 + p) * 100, v); };
-    if (cur.crook[us][1] >= 0)   set(0, cur.crook[us][1]);
-    if (cur.crook[us][0] >= 0)   set(1, cur.crook[us][0]);
-    if (cur.crook[them][1] >= 0) set(2, cur.crook[them][1]);
-    if (cur.crook[them][0] >= 0) set(3, cur.crook[them][0]);
+    auto set = [&](int p, int s) { dense[(lczero::kAuxPlaneBase + p) * 100 + canon(s)] = 1.0f; };
+    auto fill = [&](int p, float v) { std::fill(dense + (lczero::kAuxPlaneBase + p) * 100, dense + (lczero::kAuxPlaneBase + p + 1) * 100, v); };
     if (cur.ep_mid >= 0) {
-        set(4, cur.ep_mid);
-        if (cur.ep_two) set(4, cur.ep_victim);
+        set(lczero::kAuxEnPassant, cur.ep_mid);
+        if (cur.ep_two) set(lczero::kAuxEnPassant, cur.ep_victim);
     }
-    fill(5, static_cast<float>(cur.rule50) / 100.0f);
-    fill(7, 1.0f);
-    fill(8, static_cast<float>(cur.checks[us]) / 10.0f);
-    fill(9, static_cast<float>(cur.checks[them]) / 10.0f);
+    fill(lczero::kAuxRule50, static_cast<float>(cur.rule50) / 100.0f);
+    fill(lczero::kAuxOnes, 1.0f);
+    fill(lczero::kAuxChecksUs, static_cast<float>(cur.checks[us]) / 10.0f);
+    fill(lczero::kAuxChecksThem, static_cast<float>(cur.checks[them]) / 10.0f);
 }
 
 // FEN reader, independent of Fairy-Stockfish's.
@@ -728,7 +728,7 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
     };
 
     std::vector<orc::OMove> olegal;
-    std::vector<float> dense_engine(226 * 100), dense_rules(226 * 100);
+    std::vector<float> dense_engine(lczero::kInputPlanes * 100), dense_rules(lczero::kInputPlanes * 100);
 
     for (int g = 0; g < num_games; ++g) {
         const Start& start = starts[static_cast<size_t>(g) % starts.size()];
@@ -896,7 +896,7 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
                 lczero::UnpackInputPlanes(planes, dense_engine.data(), 10, 10);
                 orc::planes_of(ohist, oreps, dense_rules.data());
                 ++planes_checked;
-                for (int i = 0; i < 226 * 100; ++i)
+                for (int i = 0; i < lczero::kInputPlanes * 100; ++i)
                     if (dense_engine[i] != dense_rules[i]) {
                         fail("NN input plane " + std::to_string(i / 100) + " cell " + std::to_string(i % 100) +
                              ": engine " + std::to_string(dense_engine[i]) + ", rules " + std::to_string(dense_rules[i]), fen);
@@ -906,17 +906,9 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
                 std::memset(&rec, 0, sizeof(rec));
                 lczero::EncodePlanesIntoRecord(*history, rec);
                 const int us = cur.stm, them = us ^ 1;
-                auto sq_or_none = [&](int s) {   // canonical frame: ranks flipped when Black is to move
-                    return s < 0 ? lczero::kNoCastlingSquare
-                                 : uint8_t((us == orc::kB ? 9 - orc::rk(s) : orc::rk(s)) * 10 + orc::fl(s));
-                };
                 if (rec.side_to_move != (us == orc::kB ? 1 : 0) ||
                     rec.rule50_count != std::min(cur.rule50, 255) ||
-                    rec.checks_remaining_us != cur.checks[us] || rec.checks_remaining_them != cur.checks[them] ||
-                    rec.castling_us_ooo_sq != sq_or_none(cur.crook[us][1]) ||
-                    rec.castling_us_oo_sq != sq_or_none(cur.crook[us][0]) ||
-                    rec.castling_them_ooo_sq != sq_or_none(cur.crook[them][1]) ||
-                    rec.castling_them_oo_sq != sq_or_none(cur.crook[them][0]))
+                    rec.checks_remaining_us != cur.checks[us] || rec.checks_remaining_them != cur.checks[them])
                     fail("training-record scalar fields differ from the rules", fen);
             }
 
