@@ -204,12 +204,7 @@ void TestStartFen() {
                            "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w KQkq - 8+8 0 1",
                            // Shuffled rooks, written with their files: unambiguous.
                            "4k5/10/10/10/10/10/10/10/10/R4K3R w J - 8+8 0 1",
-                           "4k5/10/10/10/10/10/10/10/10/R4K3R w AJ - 8+8 0 1",
-                           // Castling on any rank: the royal piece and its rooks on
-                           // ranks 2/9 (K/Q look on the royal piece's rank too), 3/6.
-                           "10/1r3k2r1/10/10/10/10/10/10/1R3K2R1/10 w BIbi - 8+8 0 1",
-                           "10/1r3k2r1/10/10/10/10/10/10/1R3K2R1/10 w KQkq - 8+8 0 1",
-                           "10/10/10/10/1r3k3r/10/10/R3K2R2/10/10 b AHbj - 8+8 0 1"}) {
+                           "4k5/10/10/10/10/10/10/10/10/R4K3R w AJ - 8+8 0 1"}) {
         const std::string why = CheckStartFen(ok);
         EXPECT(why.empty(), "valid FEN rejected (" << why << "): " << ok);
     }

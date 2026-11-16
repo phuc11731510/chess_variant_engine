@@ -85,10 +85,6 @@ void init_engine_globals() {
 //     Position::do_move, src/chess/position.cpp;
 //   * an e.p. capture that lands in the promotion zone promotes: movegen.cpp +
 //     position.cpp (commit 52439cc).
-// castlingAnyRank is an option added to this Fairy-Stockfish copy (variant.h):
-// the royal piece and a rook that have not moved castle on whatever rank they
-// share (a shuffled start may put them on rank 2), landing on h/g or d/e of
-// that rank; it also puts each rook's square into the Zobrist key.
 // `k` is the royal piece ("Hoang gia", king step + knight): Fairy-Stockfish
 // requires the royal piece to use the king slot.
 const Variant* setup_custom_variant() {
@@ -125,7 +121,6 @@ castlingKingsideFile = h
 castlingQueensideFile = d
 castlingRookKingsideFile = i
 castlingRookQueensideFile = b
-castlingAnyRank = true
 stalemateValue = loss
 checkCounting = true
 )";
