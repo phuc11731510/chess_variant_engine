@@ -85,17 +85,29 @@ namespace {
     return moveList;
   }
 
+  // The pawn-style promotions of the piece on `from` to each square of `squares`: one move of type MT
+  // (PROMOTION, or EN_PASSANT that also promotes) per piece type in `types` still within its limit.
+  template<MoveType MT>
+  ExtMove* make_promotions_to(const Position& pos, ExtMove* moveList, Color us, Square from,
+                              Bitboard squares, PieceSet types) {
+
+    while (types)
+    {
+        PieceType pt = pop_msb(types);
+        if (!pos.promotion_limit(pt) || pos.promotion_limit(pt) > pos.count(us, pt))
+            for (Bitboard b = squares; b; )
+                moveList = make_move_and_gating<MT>(pos, moveList, us, from, pop_lsb(b), pt);
+    }
+
+    return moveList;
+  }
+
   template<Color c, GenType Type, Direction D>
   ExtMove* make_promotions(const Position& pos, ExtMove* moveList, Square to) {
 
     if (Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
     {
-        for (PieceSet promotions = pos.promotion_piece_types(c); promotions;)
-        {
-            PieceType pt = pop_msb(promotions);
-            if (!pos.promotion_limit(pt) || pos.promotion_limit(pt) > pos.count(c, pt))
-                moveList = make_move_and_gating<PROMOTION>(pos, moveList, pos.side_to_move(), to - D, to, pt);
-        }
+        moveList = make_promotions_to<PROMOTION>(pos, moveList, c, to - D, SquareBB[to], pos.promotion_piece_types(c, to));
         PieceType pt = pos.promoted_piece_type(PAWN);
         if (pt && !(pos.piece_promotion_on_capture() && pos.empty(to)))
             moveList = make_move_and_gating<PIECE_PROMOTION>(pos, moveList, pos.side_to_move(), to - D, to);
@@ -169,11 +181,13 @@ namespace {
     // Restrict regions based on rules and move generation type
     if (pos.mandatory_pawn_promotion())
     {
-        b1 &= ~standardPromotionZone;
-        b2 &= ~standardPromotionZone;
-        b3 &= ~standardPromotionZone;
-        brc &= ~standardPromotionZone;
-        blc &= ~standardPromotionZone;
+        // Not on the optional tier: there a pawn may also stay as it is (see optional_promotion_zone)
+        const Bitboard compulsoryZone = standardPromotionZone & ~pos.optional_promotion_zone(Us);
+        b1 &= ~compulsoryZone;
+        b2 &= ~compulsoryZone;
+        b3 &= ~compulsoryZone;
+        brc &= ~compulsoryZone;
+        blc &= ~compulsoryZone;
     }
 
     if (Type == QUIET_CHECKS && pos.count<KING>(Them))
@@ -277,23 +291,19 @@ namespace {
             // En passant square is already disabled for non-fairy variants if there is no attacker
             assert(b || !pos.fast_attacks());
 
-            // An ep capture that LANDS on a promotion square also promotes. In the
-            // custom 10x10 variant this happens only when the double-stepper is a
-            // Sergeant that started on the 2nd/9th rank (pawns start on the
-            // 3rd/8th, so a pawn's passed square is never a promotion square).
-            bool epPromo = bool((pos.promotion_pawn_types(Us) & PAWN) && (pos.promotion_zone(Us) & epSquare));
+            // An ep capture that LANDS on a promotion square also promotes (on the optional tier it may
+            // also stay a pawn). In the custom 10x10 variant this happens only when the double-stepper is a
+            // Sergeant that started on the 2nd/9th rank (pawns start on the 3rd/8th, so a pawn's passed
+            // square is never a promotion square).
+            const bool epPromo = bool((pos.promotion_pawn_types(Us) & PAWN) && (pos.promotion_zone(Us) & epSquare));
+            const bool epPlain = !epPromo || (pos.optional_promotion_zone(Us) & epSquare);
+            const PieceSet epTypes = epPromo ? pos.promotion_piece_types(Us, epSquare) : NO_PIECE_SET;
 
             while (b)
             {
                 Square epFrom = pop_lsb(b);
-                if (epPromo)
-                    for (PieceSet ps = pos.promotion_piece_types(Us); ps; )
-                    {
-                        PieceType ptP = pop_msb(ps);
-                        if (!pos.promotion_limit(ptP) || pos.promotion_limit(ptP) > pos.count(Us, ptP))
-                            moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, epFrom, epSquare, ptP);
-                    }
-                else
+                moveList = make_promotions_to<EN_PASSANT>(pos, moveList, Us, epFrom, SquareBB[epSquare], epTypes);
+                if (epPlain)
                     moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, epFrom, epSquare);
             }
         }
@@ -328,7 +338,7 @@ namespace {
 
         // target squares considering pawn promotions
         if (pawnPromotions && pos.mandatory_pawn_promotion())
-            b1 &= ~pawnPromotions;
+            b1 &= ~(pawnPromotions & ~pos.optional_promotion_zone(Us));   // the optional tier may stay unpromoted
 
         // Restrict target squares considering promotion zone
         if (b2 | b3)
@@ -371,27 +381,25 @@ namespace {
 
         // Pawn-style promotions
         if ((Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS) && pawnPromotions)
-            for (PieceSet ps = pos.promotion_piece_types(Us); ps;)
-            {
-                PieceType ptP = pop_msb(ps);
-                if (!pos.promotion_limit(ptP) || pos.promotion_limit(ptP) > pos.count(Us, ptP))
-                    for (Bitboard promotions = pawnPromotions; promotions; )
-                        moveList = make_move_and_gating<PROMOTION>(pos, moveList, pos.side_to_move(), from, pop_lsb(promotions), ptP);
-            }
+        {
+            const Bitboard optionalTier = pawnPromotions & pos.optional_promotion_zone(Us);
+            moveList = make_promotions_to<PROMOTION>(pos, moveList, Us, from, pawnPromotions & ~optionalTier,
+                                                     pos.promotion_piece_types(Us));
+            if (optionalTier)
+                moveList = make_promotions_to<PROMOTION>(pos, moveList, Us, from, optionalTier,
+                                                         pos.optional_promotion_piece_types(Us));
+        }
 
         // En passant captures (also promote if the ep square is in the promotion zone)
         if (Type == CAPTURES || Type == EVASIONS || Type == NON_EVASIONS)
             while (epSquares)
             {
                 Square epTo = pop_lsb(epSquares);
-                if ((pos.promotion_pawn_types(Us) & Pt) && (promotion_zone & epTo))
-                    for (PieceSet ps = pos.promotion_piece_types(Us); ps; )
-                    {
-                        PieceType ptP = pop_msb(ps);
-                        if (!pos.promotion_limit(ptP) || pos.promotion_limit(ptP) > pos.count(Us, ptP))
-                            moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, from, epTo, ptP);
-                    }
-                else
+                const bool epPromo = (pos.promotion_pawn_types(Us) & Pt) && (promotion_zone & epTo);
+                if (epPromo)
+                    moveList = make_promotions_to<EN_PASSANT>(pos, moveList, Us, from, SquareBB[epTo],
+                                                              pos.promotion_piece_types(Us, epTo));
+                if (!epPromo || (pos.optional_promotion_zone(Us) & epTo))
                     moveList = make_move_and_gating<EN_PASSANT>(pos, moveList, Us, from, epTo);
             }
     }

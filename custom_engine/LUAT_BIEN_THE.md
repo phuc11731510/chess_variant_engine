@@ -6,7 +6,85 @@ chứng nằm ở `src/tests/test_rules_oracle.cc` (`custom_engine --audit-rules
 **cả ba chỗ**: file này, `variant_setup.cc` (hoặc code FSF nếu luật không diễn đạt được bằng INI) và
 oracle.
 
-## Quân cờ
+## Luật mới (dự định, CHƯA CÀI)
+
+Ghi ngày 2026-11-16 theo ý chủ dự án. **Chưa có mã nào được sửa**: toàn bộ các mục còn lại của tệp này
+(bảng quân, thế cờ đầu, trường hợp biên, nhập thành, danh sách chỉnh sửa FSF) vẫn mô tả luật **đang cài**.
+Khi cài luật mới phải sửa lại cả ba chỗ như ở đầu tệp (tệp này, `variant_setup.cc`/mã FSF, oracle).
+
+### Quân cờ mới
+
+Ký hiệu Betza dưới đây là bản dự kiến cho `variant_setup.cc`, cần kiểm lại khi cài. `m` = chỉ đi (không
+ăn), `n` = bị cản ở ô giữa (với Mã `nN` là Mã cờ tướng: bị cản ở **ô liền kề theo hướng đi dài**, ví dụ
+nước (2,1) bị cản bởi ô (1,0)).
+
+| Ký hiệu | Tên | Cách đi | Betza |
+|---|---|---|---|
+| `k` | **Hoàng gia** (mất là thua) | **Đi hoặc ăn** 1 ô theo 8 hướng (viền 3×3). Trong viền 5×5 (16 ô ngoài) **chỉ đi, không ăn**, và chỉ khi không bị cản: đi 2 ô thẳng (cản bởi ô giữa), đi 2 ô chéo (cản bởi ô chéo giữa), nước kiểu Mã (cản chân như Mã cờ tướng) | `KmnDmnAmnN` |
+| `p` | Tốt | không đổi | |
+| `s` | Sergeant | không đổi | `fKifmnDifmnA` |
+| `n` `r` `q` | Mã, Xe, Hậu | chuẩn | |
+| `b` | **Tượng** | Tượng chuẩn + 1 ô thẳng (Wazir) **chỉ đi, không ăn** | `BmW` |
+| `m` | **Centaur** | nước Vua + Mã **cờ tướng** (cản chân), đi và ăn | `KnN` |
+| `v` | wildebeest | không đổi (Lạc đà (1,3) + Mã chuẩn) | `CN` |
+| `y` | **Alibaba** | như hiện tại (nhảy (2,2) và (0,2)) + Wazir **chỉ đi, không ăn** | `ADmW` |
+| `c` | **Pháo** (mới) | Pháo cờ tướng (đi như Xe, ăn bằng cách nhảy qua đúng 1 quân làm "ngòi") + Wazir | `mRcpRW` |
+| `g` | **Grasshopper** (mới) | Grasshopper (8 hướng như Hậu: nhảy qua đúng 1 quân, đáp ngay ô sau nó, ô đó trống hoặc có quân địch để ăn) + nước Vua | `gQK` |
+
+Bỏ: **Chancellor `e`, Archbishop `h`, Amazon `a`**. Chữ `c`, `g` là đề xuất của tôi. Quân chiến đấu
+(không kể Tốt, Sergeant, Hoàng gia) còn **9**: Mã, Tượng, Xe, Hậu, Centaur, wildebeest, Alibaba, Pháo,
+Grasshopper.
+
+### Nhập thành
+
+**Bỏ hẳn luật nhập thành.** FEN không còn trường quyền nhập thành (hoặc luôn là `-`); `BIbi` trong thế
+đầu bỏ; không còn nước `CASTLING`, chỉ số policy nhập thành, plane quyền nhập thành, ghi ô Xe trong dữ
+liệu huấn luyện.
+
+### Phong cấp (hai tầng)
+
+Áp cho Tốt và Sergeant. Trắng như dưới đây; Đen đối xứng (hàng 3 thay hàng 8, hàng 2 thay hàng 9).
+
+- **Hàng 8 (Đen: 3):** phong cấp **tuỳ chọn**. Có thể đứng lại làm Tốt/Sergeant ở hàng 8, hoặc phong
+  thành một trong 5 quân: **Mã, Alibaba, Grasshopper, Tượng, Pháo** (`n y g b c`).
+- **Hàng 9 (Đen: 2):** phong cấp **bắt buộc**, thành một trong **9** quân chiến đấu
+  (`n b r q m v y c g`). Vì vậy Tốt/Sergeant không bao giờ tới hàng 10 (Đen: 1).
+- Mọi cách tới ô đó đều áp dụng: đi thẳng, ăn chéo, bước đôi, ăn ep.
+
+### Hệ quả cho các luật khác (cần xem lại khi cài)
+
+1. **Chiếu** chỉ do nước **ăn** được: Hoàng gia chỉ "tấn công" viền 3×3, không tấn công viền 5×5; Wazir
+   chỉ-đi của Tượng/Alibaba không chiếu; Pháo chiếu qua đúng một ngòi; Grasshopper chiếu qua đúng một
+   quân. Cách đếm chiếu giữ nguyên, ngưỡng thắng là 7.
+2. **Hoàng gia không đứng ở ô bị tấn công** (trường hợp biên 10) nay tính theo ô **ăn**: hai Hoàng gia
+   không thể đứng trong viền 3×3 của nhau, nhưng đứng cách 2 ô thì được.
+3. **Trường hợp biên 6** (ăn ep + phong cấp bắt buộc 6 quân) đổi: ô ep ở hàng 8 → phong cấp tuỳ chọn 5
+   quân; ô ep ở hàng 9 → bắt buộc 9 quân.
+4. **Thế cờ đầu phải quyết định lại**: `vrhbqkberv/…` đang dùng `e`, `h` (bị bỏ). Chưa chọn quân thay.
+5. **Mạng nơ-ron phải huấn luyện lại từ đầu**: tập quân đổi (bỏ `e h a`, thêm `c g`), không còn nhập
+   thành, tập nước phong cấp đổi.
+
+### Đếm chiếu: 7 lần
+
+Thắng ngay khi đủ **7** lần chiếu (thay cho 8). Cách đếm không đổi (mỗi quân đang chiếu = 1 lần, chiếu
+đôi = 2). Thế cờ đầu ghi `7+7` thay `8+8`; `checkCounting`/số chiếu còn lại trong FEN, oracle, dữ liệu
+huấn luyện (plane đếm chiếu) phải đổi theo.
+
+### Đã xác nhận (2026-11-16)
+
+- Wazir của **Pháo đi và ăn được** (Betza `mRcpRW`).
+- **Grasshopper nhảy 8 hướng** như Hậu (Grasshopper gốc).
+- Ký hiệu Betza trong bảng trên đúng ý chủ dự án.
+- Thế cờ đầu: chủ dự án sẽ nói sau (phải thay `e`, `h`).
+
+### FSF có làm được không
+
+- **Đã thử (2026-11-16, FSF `014b0775` dựng riêng, `largeboards=yes`)**: mọi ký hiệu Betza trong bảng chạy đúng ý: Hoàng gia `KmnDmnAmnN` (viền 3×3 đi + ăn; 16 ô viền 5×5 chỉ đi, bị cản bởi ô giữa / ô chân đúng như đã mô tả), Centaur `KnN` (cản chân, ăn được), Alibaba `ADmW` và Tượng `BmW` (Wazir không ăn), Pháo `mRcpRW` (ăn qua đúng 1 ngòi, Wazir ăn được), Grasshopper `gQK`.
+- **Quân**: dự kiến diễn đạt được bằng INI qua Betza (`customPiece` hoặc `king = k:…`): chỗ cần thử là
+  Hoàng gia có nước đi không-ăn khác nước ăn, và `gQ` / `mRcpR` trong cùng một quân với `K`/`W`.
+- **Phong cấp hai tầng: INI gốc của FSF không diễn đạt được, nên đã thêm vào bản FSF của dự án (2026-11-16, đã có test, chưa bật trong luật đang cài).** Xem mục 15 của phần chỉnh sửa FSF. Chỉ còn phần engine khi đổi luật thật: bộ mã hoá policy (`encoder.cc`: ô phong cấp cho Pháo, Grasshopper), `variant_setup.cc`, oracle.
+
+## Quân cờ (luật đang cài)
 
 | Ký hiệu | Tên | Cách đi (Betza) |
 |---|---|---|
@@ -145,6 +223,8 @@ Mọi thứ dưới đây bọc trong `#ifdef LCZERO_MCTS` / `#ifndef LCZERO_MCT
     `Position::set_state` bỏ phần khởi tạo khoá tốt / vật chất.
 14. **Phát hiện thả quân** trong `do_move`: điều kiện `st->materialKey != previous->materialKey` đổi
     thành `type_of(st->move) == DROP` (vì không còn `materialKey`).
+
+15. **Phong cấp hai tầng** (`variant.h`, `parser.cpp`, `variant.cpp`, `position.h`, `movegen.cpp`, `position.cpp`; test trong `test_rules.cc`). Thêm hai tuỳ chọn INI: `optionalPromotionRegion{White,Black}` (tầng tuỳ chọn, tập con của `promotionRegion`) và `optionalPromotionPieceTypes` (quân được phong ở tầng đó; bỏ trống thì như `promotionPieceTypes`). Ở tầng tuỳ chọn Tốt/Sergeant được đứng lại hoặc phong; phần còn lại của vùng phong cấp theo `mandatoryPawnPromotion` và `promotionPieceTypes` như cũ. Luật dự định: `promotionRegionWhite = *8 *9`, `optionalPromotionRegionWhite = *8`, `optionalPromotionPieceTypes = n y g b c`, `promotionPieceTypes` = 9 quân. Mặc định (không khai báo) hành vi **y hệt trước**: mọi test cũ vẫn qua. Cách làm: `Position::compulsory_promotion_zone`, `optional_promotion_zone`, `promotion_piece_types(c, ô)`; trong `movegen.cpp` một hàm chung `make_promotions_to<>` dùng cho Tốt, quân kiểu Tốt (Sergeant), ăn ep kèm phong cấp; nước ep rơi vào tầng tuỳ chọn sinh thêm nước ep thường. Chi phí: một phép AND với bitboard rỗng mỗi lần sinh nước Tốt/ô phong cấp, không đổi gì ở đường nóng khác. Test: Tốt, Sergeant, ăn quân, ep (hàng 8 và 9), hai màu, do/undo, `pseudo_legal`.
 
 ### D. Khi hợp nhất với FSF mới
 
