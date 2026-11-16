@@ -4,6 +4,7 @@
 #include <sstream>
 #include <cassert>
 
+#include "chess/board.h"
 #include "bitboard.h"
 #include "endgame.h"
 #include "position.h"
@@ -53,8 +54,7 @@
 using namespace Stockfish;
 
 
-extern const char* const kUciStartFen =
-    "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
+extern const char* const kUciStartFen = lczero::ChessBoard::kStartposFen;
 
 // --- Move I/O: 2-way canonical<->real mapping (locks risk #1). ---
 // The lczero layer works in the canonical (side-to-move-flipped) frame; the GUI

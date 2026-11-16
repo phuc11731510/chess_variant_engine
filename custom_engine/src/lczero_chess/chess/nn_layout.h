@@ -14,8 +14,8 @@ namespace lczero {
 constexpr int kBoardSize = 10;
 constexpr int kBoardSquares = kBoardSize * kBoardSize;
 
-// Piece kinds per side, in the order of kPieceKindOrder (encoder.cc): Pawn, Knight, Bishop, Rook,
-// Queen, royal, Centaur, wildebeest, Alibaba, Sergeant, Cannon, Grasshopper.
+// Piece kinds per side, in the order of kPieceKindOrder (encoder.cc): Pawn, Knight, Rook, Queen, royal,
+// Bishop+Wazir, Centaur, wildebeest, Alibaba, Sergeant, Cannon, Grasshopper.
 constexpr int kPieceKinds = 12;
 
 constexpr int kMoveHistory = 8;                         // positions fed to the network (current + 7 before)

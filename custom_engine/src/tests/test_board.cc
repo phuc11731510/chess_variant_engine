@@ -66,8 +66,8 @@ void run_board_tests() {
     // TEST 3: Stalemate = Loss rule verification
     {
         std::cout << "TEST 3: Stalemate = Loss verification..." << std::endl;
-        // White King on a1, Black King on j10, Black Rook on b2 protected by Rook on b10.
-        std::string stalemate_fen = "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 8+8 0 1";
+        // White royal on a1, Black royal on j10, Black Queen c2 and Rook h3: every square the royal can go to is covered.
+        std::string stalemate_fen = "9k/10/10/10/10/10/10/7r2/2q7/K9 w - - 7+7 0 1";
         lczero::ChessBoard board(stalemate_fen);
         std::cout << "Stalemate position:\n" << board.GetRawPosition() << std::endl;
 
@@ -82,13 +82,13 @@ void run_board_tests() {
         std::cout << "[PASS] TEST 3 passed! (Stalemate correctly marked as Loss)\n" << std::endl;
     }
 
-    // TEST 4: 8-checks limit rule verification
+    // TEST 4: 7-checks limit rule verification
     {
-        std::cout << "TEST 4: 8-checks limit verification..." << std::endl;
+        std::cout << "TEST 4: 7-checks limit verification..." << std::endl;
         
         // Case A: White checks remaining = 0
         {
-            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+8 0 1";
+            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+7 0 1";
             lczero::ChessBoard board(checks_0_fen);
             auto history = std::make_unique<lczero::PositionHistory>();
             history->Reset(board, 0, 1);
@@ -102,7 +102,7 @@ void run_board_tests() {
 
         // Case B: Black checks remaining = 0
         {
-            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 8+0 0 1";
+            std::string checks_0_fen = "k9/10/10/10/10/10/10/10/10/K9 w - - 7+0 0 1";
             lczero::ChessBoard board(checks_0_fen);
             auto history = std::make_unique<lczero::PositionHistory>();
             history->Reset(board, 0, 1);
@@ -114,7 +114,7 @@ void run_board_tests() {
             }
         }
 
-        std::cout << "[PASS] TEST 4 passed! (8-checks limit correctly ends the game)\n" << std::endl;
+        std::cout << "[PASS] TEST 4 passed! (7-checks limit correctly ends the game)\n" << std::endl;
     }
 
     // TEST 5: Encoder & Unpacker validation
@@ -203,13 +203,13 @@ void run_board_tests() {
         std::cout << "[PASS] TEST 5 passed! (Encoder & Unpacker validation correct)\n" << std::endl;
     }
 
-    // TEST 6: MCTS Relative & Absolute Result Verification (Checkmate & Stalemate & 8-checks)
+    // TEST 6: MCTS Relative & Absolute Result Verification (Checkmate & Stalemate & 7-checks)
     {
         std::cout << "TEST 6: MCTS Relative & Absolute Result Verification..." << std::endl;
 
         // Part A: White is checkmated. It is White's turn to move (board.flipped() == false).
-        // White King on a1, Black Rooks on b1 and b2.
-        std::string white_checkmated_fen = "9k/10/10/10/10/10/10/10/1r8/Kr8 w - - 8+8 0 1";
+        // White royal on a1 checked by the Queen on b2, which the Black royal on c3 protects.
+        std::string white_checkmated_fen = "10/10/10/10/10/10/10/2k7/1q8/K9 w - - 7+7 0 1";
         lczero::ChessBoard board_white_cm(white_checkmated_fen);
         auto history_white_cm = std::make_unique<lczero::PositionHistory>();
         history_white_cm->Reset(board_white_cm, 0, 1);
@@ -239,8 +239,8 @@ void run_board_tests() {
         std::cout << "  - White checkmated returns relative GameResult::WHITE_WON (Correct)" << std::endl;
 
         // Part B: Black is checkmated. It is Black's turn to move (board.flipped() == true).
-        // Black King on a10, White Rooks on b10 and b9.
-        std::string black_checkmated_fen = "kR8/1R8/10/10/10/10/10/10/10/9K b - - 8+8 0 1";
+        // Black royal on a10 checked by the Queen on b9, which the White royal on c8 protects.
+        std::string black_checkmated_fen = "k9/1Q8/2K7/10/10/10/10/10/10/10 b - - 7+7 0 1";
         lczero::ChessBoard board_black_cm(black_checkmated_fen);
         auto history_black_cm = std::make_unique<lczero::PositionHistory>();
         history_black_cm->Reset(board_black_cm, 0, 1);
@@ -269,11 +269,11 @@ void run_board_tests() {
         }
         std::cout << "  - Black checkmated returns relative GameResult::WHITE_WON (Correct)" << std::endl;
 
-        // Part C: Verify 8-checks in both absolute and MCTS.
+        // Part C: Verify 7-checks in both absolute and MCTS.
         // Scenario 1: White has 0 checks remaining (White won absolute).
         {
             // Case A: Black to move (board.flipped() == true). White just checked.
-            std::string white_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 0+8 0 1";
+            std::string white_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 0+7 0 1";
             lczero::ChessBoard board(white_win_black_turn);
             auto history = std::make_unique<lczero::PositionHistory>();
             history->Reset(board, 0, 1);
@@ -281,18 +281,18 @@ void run_board_tests() {
             // Absolute check
             lczero::GameResult abs = history->ComputeGameResult();
             if (abs != lczero::GameResult::WHITE_WON) {
-                std::cerr << "[FAIL] White win 8-checks absolute should be WHITE_WON, got: " << (int)abs << std::endl;
+                std::cerr << "[FAIL] White win 7-checks absolute should be WHITE_WON, got: " << (int)abs << std::endl;
                 std::exit(1);
             }
             // MCTS check (relative Win for White, who just moved)
             lczero::GameResult res = history->ComputeMctsResult(board.GenerateLegalMoves());
             if (res != lczero::GameResult::WHITE_WON) {
-                std::cerr << "[FAIL] White win 8-checks (Black's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
+                std::cerr << "[FAIL] White win 7-checks (Black's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
                 std::exit(1);
             }
 
             // Case B: White to move (board.flipped() == false). Black just moved (but White won).
-            std::string white_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+8 0 1";
+            std::string white_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 0+7 0 1";
             lczero::ChessBoard board_wt(white_win_white_turn);
             auto history_wt = std::make_unique<lczero::PositionHistory>();
             history_wt->Reset(board_wt, 0, 1);
@@ -300,13 +300,13 @@ void run_board_tests() {
             // Absolute check
             lczero::GameResult abs_wt = history_wt->ComputeGameResult();
             if (abs_wt != lczero::GameResult::WHITE_WON) {
-                std::cerr << "[FAIL] White win 8-checks absolute should be WHITE_WON, got: " << (int)abs_wt << std::endl;
+                std::cerr << "[FAIL] White win 7-checks absolute should be WHITE_WON, got: " << (int)abs_wt << std::endl;
                 std::exit(1);
             }
             // MCTS check (relative Loss for Black, who just moved)
             lczero::GameResult res_wt = history_wt->ComputeMctsResult(board_wt.GenerateLegalMoves());
             if (res_wt != lczero::GameResult::BLACK_WON) {
-                std::cerr << "[FAIL] White win 8-checks (White's turn) MCTS should be BLACK_WON, got: " << (int)res_wt << std::endl;
+                std::cerr << "[FAIL] White win 7-checks (White's turn) MCTS should be BLACK_WON, got: " << (int)res_wt << std::endl;
                 std::exit(1);
             }
         }
@@ -314,7 +314,7 @@ void run_board_tests() {
         // Scenario 2: Black has 0 checks remaining (Black won absolute).
         {
             // Case C: White to move (board.flipped() == false). Black just checked.
-            std::string black_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 8+0 0 1";
+            std::string black_win_white_turn = "k9/10/10/10/10/10/10/10/10/K9 w - - 7+0 0 1";
             lczero::ChessBoard board(black_win_white_turn);
             auto history = std::make_unique<lczero::PositionHistory>();
             history->Reset(board, 0, 1);
@@ -322,18 +322,18 @@ void run_board_tests() {
             // Absolute check
             lczero::GameResult abs = history->ComputeGameResult();
             if (abs != lczero::GameResult::BLACK_WON) {
-                std::cerr << "[FAIL] Black win 8-checks absolute should be BLACK_WON, got: " << (int)abs << std::endl;
+                std::cerr << "[FAIL] Black win 7-checks absolute should be BLACK_WON, got: " << (int)abs << std::endl;
                 std::exit(1);
             }
             // MCTS check (relative Win for Black, who just moved)
             lczero::GameResult res = history->ComputeMctsResult(board.GenerateLegalMoves());
             if (res != lczero::GameResult::WHITE_WON) {
-                std::cerr << "[FAIL] Black win 8-checks (White's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
+                std::cerr << "[FAIL] Black win 7-checks (White's turn) MCTS should be WHITE_WON, got: " << (int)res << std::endl;
                 std::exit(1);
             }
 
             // Case D: Black to move (board.flipped() == true). White just moved (but Black won).
-            std::string black_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 8+0 0 1";
+            std::string black_win_black_turn = "k9/10/10/10/10/10/10/10/10/K9 b - - 7+0 0 1";
             lczero::ChessBoard board_bt(black_win_black_turn);
             auto history_bt = std::make_unique<lczero::PositionHistory>();
             history_bt->Reset(board_bt, 0, 1);
@@ -341,247 +341,107 @@ void run_board_tests() {
             // Absolute check
             lczero::GameResult abs_bt = history_bt->ComputeGameResult();
             if (abs_bt != lczero::GameResult::BLACK_WON) {
-                std::cerr << "[FAIL] Black win 8-checks absolute should be BLACK_WON, got: " << (int)abs_bt << std::endl;
+                std::cerr << "[FAIL] Black win 7-checks absolute should be BLACK_WON, got: " << (int)abs_bt << std::endl;
                 std::exit(1);
             }
             // MCTS check (relative Loss for White, who just moved)
             lczero::GameResult res_bt = history_bt->ComputeMctsResult(board_bt.GenerateLegalMoves());
             if (res_bt != lczero::GameResult::BLACK_WON) {
-                std::cerr << "[FAIL] Black win 8-checks (Black's turn) MCTS should be BLACK_WON, got: " << (int)res_bt << std::endl;
+                std::cerr << "[FAIL] Black win 7-checks (Black's turn) MCTS should be BLACK_WON, got: " << (int)res_bt << std::endl;
                 std::exit(1);
             }
         }
-        std::cout << "  - [VERIFIED] All 8-checks absolute and relative evaluations checked successfully." << std::endl;
+        std::cout << "  - [VERIFIED] All 7-checks absolute and relative evaluations checked successfully." << std::endl;
 
-        std::cout << "[PASS] TEST 6 passed! (MCTS and Game absolute/relative checkmate and 8-checks values verified)\n" << std::endl;
+        std::cout << "[PASS] TEST 6 passed! (MCTS and Game absolute/relative checkmate and 7-checks values verified)\n" << std::endl;
     }
 
-    // TEST 7: Castling Generation, Encoding, and Execution
+    // TEST 7: the royal piece's ring (squares it can only MOVE to, blocked on the way) and the ASCII notation
+    // of the moves to the promotion ranks (a choice on rank 8, compulsory on rank 9; Black: 3 and 2).
     {
-        std::cout << "TEST 7: Castling Generation, Encoding, and Execution..." << std::endl;
-        
-        // Dựng thế cờ trắng nhập thành (f1->i1 hoặc f1->b1)
-        // 1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 w BIbi - 8+8 0 1
-        std::string castling_fen = "1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 w BIbi - 8+8 0 1";
-        lczero::ChessBoard board(castling_fen);
-        std::cout << "Castling Board State:\n" << board.GetRawPosition() << std::endl;
-        
-        // 1. GenerateLegalMoves: check if Kingside (f1i1) and Queenside (f1b1) castling are generated
-        auto moves = board.GenerateLegalMoves();
-        bool found_oo = false;
-        bool found_ooo = false;
-        lczero::Move move_oo = lczero::MOVE_NONE;
-        lczero::Move move_ooo = lczero::MOVE_NONE;
-        
-        std::cout << "Generated Moves:" << std::endl;
-        for (const auto& m : moves) {
-            std::string m_str = board.MoveToString(m);
-            std::cout << "  " << m_str << " (type: " << (int)Stockfish::type_of(m.raw()) << ")" << std::endl;
-            if (m_str == "f1h1") {
-                found_oo = true;
-                move_oo = m;
-            } else if (m_str == "f1d1") {
-                found_ooo = true;
-                move_ooo = m;
+        std::cout << "TEST 7: royal ring, promotion notation..." << std::endl;
+        int bad = 0;
+        auto fail = [&](const std::string& what) { ++bad; std::cerr << "[FAIL] TEST 7: " << what << std::endl; };
+        auto sq_str = [](int f, int r) { return std::string(1, char('a' + f)) + std::to_string(r + 1); };
+        // The legal moves of the piece on `from` (as real-board strings), sorted. Every one is also parsed back and
+        // checked to be one of the adapter's moves, and the strings must be pairwise different.
+        auto moves_from = [&](const std::string& fen, const std::string& from) {
+            lczero::ChessBoard b(fen);
+            std::vector<std::string> v;
+            for (const auto& m : b.GenerateLegalMoves()) {
+                const std::string s = b.MoveToString(m);
+                if (s.compare(0, from.size(), from) != 0 || !(s[from.size()] >= 'a' && s[from.size()] <= 'j')) continue;
+                if (b.ParseMove(s).raw() != m.raw()) fail("ParseMove('" + s + "') is not the move it was written from");
+                v.push_back(s);
             }
-        }
-        
-        if (!found_oo) {
-            std::cerr << "[FAIL] Kingside castling f1h1 not found in legal moves!" << std::endl;
-            std::exit(1);
-        }
-        if (!found_ooo) {
-            std::cerr << "[FAIL] Queenside castling f1d1 not found in legal moves!" << std::endl;
-            std::exit(1);
-        }
-        std::cout << "  - [VERIFIED] Both Kingside (f1h1) and Queenside (f1d1) castling moves are generated." << std::endl;
-        
-        // 2. MoveToNNIndex check:
-        // Kingside f1->i1 (dx = 3, dy = 0). Hướng Đông-3 (East-3)
-        // type_idx = 2 * 9 + 2 = 20. from_flat = 5. index = 2005.
-        // Queenside f1->b1 (dx = -4, dy = 0). Hướng Tây-4 (West-4)
-        // type_idx = 6 * 9 + 3 = 57. from_flat = 5. index = 5705.
-        uint16_t index_oo = lczero::MoveToNNIndex(move_oo, 0);
-        uint16_t index_ooo = lczero::MoveToNNIndex(move_ooo, 0);
-        
-        std::cout << "f1i1 Index: " << index_oo << std::endl;
-        std::cout << "f1b1 Index: " << index_ooo << std::endl;
-        
-        if (index_oo != 2005) {
-            std::cerr << "[FAIL] Kingside castling index mismatch! Expected 2005, got " << index_oo << std::endl;
-            std::exit(1);
-        }
-        if (index_ooo != 5705) {
-            std::cerr << "[FAIL] Queenside castling index mismatch! Expected 5705, got " << index_ooo << std::endl;
-            std::exit(1);
-        }
-        
-        // Ensure they decode back to equivalent NORMAL moves with same square coordinates
-        lczero::Move decoded_oo = lczero::MoveFromNNIndex(index_oo, 0);
-        lczero::Move decoded_ooo = lczero::MoveFromNNIndex(index_ooo, 0);
-        
-        if (board.MoveToString(decoded_oo) != "f1i1") {
-            std::cerr << "[FAIL] Kingside castling index did not decode back! Got: " << board.MoveToString(decoded_oo) << std::endl;
-            std::exit(1);
-        }
-        if (board.MoveToString(decoded_ooo) != "f1b1") {
-            std::cerr << "[FAIL] Queenside castling index did not decode back! Got: " << board.MoveToString(decoded_ooo) << std::endl;
-            std::exit(1);
-        }
-        std::cout << "  - [VERIFIED] MoveToNNIndex maps castling to sliding slots uniquely (2005 and 5705) and decodes back to coordinate-equivalent normal moves." << std::endl;
-        
-        // 3. Encoder check for aux planes 216-219:
-        // Before castling, rights are BIbi.
-        // For White: Queenside (B / b1) is plane 216, Kingside (I / i1) is plane 217.
-        // For Black: Queenside (b / b10) is plane 218, Kingside (i / i10) is plane 219.
-        auto history = std::make_unique<lczero::PositionHistory>();
-        history->Reset(board, 0, 1);
-        
-        lczero::InputPlanes planes;
-        int transform = -1;
-        lczero::EncodePositionForNN(*history, 8, lczero::FillEmptyHistory::NO, &planes, &transform);
-        
-        // Verify White castling rights
-        // Plane 216 (Queenside): White Rook on b1 (SQ_B1 = 1)
-        if (!(planes[216].mask & Stockfish::square_bb(Stockfish::SQ_B1))) {
-            std::cerr << "[FAIL] Plane 216 should cover White Rook on b1!" << std::endl;
-            std::exit(1);
-        }
-        // Plane 217 (Kingside): White Rook on i1 (SQ_I1 = 8)
-        if (!(planes[217].mask & Stockfish::square_bb(Stockfish::SQ_I1))) {
-            std::cerr << "[FAIL] Plane 217 should cover White Rook on i1!" << std::endl;
-            std::exit(1);
-        }
-        // Verify Black castling rights
-        // Plane 218 (Queenside): Black Rook on b10 (SQ_B10 = 109)
-        if (!(planes[218].mask & Stockfish::square_bb(Stockfish::SQ_B10))) {
-            std::cerr << "[FAIL] Plane 218 should cover Black Rook on b10!" << std::endl;
-            std::exit(1);
-        }
-        // Plane 219 (Kingside): Black Rook on i10 (SQ_I10 = 116)
-        if (!(planes[219].mask & Stockfish::square_bb(Stockfish::SQ_I10))) {
-            std::cerr << "[FAIL] Plane 219 should cover Black Rook on i10!" << std::endl;
-            std::exit(1);
-        }
-        
-        std::cout << "  - [VERIFIED] Encoder writes castling rights to aux planes 216-219 correctly." << std::endl;
-        
-        // 4. ApplyMove: Kingside castling
-        // King f1 (file 5) -> Destination h1 (file 7)
-        // Rook i1 (file 8) -> Destination g1 (file 6)
-        std::cout << "Applying Kingside castling (f1i1)..." << std::endl;
-        board.ApplyMove(move_oo);
-        
-        const auto& raw_pos = board.GetRawPosition();
-        if (raw_pos.piece_on(Stockfish::SQ_H1) != Stockfish::W_KING) {
-            std::cerr << "[FAIL] After f1i1, White King is not on h1! Got: " << raw_pos.piece_on(Stockfish::SQ_H1) << std::endl;
-            std::exit(1);
-        }
-        if (raw_pos.piece_on(Stockfish::SQ_G1) != Stockfish::W_ROOK) {
-            std::cerr << "[FAIL] After f1i1, White Rook is not on g1! Got: " << raw_pos.piece_on(Stockfish::SQ_G1) << std::endl;
-            std::exit(1);
-        }
-        std::cout << "  - [VERIFIED] ApplyMove executed Kingside castling correctly (King on h1, Rook on g1)." << std::endl;
-        
-        // Undo and test Queenside castling
-        std::cout << "Undoing castling..." << std::endl;
-        board.UndoMove();
-        
-        // Apply Queenside castling:
-        // King f1 (file 5) -> Destination d1 (file 3)
-        // Rook b1 (file 1) -> Destination e1 (file 4)
-        std::cout << "Applying Queenside castling (f1b1)..." << std::endl;
-        board.ApplyMove(move_ooo);
-        
-        if (raw_pos.piece_on(Stockfish::SQ_D1) != Stockfish::W_KING) {
-            std::cerr << "[FAIL] After f1b1, White King is not on d1! Got: " << raw_pos.piece_on(Stockfish::SQ_D1) << std::endl;
-            std::exit(1);
-        }
-        if (raw_pos.piece_on(Stockfish::SQ_E1) != Stockfish::W_ROOK) {
-            std::cerr << "[FAIL] After f1b1, White Rook is not on e1! Got: " << raw_pos.piece_on(Stockfish::SQ_E1) << std::endl;
-            std::exit(1);
-        }
-        std::cout << "  - [VERIFIED] ApplyMove executed Queenside castling correctly (King on d1, Rook on e1)." << std::endl;
-        
-        // 5. Test Black Castling with Flip logic
-        std::cout << "Testing Black Castling (with Flip logic)..." << std::endl;
-        std::string black_castling_fen = "1r3k2r1/10/10/10/10/10/10/10/10/1R3K2R1 b BIbi - 8+8 0 1";
-        lczero::ChessBoard board_black(black_castling_fen);
-        
-        auto moves_black = board_black.GenerateLegalMoves();
-        bool found_black_oo = false;
-        bool found_black_ooo = false;
-        lczero::Move move_black_oo = lczero::MOVE_NONE;
-        lczero::Move move_black_ooo = lczero::MOVE_NONE;
-        
-        for (const auto& m : moves_black) {
-            std::string m_str = board_black.MoveToString(m);
-            if (m_str == "f10h10") {
-                found_black_oo = true;
-                move_black_oo = m;
-            } else if (m_str == "f10d10") {
-                found_black_ooo = true;
-                move_black_ooo = m;
+            std::sort(v.begin(), v.end());
+            if (std::adjacent_find(v.begin(), v.end()) != v.end()) fail("two moves are written the same in " + fen);
+            return v;
+        };
+        auto expect = [&](const char* what, const std::string& fen, const std::string& from, std::vector<std::string> want) {
+            std::sort(want.begin(), want.end());
+            const auto got = moves_from(fen, from);
+            if (got != want) {
+                std::string g, w;
+                for (const auto& s : got) g += s + " ";
+                for (const auto& s : want) w += s + " ";
+                fail(std::string(what) + "\n   fen " + fen + "\n   got  " + g + "\n   want " + w);
             }
+        };
+        auto cat = [](std::vector<std::string> a, const std::vector<std::string>& b) { a.insert(a.end(), b.begin(), b.end()); return a; };
+        auto with = [](const std::string& move, const std::string& letters) {
+            std::vector<std::string> v;
+            for (char c : letters) v.push_back(move + c);
+            return v;
+        };
+
+        // Royal on e5, nothing around it: its 8 neighbours and the 16 squares of the ring (2 straight, 2 diagonal, 8 horse).
+        {
+            std::vector<std::string> want;
+            for (int dx = -2; dx <= 2; ++dx)
+                for (int dy = -2; dy <= 2; ++dy)
+                    if (dx || dy) want.push_back("e5" + sq_str(4 + dx, 4 + dy));
+            expect("royal e5 alone: 24 moves", "9k/10/10/10/10/4K5/10/10/10/10 w - - 7+7 0 1", "e5", want);
         }
-        
-        if (!found_black_oo) {
-            std::cerr << "[FAIL] Black Kingside castling f10h10 not found!" << std::endl;
-            std::exit(1);
+        // An own pawn on e6: e6 is taken, e7 is blocked (the square between), d7 and f7 are blocked (the horse's leg).
+        {
+            std::vector<std::string> want;
+            for (int dx = -2; dx <= 2; ++dx)
+                for (int dy = -2; dy <= 2; ++dy) {
+                    const std::string to = sq_str(4 + dx, 4 + dy);
+                    if ((dx || dy) && to != "e6" && to != "e7" && to != "d7" && to != "f7") want.push_back("e5" + to);
+                }
+            expect("royal e5, own pawn e6: e7, d7, f7 blocked", "9k/10/10/10/4P5/4K5/10/10/10/10 w - - 7+7 0 1", "e5", want);
         }
-        if (!found_black_ooo) {
-            std::cerr << "[FAIL] Black Queenside castling f10d10 not found!" << std::endl;
-            std::exit(1);
+        // The pawn on f5 blocks its side: g5 (straight), g4 and g6 (the horse's leg is the square next to it).
+        {
+            std::vector<std::string> want;
+            for (int dx = -2; dx <= 2; ++dx)
+                for (int dy = -2; dy <= 2; ++dy) {
+                    const std::string to = sq_str(4 + dx, 4 + dy);
+                    if ((dx || dy) && to != "f5" && to != "g5" && to != "g4" && to != "g6") want.push_back("e5" + to);
+                }
+            expect("royal e5, own pawn f5: g5, g4, g6 blocked", "9k/10/10/10/10/4KP4/10/10/10/10 w - - 7+7 0 1", "e5", want);
         }
-        
-        // Remap to NN index (should be mapped to the same index as White because it is flipped to White's perspective)
-        uint16_t index_black_oo = lczero::MoveToNNIndex(move_black_oo, 0);
-        uint16_t index_black_ooo = lczero::MoveToNNIndex(move_black_ooo, 0);
-        
-        if (index_black_oo != 2005) {
-            std::cerr << "[FAIL] Black Kingside castling index mismatch! Expected 2005, got " << index_black_oo << std::endl;
-            std::exit(1);
-        }
-        if (index_black_ooo != 5705) {
-            std::cerr << "[FAIL] Black Queenside castling index mismatch! Expected 5705, got " << index_black_ooo << std::endl;
-            std::exit(1);
-        }
-        std::cout << "  - [VERIFIED] Black castling moves map to identical indices (2005 and 5705) via Flip logic." << std::endl;
-        
-        // ApplyMove Black castling
-        // Kingside: King f10 (file 5) -> Destination h10 (file 7)
-        // Rook i10 (file 8) -> Destination g10 (file 6)
-        std::cout << "Applying Black Kingside castling (f10h10)..." << std::endl;
-        board_black.ApplyMove(move_black_oo);
-        
-        const auto& raw_pos_black = board_black.GetRawPosition();
-        if (raw_pos_black.piece_on(Stockfish::SQ_H10) != Stockfish::B_KING) {
-            std::cerr << "[FAIL] After f10h10, Black King is not on h10! Got: " << raw_pos_black.piece_on(Stockfish::SQ_H10) << std::endl;
-            std::exit(1);
-        }
-        if (raw_pos_black.piece_on(Stockfish::SQ_G10) != Stockfish::B_ROOK) {
-            std::cerr << "[FAIL] After f10h10, Black Rook is not on g10! Got: " << raw_pos_black.piece_on(Stockfish::SQ_G10) << std::endl;
-            std::exit(1);
-        }
-        std::cout << "  - [VERIFIED] ApplyMove executed Black Kingside castling correctly (King on h10, Rook on g10)." << std::endl;
-        
-        // Undo and test Queenside
-        std::cout << "Undoing Black castling..." << std::endl;
-        board_black.UndoMove();
-        
-        std::cout << "Applying Black Queenside castling (f10d10)..." << std::endl;
-        board_black.ApplyMove(move_black_ooo);
-        if (raw_pos_black.piece_on(Stockfish::SQ_D10) != Stockfish::B_KING) {
-            std::cerr << "[FAIL] After f10d10, Black King is not on d10! Got: " << raw_pos_black.piece_on(Stockfish::SQ_D10) << std::endl;
-            std::exit(1);
-        }
-        if (raw_pos_black.piece_on(Stockfish::SQ_E10) != Stockfish::B_ROOK) {
-            std::cerr << "[FAIL] After f10d10, Black Rook is not on e10! Got: " << raw_pos_black.piece_on(Stockfish::SQ_E10) << std::endl;
-            std::exit(1);
-        }
-        std::cout << "  - [VERIFIED] ApplyMove executed Black Queenside castling correctly (King on d10, Rook on e10)." << std::endl;
-        
-        std::cout << "[PASS] TEST 7 passed! (Castling generation, encoding, and execution verified for White & Black)\n" << std::endl;
+
+        // A pawn reaching rank 8 stays (e7e8) or becomes n y g b c; reaching rank 9 it must become one of the nine.
+        const std::string rank8 = "bcgny", rank9 = "bcgmnqrvy";
+        expect("pawn e7: rank 8 is a choice", "9k/10/10/4P5/10/10/10/10/10/K9 w - - 7+7 0 1", "e7",
+               cat({"e7e8"}, with("e7e8", rank8)));
+        expect("pawn e8: rank 9 is compulsory", "9k/10/4P5/10/10/10/10/10/10/K9 w - - 7+7 0 1", "e8", with("e8e9", rank9));
+        // Black is the mirror image: rank 3 a choice, rank 2 compulsory.
+        expect("black pawn e4: rank 3 is a choice", "k9/10/10/10/10/10/4p5/10/10/K9 b - - 7+7 0 1", "e4",
+               cat({"e4e3"}, with("e4e3", rank8)));
+        expect("black pawn e3: rank 2 is compulsory", "k9/10/10/10/10/10/10/4p5/10/K9 b - - 7+7 0 1", "e3", with("e3e2", rank9));
+        // A capture onto the promotion rank is written the same way, and the letters b, c, g (also file letters) stay unambiguous.
+        expect("pawn e7 x d8 and push", "9k/10/3r6/4P5/10/10/10/10/10/K9 w - - 7+7 0 1", "e7",
+               cat(cat({"e7e8", "e7d8"}, with("e7e8", rank8)), with("e7d8", rank8)));
+        // A rank-10 square is written with two digits, and the letters never get mixed up with it.
+        expect("rook a1: the whole file, a10 included", "k9/10/10/10/10/10/10/10/10/R8K w - - 7+7 0 1", "a1",
+               {"a1a2", "a1a3", "a1a4", "a1a5", "a1a6", "a1a7", "a1a8", "a1a9", "a1a10", "a1b1", "a1c1", "a1d1", "a1e1", "a1f1", "a1g1", "a1h1", "a1i1"});
+
+        if (bad) std::exit(1);
+        std::cout << "[PASS] TEST 7 passed! (royal ring and blocking, promotion notation on both sides)\n" << std::endl;
     }
 
     // TEST 9: the Zobrist keys come from a seed -- random for every run, in
@@ -651,25 +511,25 @@ void run_adapter_tests() {
 
     const std::vector<std::string> fens = {
         lczero::ChessBoard::kStartposFen,
-        "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1",
-        "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 8+8 0 1",
-        "4k5/10/10/10/10/10/10/10/10/R8K b - - 1+8 0 1",  // BLACK to move
+        "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1",
+        "9k/10/10/10/10/10/10/7r2/2q7/K9 w - - 7+7 0 1",
+        "4k5/10/10/10/10/10/10/10/10/R8K b - - 1+7 0 1",  // BLACK to move
         // --- en passant LANDING ON A PROMOTION SQUARE ---------------------------
         // promotionRegionWhite = *8 *9 *10 and doubleStepRegionBlack = *10 *9 *8
         // overlap, so an ep capture can land inside White's promotion region.
         // Black pawn just played d9-d7; the ep square d8 is a promotion square, so
         // Pe7xd8 e.p. MUST promote, and promotionPieceTypes = b m n r v y makes SIX
         // legal moves that differ only in the promoted piece.
-        "k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 8+8 0 1",
+        "k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 7+7 0 1",
         // Same case, but the ep square comes from the Sergeant's Alfil double-step
         // (s = fKifmnDifmnA): black s played d9-f7, passing through e8.
-        "k9/10/10/3P1s4/10/10/10/10/10/K9 w - e8 8+8 0 1",
+        "k9/10/10/3P1s4/10/10/10/10/10/K9 w - e8 7+7 0 1",
         // The Sergeant CAPTURES en passant too, and fK lets it do so BOTH straight
         // ahead and diagonally -- a pawn can only do the latter. Both must be covered.
         //   (a) straight: black s played e9-c7 (Alfil) through d8; white Sd7xd8 e.p.
-        "k9/10/10/2sS6/10/10/10/10/10/K9 w - d8 8+8 0 1",
+        "k9/10/10/2sS6/10/10/10/10/10/K9 w - d8 7+7 0 1",
         //   (b) diagonal: black s played d9-d7 (Dabbaba) through d8; white Se7xd8 e.p.
-        "k9/10/10/3sS5/10/10/10/10/10/K9 w - d8 8+8 0 1",
+        "k9/10/10/3sS5/10/10/10/10/10/K9 w - d8 7+7 0 1",
     };
 
     for (const auto& fen : fens) {
@@ -754,9 +614,9 @@ void run_uci_tests() {
     // FENs incl Black-to-move, rank-10 destinations, promotion-ready, castling.
     const std::vector<std::string> fens = {
         kUciStartFen,
-        "4k5/10/10/10/10/10/10/10/10/R8K b - - 8+8 0 1",          // Black to move
-        "5k4/10/10/10/10/10/10/10/10/5K4 w - - 8+8 0 1",
-        "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 8+8 0 1",
+        "4k5/10/10/10/10/10/10/10/10/R8K b - - 7+7 0 1",          // Black to move
+        "5k4/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1",
+        "9k/10/10/10/10/10/10/7r2/2q7/K9 w - - 7+7 0 1",
     };
     long total = 0;
     int fail = 0;

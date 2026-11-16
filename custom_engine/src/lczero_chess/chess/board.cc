@@ -8,7 +8,9 @@
 
 namespace lczero {
 
-const char* ChessBoard::kStartposFen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
+// TEMPORARY start position (placeholder until the owner chooses one): the old arrangement with the removed
+// Archbishop (c-file) and Chancellor (h-file) replaced by the new Cannon and Grasshopper.
+const char* ChessBoard::kStartposFen = "vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV w - - 7+7 0 1";
 
 const Stockfish::Variant* ChessBoard::FindVariant() {
     auto it = Stockfish::variants.find("custom_10x10_variant");
@@ -65,7 +67,7 @@ void ChessBoard::SetFromFen(std::string_view fen, int* rule50_ply, int* moves) {
 void ChessBoard::Clear() {
     state_index = 0;
     Stockfish::Thread* th = nullptr;
-    pos.set(variant_def, "10/10/10/10/10/10/10/10/10/10 w - - 8+8 0 1", false, &states[state_index], th);
+    pos.set(variant_def, "10/10/10/10/10/10/10/10/10/10 w - - 7+7 0 1", false, &states[state_index], th);
 }
 
 MoveList ChessBoard::GenerateLegalMoves() const {

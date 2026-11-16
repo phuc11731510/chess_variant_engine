@@ -58,15 +58,14 @@ using namespace Stockfish;
 int run_selfplay(const EngineOptions& o) {
         std::cout << "=== Self-play data generation ===" << std::endl;
         setup_custom_variant();
-        const std::string fen =
-            "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
+        const std::string fen = lczero::ChessBoard::kStartposFen;
 
         // Start positions, checked before the network is loaded (fail fast).
         std::string start_fen = fen;  // default = startpos
         std::vector<std::string> start_fens;
         if (!o.sp_start_fen.empty()) {
             // Every start position is checked before the first game (CheckStartFen:
-            // Fairy-Stockfish itself accepts a FEN without "8+8" as 1+1, etc.).
+            // Fairy-Stockfish itself accepts a FEN without "7+7" as 1+1, etc.).
             auto trim = [](std::string s) {
                 const auto b = s.find_first_not_of(" \t\r\n");
                 if (b == std::string::npos) return std::string();

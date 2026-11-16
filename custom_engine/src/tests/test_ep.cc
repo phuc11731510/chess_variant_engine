@@ -16,7 +16,7 @@ void run_ep_tests() {
         Position pos;
         StateListPtr states(new std::deque<StateInfo>(1));
         // White King on f1, Black King on f10. White Sergeant on a3, Black Sergeant on b5.
-        std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1";
+        std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1";
         pos.set(v, fen, false, &states->back(), Threads.main());
 
         std::cout << "Initial board state:\n" << pos << std::endl;
@@ -81,7 +81,7 @@ void run_ep_tests() {
         Position pos;
         StateListPtr states(new std::deque<StateInfo>(1));
         // White King on f1, Black King on f10. White Sergeant on a3, Black Sergeant on a5.
-        std::string fen = "5k4/10/10/10/10/s9/10/S9/10/5K4 w - - 8+8 0 1";
+        std::string fen = "5k4/10/10/10/10/s9/10/S9/10/5K4 w - - 7+7 0 1";
         pos.set(v, fen, false, &states->back(), Threads.main());
 
         std::cout << "Initial board state:\n" << pos << std::endl;
@@ -143,7 +143,7 @@ void run_ep_tests() {
         {
             Position pos;
             StateListPtr states(new std::deque<StateInfo>(1));
-            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1";
+            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1";
             pos.set(v, fen, false, &states->back(), Threads.main());
 
             std::string move_str_a3c5 = "a3c5";
@@ -184,7 +184,7 @@ void run_ep_tests() {
         {
             Position pos;
             StateListPtr states(new std::deque<StateInfo>(1));
-            std::string fen = "5k4/10/10/10/10/s9/10/S9/10/5K4 w - - 8+8 0 1";
+            std::string fen = "5k4/10/10/10/10/s9/10/S9/10/5K4 w - - 7+7 0 1";
             pos.set(v, fen, false, &states->back(), Threads.main());
 
             std::string move_str_a3c5 = "a3c5";
@@ -224,7 +224,7 @@ void run_ep_tests() {
         // Sub-test 3.3: Round-trip using lczero::ChessBoard (Adapter Layer)
         {
             lczero::ChessBoard board1;
-            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1";
+            std::string fen = "5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1";
             board1.SetFromFen(fen);
 
             lczero::Move m_a3c5 = board1.ParseMove("a3c5");
@@ -295,10 +295,10 @@ void run_ep_tests() {
 
         // Exposed: White King b7, Black Rook j7, nothing else on rank 7 between
         // them once d7 (mover) and e7 (captured pawn) vanish -> open rook check.
-        const std::string exposed = "9k/10/10/1K1Pp4r/10/10/10/10/10/10 w - e8 8+8 0 1";
+        const std::string exposed = "9k/10/10/1K1Pp4r/10/10/10/10/10/10 w - e8 7+7 0 1";
         // Safe control: identical position, Black Rook removed -> same capture,
         // same landing-in-promotion-zone geometry, but no discovered check.
-        const std::string safe    = "9k/10/10/1K1Pp5/10/10/10/10/10/10 w - e8 8+8 0 1";
+        const std::string safe    = "9k/10/10/1K1Pp5/10/10/10/10/10/10 w - e8 7+7 0 1";
 
         const int n_exposed = count_d7e8(exposed);
         const int n_safe = count_d7e8(safe);
@@ -336,7 +336,7 @@ void run_ep_tests() {
         std::cout << "\n--- TEST 5: EP+Promotion offered as check evasion (captures the checker) ---" << std::endl;
         Position pos;
         StateListPtr states(new std::deque<StateInfo>(1));
-        std::string fen = "9k/10/10/3pP5/4K5/10/10/10/10/10 w - d8 8+8 0 1";
+        std::string fen = "9k/10/10/3pP5/4K5/10/10/10/10/10 w - d8 7+7 0 1";
         pos.set(v, fen, false, &states->back(), Threads.main());
 
         if (!pos.checkers()) {
@@ -389,9 +389,9 @@ void run_ep_tests() {
 
         // Exposed: Black Rook d10, nothing else on the d-file between it and
         // White's King at d1 once d7 (the only blocker) vacates -> open file check.
-        const std::string exposed = "3r5k/10/10/3Pp5/10/10/10/10/10/3K6 w - e8 8+8 0 1";
+        const std::string exposed = "3r5k/10/10/3Pp5/10/10/10/10/10/3K6 w - e8 7+7 0 1";
         // Safe control: identical position, Black Rook removed.
-        const std::string safe    = "9k/10/10/3Pp5/10/10/10/10/10/3K6 w - e8 8+8 0 1";
+        const std::string safe    = "9k/10/10/3Pp5/10/10/10/10/10/3K6 w - e8 7+7 0 1";
 
         const int n_exposed = count_d7e8(exposed);
         const int n_safe = count_d7e8(safe);
@@ -458,8 +458,8 @@ void run_ep_tests() {
         // TEST 7 wrongly PASS the exposed case as legal. See run_perft_tests'
         // "b4b5"-style fixtures for the same two-square convention already in
         // use elsewhere in this codebase.
-        const std::string exposed = "9k/10/10/1KsS5r/10/10/10/10/10/10 w - d8c7 8+8 0 1";
-        const std::string safe    = "9k/10/10/1KsS6/10/10/10/10/10/10 w - d8c7 8+8 0 1";
+        const std::string exposed = "9k/10/10/1KsS5r/10/10/10/10/10/10 w - d8c7 7+7 0 1";
+        const std::string safe    = "9k/10/10/1KsS6/10/10/10/10/10/10 w - d8c7 7+7 0 1";
 
         const int n_exposed = count_d7d8(exposed);
         const int n_safe = count_d7d8(safe);
@@ -509,8 +509,8 @@ void run_ep_tests() {
 
         // ep token "d8c7" -- see TEST 7's note on why the two-square form is
         // required whenever capture_square differs from `to`'s file.
-        const std::string exposed = "2r6k/10/10/2sS6/10/10/10/10/10/2K7 w - d8c7 8+8 0 1";
-        const std::string safe    = "9k/10/10/2sS6/10/10/10/10/10/2K7 w - d8c7 8+8 0 1";
+        const std::string exposed = "2r6k/10/10/2sS6/10/10/10/10/10/2K7 w - d8c7 7+7 0 1";
+        const std::string safe    = "9k/10/10/2sS6/10/10/10/10/10/2K7 w - d8c7 7+7 0 1";
 
         const int n_exposed = count_d7d8(exposed);
         const int n_safe = count_d7d8(safe);
@@ -552,7 +552,7 @@ void run_ep_tests() {
         std::cout << "\n--- TEST 9: Sergeant straight EP+Promotion via REAL PLAY (do_move, not a hand ep token) ---" << std::endl;
         Position pos;
         StateListPtr states(new std::deque<StateInfo>(1));
-        std::string fen = "9k/4s5/10/3S6/10/10/10/10/10/K9 b - - 8+8 0 1";
+        std::string fen = "9k/4s5/10/3S6/10/10/10/10/10/K9 b - - 7+7 0 1";
         pos.set(v, fen, false, &states->back(), Threads.main());
 
         std::string m1_str = "e9c7";
@@ -576,10 +576,10 @@ void run_ep_tests() {
             std::exit(1);
         }
 
-        std::string m2_str = "d7d8r";  // straight capture, promote to Rook
+        std::string m2_str = "d7d8c";  // straight capture, promote to Cannon (rank 8: n b y c g)
         Move m2 = UCI::to_move(pos, m2_str);
         if (m2 == MOVE_NONE || type_of(m2) != EN_PASSANT) {
-            std::cerr << "[FAIL] d7d8r not recognized as a legal EN_PASSANT move after real play "
+            std::cerr << "[FAIL] d7d8c not recognized as a legal EN_PASSANT move after real play "
                          "(got type=" << (m2 == MOVE_NONE ? -1 : (int)type_of(m2)) << ")" << std::endl;
             std::exit(1);
         }
@@ -594,14 +594,14 @@ void run_ep_tests() {
                          "gone." << std::endl;
             std::exit(1);
         }
-        if (type_of(pos.piece_on(d8)) != ROOK || color_of(pos.piece_on(d8)) != WHITE) {
-            std::cerr << "[FAIL] d8 does not hold a White Rook after d7d8r e.p." << std::endl;
+        if (type_of(pos.piece_on(d8)) != CUSTOM_PIECE_6 || color_of(pos.piece_on(d8)) != WHITE) {
+            std::cerr << "[FAIL] d8 does not hold a White Cannon after d7d8c e.p." << std::endl;
             std::exit(1);
         }
         std::cout << "  [OK] real do_move marks BOTH c7 and d8 in epSquares after the diagonal "
                      "double-step (not just the midpoint)" << std::endl;
         std::cout << "  [OK] capture_square(d8) = c7, resolved correctly from real play" << std::endl;
-        std::cout << "  [OK] Black Sergeant actually removed from c7; White Rook actually on d8"
+        std::cout << "  [OK] Black Sergeant actually removed from c7; White Cannon actually on d8"
                   << std::endl;
         std::cout << "[PASS] Sergeant straight EP+Promotion real-play end-to-end test passed!" << std::endl;
     }
@@ -631,9 +631,9 @@ void run_ep_tests() {
 
         // Exposed: Black Bishop j10, nothing else on the a1-j10 diagonal between
         // it and White's King at a1 once g7 (the only blocker) vacates.
-        const std::string exposed = "k8b/10/10/5pP3/10/10/10/10/10/K9 w - f8 8+8 0 1";
+        const std::string exposed = "k8b/10/10/5pP3/10/10/10/10/10/K9 w - f8 7+7 0 1";
         // Safe control: identical position, Black Bishop removed.
-        const std::string safe    = "k9/10/10/5pP3/10/10/10/10/10/K9 w - f8 8+8 0 1";
+        const std::string safe    = "k9/10/10/5pP3/10/10/10/10/10/K9 w - f8 7+7 0 1";
 
         const int n_exposed = count_g7f8(exposed);
         const int n_safe = count_g7f8(safe);

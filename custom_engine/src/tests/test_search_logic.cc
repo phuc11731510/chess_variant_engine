@@ -149,7 +149,7 @@ void TestSearchTargetPerspective() {
             std::make_unique<fztest::DetBackend>(true, 8, 0), opts.Dict());
         for (const char* fen : {kUciStartFen,
                                 "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/"
-                                "MSYSNNSYSM/VRHBQKBERV b BIbi - 8+8 0 1"}) {
+                                "MSYSNNSYSM/VRHBQKBERV b BIbi - 7+7 0 1"}) {
             auto tree = std::make_unique<NodeTree>();
             tree->ResetToPosition(fen, {});
             fztest::RunTestSearch(tree.get(), backend.get(), opts.Dict(), 1, 1);
@@ -588,7 +588,7 @@ void TestLegalMoveCapacity() {
     // each promote to 6 types by pushing or by capturing a rook on the 8th, and
     // five more pawns behind them. Reported, not asserted: it shows the headroom.
     const char* extreme =
-        "k9/10/1r1r1r1r1r/P1S1P1S1P1/1P1P1P1P1P/1Q2E2H2/10/2R3R3/1B2V2V1B/M3K4M w - - 8+8 0 1";
+        "k9/10/1r1r1r1r1r/P1S1P1S1P1/1P1P1P1P1P/1Q2E2H2/10/2R3R3/1B2V2V1B/M3K4M w - - 7+7 0 1";
     Position pos;
     StateListPtr states(new std::deque<StateInfo>(1));
     pos.set(v, extreme, false, &states->back(), Threads.main());
@@ -782,8 +782,8 @@ void TestSelfPlayRecordsReplay() {
     struct Case { const char* fen; int max_moves; };
     const Case cases[] = {
         {lczero::ChessBoard::kStartposFen, 60},                       // cut at max_moves
-        {"4k5/10/10/10/10/10/10/10/10/R3K4R w - - 8+8 0 1", 300},    // ends by the rules
-        {"n3k5/10/10/10/10/10/10/10/10/4K4N b - - 8+8 20 1", 300},   // quiet: repetition / rule 50
+        {"4k5/10/10/10/10/10/10/10/10/R3K4R w - - 7+7 0 1", 300},    // ends by the rules
+        {"n3k5/10/10/10/10/10/10/10/10/4K4N b - - 7+7 20 1", 300},   // quiet: repetition / rule 50
     };
     for (const auto& c : cases) {
         const lczero::GameResult res = lczero::PlayOneGame(

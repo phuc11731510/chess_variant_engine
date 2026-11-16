@@ -7,17 +7,23 @@ namespace lczero {
 
 namespace {
 // The piece kinds of the variant in plane order (nn_layout.h: kPieceKinds). The same order is the plane
-// index of a piece on the input, so changing it changes what a network means.
+// index of a piece on the input, so changing it changes what a network means. The custom pieces are the
+// customPieceN of the variant INI (app/variant_setup.cc), N = the number in CUSTOM_PIECE_N.
 constexpr Stockfish::PieceType kPieceKindOrder[kPieceKinds] = {
-    Stockfish::PAWN,           Stockfish::KNIGHT,         Stockfish::BISHOP,         Stockfish::ROOK,
-    Stockfish::QUEEN,          Stockfish::KING,           Stockfish::CENTAUR,        Stockfish::CUSTOM_PIECE_1,
-    Stockfish::CUSTOM_PIECE_2, Stockfish::CUSTOM_PIECE_3, Stockfish::CUSTOM_PIECE_4, Stockfish::CUSTOM_PIECE_5};
+    Stockfish::PAWN,           Stockfish::KNIGHT,         Stockfish::ROOK,           Stockfish::QUEEN,
+    Stockfish::KING,           Stockfish::CUSTOM_PIECE_1, /* b: Bishop + Wazir (move only) */
+    Stockfish::CUSTOM_PIECE_2, /* m: Centaur (King + Xiangqi horse) */
+    Stockfish::CUSTOM_PIECE_3, /* v: wildebeest */
+    Stockfish::CUSTOM_PIECE_4, /* y: Alibaba + Wazir (move only) */
+    Stockfish::CUSTOM_PIECE_5, /* s: Sergeant */
+    Stockfish::CUSTOM_PIECE_6, /* c: Cannon + Wazir */
+    Stockfish::CUSTOM_PIECE_7  /* g: Grasshopper + King */};
 
 // The pieces a pawn can promote to, in the order of their policy slots (types kPromotionBase + 3 * i + direction).
 constexpr Stockfish::PieceType kPromotionOrder[kPromotionPieces] = {
-    Stockfish::KNIGHT,         Stockfish::BISHOP,         Stockfish::ROOK,           Stockfish::QUEEN,
-    Stockfish::CENTAUR,        Stockfish::CUSTOM_PIECE_1, Stockfish::CUSTOM_PIECE_2, Stockfish::CUSTOM_PIECE_4,
-    Stockfish::CUSTOM_PIECE_5};
+    Stockfish::KNIGHT,         Stockfish::CUSTOM_PIECE_1, Stockfish::ROOK,           Stockfish::QUEEN,
+    Stockfish::CUSTOM_PIECE_2, Stockfish::CUSTOM_PIECE_3, Stockfish::CUSTOM_PIECE_4, Stockfish::CUSTOM_PIECE_6,
+    Stockfish::CUSTOM_PIECE_7};
 
 // PieceType -> index in the two tables above, or -1. PieceType values are sparse (KING = 63, CUSTOM_PIECE_1 =
 // 39, ...), so these are PIECE_TYPE_NB-wide tables: one load per lookup, no branches in the encode hot path.

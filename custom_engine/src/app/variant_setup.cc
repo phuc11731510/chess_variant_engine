@@ -81,13 +81,22 @@ void init_engine_globals() {
 
 // The variant's rules and their edge cases are written out in LUAT_BIEN_THE.md,
 // and re-implemented independently by src/tests/test_rules_oracle.cc
-// (--audit-rules). Two rules are NOT expressible in this INI and live in code:
+// (--audit-rules). Rules that are NOT expressible in this INI live in code:
 //   * checkCounting counts every checking piece (a double check = 2 checks):
-//     Position::do_move, src/chess/position.cpp;
-//   * an e.p. capture that lands in the promotion zone promotes: movegen.cpp +
-//     position.cpp (commit 52439cc).
-// `k` is the royal piece ("Hoang gia", king step + knight): Fairy-Stockfish
-// requires the royal piece to use the king slot.
+//     Position::do_move, src/chess/position.cpp; the N of the N-checks rule is the
+//     "N+N" of the start FEN;
+//   * an e.p. capture that lands in the promotion zone promotes (rank 8: a choice): movegen.cpp +
+//     position.cpp;
+//   * the two tiers of promotion (optionalPromotionRegion / optionalPromotionPieceTypes, added to this
+//     Fairy-Stockfish copy): rank 8 (Black: 3) a pawn or Sergeant may stay or become n y g b c, rank 9
+//     (Black: 2) it must become one of the nine.
+// `k` is the royal piece ("Hoang gia"): it moves or captures one square in any direction, and in the
+// outer ring of the 5x5 around it only MOVES (never captures) where not blocked (Fairy-Stockfish requires
+// the royal piece to use the king slot). The other pieces are custom pieces: their NUMBERS are the plane
+// order of the network input (lczero_chess/chess/encoder.cc: kPieceKindOrder), so do not renumber them.
+// In Betza notation m = move only, n = blocked on the way (for N: Xiangqi horse, blocked on the square
+// next to it in the long direction), c = captures only, p = by hopping over exactly one piece, g = by
+// hopping over exactly one piece and landing right behind it (the grasshopper).
 const Variant* setup_custom_variant() {
     std::string ini_text = R"(
 [custom_10x10_variant]
@@ -95,17 +104,21 @@ maxRank = 10
 maxFile = j
 pawn = p
 knight = n
-bishop = b
+bishop = -
 rook = r
 queen = q
-king = k:KN
-amazon = a
-chancellor = e
-archbishop = h
-centaur = m
-customPiece1 = v:CN
-customPiece2 = y:AD
-customPiece3 = s:fKifmnDifmnA
+king = k:KmnDmnAmnN
+amazon = -
+chancellor = -
+archbishop = -
+centaur = -
+customPiece1 = b:BmW
+customPiece2 = m:KnN
+customPiece3 = v:CN
+customPiece4 = y:ADmW
+customPiece5 = s:fKifmnDifmnA
+customPiece6 = c:mRcpRW
+customPiece7 = g:gQK
 pawnTypes = p s
 promotionPawnTypes = p s
 enPassantTypes = p s
@@ -113,15 +126,14 @@ nMoveRuleTypes = p s
 doubleStep = true
 doubleStepRegionWhite = *1 *2 *3
 doubleStepRegionBlack = *10 *9 *8
-promotionRegionWhite = *8 *9 *10
-promotionRegionBlack = *3 *2 *1
+promotionRegionWhite = *8 *9
+promotionRegionBlack = *3 *2
+optionalPromotionRegionWhite = *8
+optionalPromotionRegionBlack = *3
+optionalPromotionPieceTypes = n b y c g
 mandatoryPawnPromotion = true
-promotionPieceTypes = b m n r v y
-castling = true
-castlingKingsideFile = h
-castlingQueensideFile = d
-castlingRookKingsideFile = i
-castlingRookQueensideFile = b
+promotionPieceTypes = n b r q m v y c g
+castling = false
 stalemateValue = loss
 checkCounting = true
 )";
@@ -156,7 +168,7 @@ std::string CheckStartFen(const std::string& fen) {
     const std::string& checks = field[4];
     if (!(checks.size() == 3 && checks[1] == '+' && checks[0] >= '1' && checks[0] <= '9' &&
           checks[2] >= '1' && checks[2] <= '9'))
-        return "the 5th field must be the checks still needed, like 8+8 (got '" + checks +
+        return "the 5th field must be the checks still needed, like 7+7 (got '" + checks +
                "'); without it Fairy-Stockfish plays 1+1";
     if (field[1] != "w" && field[1] != "b") return "side to move must be w or b";
     // The board syntax first: Fairy-Stockfish skips, without a word, the pieces
@@ -178,7 +190,7 @@ std::string CheckStartFen(const std::string& fen) {
                     n = 10 * n + (b[i++] - '0');
                 --i;
                 squares += n;
-            } else if (std::string("pnbrqkaehmvysPNBRQKAEHMVYS").find(b[i]) != std::string::npos) {
+            } else if (std::string("pnrqkbmvyscgPNRQKBMVYSCG").find(b[i]) != std::string::npos) {
                 ++squares;
             } else {
                 return std::string("unknown piece letter '") + b[i] + "' in the board";
@@ -203,46 +215,9 @@ std::string CheckStartFen(const std::string& fen) {
         if (got.size() <= static_cast<size_t>(i) || got[i] != field[i])
             return std::string(names[i]) + " read back as '" +
                    (got.size() > static_cast<size_t>(i) ? got[i] : "") + "', not '" + field[i] + "'";
-    // Castling rights by MEANING, not spelling. Fairy-Stockfish keeps a right as
-    // a (royal square, rook square) pair and writes it back as K/Q/k/q where that
-    // reads back to the same rook, else as the rook's file (so the start
-    // position's "BIbi" comes back as "KQkq"). Castling is on any rank: every
-    // letter looks for its rook on the rank of its side's royal piece. A file
-    // letter is taken literally, but "K" is the first rook from the i-file
-    // towards the a-file and "Q" the first rook from the b-file towards the
-    // j-file: with the rooks elsewhere (a shuffled start) a lone "K" can become a
-    // QUEEN-side right with the a-file rook, and a right whose rook is not there
-    // is dropped without a word. So: every letter must give exactly its right
-    // (K/Q on that side, a file letter with its rook on that file), and there
-    // must be no other right.
-    using Stockfish::CastlingRights;
-    const int kept = int(pos.can_castle(Stockfish::WHITE_OO)) + int(pos.can_castle(Stockfish::WHITE_OOO)) +
-                     int(pos.can_castle(Stockfish::BLACK_OO)) + int(pos.can_castle(Stockfish::BLACK_OOO));
-    const int letters = field[2] == "-" ? 0 : static_cast<int>(field[2].size());
-    for (int i = 0; i < letters; ++i) {
-        const char ch = field[2][i];
-        const Stockfish::Color c =
-            std::islower(static_cast<unsigned char>(ch)) ? Stockfish::BLACK : Stockfish::WHITE;
-        const char up = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-        const CastlingRights oo = c & Stockfish::KING_SIDE, ooo = c & Stockfish::QUEEN_SIDE;
-        bool ok = false;
-        if (up == 'K') {
-            ok = pos.can_castle(oo);
-        } else if (up == 'Q') {
-            ok = pos.can_castle(ooo);
-        } else if (up >= 'A' && up <= 'J') {
-            for (const CastlingRights cr : {oo, ooo})
-                ok = ok || (pos.can_castle(cr) &&
-                            Stockfish::file_of(pos.castling_rook_square(cr)) == Stockfish::File(up - 'A'));
-        }
-        if (!ok)
-            return std::string("castling right '") + ch + "' of '" + field[2] +
-                   "' was not set up as written (that rook must stand on the royal piece's rank; "
-                   "write the rook's file, e.g. BIbi, rather than K/Q)";
-    }
-    if (kept != letters)
-        return "castling rights '" + field[2] + "' gave " + std::to_string(kept) + " right(s), not " +
-               std::to_string(letters);
+    // No castling in this game: the third field must say so ("-"), whatever Fairy-Stockfish would make of a
+    // letter there.
+    if (field[2] != "-") return "castling does not exist in this game: the 3rd field must be '-' (got '" + field[2] + "')";
     const Stockfish::Color us = pos.side_to_move();
     if (pos.attackers_to(pos.square<Stockfish::KING>(~us), us))
         return "the side that is not to move is in check";

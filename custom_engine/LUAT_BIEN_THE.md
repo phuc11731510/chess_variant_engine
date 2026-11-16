@@ -1,83 +1,81 @@
 # Luật cờ biến thể 10×10 (FairyZero)
 
-Bản mô tả luật **đã được chủ dự án xác nhận** (2026-09-23), gồm cả các trường hợp biên. Định nghĩa
-máy đọc nằm ở `src/app/variant_setup.cc` (INI của Fairy-Stockfish); bản viết lại độc lập để kiểm
-chứng nằm ở `src/tests/test_rules_oracle.cc` (`custom_engine --audit-rules`). Đổi luật thì phải sửa
-**cả ba chỗ**: file này, `variant_setup.cc` (hoặc code FSF nếu luật không diễn đạt được bằng INI) và
-oracle.
+Bản mô tả luật **đã cài vào engine ngày 2026-11-16** (luật mới của chủ dự án). Định nghĩa máy đọc nằm ở
+`src/app/variant_setup.cc` (INI của Fairy-Stockfish cộng một số chỗ trong mã FSF, xem cuối tệp); bản viết lại độc lập
+để kiểm chứng nằm ở `src/tests/test_rules_oracle.cc` (`custom_engine --audit-rules`). Đổi luật thì phải sửa **cả ba chỗ**:
+tệp này, `variant_setup.cc` (hoặc code FSF nếu luật không diễn đạt được bằng INI) và oracle.
 
-## Luật mới (dự định, CHƯA CÀI)
+**Thế cờ đầu chưa chốt**: `ChessBoard::kStartposFen` (`src/lczero_chess/chess/board.cc`) là thế **tạm**, là thế cũ với Archbishop
+(cột c) và Chancellor (cột h) thay bằng Pháo `c` và Grasshopper `g`. Chủ dự án sẽ chọn thế thật sau; chỉ cần sửa một dòng đó.
 
-Ghi ngày 2026-11-16 theo ý chủ dự án. **Chưa có mã nào được sửa**: toàn bộ các mục còn lại của tệp này
-(bảng quân, thế cờ đầu, trường hợp biên, nhập thành, danh sách chỉnh sửa FSF) vẫn mô tả luật **đang cài**.
-Khi cài luật mới phải sửa lại cả ba chỗ như ở đầu tệp (tệp này, `variant_setup.cc`/mã FSF, oracle).
+## Quân cờ
 
-### Quân cờ mới
-
-Ký hiệu Betza dưới đây là bản dự kiến cho `variant_setup.cc`, cần kiểm lại khi cài. `m` = chỉ đi (không
-ăn), `n` = bị cản ở ô giữa (với Mã `nN` là Mã cờ tướng: bị cản ở **ô liền kề theo hướng đi dài**, ví dụ
-nước (2,1) bị cản bởi ô (1,0)).
+Ký hiệu Betza: `m` = chỉ đi (không ăn), `n` = bị cản ở ô giữa (với `N`: Mã cờ tướng, bị cản ở ô liền kề theo hướng đi dài, ví dụ
+nước (2,1) bị cản bởi ô (1,0)), `c` = chỉ ăn, `p` = ăn bằng cách nhảy qua đúng một quân, `g` = nhảy qua đúng một quân và đáp ngay sau nó.
+Thứ tự `customPieceN` là thứ tự mặt phẳng đầu vào của mạng (xem "Bộ mã hoá"), **không được đánh số lại**.
 
 | Ký hiệu | Tên | Cách đi | Betza |
 |---|---|---|---|
-| `k` | **Hoàng gia** (mất là thua) | **Đi hoặc ăn** 1 ô theo 8 hướng (viền 3×3). Trong viền 5×5 (16 ô ngoài) **chỉ đi, không ăn**, và chỉ khi không bị cản: đi 2 ô thẳng (cản bởi ô giữa), đi 2 ô chéo (cản bởi ô chéo giữa), nước kiểu Mã (cản chân như Mã cờ tướng) | `KmnDmnAmnN` |
-| `p` | Tốt | không đổi | |
-| `s` | Sergeant | không đổi | `fKifmnDifmnA` |
-| `n` `r` `q` | Mã, Xe, Hậu | chuẩn | |
+| `k` | **Hoàng gia** (mất là thua) | **Đi hoặc ăn** 1 ô theo 8 hướng (viền 3×3). Trong viền 5×5 (16 ô ngoài) **chỉ đi, không ăn**, và chỉ khi không bị cản: 2 ô thẳng (cản bởi ô giữa), 2 ô chéo (cản bởi ô chéo giữa), nước kiểu Mã (cản chân như Mã cờ tướng). Chữ `k` vì FSF bắt quân vương ở ô "king" | `KmnDmnAmnN` |
+| `p` | Tốt | tiến 1 ô; từ hàng 1–3 (Đen 8–10) được tiến 2 ô nếu cả hai ô trống; ăn chéo 1 ô | chuẩn |
+| `s` | Sergeant | đi **và ăn** 1 ô theo 3 hướng tiến; từ hàng 1–3 (Đen 8–10) còn **đi** (không ăn) 2 ô thẳng hoặc 2 ô chéo về phía trước, ô giữa phải trống | `fKifmnDifmnA` |
+| `n` | Mã | chuẩn | |
+| `r` `q` | Xe, Hậu | chuẩn | |
 | `b` | **Tượng** | Tượng chuẩn + 1 ô thẳng (Wazir) **chỉ đi, không ăn** | `BmW` |
 | `m` | **Centaur** | nước Vua + Mã **cờ tướng** (cản chân), đi và ăn | `KnN` |
-| `v` | wildebeest | không đổi (Lạc đà (1,3) + Mã chuẩn) | `CN` |
-| `y` | **Alibaba** | như hiện tại (nhảy (2,2) và (0,2)) + Wazir **chỉ đi, không ăn** | `ADmW` |
-| `c` | **Pháo** (mới) | Pháo cờ tướng (đi như Xe, ăn bằng cách nhảy qua đúng 1 quân làm "ngòi") + Wazir | `mRcpRW` |
-| `g` | **Grasshopper** (mới) | Grasshopper (8 hướng như Hậu: nhảy qua đúng 1 quân, đáp ngay ô sau nó, ô đó trống hoặc có quân địch để ăn) + nước Vua | `gQK` |
+| `v` | wildebeest | Lạc đà (1,3) + Mã chuẩn, nhảy qua quân | `CN` |
+| `y` | **Alibaba** | nhảy (2,2) và (0,2)/(2,0) qua quân + Wazir **chỉ đi, không ăn** | `ADmW` |
+| `c` | **Pháo** | Pháo cờ tướng (đi như Xe không ăn; ăn bằng cách nhảy qua đúng 1 quân "ngòi", của bên nào cũng được, rồi ăn quân địch đầu tiên sau nó) + Wazir **đi và ăn** | `mRcpRW` |
+| `g` | **Grasshopper** | theo 8 hướng như Hậu: dọc tia tới quân đầu tiên, nhảy qua nó, đáp ngay ô sau (trống: đi; quân địch: ăn) + nước Vua | `gQK` |
 
-Bỏ: **Chancellor `e`, Archbishop `h`, Amazon `a`**. Chữ `c`, `g` là đề xuất của tôi. Quân chiến đấu
-(không kể Tốt, Sergeant, Hoàng gia) còn **9**: Mã, Tượng, Xe, Hậu, Centaur, wildebeest, Alibaba, Pháo,
-Grasshopper.
+Đã bỏ Chancellor `e`, Archbishop `h`, Amazon `a`. Quân chiến đấu (không kể Tốt, Sergeant, Hoàng gia) còn 9:
+Mã, Tượng, Xe, Hậu, Centaur, wildebeest, Alibaba, Pháo, Grasshopper.
 
-### Nhập thành
+## Luật chính
 
-**Bỏ hẳn luật nhập thành.** FEN không còn trường quyền nhập thành (hoặc luôn là `-`); `BIbi` trong thế
-đầu bỏ; không còn nước `CASTLING`, chỉ số policy nhập thành, plane quyền nhập thành, ghi ô Xe trong dữ
-liệu huấn luyện.
+- Bàn 10×10 (cột a–j, hàng 1–10). Trắng đi trước. **Không có nhập thành.**
+- **Phong cấp hai tầng** (Tốt và Sergeant; Đen đối xứng: hàng 3 thay hàng 8, hàng 2 thay hàng 9):
+  - **Hàng 8:** tuỳ chọn: đứng lại làm Tốt/Sergeant, hoặc phong thành **Mã, Tượng, Alibaba, Pháo, Grasshopper** (`n b y c g`).
+  - **Hàng 9:** bắt buộc, thành một trong 9 quân (`n b r q m v y c g`). Không bao giờ tới hàng 10.
+  - Mọi cách tới ô đó đều áp dụng: đi thẳng, ăn chéo, bước đôi, ăn ep.
+- **Đếm chiếu:** mỗi quân đang chiếu Hoàng gia đối phương sau một nước tính 1 lần chiếu, nên **chiếu đôi = 2, chiếu ba = 3** (có
+  thể xảy ra, ví dụ Centaur nhảy kề Hoàng gia + Xe lộ ra + Pháo có Centaur làm ngòi). Đủ **7** thì thắng ngay.
+  Chỉ nước **ăn** được mới chiếu: Hoàng gia chỉ chiếu viền 3×3; Wazir chỉ-đi của Tượng/Alibaba không chiếu; Pháo chiếu qua đúng một
+  ngòi; Grasshopper chiếu bằng nước nhảy của nó. Ngòi xuất hiện hay biến mất (quân khác nhảy vào / rời đi) đều có thể tạo hay mất chiếu.
+- **Hết nước đi = thua** (dù bị chiếu hay không).
+- **Luật 50 nước:** 100 ply không ăn quân, không đi Tốt/Sergeant, không phong cấp → hoà (trừ khi bên tới lượt bị chiếu hết).
+- **Lặp 3 lần → hoà.** "Cùng thế" gồm: vị trí quân, bên tới lượt, ô ep, và số chiếu còn lại của hai bên.
+- **Thứ tự kết thúc ván:** (a) đủ 7 lần chiếu → thắng; (b) 100 ply → hoà, **trừ khi** bên tới lượt bị chiếu hết (vẫn thua); (c) lặp 3 lần → hoà;
+  (d) hết nước đi → thua.
+- **Không có luật hoà do thiếu quân.**
 
-### Phong cấp (hai tầng)
+## Trường hợp biên
 
-Áp cho Tốt và Sergeant. Trắng như dưới đây; Đen đối xứng (hàng 3 thay hàng 8, hàng 2 thay hàng 9).
+1. **Bước đôi của Sergeant** được đi từ **bất kỳ** ô nào ở hàng 1–3 (Đen 8–10). Bước đôi (thẳng hoặc chéo) chỉ để đi, không ăn, ô giữa phải trống.
+2. **Sergeant đi vào ô bắt tốt qua đường (ô ep) luôn là ăn quân**, không có lựa chọn đi thường vào ô đó. **Tốt đi thẳng vào ô ep** (sau bước đôi
+   chéo của Sergeant) là nước đi thường, không ăn.
+3. **Quân bị ăn ep có thể cách quân ăn hai cột.** Ví dụ Sergeant đen e9→c7 (chéo, qua d8); Tốt trắng e7 ăn chéo sang d8 và **quân ở c7** bị bắt.
+4. Ăn ep chỉ được ở **nước ngay sau** bước đôi. Engine ghi ô ep sau mọi bước đôi, kể cả khi không ai ăn được.
+5. **Ăn ep rơi vào hàng phong cấp:** ở hàng 8 (Đen 3) là một lựa chọn như mọi nước tới đó (đứng lại, hoặc `n b y c g`); ở hàng 9 (Đen 2) bắt buộc phong cấp
+   thành 1 trong 9 quân. Với Sergeant bước đôi từ hàng 2/9 (qua hàng 8/3) và hàng 1/10 (qua hàng 9/2).
+6. **Hoàng gia không được đứng ở ô bị tấn công** (ô bị **ăn** được; ô viền 5×5 của Hoàng gia khác không tính). Hai Hoàng gia không thể đứng trong viền 3×3
+   của nhau, nhưng đứng cách 2 ô thì được.
+7. **Không có luật hoà do thiếu quân.** Hoàng gia đối Hoàng gia vẫn thua được vì hết nước.
+8. **Hết nước đi (chiếu hết hoặc hết nước) = thua.** 100 ply: chiếu hết trên chính ply đó vẫn là thắng; hết nước (không bị chiếu) trên ply đó là **hoà** theo luật 50 nước.
 
-- **Hàng 8 (Đen: 3):** phong cấp **tuỳ chọn**. Có thể đứng lại làm Tốt/Sergeant ở hàng 8, hoặc phong
-  thành một trong 5 quân: **Mã, Alibaba, Grasshopper, Tượng, Pháo** (`n y g b c`).
-- **Hàng 9 (Đen: 2):** phong cấp **bắt buộc**, thành một trong **9** quân chiến đấu
-  (`n b r q m v y c g`). Vì vậy Tốt/Sergeant không bao giờ tới hàng 10 (Đen: 1).
-- Mọi cách tới ô đó đều áp dụng: đi thẳng, ăn chéo, bước đôi, ăn ep.
+## Ký hiệu nước đi (ASCII)
 
-### Hệ quả cho các luật khác (cần xem lại khi cài)
+Một nước viết `<ô đi><ô đến>[chữ quân]`:
+- ô = chữ cột `a`–`j` và hàng `1`–`10` (hàng 10 viết hai chữ số, ví dụ `a1a10`);
+- chữ quân chỉ có khi **phong cấp** (kể cả ăn ep phong cấp), là một trong `n b r q m v y c g` (chữ thường, cùng chữ với quân trên bàn);
+- Tốt/Sergeant lên hàng 8 (Đen 3) mà **không phong cấp** thì **không có chữ**: `e7e8`; phong cấp thì có: `e7e8c`. Lên hàng 9 (Đen 2) luôn có chữ: `e8e9c`;
+- các chữ `b`, `c`, `g` cũng là tên cột nhưng chữ quân luôn đứng **sau số hàng của ô đến**, nên `e8e9c` đọc được duy nhất (ô e8, ô e9, quân c);
+- mọi nước dùng đúng tọa độ **thật** của bàn (không lật cho Đen); engine lật nội bộ.
 
-1. **Chiếu** chỉ do nước **ăn** được: Hoàng gia chỉ "tấn công" viền 3×3, không tấn công viền 5×5; Wazir
-   chỉ-đi của Tượng/Alibaba không chiếu; Pháo chiếu qua đúng một ngòi; Grasshopper chiếu qua đúng một
-   quân. Cách đếm chiếu giữ nguyên, ngưỡng thắng là 7.
-2. **Hoàng gia không đứng ở ô bị tấn công** (trường hợp biên 10) nay tính theo ô **ăn**: hai Hoàng gia
-   không thể đứng trong viền 3×3 của nhau, nhưng đứng cách 2 ô thì được.
-3. **Trường hợp biên 6** (ăn ep + phong cấp bắt buộc 6 quân) đổi: ô ep ở hàng 8 → phong cấp tuỳ chọn 5
-   quân; ô ep ở hàng 9 → bắt buộc 9 quân.
-4. **Thế cờ đầu phải quyết định lại**: `vrhbqkberv/…` đang dùng `e`, `h` (bị bỏ). Chưa chọn quân thay.
-5. **Mạng nơ-ron phải huấn luyện lại từ đầu**: tập quân đổi (bỏ `e h a`, thêm `c g`), không còn nhập
-   thành, tập nước phong cấp đổi.
+`--audit-rules` kiểm cho **mọi nước hợp lệ ở mọi thế** (hơn 400 nghìn nước mỗi lần): chuỗi đúng dạng trên, chữ quân có đúng khi và chỉ khi phong cấp, hai nước
+trong cùng một thế không trùng chuỗi, `UCI::to_move` và `ChessBoard::ParseMove` đọc ngược ra đúng nước đó, `MoveToString` trùng `UCI::move`.
 
-### Đếm chiếu: 7 lần
-
-Thắng ngay khi đủ **7** lần chiếu (thay cho 8). Cách đếm không đổi (mỗi quân đang chiếu = 1 lần, chiếu
-đôi = 2). Thế cờ đầu ghi `7+7` thay `8+8`; `checkCounting`/số chiếu còn lại trong FEN, oracle, dữ liệu
-huấn luyện (plane đếm chiếu) phải đổi theo.
-
-### Đã xác nhận (2026-11-16)
-
-- Wazir của **Pháo đi và ăn được** (Betza `mRcpRW`).
-- **Grasshopper nhảy 8 hướng** như Hậu (Grasshopper gốc).
-- Ký hiệu Betza trong bảng trên đúng ý chủ dự án.
-- Thế cờ đầu: chủ dự án sẽ nói sau (phải thay `e`, `h`).
-
-### Bộ mã hoá mạng nơ-ron (đã làm, nhánh `luat-moi`, 2026-11-16)
+## Bộ mã hoá mạng nơ-ron (nhánh `luat-moi`, 2026-11-16)
 
 Toàn bộ con số nằm ở `src/lczero_chess/chess/nn_layout.h` (nguồn chính) và `python/nn_layout.py` (`python/test_layout.py` kiểm hai bên khớp).
 
@@ -92,88 +90,16 @@ Toàn bộ con số nằm ở `src/lczero_chess/chess/nn_layout.h` (nguồn chí
 | Bản ghi huấn luyện | 45940 byte, version 6 | **49280 byte, version 7** (bỏ 4 byte nhập thành); container `.xz` bản 2 |
 
 - Hình học nước đi không đổi: nước của Hoàng gia (viền 5×5), Pháo, Grasshopper, Alibaba, Centaur đều rơi vào các loại trượt / Mã / Lạc đà sẵn có. Nước Tốt đi lên hàng 8 **không phong cấp** dùng ô nước thường (trước đây không bao giờ xuất hiện), nên không đụng ô phong cấp.
-- `EncoderCoversVariant` (encoder.cc) kiểm mọi quân và mọi quân phong cấp của luật có chỗ trong mạng; `setup_custom_variant()` gọi nó và thoát nếu thiếu. Vì vậy **engine không chạy với luật cũ trên nhánh này** cho tới khi `variant_setup.cc` đổi sang luật mới.
+- `EncoderCoversVariant` (encoder.cc) kiểm mọi quân và mọi quân phong cấp của luật có chỗ trong mạng; `setup_custom_variant()` gọi nó và thoát nếu thiếu. Một quân hay quân phong cấp chưa có chỗ trong mạng thì engine thoát ngay lúc khởi động thay vì để quân biến mất khỏi đầu vào.
 - Dữ liệu và mạng của các đời trước **không đọc được** (`KNOWN_VERSIONS = (7,)`). `python/chuyen_v6.py` (đổi dữ liệu cũ sang container) hết tác dụng.
 
-Còn phải làm để chạy lại được: `variant_setup.cc` (luật mới, thế cờ đầu của chủ dự án), oracle luật và các test cũ dựa trên luật cũ (`test_board`, `test_ep`, `test_rules`, `test_app`, ...), `GUI`.
 
-### FSF có làm được không
+## Trạng thái cài đặt (2026-11-16, nhánh `luat-moi`)
 
-- **Đã thử (2026-11-16, FSF `014b0775` dựng riêng, `largeboards=yes`)**: mọi ký hiệu Betza trong bảng chạy đúng ý: Hoàng gia `KmnDmnAmnN` (viền 3×3 đi + ăn; 16 ô viền 5×5 chỉ đi, bị cản bởi ô giữa / ô chân đúng như đã mô tả), Centaur `KnN` (cản chân, ăn được), Alibaba `ADmW` và Tượng `BmW` (Wazir không ăn), Pháo `mRcpRW` (ăn qua đúng 1 ngòi, Wazir ăn được), Grasshopper `gQK`.
-- **Quân**: dự kiến diễn đạt được bằng INI qua Betza (`customPiece` hoặc `king = k:…`): chỗ cần thử là
-  Hoàng gia có nước đi không-ăn khác nước ăn, và `gQ` / `mRcpR` trong cùng một quân với `K`/`W`.
-- **Phong cấp hai tầng: INI gốc của FSF không diễn đạt được, nên đã thêm vào bản FSF của dự án (2026-11-16, đã có test, chưa bật trong luật đang cài).** Xem mục 15 của phần chỉnh sửa FSF. Chỉ còn phần engine khi đổi luật thật: bộ mã hoá policy (`encoder.cc`: ô phong cấp cho Pháo, Grasshopper), `variant_setup.cc`, oracle.
-
-## Quân cờ (luật đang cài)
-
-| Ký hiệu | Tên | Cách đi (Betza) |
-|---|---|---|
-| `k` | **Hoàng gia** (quân vương, mất là thua) | `KN`: nước Vua + nước Mã. Chữ `k` chỉ vì FSF bắt quân vương phải ở ô "king". |
-| `p` | Tốt | Tốt chuẩn |
-| `s` | Sergeant | `fKifmnDifmnA` (xem dưới) |
-| `n` `b` `r` `q` | Mã, Tượng, Xe, Hậu | chuẩn |
-| `e` | chancellor | Xe + Mã |
-| `h` | archbishop | Tượng + Mã |
-| `m` | centaur | nước Vua + Mã (như Hoàng gia nhưng không phải quân vương) |
-| `v` | **wildebeest** | `CN`: Lạc đà (1,3) + Mã |
-| `y` | **alibaba** | `AD`: nhảy (2,2) + nhảy (0,2), đều nhảy qua quân |
-| `a` | amazon | Hậu + Mã. Vẫn định nghĩa (giữ bố cục plane của mạng) nhưng không có trong thế cờ đầu, không được phong cấp thành |
-
-Thế cờ đầu:
-`vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1`
-
-## Luật chính
-
-- Bàn 10×10 (cột a–j, hàng 1–10). Trắng đi trước.
-- **Tốt:** tiến 1 ô; từ hàng 1–3 (Đen: 8–10) được tiến 2 ô nếu cả hai ô trống; ăn chéo 1 ô.
-- **Sergeant:** đi **và ăn** 1 ô theo 3 hướng tiến (thẳng, chéo trái, chéo phải). Từ hàng 1–3 (Đen:
-  8–10) còn được **đi** (không ăn) 2 ô thẳng hoặc 2 ô chéo về phía trước, ô ở giữa phải trống.
-- **Phong cấp:** Tốt hoặc Sergeant tới hàng 8–10 (Đen: 3–1) **bắt buộc** phong thành một trong
-  `b m n r v y`.
-- **Nhập thành:** Hoàng gia f1 + Xe i1 → Hoàng gia h1, Xe g1; Hoàng gia f1 + Xe b1 → Hoàng gia d1,
-  Xe e1. Đen tương tự ở hàng 10. (Chỉ ở hàng 1/10 với Xe b/i và Hoàng gia f: không có thế khởi đầu xáo trộn.)
-- **Đếm chiếu:** mỗi quân đang chiếu Hoàng gia đối phương sau một nước tính 1 lần chiếu. Đủ **8** thì
-  thắng ngay.
-- **Hết nước đi = thua** (dù bị chiếu hay không).
-- **Luật 50 nước:** 100 ply không ăn quân, không đi Tốt/Sergeant, không phong cấp → hoà.
-- **Lặp 3 lần → hoà.**
-
-## Trường hợp biên (đã xác nhận)
-
-1. **Bước đôi của Sergeant** được đi từ **bất kỳ** ô nào ở hàng 1–3 (Đen 8–10), kể cả khi Sergeant đã
-   tiến một bước lên hàng 3. Bước đôi (thẳng hoặc chéo) chỉ để đi, không để ăn, ô giữa phải trống.
-2. **Sergeant đi vào ô bắt tốt qua đường (ô ep) luôn là ăn quân** — không có lựa chọn đi thường vào ô
-   đó. (Không làm mất nước hợp lệ nào: khi nước đi thường vào ô ep hợp lệ thì nước ăn ep cũng hợp lệ.)
-3. **Tốt đi thẳng vào ô ep** (xảy ra sau bước đôi chéo của Sergeant) là nước đi thường, không ăn.
-4. **Quân bị ăn ep có thể cách quân ăn hai cột.** Ví dụ Sergeant đen e9→c7 (chéo, qua d8); Tốt trắng
-   e7 ăn chéo sang d8 và **quân ở c7** bị bắt.
-5. Ăn ep chỉ được ở **nước ngay sau** bước đôi. Engine ghi ô ep sau mọi bước đôi, kể cả khi không ai ăn
-   được — không đổi luật, chỉ đổi khoá Zobrist và plane ep của mạng.
-6. **Ăn ep + phong cấp** chỉ xảy ra khi Sergeant đi đôi từ hàng 2/9 (ô bị vượt qua nằm trong vùng phong
-   cấp của đối phương); bắt buộc chọn 1 trong 6 quân `b m n r v y`.
-7. **Đếm chiếu theo số quân chiếu:** chiếu đơn = 1, **chiếu đôi = 2** (chiếu ba, nếu xảy ra, = 3). Tính
-   cả chiếu phát hiện, chiếu bằng Xe sau nhập thành, chiếu bằng quân vừa phong cấp qua ep. Số lần chiếu
-   còn lại không xuống dưới 0; về 0 là thắng ngay, trước mọi luật khác. (FSF gốc tính 1 cho mỗi nước
-   chiếu; dự án sửa trong `Position::do_move`, 2026-09-23.)
-8. **"Cùng một thế cờ" khi tính lặp 3 lần** gồm: vị trí quân, bên tới lượt, quyền nhập thành, ô ep **và
-   số chiếu còn lại của hai bên**. Nếu có một nước chiếu xen giữa thì không còn là "lặp".
-9. **Thứ tự kết thúc ván:** (a) đủ 8 lần chiếu → thắng; (b) 100 ply luật 50 nước → hoà, **trừ khi** bên
-   tới lượt đang bị chiếu hết (vẫn thua); (c) lặp 3 lần → hoà; (d) hết nước đi → thua.
-10. **Hoàng gia** không được đứng ở ô bị tấn công, kể cả ô cách Hoàng gia đối phương một nước Mã — nên
-    hai Hoàng gia không bao giờ đứng cách nhau một nước Mã (hay một nước Vua).
-11. **Nhập thành:** cần g1, h1 trống (cánh i) hoặc c1, d1, e1 trống (cánh b). Không nhập thành khi đang
-    bị chiếu, không đi qua hay đứng vào ô bị tấn công. Mất quyền khi Hoàng gia đi, hoặc khi Xe đó rời
-    ô gốc **hoặc bị ăn tại ô gốc**. Tổng quát: mọi ô mà Hoàng gia hoặc Xe đi qua hay đáp xuống (trên
-    hàng của chúng) phải trống, trừ chính hai quân đó; ô đích của Hoàng gia xét **sau khi Xe đã rời ô**
-    (Xe đang che đường chiếu tới ô đó thì không được nhập thành).
-12. **Không có luật hoà do thiếu quân.** Kể cả Hoàng gia đối Hoàng gia vẫn thua được vì hết nước
-    (Hoàng gia đen a10, Hoàng gia trắng c8, Đen tới lượt → Đen hết nước → Đen thua).
-
-## Viết quyền nhập thành trong FEN
-
-Trong FEN viết bằng **chữ cái cột của Xe** (Shredder-FEN): thế cờ bắt đầu là `BIbi` (Xe cột b và cột i; HOA = Trắng). FSF cũng hiểu `KQkq` bằng cách dò tìm: `K` = Xe đầu tiên gặp khi đi từ cột i về phía cột a, `Q` = Xe đầu tiên đi từ cột b về phía cột j; FSF in FEN ra ở dạng `KQkq`. Hai cách cho cùng một thế khi Xe đứng ở b/i. Khi Xe không ở b/i, `KQkq` có thể ra quyền khác, nhưng trong ván bắt đầu từ thế cờ chuẩn quyền nhập thành chỉ thuộc Xe b/i nên không xảy ra. `CheckStartFen` (`src/app/variant_setup.cc`) từ chối FEN khởi đầu mà một chữ nhập thành không ra đúng quyền nó ghi.
-
-**Không hỗ trợ thế khởi đầu xáo trộn (kiểu Chess960)** từ 2026-11-16: nhập thành trên hàng bất kỳ, khoá Zobrist theo ô Xe và FEN in K/Q có kiểm đã được gỡ để trở về Fairy-Stockfish gốc (mã cũ nằm ở commit `9d8a37e`). Muốn xáo trộn phải khôi phục chúng.
+Đã làm và có test (`custom_engine --test-*`, `--audit-rules`, `--audit-generation`, `fz_test` đều qua): luật và mọi quân ở trên, phong cấp hai tầng,
+đếm chiếu (7, chiếu ba), không nhập thành, ký hiệu nước đi, bộ mã hoá (205 plane, 11500 policy), bản ghi huấn luyện version 7.
+Chưa làm: thế cờ đầu thật (chủ dự án chọn), GUI, mạng mới (cần huấn luyện từ đầu; `--test-selfplay` / `--test-mcts` cần một tệp
+`.onnx` đúng cỡ vào/ra mới), và các tài liệu khác (`HUONG_DAN*.md`) còn nói tới luật cũ.
 
 ## Chỉnh sửa riêng trong mã Fairy-Stockfish (`src/chess/`)
 

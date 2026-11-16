@@ -13,7 +13,7 @@ void run_mcts_tests(const std::string& weights_path) {
     setup_custom_variant();   // the real definition, not a copy
 
     // 1. Dựng thế cờ 10x10 variant
-    std::string fen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
+    std::string fen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 7+7 0 1";
     lczero::ChessBoard board(fen);
     
     // 2. Setup options
@@ -96,7 +96,7 @@ void run_extract_tests(const std::string& weights_path) {
 
     setup_custom_variant();   // the real definition, not a copy
 
-    std::string fen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
+    std::string fen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 7+7 0 1";
 
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
@@ -234,7 +234,7 @@ void run_selfplay_tests(const std::string& weights_path) {
 
     setup_custom_variant();   // the real definition, not a copy
 
-    std::string fen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1";
+    std::string fen = "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 7+7 0 1";
 
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);

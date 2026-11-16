@@ -4,7 +4,7 @@
 #include "tests/test_common.h"
 
 // Fills every byte of a record with a deterministic, record-specific pattern so
-// the round-trip compares all 45940 bytes (not just a few named fields).
+// the round-trip compares all 49280 bytes (not just a few named fields).
 static void fill_deterministic(lczero::TrainingDataV1& rec, int seed) {
     auto* bytes = reinterpret_cast<uint8_t*>(&rec);
     for (size_t k = 0; k < sizeof(rec); ++k) {
@@ -15,16 +15,16 @@ static void fill_deterministic(lczero::TrainingDataV1& rec, int seed) {
     rec.input_format = lczero::kInputFormat10x10;
 }
 
-// T1: verify TrainingDataV1 layout (45940 bytes) and Writer/Reader round-trip.
+// T1: verify TrainingDataV1 layout (49280 bytes) and Writer/Reader round-trip.
 void run_trainingdata_tests() {
     std::cout << "\n========================================" << std::endl;
     std::cout << "RUNNING TRAINING DATA (T1) TESTS..." << std::endl;
     std::cout << "========================================\n" << std::endl;
 
-    // TEST 1: struct layout size is locked at 45940 bytes.
+    // TEST 1: struct layout size is locked at 49280 bytes.
     std::cout << "TEST 1: sizeof(TrainingDataV1) = " << sizeof(lczero::TrainingDataV1)
-              << " (expected 45940)" << std::endl;
-    if (sizeof(lczero::TrainingDataV1) != 45940) {
+              << " (expected 49280)" << std::endl;
+    if (sizeof(lczero::TrainingDataV1) != 49280) {
         std::cerr << "[FAIL] Unexpected struct size!" << std::endl;
         std::exit(1);
     }
@@ -222,7 +222,7 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
         }
     };
 
-    // Case 0: startpos (white to move, castling BIbi, checks 8+8, no ep).
+    // Case 0: startpos (white to move, castling BIbi, checks 7+7, no ep).
     {
         auto board = std::make_unique<lczero::ChessBoard>();
         auto h = std::make_unique<lczero::PositionHistory>();
@@ -232,7 +232,7 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
     // Case 1: black to move with an active Sergeant en-passant (no castling).
     {
         auto board = std::make_unique<lczero::ChessBoard>(
-            std::string("5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1"));
+            std::string("5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1"));
         auto h = std::make_unique<lczero::PositionHistory>();
         h->Reset(*board, 0, 1);
         lczero::Move m = board->ParseMove("a3c5");
@@ -263,8 +263,8 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
         std::mt19937_64 rng(0x5EED0DA7AULL);
         const char* fens[] = {
             lczero::ChessBoard::kStartposFen,
-            "1r3k2r1/2p4p2/10/4n5/10/10/5B4/10/2P4P2/1R3K2R1 w BIbi - 8+8 0 1",
-            "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 8+8 0 1",
+            "1r3k2r1/2p4p2/10/4n5/10/10/5B4/10/2P4P2/1R3K2R1 w BIbi - 7+7 0 1",
+            "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 7+7 0 1",
         };
         for (const char* fen : fens) {
             for (int game = 0; game < 4; ++game) {
@@ -298,7 +298,7 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
             }
         }
         auto h = std::make_unique<lczero::PositionHistory>();
-        h->Reset(lczero::Position::FromFen("n3k5/10/10/10/10/10/10/10/10/4K4N w - - 8+8 30 20"));
+        h->Reset(lczero::Position::FromFen("n3k5/10/10/10/10/10/10/10/10/4K4N w - - 7+7 30 20"));
         for (const char* uci : {"j1i3", "a10b8", "i3j1", "b8a10", "j1i3", "a10b8", "i3j1"}) {
             const lczero::Move m = fztest::ParseLegalMove(*h, uci);
             if (m.is_null()) { std::cerr << "[FAIL] roundtrip setup: " << uci << std::endl; std::exit(1); }

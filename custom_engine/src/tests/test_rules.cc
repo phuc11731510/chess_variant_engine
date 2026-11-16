@@ -45,16 +45,16 @@ void run_rules_tests() {
 
     // 1. 3-fold repetition: kings shuffle back to the start twice -> DRAW on the
     // 8th ply (the third occurrence), not on the 4th (the second).
-    expect_end(drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 0 1", shuffle2),
+    expect_end(drive("k9/10/10/10/10/10/10/10/10/K9 w - - 7+7 0 1", shuffle2),
                lczero::GameResult::DRAW, "3-fold repetition from rule50=0");
     std::cout << "  [OK] 3-fold repetition -> DRAW exactly on the third occurrence" << std::endl;
     // 1b. The same with the rule-50 counter already at 30 (repetitions used to be
     // missed from rule50 = 14 on, see test_history.cc test 6).
-    expect_end(drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 30 20", shuffle2),
+    expect_end(drive("k9/10/10/10/10/10/10/10/10/K9 w - - 7+7 30 20", shuffle2),
                lczero::GameResult::DRAW, "3-fold repetition from rule50=30");
     std::cout << "  [OK] 3-fold repetition with rule50 = 30..38 -> DRAW" << std::endl;
     // 2. rule50: start at 99, one non-zeroing king move -> 100 plies -> DRAW.
-    expect_end(drive("k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 99 1", {"a1b1"}),
+    expect_end(drive("k9/10/10/10/10/10/10/10/10/K9 w - - 7+7 99 1", {"a1b1"}),
                lczero::GameResult::DRAW, "rule50 reaching 100");
     std::cout << "  [OK] rule50 reaches 100 plies -> DRAW (not at 99)" << std::endl;
     // 3. N-check: White needs 1 more check, delivers it -> WHITE_WON.
@@ -67,15 +67,15 @@ void run_rules_tests() {
     // commit 52439cc): a check the PRE-promotion pawn geometrically could not
     // give. White pawn e7 x d7 e.p. (Black just double-stepped d9-d7 through
     // d8), landing on d8 -- a White promotion-zone square -- and promoting to
-    // Rook. A plain pawn on d8 attacks c9/e9, NOT d10, so the resulting check on
-    // the Black king (d10) along the open d-file exists ONLY via the promoted
-    // Rook. checksRemaining[WHITE] starts at 1: if gives_check() ever stops
+    // Alibaba (rank 8 allows n b y c g; the Alibaba leaps 2 squares straight). A plain pawn on d8 attacks c9/e9, NOT d10, so the check on
+    // the Black king (d10) exists ONLY via the promoted
+    // Alibaba. checksRemaining[WHITE] starts at 1: if gives_check() ever stops
     // special-casing ep+promo, this check goes undetected, the counter does not
     // reach 0, and the game does NOT end -- a sharp, binary regression signal.
-    expect_end(drive("3k6/10/10/3pP5/10/10/10/10/10/K9 w - d8 1+8 0 1", {"e7d8r"}),
+    expect_end(drive("3k6/10/10/3pP5/10/10/10/10/10/K9 w - d8 1+7 0 1", {"e7d8y"}),
                lczero::GameResult::WHITE_WON,
                "ep+promotion-only check (gives_check() ep+promo branch may be broken)");
-    std::cout << "  [OK] check delivered SOLELY by an en-passant promotion (pawn->rook) "
+    std::cout << "  [OK] check delivered SOLELY by an en-passant promotion (pawn->alibaba) "
                  "correctly decrements check-counting -> WHITE_WON" << std::endl;
 
     // 5. A double check counts TWO checks (variant rule; upstream Fairy-Stockfish
@@ -103,7 +103,7 @@ void run_rules_tests() {
     // double-step. Scenario: sergeant single-steps j2->i3 (diagonal), black replies, and
     // we expect the straight double-step i3->i5 to be among the legal moves.
     {
-        std::string fen = "k9/10/10/10/10/10/10/10/9S/K9 w - - 8+8 0 1";
+        std::string fen = "k9/10/10/10/10/10/10/10/9S/K9 w - - 7+7 0 1";
         auto board = std::make_unique<lczero::ChessBoard>(fen);
         auto h = std::make_unique<lczero::PositionHistory>();
         h->Reset(*board, 0, 1);
@@ -131,110 +131,6 @@ void run_rules_tests() {
         std::cout << "  [OK] sergeant double-steps i3i5 on its 2nd move (region-based double-step)" << std::endl;
     }
 
-    // ------------------------------------------------------------------------
-    // Two-tier promotion (planned rules, see LUAT_BIEN_THE.md). The game's own variant has ONE tier
-    // (promotion compulsory on ranks 8-10), so this builds a variant on top of it: rank 8 (Black: 3)
-    // promotion is a choice, to n or y only; rank 9 (Black: 2) is compulsory, to all six pieces.
-    // ------------------------------------------------------------------------
-    {
-        std::cout << "  two-tier promotion (optional rank 8 / compulsory rank 9)..." << std::endl;
-        std::istringstream ini(R"([two_tier_promotion:custom_10x10_variant]
-startFen = k9/10/10/10/10/10/10/10/10/K9 w - - 8+8 0 1
-castling = false
-promotionRegionWhite = *8 *9
-promotionRegionBlack = *3 *2
-optionalPromotionRegionWhite = *8
-optionalPromotionRegionBlack = *3
-optionalPromotionPieceTypes = n y
-)");
-        Stockfish::variants.parse_istream<false>(ini);
-        const auto found = Stockfish::variants.find("two_tier_promotion");
-        if (found == Stockfish::variants.end()) {
-            std::cerr << "[FAIL] two-tier promotion: the test variant did not load" << std::endl;
-            std::exit(1);
-        }
-        const Stockfish::Variant* tv = found->second;
-
-        // Plays `prelude` from `fen`, then returns the legal moves of the piece on `from`, sorted. Every
-        // legal move is also made and unmade: the key and the FEN must come back, and pseudo_legal must
-        // accept it (and reject the same move without its promotion where promotion is compulsory).
-        auto from_square = [&](const std::string& fen, const std::vector<std::string>& prelude, const std::string& from) {
-            Stockfish::Position pos;
-            Stockfish::StateListPtr states(new std::deque<Stockfish::StateInfo>(1));
-            pos.set(tv, fen, false, &states->back(), Stockfish::Threads.main());
-            for (std::string u : prelude) {
-                const Stockfish::Move m = Stockfish::UCI::to_move(pos, u);
-                if (m == Stockfish::MOVE_NONE) { std::cerr << "[FAIL] two-tier promotion: illegal prelude move " << u << " in " << fen << std::endl; std::exit(1); }
-                states->emplace_back();
-                pos.do_move(m, states->back());
-            }
-            std::vector<std::string> out;
-            for (const auto& m : Stockfish::MoveList<Stockfish::LEGAL>(pos)) {
-                const std::string s = Stockfish::UCI::move(pos, m);
-                if (s.compare(0, from.size(), from) != 0) continue;
-                out.push_back(s);
-                if (!pos.pseudo_legal(m)) { std::cerr << "[FAIL] two-tier promotion: legal move " << s << " is not pseudo-legal in " << fen << std::endl; std::exit(1); }
-                const Stockfish::Key key = pos.key();
-                const std::string before = pos.fen();
-                states->emplace_back();
-                pos.do_move(m, states->back());
-                pos.undo_move(m);
-                states->pop_back();
-                if (pos.key() != key || pos.fen() != before) { std::cerr << "[FAIL] two-tier promotion: do/undo of " << s << " does not restore " << fen << std::endl; std::exit(1); }
-            }
-            std::sort(out.begin(), out.end());
-            return out;
-        };
-        auto expect = [&](const char* what, const std::string& fen, const std::vector<std::string>& prelude,
-                          const std::string& from, std::vector<std::string> want) {
-            std::sort(want.begin(), want.end());
-            const std::vector<std::string> got = from_square(fen, prelude, from);
-            if (got != want) {
-                std::cerr << "[FAIL] two-tier promotion: " << what << "\n   fen " << fen << "\n   got:";
-                for (const auto& s : got) std::cerr << ' ' << s;
-                std::cerr << "\n   want:";
-                for (const auto& s : want) std::cerr << ' ' << s;
-                std::cerr << std::endl;
-                std::exit(1);
-            }
-        };
-        const std::string all6 = "bmnrvy";
-        auto six = [&](const std::string& move) {
-            std::vector<std::string> v;
-            for (char c : all6) v.push_back(move + c);
-            return v;
-        };
-        auto cat = [](std::vector<std::string> a, const std::vector<std::string>& b) { a.insert(a.end(), b.begin(), b.end()); return a; };
-
-        // Pawn to rank 8: stays, or becomes n / y.
-        expect("pawn e7 -> rank 8", "9k/10/10/4P5/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e7",
-               {"e7e8", "e7e8n", "e7e8y"});
-        // Pawn already on rank 8 -> rank 9: compulsory, all six.
-        expect("pawn e8 -> rank 9", "9k/10/4P5/10/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e8", six("e8e9"));
-        // Captures follow the same tiers.
-        expect("pawn e7 x d8 / push e8", "9k/10/3r6/4P5/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e7",
-               {"e7e8", "e7e8n", "e7e8y", "e7d8", "e7d8n", "e7d8y"});
-        expect("pawn e8 x d9 / push e9", "9k/3r6/4P5/10/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e8",
-               cat(six("e8e9"), six("e8d9")));
-        // Sergeant (the generic pawn-type path): same tiers on its three forward steps.
-        expect("sergeant e7 -> rank 8", "9k/10/10/4S5/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e7",
-               {"e7e8", "e7e8n", "e7e8y", "e7d8", "e7d8n", "e7d8y", "e7f8", "e7f8n", "e7f8y"});
-        expect("sergeant e8 -> rank 9", "9k/10/4S5/10/10/10/10/10/10/K9 w - - 8+8 0 1", {}, "e8",
-               cat(cat(six("e8e9"), six("e8d9")), six("e8f9")));
-        // Black is the mirror image (rank 3 optional, rank 2 compulsory).
-        expect("black pawn e4 -> rank 3", "k9/10/10/10/10/10/4p5/10/10/K9 b - - 8+8 0 1", {}, "e4",
-               {"e4e3", "e4e3n", "e4e3y"});
-        expect("black pawn e3 -> rank 2", "k9/10/10/10/10/10/10/4p5/10/K9 b - - 8+8 0 1", {}, "e3", six("e3e2"));
-        // En passant landing on rank 8 (optional): Black Sergeant e9-e7 passes e8, White pawn d7 may take
-        // it there, staying a pawn or becoming n / y.
-        expect("e.p. onto rank 8", "k9/4s5/10/3P6/10/10/10/10/10/K9 b - - 8+8 0 1", {"e9e7"}, "d7",
-               {"d7d8", "d7d8n", "d7d8y", "d7e8", "d7e8n", "d7e8y"});
-        // En passant landing on rank 9 (compulsory): Black Sergeant e10-e8 passes e9, White pawn d8.
-        expect("e.p. onto rank 9", "k3s5/10/3P6/10/10/10/10/10/10/K9 b - - 8+8 0 1", {"e10e8"}, "d8",
-               cat(six("d8d9"), six("d8e9")));
-        std::cout << "  [OK] two-tier promotion: rank 8 optional (n, y or stay), rank 9 compulsory (all six),"
-                     " pawn, sergeant, captures, e.p., both colours, do/undo, pseudo_legal" << std::endl;
-    }
 
     std::cout << "[PASS] RULES tests." << std::endl;
 }
@@ -276,14 +172,14 @@ void run_bits_tests() {
         std::cout << "  [OK] E1: square_bb(s) -> exactly serialized bit s for ALL 120 squares" << std::endl;
     }
 
-    // E2: occupancy invariant — for white-to-move positions, the union of the 26
+    // E2: occupancy invariant — for white-to-move positions, the union of the 2 * kPieceKinds
     // ply-0 piece planes must equal the board occupancy EXACTLY, with no square in
     // two planes (catches mis-placement, overlap, or padding leakage).
     {
         const std::vector<std::string> wfens = {
             lczero::ChessBoard::kStartposFen,
-            "5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 8+8 0 1",
-            "1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 8+8 0 1",
+            "5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 7+7 0 1",
+            "9k/10/10/10/10/10/10/7r2/2q7/K9 w - - 7+7 0 1",
         };
         for (const auto& fen : wfens) {
             auto board = std::make_unique<lczero::ChessBoard>(fen);
@@ -294,7 +190,7 @@ void run_bits_tests() {
                                         lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
             Stockfish::Bitboard plane_union = Stockfish::Bitboard(static_cast<uint64_t>(0));
             int total_bits = 0;
-            for (int p = 0; p <= 25; ++p) {
+            for (int p = 0; p < 2 * lczero::kPieceKinds; ++p) {
                 plane_union = plane_union | planes[p].mask;
                 total_bits += Stockfish::popcount(planes[p].mask);
             }
@@ -356,18 +252,18 @@ void run_perft_tests() {
     struct Case { const char* fen; int max_depth; };
     const std::vector<Case> cases = {
         {lczero::ChessBoard::kStartposFen, 3},
-        {"5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 8+8 0 1", 4},        // sparse: Sergeant + kings
-        {"5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 8+8 0 1", 4},       // pawn tension
+        {"5k4/10/10/10/10/1s8/10/S9/10/5K4 w - - 7+7 0 1", 4},        // sparse: Sergeant + kings
+        {"5k4/10/10/10/4p5/4P5/10/10/10/5K4 w - - 7+7 0 1", 4},       // pawn tension
         // --- undo_move stress cases: perft_raw exercises do_move/undo_move; the
         // adapter rebuilds from FEN with NO undo, so a MATCH proves undo is correct
         // for the move types present at the root (printed below per case). ---
-        {"5k4/10/10/10/10/10/1Pp7/10/10/5K4 b - b3b4 8+8 0 1", 3},    // ep+PROMO by pawn (c4xb3=, rank-3 zone)
-        {"5k4/10/10/1pS7/10/10/10/10/10/5K4 w - b8b7 8+8 0 1", 3},    // ep+PROMO by Sergeant (c7xb8=, rank-8 zone)
-        {"5k4/10/10/10/10/10/10/10/10/1R3K2R1 w BI - 8+8 0 1", 3},    // castling both sides (king-takes-rook undo)
+        {"5k4/10/10/10/10/10/1Pp7/10/10/5K4 b - b3b4 7+7 0 1", 3},    // ep+PROMO by pawn (c4xb3=, rank-3 zone)
+        {"5k4/10/10/1pS7/10/10/10/10/10/5K4 w - b8b7 7+7 0 1", 3},    // ep+PROMO by Sergeant (c7xb8=, rank-8 zone)
+        {"5k4/10/10/10/10/10/10/10/10/1R3K2R1 w BI - 7+7 0 1", 3},    // castling both sides (king-takes-rook undo)
         // plain-ep combos (captured piece restored by stored type in undo_move):
-        {"5k4/10/10/10/10/1Ss7/10/10/10/5K4 b - b4b5 8+8 0 1", 3},    // sergeant-ep-sergeant (c5xb4, rank-4: no promo)
-        {"5k4/10/10/10/10/1Sp7/10/10/10/5K4 b - b4b5 8+8 0 1", 3},    // pawn-ep-sergeant (c5xb4)
-        {"5k4/10/10/10/1pS7/10/10/10/10/5K4 w - b7b6 8+8 0 1", 3},    // sergeant-ep-pawn (c6xb7)
+        {"5k4/10/10/10/10/1Ss7/10/10/10/5K4 b - b4b5 7+7 0 1", 3},    // sergeant-ep-sergeant (c5xb4, rank-4: no promo)
+        {"5k4/10/10/10/10/1Sp7/10/10/10/5K4 b - b4b5 7+7 0 1", 3},    // pawn-ep-sergeant (c5xb4)
+        {"5k4/10/10/10/1pS7/10/10/10/10/5K4 w - b7b6 7+7 0 1", 3},    // sergeant-ep-pawn (c6xb7)
     };
 
     bool all_ok = true;
@@ -420,7 +316,7 @@ void run_perft_tests() {
 // another, would pass a count-only check silently; this catches that), and (2)
 // every move's NN policy index is in range AND injective per position. This is
 // the "catch-all" for hidden movegen/rule bugs in positions the fixed tests never
-// reach (near-8-checks, EP races, promotion, castling edges). No plane->position
+// reach (near-7-checks, EP races, promotion, castling edges). No plane->position
 // decoder needed: positions are carried forward by FEN (which also exercises the
 // FEN round-trip).
 //
@@ -518,7 +414,7 @@ void run_audit_generation(int num_games, int max_moves) {
             seen.reserve(adp.size());
             for (size_t i = 0; i < adp.size(); ++i) {
                 const int idx = static_cast<int>(lczero::MoveToNNIndex(adp[i], 0));
-                if (idx >= 10600) {
+                if (idx >= lczero::kPolicySize) {
                     ++nn_oob;
                     if (reported++ < 12)
                         std::cerr << "[NN-OOB] idx=" << idx << " move=" << board.MoveToString(adp[i])

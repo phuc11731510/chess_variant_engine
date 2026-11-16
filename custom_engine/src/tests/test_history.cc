@@ -229,11 +229,11 @@ void TestZobristKeys() {
     // after a REAL double step (do_move, not a hand-written e.p. token).
     struct EpCase { const char* fen; const char* move; const char* what; };
     const EpCase cases[] = {
-        {"9k/4s5/10/3S6/10/10/10/10/10/K9 b - - 8+8 0 1", "e9e7",
+        {"9k/4s5/10/3S6/10/10/10/10/10/K9 b - - 7+7 0 1", "e9e7",
          "Sergeant STRAIGHT double step (e.p. squares e8+e7, same file)"},
-        {"9k/4s5/10/3S6/10/10/10/10/10/K9 b - - 8+8 0 1", "e9c7",
+        {"9k/4s5/10/3S6/10/10/10/10/10/K9 b - - 7+7 0 1", "e9c7",
          "Sergeant DIAGONAL double step (e.p. squares d8+c7)"},
-        {"9k/10/4p5/3P6/10/10/10/10/10/K9 b - - 8+8 0 1", "e8e6",
+        {"9k/10/4p5/3P6/10/10/10/10/10/K9 b - - 7+7 0 1", "e8e6",
          "pawn double step (e.p. square e7)"},
     };
     for (const auto& c : cases) {
@@ -285,13 +285,13 @@ void TestCacheKeyRepetitions() {
     EXPECT(again->Last().Hash() == first->Last().Hash(), "setup: not back to the start position");
     EXPECT(again->Last().GetRepetitions() == 1, "setup: repetition count is "
            << again->Last().GetRepetitions() << ", expected 1");
-    // The NN sees the repetition: plane 26 of the current board is set only for `again`.
+    // The NN sees the repetition: the repetition plane of the current board (2 * kPieceKinds) is set only for `again`.
     int plane = -1;
     lczero::InputPlanes p1, p2;
     int t = 0;
     lczero::EncodePositionForNN(*first, lczero::kMoveHistory, lczero::FillEmptyHistory::FEN_ONLY, &p1, &t);
     lczero::EncodePositionForNN(*again, lczero::kMoveHistory, lczero::FillEmptyHistory::FEN_ONLY, &p2, &t);
-    const bool rep_plane_differs = !(p1[26].mask == p2[26].mask) || p1[26].value != p2[26].value;
+    const bool rep_plane_differs = !(p1[2 * lczero::kPieceKinds].mask == p2[2 * lczero::kPieceKinds].mask) || p1[2 * lczero::kPieceKinds].value != p2[2 * lczero::kPieceKinds].value;
     (void)plane;
     // Cache the first occurrence, then ask for the repeated one.
     const auto legal = first->Last().GetBoard().GenerateLegalMoves();
@@ -339,9 +339,9 @@ const char* Name(GameResult r) {
 
 void TestGameEndPrecedence() {
     std::cout << "\n--- 4. Game-end precedence vs Fairy-Stockfish (50-move rule vs mate/stalemate) ---" << std::endl;
-    // Black king a10 mated by Qb9 (guarded by Rb1) / stalemated by Qb7 + Rj9.
-    const std::string mate = "k9/1Q8/10/10/10/10/10/10/10/1R7K b - - 8+8 ";
-    const std::string stale = "k9/9R/10/1Q8/10/10/10/10/10/9K b - - 8+8 ";
+    // Black royal a10 mated by Qb9 (guarded by the royal on c8) / stalemated by Qc9 + Rh8.
+    const std::string mate = "k9/1Q8/2K7/10/10/10/10/10/10/10 b - - 7+7 ";
+    const std::string stale = "k9/2Q7/7R2/10/10/10/10/10/10/9K b - - 7+7 ";
     struct Case { std::string fen; GameResult game, mcts; const char* what; };
     // ComputeGameResult is absolute (WHITE_WON = White won); ComputeMctsResult is
     // relative to the side that just moved (WHITE_WON = the mover won).
@@ -415,7 +415,7 @@ void TestRepetitionAnyRule50() {
     int cases = 0;
     for (int r50 : {0, 5, 9, 10, 13, 14, 15, 20, 37, 50, 90}) {
         const std::string fen =
-            "n3k5/10/10/10/10/10/10/10/10/4K4N w - - 8+8 " + std::to_string(r50) + " 40";
+            "n3k5/10/10/10/10/10/10/10/10/4K4N w - - 7+7 " + std::to_string(r50) + " 40";
         auto h = std::make_unique<lczero::PositionHistory>();
         h->Reset(lczero::Position::FromFen(fen));
         for (int ply = 1; ply <= 8; ++ply) {
@@ -437,7 +437,7 @@ void TestRepetitionAnyRule50() {
             int t = 0;
             lczero::EncodePositionForNN(*h, lczero::kMoveHistory,
                                         lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
-            const bool rep_plane = bool(planes[26].mask) && planes[26].value == 1.0f;
+            const bool rep_plane = bool(planes[2 * lczero::kPieceKinds].mask) && planes[2 * lczero::kPieceKinds].value == 1.0f;
             EXPECT(reps == want_reps, "rule50 start " << r50 << ", ply " << ply << ": repetitions "
                    << reps << ", expected " << want_reps);
             EXPECT(res == want, "rule50 start " << r50 << ", ply " << ply << ": ComputeGameResult "

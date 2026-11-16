@@ -175,9 +175,9 @@ std::vector<std::unique_ptr<lczero::PositionHistory>> MakePositions(size_t count
     std::mt19937_64 rng(0xFA17ULL);
     const char* fens[] = {
         lczero::ChessBoard::kStartposFen,
-        "1r3k2r1/2p4p2/10/4n5/10/10/5B4/10/2P4P2/1R3K2R1 w BIbi - 8+8 0 1",
-        "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 8+8 0 1",
-        "k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 8+8 0 1",
+        "1r3k2r1/2p4p2/10/4n5/10/10/5B4/10/2P4P2/1R3K2R1 w BIbi - 7+7 0 1",
+        "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 7+7 0 1",
+        "k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 7+7 0 1",
     };
     size_t f = 0;
     while (out.size() < count) {
@@ -521,8 +521,8 @@ void TestRawRootEval() {
                                               so.Dict());
         int checked = 0;
         for (const char* fen : {lczero::ChessBoard::kStartposFen,
-                                "1r3k2r1/2p4p2/10/4n5/10/10/5B4/10/2P4P2/1R3K2R1 w BIbi - 8+8 0 1",
-                                "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 8+8 0 1"}) {
+                                "1r3k2r1/2p4p2/10/4n5/10/10/5B4/10/2P4P2/1R3K2R1 w BIbi - 7+7 0 1",
+                                "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 7+7 0 1"}) {
             auto tree = std::make_unique<lczero::classic::NodeTree>();
             tree->ResetToPosition(fen, {});
             for (int move = 0; move < 4; ++move) {

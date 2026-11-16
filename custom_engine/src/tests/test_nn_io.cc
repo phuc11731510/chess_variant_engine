@@ -139,8 +139,11 @@ void run_nn_tests() {
         const int sdx[8] = {0,1,1,1,0,-1,-1,-1}, sdy[8] = {1,1,0,-1,-1,-1,0,1};
         const int ndx[8] = {1,2,2,1,-1,-2,-2,-1}, ndy[8] = {2,1,-1,-2,-2,-1,1,2};
         const int cdx[8] = {1,3,3,1,-1,-3,-3,-1}, cdy[8] = {3,1,-1,-3,-3,-1,1,3};
-        const Stockfish::PieceType promos[6] = {Stockfish::BISHOP, Stockfish::ROOK,
-            Stockfish::CENTAUR, Stockfish::KNIGHT, Stockfish::CUSTOM_PIECE_1, Stockfish::CUSTOM_PIECE_2};
+        // The nine promotion pieces, written out here (not taken from the encoder): Knight, Bishop+Wazir (b), Rook,
+        // Queen, Centaur (m), wildebeest (v), Alibaba (y), Cannon (c), Grasshopper (g).
+        const Stockfish::PieceType promos[9] = {Stockfish::KNIGHT, Stockfish::CUSTOM_PIECE_1, Stockfish::ROOK,
+            Stockfish::QUEEN, Stockfish::CUSTOM_PIECE_2, Stockfish::CUSTOM_PIECE_3, Stockfish::CUSTOM_PIECE_4,
+            Stockfish::CUSTOM_PIECE_6, Stockfish::CUSTOM_PIECE_7};
         for (int r = 0; r < 10; ++r) for (int f = 0; f < 10; ++f) {
             for (int d = 0; d < 8; ++d) for (int dist = 1; dist <= 9; ++dist) {
                 int tr = r + sdy[d] * dist, tf = f + sdx[d] * dist;
@@ -148,7 +151,7 @@ void run_nn_tests() {
             }
             for (int k = 0; k < 8; ++k) { int tr = r + ndy[k], tf = f + ndx[k]; if (inb(tr, tf)) check(Stockfish::make_move(make_sq(r, f), make_sq(tr, tf))); }
             for (int k = 0; k < 8; ++k) { int tr = r + cdy[k], tf = f + cdx[k]; if (inb(tr, tf)) check(Stockfish::make_move(make_sq(r, f), make_sq(tr, tf))); }
-            for (int pi = 0; pi < 6; ++pi) for (int dir = -1; dir <= 1; ++dir) {
+            for (int pi = 0; pi < 9; ++pi) for (int dir = -1; dir <= 1; ++dir) {
                 int tr = r + 1, tf = f + dir;
                 if (inb(tr, tf)) check(Stockfish::make<Stockfish::PROMOTION>(make_sq(r, f), make_sq(tr, tf), promos[pi]));
             }
@@ -166,7 +169,7 @@ void run_nn_tests() {
         long total = 0, unmapped = 0, geo_fail = 0, inj_fail = 0;
         lczero::ChessBoard start(std::string{lczero::ChessBoard::kStartposFen});
         nn_check_moves(start, 3, total, unmapped, geo_fail, inj_fail);
-        lczero::ChessBoard promo(std::string("5k4/P9/10/10/10/10/10/10/10/5K4 w - - 8+8 0 1"));
+        lczero::ChessBoard promo(std::string("5k4/P9/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1"));
         nn_check_moves(promo, 2, total, unmapped, geo_fail, inj_fail);
         if (unmapped || geo_fail || inj_fail) {
             std::cerr << "[FAIL] Part 2: unmapped=" << unmapped << " geo_fail=" << geo_fail << " inj_fail=" << inj_fail << std::endl;
@@ -223,12 +226,12 @@ void run_encoder_tests() {
     // per-type bit-count error below.
     auto type_plane = [](Stockfish::PieceType pt) -> int {
         switch (pt) {
-            case Stockfish::PAWN: return 0;           case Stockfish::KNIGHT: return 1;
-            case Stockfish::BISHOP: return 2;         case Stockfish::ROOK: return 3;
-            case Stockfish::QUEEN: return 4;          case Stockfish::KING: return 5;
-            case Stockfish::CENTAUR: return 6;        case Stockfish::CUSTOM_PIECE_1: return 7;
-            case Stockfish::CUSTOM_PIECE_2: return 8; case Stockfish::CUSTOM_PIECE_3: return 9;
-            case Stockfish::CUSTOM_PIECE_4: return 10; case Stockfish::CUSTOM_PIECE_5: return 11;
+            case Stockfish::PAWN: return 0;            case Stockfish::KNIGHT: return 1;
+            case Stockfish::ROOK: return 2;            case Stockfish::QUEEN: return 3;
+            case Stockfish::KING: return 4;            case Stockfish::CUSTOM_PIECE_1: return 5;   // Bishop+Wazir
+            case Stockfish::CUSTOM_PIECE_2: return 6;  case Stockfish::CUSTOM_PIECE_3: return 7;   // Centaur, wildebeest
+            case Stockfish::CUSTOM_PIECE_4: return 8;  case Stockfish::CUSTOM_PIECE_5: return 9;   // Alibaba, Sergeant
+            case Stockfish::CUSTOM_PIECE_6: return 10; case Stockfish::CUSTOM_PIECE_7: return 11;  // Cannon, Grasshopper
             default: return -1;
         }
     };
@@ -239,10 +242,10 @@ void run_encoder_tests() {
     std::vector<Case> cases = {
         {startw, "startpos (White to move)"},
         {startb, "startpos board, Black to move (flip + us/them swap)"},
-        {"4k5/10/10/10/10/10/10/10/10/5K4 w - - 8+8 0 1", "two kings (White)"},
+        {"4k5/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1", "two kings (White)"},
         {"4k5/10/10/10/10/10/10/10/10/5K4 b - - 3+5 0 1", "two kings (Black, flip)"},
         {"1r7k/10/10/10/10/10/10/10/1r8/K9 w - - 6+8 0 1", "rooks vs lone king (asym)"},
-        {"5k4/10/10/10/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM w - - 8+8 0 1", "many White minors+pawns"},
+        {"5k4/10/10/10/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM w - - 7+7 0 1", "many White minors+pawns"},
     };
 
     int fail = 0;
@@ -304,8 +307,8 @@ void run_encoder_tests() {
             if (popc(planes[lczero::kPieceKinds + t].mask ^ exp_type_them[t]) != 0) { std::cerr << "  [FAIL] " << c.name << ": them type-plane " << (lczero::kPieceKinds + t) << " mismatch\n"; ++errs; }
         }
         // (5) king invariant: exactly one king per side present on the board.
-        if (popc(exp_type_us[5]) == 1 && popc(planes[5].mask) != 1)   { std::cerr << "  [FAIL] " << c.name << ": us-king plane != 1 bit\n"; ++errs; }
-        if (popc(exp_type_them[5]) == 1 && popc(planes[lczero::kPieceKinds + 5].mask) != 1){ std::cerr << "  [FAIL] " << c.name << ": them-king plane != 1 bit\n"; ++errs; }
+        if (popc(exp_type_us[4]) == 1 && popc(planes[4].mask) != 1)   { std::cerr << "  [FAIL] " << c.name << ": us-king plane != 1 bit\n"; ++errs; }
+        if (popc(exp_type_them[4]) == 1 && popc(planes[lczero::kPieceKinds + 4].mask) != 1){ std::cerr << "  [FAIL] " << c.name << ": them-king plane != 1 bit\n"; ++errs; }
 
         // --- Aux planes vs board ground truth (unpack to float, check cells) ---
         constexpr int PS = 100;
@@ -341,8 +344,8 @@ void run_encoder_tests() {
                                         lczero::FillEmptyHistory::NO, &out, &tr);
         };
         lczero::InputPlanes a, b;
-        enc("4k5/10/10/10/10/10/10/10/10/5K4 w - - 8+8 0 1", a);   // white king f1
-        enc("4k5/10/10/10/10/10/10/10/10/6K3 w - - 8+8 0 1", b);   // white king g1
+        enc("4k5/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1", a);   // white king f1
+        enc("4k5/10/10/10/10/10/10/10/10/6K3 w - - 7+7 0 1", b);   // white king g1
         int diff = 0;
         for (size_t p = 0; p < a.size(); ++p) if (Stockfish::popcount(a[p].mask ^ b[p].mask)) ++diff;
         if (diff == 0) { std::cerr << "  [FAIL] injectivity: distinct positions encoded identically!\n"; ++fail; }

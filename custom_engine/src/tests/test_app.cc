@@ -195,42 +195,39 @@ void TestSearchOpts() {
 
 void TestStartFen() {
     std::cout << "--- 3. CheckStartFen ---" << std::endl;
+    const std::string board = "k9/10/10/10/10/10/10/10/10/K9";   // two royals, nothing else
     for (const char* ok : {lczero::ChessBoard::kStartposFen,
-                           "1r3k2r1/2p4p2/10/4n5/10/10/5B4/10/2P4P2/1R3K2R1 w BIbi - 8+8 0 1",
-                           "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 8+8 0 1",
-                           "k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 8+8 0 1",
+                           "4k5/3s1s4/10/2P1S1P3/10/10/10/10/10/4K5 b - - 7+7 0 1",
+                           "k9/10/10/3pP5/10/10/10/10/10/K9 w - d8 7+7 0 1",
                            "n3k5/10/10/10/10/10/10/10/10/4K4N w - - 3+5 30 20",
-                           // KQkq means the same rooks as BIbi in the start position.
-                           "vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w KQkq - 8+8 0 1",
-                           // Shuffled rooks, written with their files: unambiguous.
-                           "4k5/10/10/10/10/10/10/10/10/R4K3R w J - 8+8 0 1",
-                           "4k5/10/10/10/10/10/10/10/10/R4K3R w AJ - 8+8 0 1"}) {
+                           // Every piece of the game, both sides.
+                           "k9/1b1m1y1v2/10/10/10/10/10/10/1B1M1Y1V2/K9 w - - 7+7 0 1",
+                           "k9/10/2p1p5/10/3C2g3/10/4P1P3/10/10/K9 w - - 7+7 0 1"}) {
         const std::string why = CheckStartFen(ok);
         EXPECT(why.empty(), "valid FEN rejected (" << why << "): " << ok);
     }
-    struct Bad { const char* fen; const char* what; };
+    struct Bad { std::string fen; const char* what; };
     for (const Bad& bad : {
-             Bad{"vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 0 1",
-                 "no checks field (read as 1+1)"},
-             Bad{"vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi -",
-                 "only 4 fields"},
-             Bad{"4k5/10/10/10/10/10/10/10/10/4K5 w - - 0+8 0 1", "0 checks left"},
-             Bad{"4k5/10/10/10/10/10/10/10/10/4K5 w - - 10+10 0 1", "two-digit checks"},
-             Bad{"4k5/10/10/10/10/10/10/10/4K5 w - - 8+8 0 1", "9 ranks"},
-             Bad{"4k6/10/10/10/10/10/10/10/10/4K5 w - - 8+8 0 1", "11 squares in a rank"},
-             Bad{"4k5/10/10/10/10/10/10/10/10/4K4 w - - 8+8 0 1", "9 squares in a rank"},
-             Bad{"4k5/10/10/10/10/10/10/10/10/4X5 w - - 8+8 0 1", "unknown piece letter"},
-             Bad{"4k5/10/10/10/10/10/10/10/10/10 w - - 8+8 0 1", "no white royal"},
-             Bad{"4k5/10/10/10/10/10/10/10/10/3KK5 w - - 8+8 0 1", "two white royals"},
-             Bad{"4k5/10/10/10/10/10/10/10/10/4K5 w BIbi - 8+8 0 1", "castling rights without rooks"},
-             Bad{"4k5/10/10/10/10/10/10/10/5K4/8R1 w I - 8+8 0 1", "castling rook on another rank than the royal piece"},
-             // Rooks on a1/j1: Fairy-Stockfish reads a lone "K" as the first rook
-             // from the i-file towards a -- the a1 rook, i.e. a QUEEN-side right.
-             Bad{"4k5/10/10/10/10/10/10/10/10/R4K3R w K - 8+8 0 1", "'K' turned into a queen-side right"},
-             Bad{"vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BBbi - 8+8 0 1",
-                 "a castling letter written twice"},
-             Bad{"k9/10/10/10/10/R9/10/10/10/K9 w - - 8+8 0 1", "side not to move in check"},
-             Bad{"4k5/10/10/10/10/10/10/10/10/4K5 x - - 8+8 0 1", "side to move x"},
+             Bad{board + " w - - 0 1", "no checks field (read as 1+1)"},
+             Bad{board + " w -", "only 4 fields"},
+             Bad{board + " w - - 0+7 0 1", "0 checks left"},
+             Bad{board + " w - - 10+10 0 1", "two-digit checks"},
+             Bad{"k9/10/10/10/10/10/10/10/K9 w - - 7+7 0 1", "9 ranks"},
+             Bad{"k10/10/10/10/10/10/10/10/10/K9 w - - 7+7 0 1", "11 squares in a rank"},
+             Bad{"k9/10/10/10/10/10/10/10/10/K8 w - - 7+7 0 1", "9 squares in a rank"},
+             Bad{"k9/10/10/10/10/10/10/10/10/4X5 w - - 7+7 0 1", "unknown piece letter"},
+             // The pieces that left the game.
+             Bad{"k9/10/10/10/10/10/10/10/10/K3E5 w - - 7+7 0 1", "Chancellor (e) no longer exists"},
+             Bad{"k9/10/10/10/10/10/10/10/10/K3H5 w - - 7+7 0 1", "Archbishop (h) no longer exists"},
+             Bad{"k9/10/10/10/10/10/10/10/10/K3A5 w - - 7+7 0 1", "Amazon (a) no longer exists"},
+             Bad{"k9/10/10/10/10/10/10/10/10/10 w - - 7+7 0 1", "no white royal"},
+             Bad{"k9/10/10/10/10/10/10/10/10/3KK5 w - - 7+7 0 1", "two white royals"},
+             // No castling in this game, whatever the letter.
+             Bad{board + " w KQkq - 7+7 0 1", "castling letters K Q k q"},
+             Bad{board + " w BIbi - 7+7 0 1", "castling rook files"},
+             Bad{board + " w A - 7+7 0 1", "a castling letter without a rook"},
+             Bad{"k9/10/10/10/10/R9/10/10/10/K9 w - - 7+7 0 1", "side not to move in check"},
+             Bad{board + " x - - 7+7 0 1", "side to move x"},
          }) {
         const std::string why = CheckStartFen(bad.fen);
         EXPECT(!why.empty(), bad.what << ": accepted " << bad.fen);
