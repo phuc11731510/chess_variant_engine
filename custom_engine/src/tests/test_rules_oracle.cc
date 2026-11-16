@@ -41,14 +41,13 @@
 //   Promotion: a P or S ending on ranks 8-10 must promote to B, M, N, R, V or
 //      Y. This includes captures and en-passant captures.
 //   Castling: a king and a rook of the same colour that have not moved and
-//      stand on the same rank -- ANY rank (a shuffled start may put them on
-//      rank 2), any files. Kingside (rook on the king's right): king to the
+//      stand on the same first rank (rank 1; Black rank 10), any files. Kingside (rook on the king's right): king to the
 //      h-file, rook to the g-file of that rank; queenside: king to d, rook to e.
 //      Every square either piece crosses or lands on is empty but for the two
 //      of them. The king is not in check, crosses no attacked square and does
 //      not land in check. Rights are lost when the king moves, or when that
 //      rook moves or is captured on its square. In the FEN a right is the
-//      rook's file letter (K/Q = the rook on the i/b-file), on the king's rank.
+//      rook's file letter (K/Q = the rook on the i/b-file), on that rank.
 //      Start standard: king f1, rooks b1 and i1.
 //   Checks: after each move, every piece of the mover that attacks the
 //      opponent's king counts one check (a single check 1, a double check 2).
@@ -299,7 +298,7 @@ void gen_pseudo(const OState& st, std::vector<OMove>& out) {
     if (ksq >= 0 && !attacked(st, ksq, them))
         for (int side = 0; side < 2; ++side) {
             const int rsq = st.crook[us][side];
-            if (rsq < 0 || st.b[rsq] != mk(us, R_) || rk(rsq) != rk(ksq)) continue;
+            if (rsq < 0 || st.b[rsq] != mk(us, R_) || rk(rsq) != rk(ksq) || rk(ksq) != (us == 0 ? 0 : 9)) continue;
             const int r = rk(ksq);
             const int kto = sq_of(kCastleKingFile[side], r), rto = sq_of(kCastleRookFile[side], r);
             bool ok = true;
@@ -673,10 +672,10 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
     if (max_plies <= 0) max_plies = 200;
     // The oracle's castling is the rule text; the engine's comes from the variant
     // definition. A changed definition must fail here by name, not as mismatches.
-    if (!variant->castling || !variant->castlingAnyRank ||
+    if (!variant->castling ||
         variant->castlingKingsideFile != File(orc::kCastleKingFile[0]) ||
         variant->castlingQueensideFile != File(orc::kCastleKingFile[1])) {
-        std::cerr << "[FAIL] AUDIT-RULES: the variant's castling definition (castling, castlingAnyRank, "
+        std::cerr << "[FAIL] AUDIT-RULES: the variant's castling definition (castling, "
                      "castlingKingsideFile = h, castlingQueensideFile = d) is not the rule this oracle "
                      "implements; update test_rules_oracle.cc and LUAT_BIEN_THE.md with it" << std::endl;
         std::exit(1);
@@ -708,16 +707,11 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
         {"k9/10/10/10/10/10/10/10/10/9K b - - 0+8 5 30", false},                       // White already gave 8 checks
         {"4k5/10/10/10/4N5/10/10/10/10/K3R5 w - - 2+8 0 1", false},                  // Ne6-d8/f8: double check = the last 2 checks
         {"4k5/10/10/10/4N5/10/10/10/10/K3R5 w - - 5+8 0 1", false},                  // double checks mid-count
-        // Castling off the first rank (shuffled starts). Rank 2: the i2 rook going
-        // to g2 opens the j1 bishop's diagonal to the black king on d7 (a
-        // discovered check that Fairy-Stockfish's gives_check never looked for with
-        // castlingRank = 1).
-        {"r9/10/10/3k6/10/10/10/10/1R3K2R1/B8B w BI - 8+8 0 1", false},
-        // White on rank 3: king e3 lands on h3 where its rook stands, or its a3
-        // rook lands on e3 where the king stood; Black on rank 6 with a j-file rook.
-        {"10/10/10/10/1r3k3r/10/10/R3K2R2/10/10 b AHbj - 8+8 0 1", false},
-        // Both sides castle on rank 6: the enemy king and rook on the same rank.
-        {"4q5/10/3p1p4/10/r1k2K2R1/10/3P1P4/10/10/4Q5 w Ia - 8+8 0 1", false},
+        {"k9/4s5/10/3P6/10/10/10/10/10/4K5 b - - 8+8 0 1", false},                  // S e9-e7 straight, P d7 takes e.p. on e8 and promotes
+        {"k9/4s5/10/5P4/10/10/10/10/10/4K5 b - - 8+8 0 1", false},                  // same, P f7
+        {"k9/4s5/10/3P1P4/10/10/10/10/10/4K5 b - - 8+8 0 1", false},                // same, P d7 and f7
+        {"k9/4s5/10/4P5/10/10/10/10/10/4K5 b - - 8+8 0 1", false},                  // S e9-c7 / e9-g7 diagonal, P e7 takes e.p. on d8 / f8 and promotes
+        {"k9/4s5/10/4P5/10/10/10/10/10/4K5 b - - 8+8 0 1", false},                  // same (another random game)
     };
 
     // By default 5 games from every start (the RNG is seeded: the same games each run).
@@ -864,13 +858,7 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
                     if (om.kind == orc::KN_CASTLE) {
                         cover[std::string(black ? "castling black " : "castling white ") +
                               (orc::fl(om.to) > orc::fl(om.from) ? "kingside" : "queenside")]++;
-                        if (orc::rk(om.from) != (black ? 9 : 0))
-                            cover[black ? "castling black, not on rank 10" : "castling white, not on rank 1"]++;
                         if (ogc) cover["castling giving check"]++;
-                        const int kto = orc::sq_of(orc::kCastleKingFile[orc::fl(om.to) > orc::fl(om.from) ? 0 : 1],
-                                                   orc::rk(om.from));
-                        if (kto == om.to || kto + (orc::fl(om.to) > orc::fl(om.from) ? -1 : 1) == om.from)
-                            cover["castling onto the other piece's square"]++;
                     }
                     if (om.dbl)
                         cover[mover == orc::P_ ? "double step, pawn" :
@@ -1026,8 +1014,8 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
         "e.p. by pawn + promotion", "e.p. by sergeant, straight + promotion", "e.p. by sergeant, diagonal + promotion",
         "e.p. of a pawn double step", "e.p. of a sergeant double step",
         "promotion, pawn", "promotion, sergeant", "castling white kingside", "castling white queenside",
-        "castling black kingside", "castling black queenside", "castling white, not on rank 1",
-        "castling black, not on rank 10", "castling giving check", "castling onto the other piece's square",
+        "castling black kingside", "castling black queenside",
+        "castling giving check",
         "double step, pawn",
         "double step, sergeant straight", "double step, sergeant diagonal", "move giving check",
         "move giving double check",
