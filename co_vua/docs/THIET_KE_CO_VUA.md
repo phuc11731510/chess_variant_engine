@@ -731,6 +731,8 @@ Chỉ đổi cách bốc mẫu đã lấp khoảng một nửa khoảng cách AU
 
 **Arena đời 10 lần chạy 5, luật cũ (15/11, arena phụ).** Temperature 1 trong 30 nửa nước đầu: tt thắng 438, hoà 56, thua 640 trên 1134 ván, 41,1% cho tt (95%: 38 đến 44%), tức cây 58,9%, khoảng 63 Elo nghiêng về cây. Lần đầu cây thắng rõ; cùng luật này lần chạy 4 đời 10 là 71,8% cho tt. Arena chính thức (8 nửa nước) chưa chạy vì vòng lặp được dừng mềm trong lúc arena phụ.
 
+**Arena đời 20 lần chạy 5, luật chính thức (17/11).** Temperature 1 trong 8 nửa nước đầu, 400 lượt thăm, ba máy. tt thắng 205, hoà 38, thua 785 trên 1028 ván, tức 21,8% cho tt (95%: 19 đến 24%), cây 78,2%, khoảng 222 Elo nghiêng về cây. Cách truyền thống đã chạy tiếp từ đời 10 với cùng ngân sách mỗi đời. Chủ dự án hài lòng và dừng vòng lặp sau arena này (18/11); arena đời 30 chưa chạy.
+
 **Mục tiêu mới (15/11, chủ dự án).** Đời 10 coi như thành công. Mục tiêu tiếp theo, khó hơn: cách cây phải thắng ở mọi arena đời 10, 20, 30, ..., 100. Luật arena linh hoạt, miễn hai bên cùng một luật. Muốn vậy cách truyền thống phải chạy tiếp từ đời 10 (đã đứng yên từ lần chạy 1).
 
 **Thước đo công bằng (14/11).** Thước đo chính thức duy nhất vẫn là số lần chạy mạng khi sinh ván (15.3). Thời gian thật không dùng vì lẫn thời gian chết của script. Kiểm một lần các khoản phụ: cây học thêm khoảng 56 giây T4 mỗi đời (khoảng 0,4% ngân sách), gộp cây khoảng 8 phút CPU điện thoại mỗi đời (quy theo giá CPU so với GPU chỉ cỡ 0,3%); tổng dưới khoảng 1%, quá nhỏ so với ngưỡng 55% (khoảng 35 Elo).
