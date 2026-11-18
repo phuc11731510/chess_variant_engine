@@ -1162,6 +1162,16 @@ trong đó $\pi$ là phân bố chọn nước của mạng hiện tại (policy
 
 Ngân sách mỗi đời đang chia theo luật cố định: ván rẽ ở các điểm rẽ (6.3), search lại tối đa 20% (9.2), mỗi phần một công thức ưu tiên riêng. Đề xuất: mọi việc (rẽ mới ở một node, search lại một node) vào chung một hàng, chấm bằng **lượng học được trên mỗi lần chạy mạng**, ví dụ độ bất định của nhãn ($E$, mục 4) hoặc độ lệch giữa prior và kết quả search, nhân với trọng số học của node (16.1), chia cho chi phí. Rẽ ở chỗ mạng phân vân vẫn là trường hợp riêng (phân vân = bất định cao), nhưng tỉ lệ giữa rẽ và search lại không còn là con số đặt tay. Hướng này lớn hơn 16.1 và nên làm sau.
 
+### 16.3 Khung chặt chẽ cho nhãn value và nhãn policy (18/11)
+
+Chi tiết ở `SUY_RA_CONG_THUC.md` mục 11, chưa thử.
+
+- **Định nghĩa.** Giá trị thật là $V^\mu$ của một chính sách $\mu$ xác định ở mọi thế cờ. Trong cây, $\mu$ là $\pi$ đã lưu (có thể kèm temperature). Ngoài cây, $\mu$ là search của mạng đời hiện tại.
+- **Nhãn value.** Nhãn là phép tree backup: trộn theo đúng $\mu$, nước đã chơi dùng cây, nước chưa chơi dùng $\hat Q$. Sai số của nhãn bằng đúng tổng có trọng số các sai số của $\hat Q$ ở các lối ra của cây. Vì vậy nó bị chặn bởi $\varepsilon P_{\text{ra}}$ mà không cần G1, G2.
+- **Nhãn policy.** Nhãn nghiêng $\mu$ theo một hàm tăng của giá trị, như Gumbel AlphaZero. Tại mỗi node, nó chắc chắn tốt hơn $\mu$, trừ đi một phần sai số tính được. Qua bổ đề hiệu hiệu năng, nó đạt ít nhất 50% trước $\mu$ khi phần bảo đảm ở mọi node không âm.
+- **Hai chỗ chỉ kiểm định được.** Một là $\varepsilon$, đo bằng các ván chơi thêm từ lối ra. Hai là việc mạng có học được nhãn hay không, đo bằng arena.
+- **Rủi ro.** Với $\mu$ ở temperature 1, ở xa cuối ván nhãn value gần như toàn là $\hat Q$. Vì vậy phải đo $P_{\text{ra}}$ trên cây thật trước khi chọn temperature.
+
 ---
 
 ## Phụ lục A: Bảng ký hiệu
