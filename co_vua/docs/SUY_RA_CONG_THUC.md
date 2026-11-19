@@ -28,6 +28,8 @@ Mỗi công thức có thể dựa vào một trong ba loại điều kiện. C�
 - **Loại T: giả định trên đại lượng tính được.** Đại lượng tính được là thứ mã đọc hoặc tính ra được: số lượt thăm, $\pi$, $Q$, kết quả ván $z$, số ván $m$. Sự ngẫu nhiên do chính mình tạo cũng thuộc loại này: nhiễu Dirichlet, bước quét, khoá rẽ nhánh, bốc mẫu. Giả định loại này kiểm được bằng dữ liệu.
 - **Loại K: mô hình lý tưởng đặt lên đại lượng không tính được.** Đại lượng không tính được chủ yếu là giá trị thật $V$ của một thế cờ. Giả định loại này là cho $V$, hay sai số so với $V$, tuân theo một mô hình như "ngẫu nhiên, độc lập, trung bình 0, phương sai cho trước".
 
+Ngoài ba loại trên còn **K kế thừa**: một câu tự nó không đặt mô hình lên $V$ và về nguyên tắc kiểm được, nhưng với quy trình đang chạy thì nó chỉ đúng khi một giả định loại K đúng. Ví dụ là mảnh "trung bình 0" của G1 (mục 4.1).
+
 Chủ dự án chấp nhận loại X và T. Loại K bị coi là xa vời, nên phương pháp ở mục 12 bỏ hết loại này.
 
 ### 1.2 Bảng các công thức
@@ -35,7 +37,7 @@ Chủ dự án chấp nhận loại X và T. Loại K bị coi là xa vời, nê
 | Nhóm | Công thức hay quy tắc | Loại giả định | Mục |
 |---|---|---|---|
 | **Suy ra từ giả định** | Giá trị tổng hợp $G$, trung bình có trọng số $\rho$ của các nhánh con | Công thức tính được; lý do chọn $\rho$ là K | 3 |
-| | Độ sai $E=\sum\rho^2E+\omega^2U$ | K: G1 (sai số trung bình 0), G2 | 4 |
+| | Độ sai $E=\sum\rho^2E+\omega^2U$ | K: G2; G1 (sai số trung bình 0) là K kế thừa, chỉ đúng khi G2 đúng ở tầng dưới | 4 |
 | | Trọng số nhánh $\rho$ (bộ trọng số làm $E$ nhỏ nhất) | K, qua $E$ | 5 |
 | | Tỉ lệ trộn nhãn value $w_q=E/(E+\tau_q^2)$ | K: không lệch, $c=0$ | 6 |
 | | Phép ước $\tau_q^2$ bằng trung bình $(G-q)^2-E$ (phương pháp moment) | K: không lệch, $c=0$, $E$ đúng | 7 |
@@ -183,8 +185,24 @@ Phép suy ra dùng hai giả định.
 |---|---|---|
 | Sai số của các nhánh khác nhau độc lập với nhau | X | Sau chỗ tách, mỗi nhánh do những ván riêng chơi ra, với số ngẫu nhiên riêng |
 | $\rho$ không phụ thuộc kết quả ván | X | $\rho$ chỉ tính từ $\pi$, $Q$ và $E$, mà $E$ cũng không dùng kết quả ván |
-| Sai số $e_a$ có trung bình 0 | K | Không đúng hẳn: ở các node bên dưới, $G$ cũng gộp lệch khỏi $\pi$; ván cũ do mạng đời trước chơi |
+| Sai số $e_a$ có trung bình 0 | K kế thừa | Xem đoạn ngay dưới bảng |
 | Giá trị thật của các nước là ngẫu nhiên với phương sai $\omega^2$ (G2) | K | Giá trị thật là số cố định. G2 coi phần gộp lệch $\sum(\rho-\pi)V$, vốn là một độ lệch cố định, như nhiễu có trung bình 0 |
+
+**Vì sao mảnh "trung bình 0" của G1 là K kế thừa chứ không phải K trực tiếp.**
+
+- **Tự nó không phải mô hình.** Câu "trung bình của $G(sa)$ bằng $V(sa)$" không đặt mô hình nào lên $V$. "Trung bình" ở đây là trung bình qua nhiều lần lặp lại chính quy trình sinh ván của mình. $V(sa)$ là một con số xác định, đo được bằng cách chơi thêm nhiều ván từ $sa$. Vậy câu này về nguyên tắc kiểm được, và nó đúng hay sai tuỳ quy trình.
+- **Nhưng với quy trình đang chạy, câu này chỉ đúng khi G2 đúng ở tầng ngay dưới.** Nó còn bị phá bởi các ván do mạng đời trước chơi.
+
+Ví dụ ở node $sa$ có các con đều là node kết thúc:
+
+1. $b_1$ có $\pi=0{,}7$, đã chơi, ván hoà ($z=0$). $b_2$ có $\pi=0{,}2$, đã chơi, Trắng thắng ($z=+1$). $b_3$ có $\pi=0{,}1$, chưa chơi, và giả sử giá trị thật là $-1$.
+2. Node con kết thúc có $E=0$, nên $f=1$, và $\rho=\pi+\nu$ với $\nu=0{,}1/2=0{,}05$. Vậy $\rho$ là 0,75 và 0,25.
+3. $G(sa)=0{,}25$, trong khi $V(sa)=0{,}7\times0+0{,}2\times1+0{,}1\times(-1)=0{,}1$.
+4. Sai số là $+0{,}15$, và lần nào cây có đúng hình dạng này thì sai số cũng là $+0{,}15$.
+
+Nước chưa chơi thường là nước ít lượt thăm, tức nước kém đối với bên đang đi. Bỏ chúng ra khỏi phép gộp nên có xu hướng làm $G$ nghiêng có lợi cho bên đang đi. Đây là suy luận, chưa đo.
+
+Ở tầng thấp nhất, nếu mọi nước có $\pi>0$ đều đã chơi thì $\rho=\pi$, nên $G$ đúng bằng $V$ và mảnh này đúng.
 
 ### 4.2 Suy ra công thức
 
@@ -880,7 +898,7 @@ P3 là bước tiếp theo khi đã đo được $\varepsilon_d$. P3 chỉ đổ
 
 | Giả định hay núm | Đang chạy | Phương pháp này |
 |---|---|---|
-| G1: sai số trung bình 0 (K) | Có | Không cần |
+| G1: sai số trung bình 0 (K kế thừa từ G2) | Có | Không cần |
 | G2: giá trị thật ngẫu nhiên, phương sai $\omega^2$ (K) | Có | Không cần |
 | Độ toả của $Q$ bằng độ toả thật (K) | Có | Không cần |
 | $q$, $G$ không lệch và $c=0$ (K) | Có | Không cần |
