@@ -25,27 +25,30 @@ Viết ngày 15/11/2026, bổ sung 18/11 và 19/11. Tài liệu được đối 
 Mỗi công thức có thể dựa vào một trong ba loại điều kiện. Cách chia này do chủ dự án đặt ra ngày 19/11.
 
 - **Loại X: không có giả định.** Đây là toán thuần, ví dụ chuỗi hình học, hoặc một điều đúng theo cách chính mình xây hệ thống, ví dụ hai nhánh do hai nhóm ván khác nhau chơi ra thì độc lập.
-- **Loại T: giả định trên đại lượng tính được.** Đại lượng tính được là thứ mã đọc hoặc tính ra được: số lượt thăm, $\pi$, $Q$, kết quả ván $z$, số ván $m$. Sự ngẫu nhiên do chính mình tạo cũng thuộc loại này: nhiễu Dirichlet, bước quét, khoá rẽ nhánh, bốc mẫu. Giả định loại này kiểm được bằng dữ liệu.
-- **Loại K: mô hình lý tưởng đặt lên đại lượng không tính được.** Đại lượng không tính được chủ yếu là giá trị thật $V$ của một thế cờ. Giả định loại này là cho $V$, hay sai số so với $V$, tuân theo một mô hình như "ngẫu nhiên, độc lập, trung bình 0, phương sai cho trước".
+- **Loại T: giả định trên đại lượng tính được.** Đại lượng tính được là thứ mã đọc hoặc tính ra được: số lượt thăm, $\pi$, $Q$, $q$, $G$, kết quả ván $z$, số ván $m$.
+  - Những đại lượng này ngẫu nhiên vì chính quy trình của mình: nhiễu Dirichlet, bước quét, khoá rẽ nhánh, nước đi trong ván.
+  - Một giả định về **phân phối** của chúng thuộc loại T, kể cả khi nó so với giá trị thật $V$. Ví dụ: "trung bình của $G$ qua nhiều lần lặp quy trình bằng $V$", hay "$q$ sai không quá $\varepsilon$".
+  - $V$ là một con số xác định, đo được bằng cách chơi thêm nhiều ván. Vì vậy giả định loại T kiểm được, bằng dữ liệu có sẵn hoặc bằng thí nghiệm chơi thêm ván.
+- **Loại K: mô hình lý tưởng đặt lên chính đại lượng không tính được.** Cụ thể là coi các giá trị thật $V$, vốn là những số cố định chưa biết, như thể chúng được bốc ngẫu nhiên từ một phân phối ("ngẫu nhiên, độc lập, trung bình 0, phương sai $\omega^2$"). Loại này không kiểm được, vì mỗi thế cờ chỉ có đúng một giá trị thật, không có lần lặp nào để so.
 
-Ngoài ba loại trên còn **K kế thừa**: một câu tự nó không đặt mô hình lên $V$ và về nguyên tắc kiểm được, nhưng với quy trình đang chạy thì nó chỉ đúng khi một giả định loại K đúng. Ví dụ là mảnh "trung bình 0" của G1 (mục 4.1).
+Chủ dự án chấp nhận loại X và T. Loại K bị coi là xa vời, nên phương pháp ở mục 12 bỏ nó.
 
-Chủ dự án chấp nhận loại X và T. Loại K bị coi là xa vời, nên phương pháp ở mục 12 bỏ hết loại này.
+Chấp nhận được không có nghĩa là đúng. Một giả định loại T vẫn có thể sai. Lợi thế của nó là cái sai đó tìm ra được, bằng phân tích quy trình hoặc bằng đo. Trong phương pháp đang chạy, **chỉ G2 là loại K**. Một số giả định loại T thì đã biết là sai, hoặc chưa được kiểm (bảng 1.2).
 
 ### 1.2 Bảng các công thức
 
 | Nhóm | Công thức hay quy tắc | Loại giả định | Mục |
 |---|---|---|---|
 | **Suy ra từ giả định** | Giá trị tổng hợp $G$, trung bình có trọng số $\rho$ của các nhánh con | Công thức tính được; lý do chọn $\rho$ là K | 3 |
-| | Độ sai $E=\sum\rho^2E+\omega^2U$ | K: G2; G1 (sai số trung bình 0) là K kế thừa, chỉ đúng khi G2 đúng ở tầng dưới | 4 |
+| | Độ sai $E=\sum\rho^2E+\omega^2U$ | K: G2. T: G1, phần "$G$ không lệch", **đã biết là sai** (mục 4.1) | 4 |
 | | Trọng số nhánh $\rho$ (bộ trọng số làm $E$ nhỏ nhất) | K, qua $E$ | 5 |
-| | Tỉ lệ trộn nhãn value $w_q=E/(E+\tau_q^2)$ | K: không lệch, $c=0$ | 6 |
-| | Phép ước $\tau_q^2$ bằng trung bình $(G-q)^2-E$ (phương pháp moment) | K: không lệch, $c=0$, $E$ đúng | 7 |
+| | Tỉ lệ trộn nhãn value $w_q=E/(E+\tau_q^2)$ | T: $q$ và $G$ không lệch ($G$ không lệch đã sai), $c=0$ (đáng ngờ). Dùng $E$, nên kéo theo G2 | 6 |
+| | Phép ước $\tau_q^2$ bằng trung bình $(G-q)^2-E$ (phương pháp moment) | T: như dòng trên, cộng "$E$ đúng" (sai ở xa cuối ván) | 7 |
 | | Hệ số làm cũ $\gamma=1-1/W$ | X | 8.1 |
 | | Khoá $-\ln(u)/w$ cho phép bốc không lặp tỉ lệ với $w$ | X | 8.4 |
 | | Phần $1/(k+1)$ trong ưu tiên search lại | X | 8.5 |
-| **Ước lượng từ dữ liệu** | Độ toả $\omega^2(s)$ từ $Q$ của search | K: coi độ toả của $Q$ bằng độ toả của giá trị thật | 4.3 |
-| | $\tau_q^2$ của từng khoảng cách tới cuối ván | K: mọi node trong một khoảng có cùng sai số của mạng | 7 |
+| **Ước lượng từ dữ liệu** | Độ toả $\omega^2(s)$ từ $Q$ của search | T: độ toả của $Q$ ước được độ toả của giá trị thật; **đã biết là ước cao** | 4.3 |
+| | $\tau_q^2$ của từng khoảng cách tới cuối ván | T: mọi node trong một khoảng có cùng sai số của mạng (chưa kiểm) | 7 |
 | | Bảng $\hat\Delta$ (nhãn policy lệch bao nhiêu theo tuổi và số lần search) | T: độ chênh đã đo dự báo được độ chênh lần sau | 8.5 |
 | **Đặt tay hoặc chọn qua thử** | Temperature quét $T=0{,}5$ | Lựa chọn | 8.3 |
 | | Số mũ khoá điểm rẽ $m^2$ (chọn qua mô phỏng) | Lựa chọn | 8.4 |
@@ -59,7 +62,7 @@ Chủ dự án chấp nhận loại X và T. Loại K bị coi là xa vời, nê
 
 Mã còn vài chặn số rất nhỏ, ví dụ $10^{-12}$ ở mẫu số và $10^{-6}$ cho $\omega^2$. Chúng chỉ để tránh chia cho 0 và không ảnh hưởng tới kết quả.
 
-"Suy ra" nghĩa là công thức đúng **nếu** các giả định đúng. Hai chỗ đã bị số đo thật làm lung lay, cả hai đều là loại K:
+"Suy ra" nghĩa là công thức đúng **nếu** các giả định đúng. Hai chỗ đã bị số đo thật làm lung lay. Cả hai là giả định loại T, và đều đã thấy là sai:
 
 - **$\omega^2(s)$ được coi là đo đúng độ toả của giá trị thật.** Thực tế nó bị ước cao vì $Q$ có nhiễu, nên $E$ ở xa cuối ván bị ước cao (mục 4.4).
 - **Sai số của $q$ được coi là độc lập với sai số của $G$.** Thực tế mạng được học từ chính các nhãn chứa $G$, nên hai sai số có thể cùng chiều (mục 7.2).
@@ -164,7 +167,7 @@ Trong mã, $G$ không phải một số mà là bộ ba xác suất (thắng, ho
 2. **Node gốc cắt** (mục 8.2): giữ nguyên $G$ và $E$ đã tính lúc bị cắt, không tính lại.
 3. **Các node còn lại:** đi từ độ sâu lớn nhất lên gốc. Ở mỗi độ sâu, mọi node sống, chưa kết thúc và có con đã chơi được tính cùng lúc: $G$ là tổng $\rho\times G(\text{con})$, tính cho từng thành phần thắng, hoà, thua.
 
-**Loại giả định.** Bản thân công thức $G$ chỉ dùng số tính được. Giả định nằm ở câu "$G$ ước lượng tốt $V$ với $\rho$ này". Câu đó dựa vào mục 4 và 5, tức loại K.
+**Loại giả định.** Bản thân công thức $G$ chỉ dùng số tính được. Giả định nằm ở câu "$G$ ước lượng tốt $V$ với $\rho$ này". Câu đó dựa vào mục 4 và 5: G1 là loại T, đã biết là sai; G2 là loại K.
 
 ---
 
@@ -185,13 +188,14 @@ Phép suy ra dùng hai giả định.
 |---|---|---|
 | Sai số của các nhánh khác nhau độc lập với nhau | X | Sau chỗ tách, mỗi nhánh do những ván riêng chơi ra, với số ngẫu nhiên riêng |
 | $\rho$ không phụ thuộc kết quả ván | X | $\rho$ chỉ tính từ $\pi$, $Q$ và $E$, mà $E$ cũng không dùng kết quả ván |
-| Sai số $e_a$ có trung bình 0 | K kế thừa | Xem đoạn ngay dưới bảng |
+| $G(sa)$ không lệch: trung bình qua nhiều lần lặp quy trình bằng $V(sa)$ | T, **sai** với quy trình hiện tại | Xem đoạn ngay dưới bảng |
+| Phương sai của $G(sa)$ bằng $E(sa)$ | Định nghĩa | $E$ được định nghĩa là sai số bình phương trung bình. Công thức để tính $E$ thì dựa vào G2 |
 | Giá trị thật của các nước là ngẫu nhiên với phương sai $\omega^2$ (G2) | K | Giá trị thật là số cố định. G2 coi phần gộp lệch $\sum(\rho-\pi)V$, vốn là một độ lệch cố định, như nhiễu có trung bình 0 |
 
-**Vì sao mảnh "trung bình 0" của G1 là K kế thừa chứ không phải K trực tiếp.**
+**Vì sao mảnh "không lệch" của G1 là loại T, và vì sao nó sai.**
 
-- **Tự nó không phải mô hình.** Câu "trung bình của $G(sa)$ bằng $V(sa)$" không đặt mô hình nào lên $V$. "Trung bình" ở đây là trung bình qua nhiều lần lặp lại chính quy trình sinh ván của mình. $V(sa)$ là một con số xác định, đo được bằng cách chơi thêm nhiều ván từ $sa$. Vậy câu này về nguyên tắc kiểm được, và nó đúng hay sai tuỳ quy trình.
-- **Nhưng với quy trình đang chạy, câu này chỉ đúng khi G2 đúng ở tầng ngay dưới.** Nó còn bị phá bởi các ván do mạng đời trước chơi.
+- **Nó đặt lên đại lượng tính được.** Câu này nói về phân phối của $G(sa)$, một đại lượng mã tính ra. Sự ngẫu nhiên của $G(sa)$ đến từ chính quy trình sinh ván. $V(sa)$ chỉ là con số mà trung bình được so với, và con số đó đo được bằng cách chơi thêm nhiều ván từ $sa$. Vậy câu này kiểm được.
+- **Nhưng với quy trình đang chạy, nó sai.** Phân tích quy trình là đủ để thấy điều này, không cần đo, như ví dụ dưới đây. Nó còn bị phá bởi các ván do mạng đời trước chơi. G2 là thứ che chỗ sai đó: G2 coi độ lệch cố định như nhiễu có trung bình 0.
 
 Ví dụ ở node $sa$ có các con đều là node kết thúc:
 
@@ -259,7 +263,7 @@ Nước $a_3$ chỉ có 5% lượt thăm nhưng đóng góp hơn một nửa $\o
 - $Q$ là giá trị theo góc bên đang đi, và $\pi$ tính trên mọi nước có trong pool của node. Nước có 0 lượt thăm có $\pi=0$, nên không góp gì.
 - Kết quả bị chặn dưới ở $10^{-6}$, để $f=\omega^2/(\omega^2+E)$ ở mục 5 không bằng 0 khi mọi $Q$ bằng nhau.
 
-**Loại giả định: K.** Câu "độ toả của $Q$ bằng độ toả của giá trị thật" nói về giá trị thật, mà giá trị thật không tính được.
+**Loại giả định: T, và đã biết là sai theo hướng ước cao.** Câu "độ toả của các $Q$ ước được độ toả của các giá trị thật" nói về $Q$, một đại lượng tính được. Nó kiểm được bằng cách chơi thêm ván từ các node con. Mục 4.4 cho thấy nó ước cao.
 
 ### 4.4 Chỗ giả định bị lung lay: $\omega^2$ ước cao, nên $E$ ước cao ở xa cuối ván
 
@@ -351,7 +355,12 @@ Cùng node nhưng giả sử dùng $\tau_q^2=0{,}01$ (giá trị sàn ở mục 
 4. **Nhãn value** là $w_q\times(\text{bộ ba của }q)+(1-w_q)\times(\text{bộ ba của }G)$.
 5. **Node được học** là node đang sống, đã được search, chưa kết thúc ván, và còn mặt phẳng đầu vào.
 
-**Loại giả định: K.** Phép gộp theo nghịch đảo phương sai cần hai điều về sai số so với giá trị thật: $q$ và $G$ không lệch, và sai số của chúng độc lập ($c=0$).
+**Loại giả định: T.** Phép gộp theo nghịch đảo phương sai cần hai điều về $q$ và $G$, cả hai đều tính được:
+
+- $q$ và $G$ không lệch. Riêng "$G$ không lệch" đã biết là sai (mục 4.1).
+- Sai số của $q$ và của $G$ độc lập ($c=0$). Điều này đáng ngờ (mục 7.2).
+
+Ngoài ra $w_q$ dùng $E$, mà công thức của $E$ dựa vào G2 (loại K).
 
 ---
 
@@ -380,7 +389,12 @@ Vậy đây là độ dài của đường đi theo nước được search ưa 
 4. Khoảng có ít nhất 1000 node thì $\tau_q^2$ là trung bình của các số ở bước 2, chặn dưới ở 0,01. Khoảng ít node hơn thì dùng $\tau_q^2$ của khoảng ngay trước nó, tức khoảng gần cuối ván hơn.
 5. $w_q$ của mỗi node dùng $\tau_q^2$ của khoảng chứa node đó.
 
-**Loại giả định: K.** Phép ước cần ba điều: $q$ và $G$ không lệch; $c=0$; $E$ do mã tính là đúng. Ngoài ra, dùng một $\tau_q^2$ cho cả khoảng nghĩa là coi mạng sai như nhau ở mọi node trong khoảng.
+**Loại giả định: T.** Phép ước cần bốn điều:
+
+- $q$ và $G$ không lệch.
+- $c=0$.
+- $E$ do mã tính là đúng. Điều này sai ở xa cuối ván, và công thức của $E$ dựa vào G2.
+- Mạng sai như nhau ở mọi node trong cùng một khoảng, vì cả khoảng dùng chung một $\tau_q^2$. Điều này chưa kiểm.
 
 **Ví dụ với ba node trong cùng một khoảng** (số giả định để thấy phép tính):
 
@@ -741,7 +755,7 @@ với $g=0$ ở các thế cờ ngoài cây (ở đó đặt $\pi'=\mu$). Nếu 
 
 Mục này mô tả một phương pháp thay cho các mục 3 đến 7, theo tiêu chí ở mục 1.1:
 
-- Mọi công thức chỉ dùng đại lượng tính được, tức không có giả định loại K.
+- Mọi công thức chỉ dùng đại lượng tính được. Không có giả định loại K, tức bỏ G2. Cũng không dựa vào những giả định loại T đã biết là sai ("$G$ không lệch", "$E$ đúng") hay chưa kiểm ($c=0$, mạng sai như nhau trong mỗi khoảng).
 - Giá trị thật chỉ xuất hiện khi hỏi nhãn sai bao nhiêu. Câu hỏi đó được trả lời bằng một con số đo bằng thí nghiệm, với sự ngẫu nhiên do chính mình tạo.
 
 Nền toán (định nghĩa, chứng minh) ở mục 11. Mục này là bản làm theo được: tính gì, theo thứ tự nào, đo gì, sửa mã ở đâu, thử ra sao.
@@ -898,11 +912,12 @@ P3 là bước tiếp theo khi đã đo được $\varepsilon_d$. P3 chỉ đổ
 
 | Giả định hay núm | Đang chạy | Phương pháp này |
 |---|---|---|
-| G1: sai số trung bình 0 (K kế thừa từ G2) | Có | Không cần |
 | G2: giá trị thật ngẫu nhiên, phương sai $\omega^2$ (K) | Có | Không cần |
-| Độ toả của $Q$ bằng độ toả thật (K) | Có | Không cần |
-| $q$, $G$ không lệch và $c=0$ (K) | Có | Không cần |
-| Mạng sai như nhau trong mỗi khoảng cách (K) | Có ($\tau_q^2$) | Không cần ($\varepsilon_d$ đo trên mẫu bốc ngẫu nhiên từ chính khoảng đó) |
+| G1: $G$ không lệch (T, đã biết là sai) | Có | Không cần |
+| Độ toả của $Q$ ước được độ toả thật (T, đã biết là ước cao) | Có | Không cần |
+| $q$ không lệch và $c=0$ (T, chưa kiểm hoặc đáng ngờ) | Có | Không cần |
+| Mạng sai như nhau trong mỗi khoảng cách (T, chưa kiểm) | Có ($\tau_q^2$) | Không cần ($\varepsilon_d$ đo trên mẫu bốc ngẫu nhiên từ chính khoảng đó) |
+| $\hat Q$ sai không quá $\varepsilon_d$ ở 95% lối ra (T) | Không có | Có ở bản B và P3, đo được bằng thí nghiệm (12.6) |
 | Sàn 0,01, khoảng ít node mượn khoảng bên cạnh (đặt tay) | Có | Không cần |
 | $T$ của đích học (lựa chọn đích) | Không có | Có, chọn bằng phép thử ở 12.7 |
 | Mức 95% của $\varepsilon_d$ (đặt tay) | Không có | Có, chỉ ở bản B và P3 |
