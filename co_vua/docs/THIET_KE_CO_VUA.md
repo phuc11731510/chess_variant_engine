@@ -1166,7 +1166,7 @@ Ngân sách mỗi đời đang chia theo luật cố định: ván rẽ ở các
 
 ### 16.3 Khung chặt chẽ cho nhãn value và nhãn policy (18/11)
 
-Chi tiết ở `SUY_RA_CONG_THUC.md` mục 11, chưa thử.
+Chi tiết ở `SUY_RA_CONG_THUC.md` mục 11, chưa thử. **Cập nhật 19/11:** khung này đã được thay bằng mục 12 của `SUY_RA_CONG_THUC.md`. Ở đó ván rẽ bốc nước theo tỉ lệ lượt thăm, nên nhãn value không lệch và nhãn policy cải thiện chắc chắn mà không cần cận $\varepsilon$; sai số của mạng chỉ còn đi vào độ dao động của nhãn.
 
 - **Định nghĩa.** Giá trị thật là $V^\mu$ của một chính sách $\mu$ xác định ở mọi thế cờ. Trong cây, $\mu$ là $\pi$ đã lưu (có thể kèm temperature). Ngoài cây, $\mu$ là search của mạng đời hiện tại.
 - **Nhãn value.** Nhãn là phép tree backup: trộn theo đúng $\mu$, nước đã chơi dùng cây, nước chưa chơi dùng $\hat Q$. Sai số của nhãn bằng đúng tổng có trọng số các sai số của $\hat Q$ ở các lối ra của cây. Vì vậy nó bị chặn bởi $\varepsilon P_{\text{ra}}$ mà không cần G1, G2.
