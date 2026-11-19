@@ -3,7 +3,7 @@
 Viết ngày 15/11/2026, bổ sung 18/11 và 19/11. Tài liệu được đối chiếu với mã đang chạy trong `co_vua/scripts/cv/cay.py` (lần chạy 5). Lịch sử các quyết định nằm ở tài liệu thiết kế `THIET_KE_CO_VUA.md`. Tài liệu này làm hai việc:
 
 1. Với mỗi công thức hay quy tắc đang chạy, nói rõ mã làm gì từng bước, công thức được **suy ra** từ đâu hay được **ước lượng** từ dữ liệu hay chỉ được **đặt tay**, và nó dựa vào loại giả định nào (mục 1.1).
-2. Ghi một phương pháp thay thế, trong đó công thức chỉ dùng những đại lượng tính được (mục 12). Phương pháp này đề xuất ngày 19/11, chưa viết mã.
+2. Ghi một phương pháp mới (mục 12). Phương pháp này chỉ bỏ những giả định đặt lên thứ cần thời gian vô hạn mới tính được, tức giá trị thật $V$. Mọi phần khác được giữ, rà lại, hoặc thêm giả định khi cần. Phương pháp đề xuất ngày 19/11 và chưa viết mã.
 
 **Cách đọc.**
 
@@ -14,7 +14,7 @@ Viết ngày 15/11/2026, bổ sung 18/11 và 19/11. Tài liệu được đối 
 - **Phần B, phương pháp thay thế và nền toán của nó:**
   - mục 10 suy ra nhãn policy mới của tài liệu thiết kế (đang tắt);
   - mục 11 là khung định lý theo kiểu Gumbel AlphaZero;
-  - mục 12 là phương pháp chỉ dùng đại lượng tính được, viết đủ chi tiết để làm theo.
+  - mục 12 là phương pháp mới: giữ $G$ và G1, bỏ G2, thêm giả định về sai số của $\hat Q$. Mục này viết đủ chi tiết để làm theo.
 
 ---
 
@@ -645,7 +645,7 @@ Hệ quả: muốn mạng học đúng $V^\mu$ thì việc cần làm là **ch�
 
 **Nhãn.** Gọi $C(s)$ là các nước đã chơi, $\hat Q(sa)$ là giá trị search của nước chưa chơi, theo góc Trắng. Tính từ cuối ván lên:
 $$Y(s)=z(s)\ \text{nếu }s\text{ kết thúc},\qquad Y(s)=\sum_{a\in C(s)}\mu(a|s)\,Y(sa)+\sum_{a\notin C(s)}\mu(a|s)\,\hat Q(sa)\ \text{nếu không}.$$
-Node gốc cắt (mục 8.2) giữ $Y$ và $P_{\text{ra}}$ đã tính lúc bị cắt (mục 12.3). Đây là phép "tree backup" của Precup, Sutton và Singh (2000): trộn theo đúng $\mu$, nước nào đã chơi thì dùng cây, nước nào chưa chơi thì dùng mạng.
+Node gốc cắt (mục 8.2) giữ $Y$ và $P_{\text{ra}}$ đã tính lúc bị cắt, giống như mã hiện tại giữ $G$ và $E$. Đây là phép "tree backup" của Precup, Sutton và Singh (2000): trộn theo đúng $\mu$, nước nào đã chơi thì dùng cây, nước nào chưa chơi thì dùng mạng.
 
 **Lối ra.** Lối ra (exit) là một cặp (node $s$ trong cây, nước $a$ chưa chơi). Đặt $P_\mu(s\to e)$ là xác suất đi từ $s$ tới lối ra $e$ khi chơi theo $\mu$, tức tích các $\mu$ dọc đường từ $s$ tới $e$.
 
@@ -747,202 +747,205 @@ với $g=0$ ở các thế cờ ngoài cây (ở đó đặt $\pi'=\mu$). Nếu 
 - Vấn đề sàn của $\tau_q^2$ (mục 7.2) và $E$ ước cao (mục 4.4) biến mất, vì khung mới không dùng $\omega^2$, $E$, $\tau_q^2$.
 - Rủi ro lớn nhất là nhãn gần như toàn $\hat Q$ ở xa cuối ván (11.4, phần cái giá). Lần chạy 1 đã thua vì nhãn value mềm theo mạng, nên temperature $T$ của $\mu$ phải được thử offline: đo $P_{\text{ra}}$ trung bình theo khoảng cách tới cuối ván trên cây thật với vài giá trị $T$ trước khi chọn.
 - Định lý 2 cần biết $\mu$ ở mọi node trong cây. $\pi$ đã lưu có sẵn, nên không phải đổi gì ở phần chơi ván.
-- Mục 12 biến khung này thành một phương pháp làm theo được: tính gì, đo $\varepsilon$ thế nào, chọn $T$ ra sao, sửa mã ở đâu.
+- Mục 12 là phương pháp mới theo tiêu chí ngày 19/11. Nhãn tree backup $Y$ ở mục này là trường hợp riêng của nó, khi mọi nhánh đã chơi có $f=1$.
 
 ---
 
-## 12. Phương pháp chỉ dùng đại lượng tính được (đề xuất 19/11, chưa viết mã, chưa thử)
+## 12. Phương pháp mới: chỉ bỏ giả định đặt lên thứ cần thời gian vô hạn (đề xuất 19/11, chưa viết mã, chưa thử)
 
-Mục này mô tả một phương pháp thay cho các mục 3 đến 7, theo tiêu chí ở mục 1.1:
+### 12.1 Tiêu chí
 
-- Mọi công thức chỉ dùng đại lượng tính được. Không có giả định loại K, tức bỏ G2. Cũng không dựa vào những giả định loại T đã biết là sai ("$G$ không lệch", "$E$ đúng") hay chưa kiểm ($c=0$, mạng sai như nhau trong mỗi khoảng).
-- Giá trị thật chỉ xuất hiện khi hỏi nhãn sai bao nhiêu. Câu hỏi đó được trả lời bằng một con số đo bằng thí nghiệm, với sự ngẫu nhiên do chính mình tạo.
+Chủ dự án đặt tiêu chí ngày 19/11:
 
-Nền toán (định nghĩa, chứng minh) ở mục 11. Mục này là bản làm theo được: tính gì, theo thứ tự nào, đo gì, sửa mã ở đâu, thử ra sao.
+- **Tính được trong thời gian hữu hạn**: $G$, $q$, $\hat Q$, $\pi$, $z$, $m$, $E$ do mã tính ra. Đặt giả định lên những thứ này là chấp nhận được, kể cả giả định về sai số ngẫu nhiên của chúng, vì đó là việc của thống kê. Trong một giả định như vậy, giá trị thật $V$ được phép xuất hiện như cái đích mà ta so với.
+- **Chỉ tính được nếu có thời gian vô hạn**: giá trị thật $V$ (phải chơi vô số ván), và những thứ định nghĩa bằng $V$ như độ toả thật của các $V$. Không đặt mô hình lên những thứ này.
 
-### 12.1 Cái gì giữ, cái gì thay
+Phương pháp mới **chỉ bỏ** những giả định vi phạm tiêu chí. Các giả định khác được giữ, được rà lại kỹ, và được thêm vào khi cần.
 
-| Phần | Trong phương pháp này |
-|---|---|
-| Cây, cách gộp ván, cách lưu $\pi$, $Q$, $d$ (mục 2) | Giữ nguyên |
-| Rẽ nhánh: quét $T=0{,}5$, khoá $-\ln(u)/m^2$ (mục 8.3, 8.4) | Giữ nguyên |
-| $\gamma$, cắt lá, search lại, lập việc (mục 8) | Giữ nguyên |
-| Nhãn policy là trung bình $\pi$ (mục 9) | Giữ nguyên ở bản mặc định (12.8) |
-| Mỗi node học một lần, số bước học (mục 9) | Giữ nguyên |
-| $G$, $E$, $\rho$, $\omega^2$ (mục 3 đến 5) | **Thay** bằng $Y$ và $P_{\text{ra}}$ (12.3, 12.4) |
-| $w_q$, $\tau_q^2$ (mục 6, 7) | **Thay** bằng nhãn $Y$ (bản A) hoặc giao khoảng với $\varepsilon$ đo được (bản B, 12.5, 12.6) |
+### 12.2 Rà từng giả định của phương pháp đang chạy
 
-Phần chơi ván, engine, Colab và huấn luyện không phải đổi gì. Chỉ phần tính nhãn trên điện thoại đổi. Có thêm một phép đo mới, là phép đo $\varepsilon$.
-
-### 12.2 Đích học: giá trị của một cách chơi cụ thể
-
-**Trò chơi.** Một ván dừng khi kết thúc theo luật cờ, hoặc khi chạm độ dài tối đa của engine. Ván dừng vì quá dài tính là hoà, đúng như mã đang làm (mục 2.1). Với quy ước này, mỗi ván đều hữu hạn và kết quả ở node kết thúc do quy tắc quyết định hoàn toàn.
-
-**Cách chơi mục tiêu $\mu_T$.**
-
-- Trong cây, tại node $s$ có số liệu search: $\mu_T(a\,|\,s)=\pi(a)^{1/T}\big/\sum_b\pi(b)^{1/T}$, với $\pi$ đã lưu.
-  - $T=1$ cho $\mu_T=\pi$.
-  - $T=0$ nghĩa là luôn đi nước có nhiều lượt thăm nhất. Nếu hai nước bằng lượt thì lấy nước đứng sau trong pool, giống mã hiện tại.
-- Ngoài cây: search của mạng đời hiện tại, rồi bốc nước theo cùng temperature $T$.
-
-**Giá trị thật $V^{\mu_T}(s)$** là kết quả trung bình (theo góc Trắng) khi từ $s$ hai bên cùng chơi theo $\mu_T$. Vì mỗi ván hữu hạn, đây là một con số xác định, có thể tính được bằng quy nạp ngược từ các node kết thúc (mục 11.2). Ta không tính được nó trực tiếp, nhưng đo được nó bằng cách chơi thêm ván từ $s$ theo $\mu_T$.
-
-$T$ là lựa chọn **học giá trị của cách chơi nào**. Nó không phải một giả định về thế giới. Cách chọn ở 12.7.
-
-### 12.3 Các số tính được ở mỗi node
-
-Với mỗi node $s$ đang sống, chưa kết thúc và có số liệu search:
-
-- $\mu_T(a)$ cho mọi nước $a$ trong pool của $s$.
-- $\hat Q(sa)$ dưới dạng bộ ba thắng, hoà, thua theo góc Trắng, cho mọi nước trong pool. Lấy $q=\texttt{nq}/\texttt{ns}$ và $d=\texttt{nd}/\texttt{ns}$ (góc bên đang đi tại $s$), đổi sang bộ ba $\big((1+q-d)/2,\ d,\ (1-q-d)/2\big)$ như mục 6.3, rồi đổi chỗ thắng và thua nếu Đen đi.
-- $C(s)$: các nước dẫn tới một node con có $Y$. Node con đó phải là node kết thúc, node sống đã tính xong, hoặc node gốc cắt.
-
-Ba loại node có giá trị cho sẵn, không cần tính:
-
-- **Node kết thúc:** $Y$ là bộ ba có một số 1 theo kết quả ván, và $P_{\text{ra}}=0$.
-- **Node gốc cắt:** giữ $Y$ và $P_{\text{ra}}$ đã tính lúc bị cắt, giống như mã hiện tại giữ $G$ và $E$. Đẳng thức sai số của mục 11.4 vẫn đúng, với cách chơi trong phần cây đã cắt là $\pi$ lưu lúc cắt. Đó cũng là những con số cố định, tính được.
-- **Node sống chưa kết thúc mà không có số liệu search** (hiếm): node cha coi nước dẫn tới nó là nước chưa chơi.
-
-### 12.4 Tính từ dưới lên
-
-Đi từ độ sâu lớn nhất lên gốc, giống vòng lặp hiện tại của hàm `tinh`. Ở mỗi node:
-$$Y(s)=\sum_{a\in C(s)}\mu_T(a)\,Y(sa)+\sum_{a\notin C(s)}\mu_T(a)\,\hat Q(sa),$$
-$$P_{\text{ra}}(s)=\sum_{a\notin C(s)}\mu_T(a)+\sum_{a\in C(s)}\mu_T(a)\,P_{\text{ra}}(sa).$$
-
-Công thức của $Y$ tính riêng cho từng thành phần thắng, hoà, thua. Tổng thứ hai chạy trên các nước trong pool chưa có node con.
-
-**Đọc hai công thức.**
-
-- $Y(s)$ trộn đúng theo $\mu_T$. Nước nào có ván thì dùng cây, nước nào chưa có ván thì dùng đánh giá của search.
-- $P_{\text{ra}}(s)$ là xác suất mà một ván chơi theo $\mu_T$ từ $s$ đi ra khỏi cây, tức rơi vào một nước chưa chơi, trước khi kết thúc.
-- Không có $\rho$, không có phép cực tiểu, không có $\omega^2$.
-
-**Điều đã chứng minh** (Định lý 2, mục 11.4). Sai số $Y(s)-V^{\mu_T}(s)$ bằng đúng tổng, trên các lối ra, của (xác suất đi tới lối ra đó) × (sai số của $\hat Q$ ở đó). Đây là một đẳng thức, không cần giả định. Vì vậy nếu $\hat Q$ ở mọi lối ra sai không quá $\varepsilon$ thì $|Y-V^{\mu_T}|\le\varepsilon\,P_{\text{ra}}$.
-
-**Ví dụ trên node ví dụ**, với $T=1$, giả sử hai node con có $P_{\text{ra}}$ là 0,6 và 0,5. Viết số một chiều theo góc Trắng.
-
-1. $Y(s)=0{,}70\times(-0{,}25)+0{,}25\times0{,}50+0{,}05\times(-0{,}30)=-0{,}065$.
-2. $P_{\text{ra}}(s)=0{,}70\times0{,}6+0{,}25\times0{,}5+0{,}05=0{,}595$.
-
-So với mục 3, nơi $G(s)=+0{,}080$: khác dấu. Mục 3 cho nhánh $a_2$ trọng số 0,44 thay vì 0,25 vì nhánh này có $E$ nhỏ hơn, và việc dồn trọng số đó là thứ G2 cho phép. Ở đây không có G2, nên trọng số đúng bằng $\mu_T$.
-
-### 12.5 Nhãn value
-
-**Bản A (không cần gì thêm).** Nhãn là $Y(s)$, đổi sang góc bên đang đi như mục 6.3. Công thức không có giả định nào.
-
-**Bản B (giảm cái hại xấu nhất, cần $\varepsilon$).** Gọi $\varepsilon_d$ là mức sai của mạng ở khoảng cách $d$ tới cuối ván, đo theo 12.6. Làm theo các bước:
-
-1. Lấy số một chiều $Y_s$ (thắng trừ thua) của $Y(s)$, và $q_\mu=\sum_{a}\mu_T(a)\,\hat Q_s(sa)$ là số một chiều của đánh giá search, trộn theo $\mu_T$ trên mọi nước trong pool.
-2. Hai điều chắc chắn khi mạng sai không quá $\varepsilon_d$: giá trị thật nằm trong $[Y_s-\varepsilon_dP_{\text{ra}},\,Y_s+\varepsilon_dP_{\text{ra}}]$, và cũng nằm trong $[q_\mu-\varepsilon_d,\,q_\mu+\varepsilon_d]$. Khoảng thứ hai đúng vì $V^{\mu_T}(s)=\sum\mu_TV^{\mu_T}(sa)$ và mỗi $\hat Q$ sai không quá $\varepsilon_d$.
-3. Lấy giao của hai khoảng. Nhãn là **điểm giữa $m$ của phần giao**. Không có nhãn nào có sai số xấu nhất nhỏ hơn: với mọi điểm khác, có một giá trị thật nằm trong phần giao mà lại cách điểm đó xa hơn.
-4. $m$ luôn nằm giữa $Y_s$ và $q_\mu$ (chứng minh ngay dưới), nên viết được $m=\lambda Y_s+(1-\lambda)q_\mu$ với $\lambda=(m-q_\mu)/(Y_s-q_\mu)$, và $\lambda=1$ khi $Y_s=q_\mu$. Nhãn dạng bộ ba là $\lambda\,Y+(1-\lambda)\sum_a\mu_T(a)\hat Q(sa)$. Bộ ba này có số một chiều đúng bằng $m$.
-5. Nếu phần giao rỗng thì cận $\varepsilon_d$ đã sai ở node này. Khi đó dùng nhãn của bản A, và đếm số lần xảy ra để xem lại $\varepsilon_d$.
-
-**Vì sao $m$ nằm giữa $Y_s$ và $q_\mu$.** Đặt $a=\varepsilon_dP_{\text{ra}}$ và $b=\varepsilon_d$, nên $a\le b$. Giả sử $Y_s\le q_\mu$; trường hợp kia làm đối xứng.
-
-- Đầu trên của phần giao là $\min(Y_s+a,\,q_\mu+b)=Y_s+a$.
-- Đầu dưới là $\max(Y_s-a,\,q_\mu-b)$.
-- $m$ không nhỏ hơn $\big(Y_s+a+Y_s-a\big)/2=Y_s$.
-- Nếu đầu dưới là $Y_s-a$ thì $m=Y_s\le q_\mu$. Nếu đầu dưới là $q_\mu-b$ thì $m=(Y_s+a+q_\mu-b)/2\le q_\mu$, vì $Y_s\le q_\mu$ và $a\le b$.
-
-**Ví dụ** (node ví dụ, $\varepsilon_d=0{,}2$):
-
-1. Khoảng của $Y$ là $[-0{,}184;\ 0{,}054]$ và khoảng của $q_\mu=0{,}0425$ là $[-0{,}158;\ 0{,}243]$.
-2. Phần giao là $[-0{,}158;\ 0{,}054]$, nên $m\approx-0{,}052$ và nhãn sai không quá 0,106.
-3. $\lambda\approx0{,}877$.
-
-Dùng riêng $Y$ thì sai tối đa 0,119. Dùng riêng $q_\mu$ thì sai tối đa 0,2.
-
-### 12.6 Đo $\varepsilon$ bằng thí nghiệm do mình thiết kế
-
-**Định nghĩa.** $\varepsilon_d$ là mức mà 95% số lối ra ở khoảng cách $d$ tới cuối ván có $|\hat Q(e)-V^{\mu_T}(e)|$ không vượt quá. Lối ra là một cặp (node trong cây, nước chưa chơi có $\mu_T>0$). Các khoảng cách dùng lại các mốc của mục 7.1. Ở đây các mốc chỉ dùng để báo cáo $\varepsilon_d$ theo khoảng, không phải để coi mạng sai như nhau trong khoảng: $\varepsilon_d$ được đo trực tiếp trên mẫu bốc từ chính khoảng đó.
-
-**Cách đo chung, cho mọi $T$:**
-
-1. Liệt kê các lối ra của mỗi khoảng.
-2. Bốc ngẫu nhiên đều $K$ lối ra mỗi khoảng, bằng số ngẫu nhiên của chính mình.
-3. Từ mỗi lối ra $e$, chơi $n$ ván theo $\mu_T$, rồi lấy trung bình kết quả $\bar z_e$.
-4. Tính $|\hat Q(e)-\bar z_e|$ cho mỗi lối ra. $\varepsilon_d$ là mức mà 95% các số đó nằm dưới.
-
-Phép đo không giả định gì về mạng. Nó chỉ dùng hai thứ ngẫu nhiên do mình tạo: lối ra nào được bốc, và nước nào được bốc trong các ván chơi thêm. $\bar z_e$ có nhiễu vì mỗi lối ra chỉ chơi $n$ ván. Nhiễu này làm các độ lệch to ra, nên $\varepsilon_d$ bị ước **cao**. Đây là sai về phía an toàn: khoảng ở 12.5 rộng ra, không hẹp đi.
-
-Một mức 95% nghĩa là khoảng 5% lối ra có thể sai nhiều hơn $\varepsilon_d$. Vì vậy bảo đảm ở 12.5 đúng cho phần lớn node, không phải mọi node. Muốn chặt hơn thì dùng mức 99%, đổi lại khoảng rộng hơn.
-
-**Chi phí, ước thô.** Với $K=100$, $n=8$ và 7 khoảng, cần 5600 ván. Mỗi ván dài trung bình khoảng 60 nửa nước và mỗi nửa nước tốn khoảng 490 lần chạy mạng, nên tổng cỡ 170 triệu lần chạy mạng, gần bằng ngân sách một đời. Chỉ cần đo lại sau vài đời.
-
-**Khi $T=0$, phép đo gần như miễn phí.** Ván rẽ hiện nay chính là: bắt đầu từ một lối ra do bước quét chọn, rồi đi nước nhiều lượt thăm nhất tới hết ván. Đó đúng là chơi theo $\mu_0$ ở ngoài cây. Vậy mỗi ván rẽ mới cho một mẫu $z_e$ ứng với lối ra của nó, với $n=1$. Có hai điểm cần lưu ý:
-
-- Lối ra không được bốc đều. Bước quét bốc theo $n(a)^2$, còn khoá chọn theo $m^2$. Nhưng cả hai xác suất đều biết trước vì mình tự bốc, nên có thể cân lại cho đúng tổng thể (cân mỗi mẫu bằng một chia xác suất được chọn).
-- Cần lưu $\hat Q(e)$ lúc lập việc, trước khi ván được chơi. Mã hiện tại chưa lưu con số này.
-
-### 12.7 Chọn $T$
-
-| $T$ | Học giá trị của ai | Nhãn trông thế nào | Phép đo $\varepsilon$ |
+| Giả định | Đặt lên | Theo tiêu chí | Kết quả rà |
 |---|---|---|---|
-| 1 | Người chơi bốc nước theo đúng tỉ lệ lượt thăm | Ở xa cuối ván $P_{\text{ra}}$ gần 1, nên nhãn gần như toàn là $\hat Q$ của mạng. Kết quả ván góp rất ít. Đây là nguy cơ vòng tự xác nhận như lần chạy 1 | Phải chơi thêm ván |
-| 0 | Người chơi luôn đi nước nhiều lượt thăm nhất, đúng như ván rẽ và arena (sau 8 nửa nước) đang chơi | Trên đường mà ván đã đi đúng nước nhiều lượt thăm nhất thì $P_{\text{ra}}=0$, và $Y$ bằng đúng kết quả ván. Ở chỗ search lại đổi nước nhiều lượt nhất sang một nước chưa chơi, $Y$ lấy $\hat Q$ của nước đó. Ván rẽ không góp vào nhãn của node cha (vì $\mu_0=0$ cho nước rẽ), chỉ góp vào nhãn các node của chính nó | Gần như miễn phí (12.6) |
-| Giữa 0 và 1 | Ở giữa | Ở giữa | Phải chơi thêm ván |
+| Định nghĩa $V(s)$: "mỗi nước bốc theo $\pi$" | Định nghĩa, không phải giả định | | **Còn hở**: $\pi$ ở thế cờ ngoài cây chưa được định nghĩa. Sửa ở 12.3 |
+| G1: $G$ không lệch, sai số các nhánh độc lập | $G$ (hữu hạn) | Giữ | Với cách gộp đang chạy, "không lệch" sai (mục 4.1). Phương pháp mới làm nó đúng trở lại, với điều kiện H đúng (12.5) |
+| **G2: các $V(sa)$ ngẫu nhiên, độc lập, phương sai $\omega^2$** | $V$ (vô hạn) | **Bỏ** | |
+| $\omega^2$ là độ toả thật, ước bằng độ toả của $Q$ | Độ toả của các $V$ (vô hạn) | **Bỏ** | Chỉ có nghĩa trong G2. Đã biết là ước cao |
+| $w_q$: $q$ không lệch, $c=0$ | $q$, $G$ (hữu hạn) | Giữ được | Không còn cần, vì $G$ mới đã gộp sẵn đánh giá của mạng (12.8) |
+| $\tau_q^2$: phương pháp moment với $c=0$, $E$ đúng | $q$, $G$, $E$ (hữu hạn) | Giữ được | Thay bằng phép ước $\tau^2$ của 12.7 |
+| Mạng sai như nhau trong mỗi khoảng cách | $q$ (hữu hạn) | Giữ | Rà thêm: nên chia cả theo **số lượt thăm** (12.7) |
+| Sàn 0,01, mượn khoảng gần cuối hơn | Đặt tay | | Sàn bỏ được. Quy tắc mượn giữ làm dự phòng |
+| Nhãn policy: các lần search là mẫu của cùng phân phối | $\pi$ (hữu hạn) | Giữ | Không đổi |
+| Bảng $\hat\Delta$ dự báo độ chênh lần sau | $\pi$ (hữu hạn) | Giữ | Không đổi |
+| Ván chạm độ dài tối đa tính là hoà | Quy ước luật chơi | | Giữ, là một phần định nghĩa trò chơi |
 
-Với $T=0$, nhãn gần với nhãn kết quả ván của cách truyền thống. Lợi thế của cây khi đó nằm ở **tập thế cờ**: rẽ ở chỗ mạng phân vân, mỗi node học một lần. Đây cũng là trục mà các lần chạy 2 đến 5 cho thấy quan trọng nhất (tài liệu thiết kế, mục 10).
+Kết luận của bảng: hai thứ phải bỏ là G2 và $\omega^2$. Hai thứ được giữ nhưng không còn cần là $w_q$ và $\tau_q^2$. Thêm vào đó là một chỗ định nghĩa còn hở, và một chỗ cần chia mịn hơn.
 
-**Cách chọn, không thêm giả định:**
+### 12.3 Định nghĩa lại cho kín: $V$ của chính sách nào
 
-1. Trên cây thật, tính $Y$ và $P_{\text{ra}}$ cho $T$ bằng 0; 0,25; 0,5 và 1. In phân bố $P_{\text{ra}}$ theo khoảng cách tới cuối ván.
-2. Huấn luyện lại từ cây với nhãn của từng $T$, rồi làm phép thử AUC như ngày 12/11.
-3. Chọn $T$ có AUC cao nhất. Nếu ngang nhau, chọn $T$ có $P_{\text{ra}}$ ở xa cuối ván nhỏ hơn, vì nhãn khi đó giữ nhiều tín hiệu kết quả ván hơn.
+Đích học là $V^\pi(s)$: kết quả trung bình (theo góc Trắng) khi từ $s$ hai bên cùng chơi theo một chính sách $\pi$ được định nghĩa ở **mọi** thế cờ.
 
-**Liên hệ với các định lý của mục 11.** Định lý 3 và 4 so nhãn policy mới với chính $\mu_T$. Khi $T=1$ thì $\mu_T=\pi$, và các bảo đảm áp đúng cho nhãn policy làm từ $\pi$. Khi $T<1$, Định lý 4 nói về điểm arena khi đấu với người chơi $\mu_T$, không phải với $\pi$.
+- **Trong cây:** $\pi$ là tỉ lệ lượt thăm đã lưu tại node.
+- **Ngoài cây:** $\pi$ là tỉ lệ lượt thăm của search mạng đời hiện tại, rồi bốc nước theo tỉ lệ đó.
+- **Ván chạm độ dài tối đa** tính là hoà, đúng như mã đang làm.
 
-### 12.8 Nhãn policy
+Với định nghĩa này, mỗi ván hữu hạn, nên $V^\pi(s)$ là một con số xác định. Đây vẫn là đích mà phương pháp đang chạy nhắm tới (mục 3), chỉ là nay đã được nói kín.
 
-| Bản | Nhãn | Cần gì | Bảo đảm |
+Có một điểm phù hợp đáng ghi lại. $Q$ của search là trung bình các đánh giá ở đáy cây search, **cân theo số lượt thăm**. Vậy về cấu trúc, $Q$ trộn các nhánh gần giống cách $V^\pi$ trộn theo $\pi$. Đây là lý do để mong $\hat Q$ ước lượng $V^\pi$ khá đúng. Nó không phải chứng minh; giả định H ở 12.4 mới là chỗ nói điều này.
+
+### 12.4 Giả định của phương pháp mới
+
+Mọi giả định dưới đây đều đặt lên đại lượng tính được trong thời gian hữu hạn.
+
+- **G1 (giữ).** $G(sa)=V^\pi(sa)+e_a$, với $e_a$ có trung bình 0 và phương sai $E(sa)$. Sai số của các nhánh khác nhau độc lập với nhau.
+- **H (thêm, thay cho G2).** $\hat Q(sa)=V^\pi(sa)+b+\eta_a$, trong đó:
+  - $b$ là độ lệch chung của mạng trong một nhóm (12.6);
+  - $\eta_a$ có trung bình 0 và phương sai $\tau^2_a$;
+  - các $\eta_a$ của những nước anh em độc lập với nhau, và độc lập với các $e$.
+- **Đ (thêm, rà ra ở 12.2).** $b$ và $\tau^2$ giống nhau trong mỗi nhóm (khoảng cách tới cuối ván × số lượt thăm của nước).
+
+**Rà kỹ hai chỗ "độc lập", vì đây là chỗ dễ sai nhất.**
+
+1. **Sai số của các nhánh độc lập (G1).** Ở phương pháp đang chạy, điều này đúng theo cách xây cây, vì $G(sa)$ chỉ dùng kết quả ván. Ở phương pháp mới, $G(sa)$ còn chứa các $\hat Q$ bên trong cây con của $sa$. Mà cùng một mạng đánh giá mọi cây con, nên nếu mạng sai một cách có hệ thống (ví dụ đánh giá cao một kiểu thế tốt xuất hiện ở cả hai nhánh), sai số của hai nhánh sẽ cùng chiều. Vậy ở phương pháp mới, tính độc lập này **trở thành một giả định** về $\hat Q$, không còn đúng theo cách xây. Nó vẫn đặt lên đại lượng hữu hạn, nên vẫn hợp tiêu chí. Phần độ lệch chung $b$ trong H đã tách ra cái sai cùng chiều dễ thấy nhất.
+2. **$\eta_a$ độc lập với $e_a$ ($c=0$).** Có một lý do **về cấu trúc** để nghi điều này: lần search ở node cha, lúc tính $\hat Q(sa)$, đã đánh giá chính những thế cờ nằm trong cây con của $sa$ bằng cùng một mạng. Vì vậy 12.7 đưa ra hai cách ước $\tau^2$: một cách dùng $c=0$, một cách không cần $c=0$ mà chỉ dùng bất đẳng thức Cauchy–Schwarz (toán thuần).
+
+### 12.5 Suy ra $G$ và $E$
+
+**Ước lượng.** Gọi $\tilde Q(sa)=\hat Q(sa)-\hat b$ là $\hat Q$ đã trừ độ lệch chung ước được (12.6). Lấy
+$$G(s)=\sum_{a\in C(s)}\rho_a\,G(sa)+\sum_{a\in A(s)}(\pi_a-\rho_a)\,\tilde Q(sa),$$
+với quy ước $\rho_a=0$ cho nước chưa chơi.
+
+Hệ số của $\tilde Q$ là $\pi-\rho$. Đó chính là phần mà cách gộp theo $\rho$ lệch khỏi $\pi$. Nó được bù bằng một đại lượng tính được, thay vì được G2 coi là nhiễu. Nếu mọi $G(sa)$ và $\tilde Q(sa)$ cùng bằng một số $c$ thì $G(s)=c$, nên $\rho$ không cần cộng lại bằng 1.
+
+**Sai số.** Thay G1 và H vào (sau khi trừ $\hat b$, coi như $\hat b$ đúng):
+$$G(s)-V^\pi(s)=\sum_{a\in C}\rho_a e_a+\sum_{a\in A}(\pi_a-\rho_a)\,\eta_a.$$
+Mọi số hạng chứa $V^\pi$ đều triệt tiêu, vì tổng hệ số của $V^\pi(sa)$ là $\rho_a+(\pi_a-\rho_a)=\pi_a$, đúng bằng hệ số của nó trong $V^\pi(s)=\sum\pi_aV^\pi(sa)$. Phần gộp lệch biến mất mà không cần G2. Có hai hệ quả:
+
+- Sai số có trung bình 0, nên **$G(s)$ thoả G1**. Vậy G1 ở mỗi tầng được suy ra từ G1 ở tầng dưới cộng với H, xuất phát từ node kết thúc, nơi $G=z=V^\pi$ đúng tuyệt đối.
+- Theo các giả định độc lập: $E(s)=\sum_{a\in C}\rho_a^2E(sa)+\sum_{a\in A}(\pi_a-\rho_a)^2\tau^2_a$.
+
+**Chọn trọng số.** Cực tiểu $E(s)$ theo từng $\rho_a$, không có ràng buộc. Đạo hàm bằng 0 cho
+$$\rho_a=\pi_a f_a,\qquad f_a=\frac{\tau^2_a}{\tau^2_a+E(sa)}.$$
+Thay vào, đặt $x_a=f_aG(sa)+(1-f_a)\tilde Q(sa)$ cho nước đã chơi và $x_a=\tilde Q(sa)$ cho nước chưa chơi. Khi đó
+$$G(s)=\sum_{a\in A(s)}\pi_a\,x_a,\qquad E(s)=\sum_{a\in C(s)}\pi_a^2\,\frac{\tau^2_aE(sa)}{\tau^2_a+E(sa)}+\sum_{a\notin C(s)}\pi_a^2\,\tau^2_a.$$
+
+Phần $E$ của nước đã chơi đúng vì $f^2E+(1-f)^2\tau^2=\tau^2E/(\tau^2+E)$. Hai vế cùng mẫu số $(\tau^2+E)^2$, và tử số $\tau^4E+E^2\tau^2=\tau^2E(\tau^2+E)$.
+
+**Đọc công thức.**
+
+1. Ở mỗi nước đã chơi, $x_a$ gộp hai ước lượng của cùng $V^\pi(sa)$: kết quả ván $G$ (sai $E$) và đánh giá của search $\tilde Q$ (sai $\tau^2$), theo nghịch đảo phương sai.
+2. $G(s)$ trộn các $x_a$ theo **đúng** $\pi$. Nước chưa chơi giữ phần $\pi$ của nó, thông qua $\tilde Q$.
+3. So với cách đang chạy: $\omega^2$ (độ toả của các giá trị thật, cần thời gian vô hạn) được thay bằng $\tau^2$ (sai số của mạng, ước được). Bước dồn trọng số $\nu$ sang các nhánh đã chơi biến mất.
+
+**Trường hợp biên.**
+
+- $\tau^2=0$ (mạng đúng hoàn toàn): $G(s)=\sum\pi\tilde Q$.
+- $E(sa)=0$ (node con là node kết thúc): $x_a=G(sa)$.
+- Khi mọi nước đã chơi có $f=1$, $G$ trùng với nhãn tree backup của mục 11.4 (với $T=1$).
+
+**Dạng tính trong mã:**
+$$G(s)=\sum_{a\in A}\pi_a\tilde Q(sa)+\sum_{a\in C}\pi_af_a\big(G(sa)-\tilde Q(sa)\big).$$
+Phần đầu là đánh giá của search trộn theo $\pi$. Phần sau là chỗ kết quả ván sửa đánh giá đó, ở từng nhánh, mạnh hay nhẹ theo $f$.
+
+**Ví dụ trên node ví dụ** ($\hat b=0$, $\tau^2=0{,}0447$ dùng tạm):
+
+1. $f$ là 0,817 và 0,899.
+2. $x$ là −0,186; 0,445; −0,30.
+3. $G(s)=0{,}70\times(-0{,}186)+0{,}25\times0{,}445+0{,}05\times(-0{,}30)\approx-0{,}034$.
+4. $E(s)\approx0{,}0044$.
+
+Phương pháp đang chạy cho $G=+0{,}080$ và $E=0{,}0047$. Chỗ khác chủ yếu nằm ở trọng số. Phương pháp đang chạy dồn $a_2$ từ 0,25 lên 0,44, và việc dồn đó là thứ G2 cho phép. Phương pháp mới giữ đúng $\pi$ và để $a_3$ góp phần của nó qua $\tilde Q$. Phần của kết quả ván trong $G(s)$ là $\sum_C\pi f\approx0{,}80$.
+
+### 12.6 Ước độ lệch chung $b$ của mạng
+
+Theo G1 và H, với một nhánh đã chơi: $G(sa)-\hat Q(sa)=e_a-b-\eta_a$, có trung bình $-b$. Vậy
+$$\hat b=-\,\text{trung bình}\big[G(sa)-\hat Q(sa)\big]$$
+lấy trên các nhánh đã chơi trong cùng nhóm, theo góc bên đang đi.
+
+Bước này bắt được, ví dụ, việc mạng hay đánh giá lạc quan cho bên đang đi ở một khoảng cách nào đó. Nếu $\hat b$ gần 0 ở mọi nhóm thì bỏ bước này được. Đây là một phép kiểm H trên dữ liệu có sẵn.
+
+### 12.7 Ước $\tau^2$
+
+**Nhóm.** Chia theo hai thứ:
+
+- **Khoảng cách tới cuối ván** của node con, với các mốc của mục 7.1. Nước chưa chơi không có node con, nên dùng khoảng cách của node cha trừ 1.
+- **Số lượt thăm của nước** trong search ở node cha, chia làm ba nhóm: dưới 10, từ 10 đến 99, từ 100 trở lên.
+
+Chia theo số lượt thăm là điều rà ra ở 12.2. Nước chưa chơi thường ít lượt thăm, nên $\hat Q$ của nó dựa trên ít đánh giá và sai nhiều hơn. Nếu chỉ ước $\tau^2$ từ nhánh đã chơi (phần lớn là nước nhiều lượt nhất) rồi dùng cho nước chưa chơi, $\tau^2$ của nước chưa chơi sẽ bị ước thấp. Dữ liệu cho nhóm ít lượt thăm đến từ các ván rẽ, vì bước quét chủ yếu chọn những nước không phải nước nhiều lượt nhất. Nhóm nào quá ít nhánh (dưới 1000) thì gộp với nhóm số lượt thăm kề bên.
+
+**Phương pháp moment.** Trong một nhóm, đặt $M=\text{trung bình}\big[(G(sa)-\tilde Q(sa))^2\big]$ và $\bar E=\text{trung bình}\big[E(sa)\big]$. Theo G1 và H, $M=\bar E+\tau^2-2c$, với $c$ là hiệp phương sai giữa $e$ và $\eta$.
+
+- **Cách 1, dùng $c=0$:** $\tau^2=M-\bar E$.
+- **Cách 2, không cần giả định về $c$.** Bất đẳng thức Cauchy–Schwarz cho $|c|\le\sqrt{\bar E\,\tau^2}$, nên $M\ge(\sqrt{\tau^2}-\sqrt{\bar E})^2$, tức là
+$$\tau^2\le\big(\sqrt{\bar E}+\sqrt M\big)^2.$$
+  Cách 2 lấy đúng cận trên này.
+
+**Chọn cách nào theo nguyên tắc giảm hại.** $\tau^2$ lớn hơn thì $f$ lớn hơn, tức tin kết quả ván nhiều hơn. Cái hại đã thấy thật là lần chạy 1, khi nhãn ngả theo đánh giá của mạng và mạng tự xác nhận mình. Cách 2 chặn đúng cái hại đó. Ví dụ khoảng 5 đến 10 ở đời 10: $\bar E\approx0{,}006$, $M\approx0{,}051$, nên cách 1 cho 0,045 còn cách 2 cho $(0{,}077+0{,}226)^2\approx0{,}092$. Mặc định đề xuất là thử cả hai offline (12.12), vì chưa biết cách nào cho nhãn tốt hơn.
+
+**Vòng lặp.** $E$ phụ thuộc $\tau^2$, còn $\tau^2$ và $\hat b$ lại được ước bằng $E$ và $G$. Mã làm như sau:
+
+1. Bắt đầu bằng $\tau^2$ và $\hat b$ của đời trước.
+2. Tính $G$, $E$ từ dưới lên.
+3. Ước lại $\hat b$ và $\tau^2$.
+4. Lặp bước 2 và 3 tới khi các số đổi rất ít, thường 2 đến 3 lượt.
+
+Một nhóm mà cách 1 vẫn ra số âm là dấu hiệu H sai ở nhóm đó. Khi đó dùng cách 2, và ghi log số lần xảy ra.
+
+### 12.8 Nhãn value: dùng thẳng $G$
+
+Nhãn value là $G(s)$, đổi sang góc bên đang đi như mục 6.3. Bước $w_q$ của mục 6 và phép ước $\tau_q^2$ của mục 7 được bỏ, vì hai lý do:
+
+- $G$ mới đã gộp sẵn kết quả ván với đánh giá của search ở từng nhánh.
+- $q$ của node đến từ cùng lần search với các $\hat Q$ nằm trong $G$. Trộn thêm $q$ là tính đánh giá của mạng hai lần, và giả định $c=0$ mà $w_q$ cần sẽ sai rõ.
+
+**Ở xa cuối ván.** Trên một đường không rẽ nhánh với $\pi=0{,}7$, $E=0{,}3$ và $\tau^2=0{,}2$: $f=0{,}4$, nên phần của đánh giá mạng trong nhãn là $0{,}7\times0{,}6+0{,}3=0{,}72$. Phương pháp đang chạy ở cùng vùng có $w_q$ trung bình 0,25 (khoảng 80 đến 160) và 0,73 (từ 160). Vậy hai phương pháp cùng cỡ. Cách 2 của 12.7 làm $\tau^2$ lớn hơn, nên phần của mạng nhỏ đi.
+
+### 12.9 Nhãn policy
+
+Giữ trung bình $\pi$ như mục 9. Mọi giả định của phần này đặt lên $\pi$, một đại lượng hữu hạn. Nếu sau này muốn, có thể dùng nhãn nghiêng của mục 11.5 với $x_a$ ở 12.5. Phép nghiêng chắc chắn cho $\sum\pi'x\ge\sum\pi x$; đây là toán thuần.
+
+### 12.10 So giả định: phương pháp đang chạy và phương pháp mới
+
+| Giả định hay quy tắc | Đặt lên | Đang chạy | Phương pháp mới |
 |---|---|---|---|
-| P1 (mặc định) | Trung bình $\pi$, như mục 9 | Không gì thêm | Không đổi gì so với lần chạy 5 |
-| P2 | $\pi'(a)\propto\pi(a)\,e^{x_a/\lambda}$, với $x_a$ là số một chiều (góc bên đang đi) của $Y(sa)$ nếu nước đã chơi, của $\hat Q(sa)$ nếu chưa | Một hằng số $\lambda$ đặt tay, giống các hằng số trong hàm $\sigma$ của Gumbel AlphaZero | $\sum\pi'x\ge\sum\pi x$, toán thuần (bổ đề ở mục 11.5) |
-| P3 | Dạng an toàn nhất của mục 11.5: bỏ những nước có cận trên thấp hơn cận dưới cao nhất, dồn xác suất của chúng sang nước có cận dưới cao nhất. Cận của nước đã chơi là $Y\pm\varepsilon_dP_{\text{ra}}$, của nước chưa chơi là $\hat Q\pm\varepsilon_d$ | $\varepsilon_d$ | Không bao giờ kém $\pi$ khi $\varepsilon_d$ đúng. Không thêm núm nào |
+| G2: các $V$ ngẫu nhiên, phương sai $\omega^2$ | $V$, vô hạn | Có | **Bỏ** |
+| $\omega^2$ là độ toả thật | Các $V$, vô hạn | Có | **Bỏ** |
+| Định nghĩa $V$ ngoài cây | | Hở | Kín (12.3) |
+| G1: $G$ không lệch | $G$, hữu hạn | Có, nhưng bị cấu trúc gộp phá | Có, và được suy ra lại từ H |
+| G1: các nhánh độc lập | $G$, hữu hạn | Đúng theo cách xây | Thành giả định về $\hat Q$, vì $G$ chứa $\hat Q$ |
+| H: $\hat Q$ lệch chung $b$, phần còn lại không lệch, các nước anh em độc lập | $\hat Q$, hữu hạn | Không có | Có, mới |
+| Đ: $b$ và $\tau^2$ đồng nhất trong nhóm (khoảng cách × số lượt thăm) | $\hat Q$, hữu hạn | Chỉ theo khoảng cách | Theo khoảng cách và số lượt thăm |
+| $c=0$ | $q$ hoặc $\hat Q$, và $G$, hữu hạn | Có | Cách 1 có, cách 2 không cần |
+| $q$ không lệch, dùng trong $w_q$ | $q$, hữu hạn | Có | Không còn cần |
+| Sàn 0,01 | Đặt tay | Có | Bỏ |
+| Mượn khoảng hay nhóm kề bên khi ít dữ liệu | Đặt tay | Có | Giữ |
+| Ràng buộc trọng số cộng bằng 1, số $\nu$ | | Có | Không cần |
 
-Mặc định là P1, vì hai lý do:
+### 12.11 Chỗ phải sửa trong mã (ước lượng, chưa viết)
 
-- Theo nguyên tắc giảm hại, không đổi khi chưa có bằng chứng.
-- Các lần chạy cho thấy công thức nhãn ít quan trọng hơn tập thế cờ.
+**`cay.py`, hàm `tinh`:**
 
-P3 là bước tiếp theo khi đã đo được $\varepsilon_d$. P3 chỉ đổi đúng những chỗ có bằng chứng chắc chắn.
+- Với mỗi node con, ngoài $\pi$ của nước dẫn tới nó (biến `pi_con`), đọc thêm từ cùng ô pool của node cha: $\hat Q$ (từ `nq/ns` và `nd/ns`, đổi sang bộ ba thắng, hoà, thua theo góc Trắng) và số lượt thăm (`ns`) để xếp nhóm.
+- Ở mỗi độ sâu:
+  - $f=\tau^2/(\tau^2+E_{\text{con}})$;
+  - $G(s)=\sum_{\text{pool}}\pi\tilde Q+\sum_{\text{đã chơi}}\pi f(G_{\text{con}}-\tilde Q_{\text{con}})$, tính cho từng thành phần thắng, hoà, thua;
+  - $E(s)=\sum_{\text{đã chơi}}\pi^2fE_{\text{con}}+\sum_{\text{chưa chơi}}\pi^2\tau^2$, với $\tau^2$ theo nhóm của từng nước.
+- Bỏ phần tính $\omega^2$ và $\nu$. Thêm vòng lặp ước $\hat b$ và $\tau^2$ (12.6, 12.7). Node gốc cắt giữ $G$, $E$ như hiện nay.
 
-### 12.9 So giả định: phương pháp đang chạy và phương pháp này
+**`cay.py`, hàm `nhan`:** nhãn value là $G$ theo góc bên đang đi. Bỏ $w_q$ và $\tau_q^2$, hoặc chỉ giữ để ghi log so sánh. Ghi log thêm: $\hat b$ và $\tau^2$ theo nhóm (cả cách 1 lẫn cách 2), số lượt lặp, $f$ trung bình, phần của kết quả ván trong nhãn.
 
-| Giả định hay núm | Đang chạy | Phương pháp này |
-|---|---|---|
-| G2: giá trị thật ngẫu nhiên, phương sai $\omega^2$ (K) | Có | Không cần |
-| G1: $G$ không lệch (T, đã biết là sai) | Có | Không cần |
-| Độ toả của $Q$ ước được độ toả thật (T, đã biết là ước cao) | Có | Không cần |
-| $q$ không lệch và $c=0$ (T, chưa kiểm hoặc đáng ngờ) | Có | Không cần |
-| Mạng sai như nhau trong mỗi khoảng cách (T, chưa kiểm) | Có ($\tau_q^2$) | Không cần ($\varepsilon_d$ đo trên mẫu bốc ngẫu nhiên từ chính khoảng đó) |
-| $\hat Q$ sai không quá $\varepsilon_d$ ở 95% lối ra (T) | Không có | Có ở bản B và P3, đo được bằng thí nghiệm (12.6) |
-| Sàn 0,01, khoảng ít node mượn khoảng bên cạnh (đặt tay) | Có | Không cần |
-| $T$ của đích học (lựa chọn đích) | Không có | Có, chọn bằng phép thử ở 12.7 |
-| Mức 95% của $\varepsilon_d$ (đặt tay) | Không có | Có, chỉ ở bản B và P3 |
-| $\lambda$ (đặt tay) | Không có | Chỉ ở P2 |
-| Mạng học được nhãn | Không chứng minh được, kiểm bằng arena | Như cũ |
+**Công tắc mới** trong `CONG_TAC`: bật phương pháp mới, và chọn cách 1 hay cách 2 cho $\tau^2$.
 
-### 12.10 Chỗ phải sửa trong mã (ước lượng, chưa viết)
+**Không đổi:** engine, các ô Colab, huấn luyện, rẽ nhánh, cắt lá, search lại, nhãn policy.
 
-- **`cay.py`, hàm `tinh`:** thay phần tính $\omega^2$, $\rho$, $G$, $E$ bằng phần tính $Y$ và $P_{\text{ra}}$, cùng vòng lặp theo độ sâu.
-  - Phần nước chưa chơi tính bằng tổng theo pool: $\sum_{\text{pool}}\mu_T\hat Q$ trừ $\sum_{\text{đã chơi}}\mu_T\hat Q$.
-  - Dùng lại các ô `Gw`, `Gd`, `Gl`, `E` để lưu $Y$ và $P_{\text{ra}}$, hoặc thêm ô mới.
-  - Phần `cach` giữ nguyên.
-- **`cay.py`, hàm `nhan`:**
-  - Bản A: nhãn value là $Y$, đổi sang góc bên đang đi.
-  - Bản B: đọc thêm tệp $\varepsilon_d$ rồi tính phần giao như 12.5.
-  - Phần $\tau_q^2$ và $w_q$ thì bỏ, hoặc chỉ giữ để ghi log so sánh.
-- **Công tắc mới** trong `CONG_TAC`: chọn nhãn tree backup thay cho $G$/$w_q$, kèm một hằng số `T_DICH`.
-- **Đo $\varepsilon$:**
-  - Với $T=0$, lưu $\hat Q(e)$ và xác suất được chọn của mỗi điểm rẽ ngay lúc `lap_viec`, rồi đọc kết quả ván rẽ khi gộp.
-  - Với $T>0$, cần một kiểu việc mới: chơi $n$ ván từ một đường đi, bốc nước theo temperature $T$. Phải kiểm engine `treeplay` có hỗ trợ temperature sau điểm rẽ không.
-- **Không đổi:** engine (trừ trường hợp $T>0$), các ô Colab, `huan_luyen.py`, rẽ nhánh, cắt lá.
+### 12.12 Kế hoạch thử offline trước khi dùng thật
 
-### 12.11 Kế hoạch thử offline trước khi dùng thật
-
-1. **Trên điện thoại, không tốn T4:** tính $Y$ và $P_{\text{ra}}$ cho bốn giá trị $T$ trên cây sau đời 20 của lần chạy 5. In phân bố $P_{\text{ra}}$ theo khoảng cách tới cuối ván. So $Y$ với nhãn đang chạy.
-2. **Đo $\varepsilon_d$ cho $T=0$** từ các ván rẽ đã có. Bản này dùng $\hat Q$ hiện có trong pool thay cho $\hat Q$ lúc lập việc, nên chỉ là gần đúng.
-3. **Trên một máy T4:** huấn luyện lại từ cây với từng bản nhãn, rồi làm phép thử AUC như ngày 12/11.
+1. **Trên điện thoại, không tốn T4.** Chạy phương pháp mới trên cây sau đời 20 của lần chạy 5, với cả hai cách ước $\tau^2$. In ra:
+   - $\hat b$ và $\tau^2$ theo nhóm;
+   - nhóm nào cách 1 ra âm;
+   - so sánh nhãn mới với nhãn đang chạy theo khoảng cách tới cuối ván;
+   - phần của kết quả ván trong nhãn.
+2. **Kiểm các giả định độc lập, trên dữ liệu có sẵn.**
+   - Ở node có từ hai nhánh đã chơi trở lên: các độ lệch $G(sa)-\tilde Q(sa)$ của các nhánh anh em có cùng chiều không?
+   - Khoảng cách giữa cách 1 và cách 2 lớn tới đâu? Khoảng cách lớn nghĩa là $c$ có thể đáng kể.
+3. **Trên một máy T4.** Huấn luyện lại từ cây với ba bản nhãn (đang chạy, mới với cách 1, mới với cách 2), rồi làm phép thử AUC như ngày 12/11.
 4. **Chỉ đưa vào lần chạy thật** nếu bản mới không kém bản đang chạy. Lần chạy 5, với 78,2% ở đời 20, là mốc để so.
