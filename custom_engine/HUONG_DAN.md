@@ -459,6 +459,8 @@ pip install -r python\requirements.txt
 > ô cài đặt đầu notebook: `!pip install -q onnx onnxscript onnxruntime`. Cảnh báo xung đột `protobuf`
 > của các gói Google khác là vô hại.
 
+> **Đồ thị ONNX được gộp phép toán (từ 2026-11-20):** `export_onnx` (train.py, dùng bởi `lay_mang.py`, `make_seed.py` và cuối `train.py`) sau khi xuất gọi `fuse_onnx`: gộp LayerNorm sau phép cộng dư thành `SkipLayerNormalization`, GELU (viết bằng Erf) và bias đứng trước nó thành `Gelu` / `BiasGelu` (bộ tối ưu `onnxruntime.transformers`). **Vẫn FP32, cùng hàm số** (lệch tối đa $7\cdot 10^{-7}$ trên logit policy tới 1,45; WDL $6\cdot 10^{-8}$; mlh đúng bằng 0), nhưng ít kernel nhỏ hơn: đo trên T4 trong engine (ORT 1.20.1, 16 ván, 800/200 lượt) **1.585 → 2.026 eval/s, nps 1.690 → 2.164 (+30%)**. Tốn thêm khoảng 1,2 giây mỗi lần xuất (xuất gốc 8,6 giây trên máy tính, kiểm tra 0,6 giây). Đồ thị gộp chỉ được dùng khi tính ra cùng số với đồ thị gốc (dung sai 1e-4 / 1e-5 / 1e-3 ở policy / WDL / mlh); lỗi hay lệch thì giữ đồ thị gốc và in lý do. Tắt bằng biến môi trường `FZ_ONNX_KHONG_GOP=1` (ví dụ nếu bản DirectML của Windows không chạy các phép gộp trên GPU).
+
 ### C.1. Toàn cảnh: vòng đời 2 bước (làm TAY, tách bạch)
 Bản portable **không** gộp sinh dữ liệu và huấn luyện vào một lệnh tự động — bạn điều khiển từng
 bước cho dễ quan sát:
@@ -729,7 +731,7 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--parallel K` | 1 | Số ván chạy **song song** cùng lúc. Đặt ≈ số nhân CPU để tận dụng hết máy → sinh nhanh hơn nhiều. |
 | `--threads-per-game T` | 1 | Số luồng MCTS dùng cho **mỗi** ván. Thường để 1 và tăng `--parallel` thay vì cái này. |
 | `--max-moves N` | 200 | Trần số **ply** (nửa nước: mỗi nước của một bên tính 1; 400 ply = 200 nước đầy đủ) mỗi ván; tới hạn thì xử hòa để khỏi kẹt ván dài vô tận. |
-| `--temperature T` | 0.5 | Cách chọn nước đi trong tự đấu, **cho cả ván** (từ 2026-11-20 không còn mốc `--temp-cutoff`: dùng nó với `--selfplay` là lỗi): xác suất chọn nước ∝ (N / Nmax)^(1/T), N = số lượt thăm của nước (T = 0.5 ⇒ ∝ N²). T = 0: luôn đi nước nhiều lượt nhất. Nhãn policy trong bản ghi vẫn là tỉ lệ lượt thăm, không bị T đổi. `--temp-cutoff` vẫn là độ dài khai cuộc của `--arena`. |
+| `--temperature T` | 0.5 | Cách chọn nước đi trong tự đấu, **cho cả ván** (từ 2026-11-20 không còn mốc `--temp-cutoff`: dùng nó với `--selfplay` hay `--arena` là lỗi): xác suất chọn nước ∝ (N / Nmax)^(1/T), N = số lượt thăm của nước (T = 0.5 ⇒ ∝ N²). T = 0: luôn đi nước nhiều lượt nhất. Nhãn policy trong bản ghi vẫn là tỉ lệ lượt thăm, không bị T đổi. Arena cũng dùng đúng cách chọn nước này (xem bảng arena). |
 | `--fast-prob P` | 0 (tắt) | **Playout cap randomization (PCR).** Trước MỖI nước tung đồng xu: với xác suất P nước đó tìm **nông** (`--fast-visits` lượt, `--fast-cpuct`, `--fast-noise-eps`), còn lại tìm đủ (`--visits`). Bản ghi nước nông có `fast_search = 1`: huấn luyện value + mlh, **không** huấn luyện policy. Ô 04 dùng 0.5. |
 | `--fast-visits N` | 200 | Số lượt thăm của nước tìm nông. Phải ≤ `--visits` khi `--fast-prob` > 0. Số lượt là mức sàn: một lượt tìm dừng sau lô lá cuối (tối đa +`minibatch-size`−1). |
 | `--fast-cpuct F` | 1.25 | c_puct của nước tìm nông (nước tìm đủ dùng `--cpuct`, mặc định 1.5). Hệ số tăng theo log = 0 cho cả hai. |
@@ -868,14 +870,14 @@ nó dùng các cờ thiết bị/độ sâu/tìm kiếm dưới đây, nhưng **
 | `--model-a FILE` | — | Mạng `.onnx` thứ nhất (thường là đời mới). |
 | `--model-b FILE` | — | Mạng `.onnx` thứ hai (thường là đời cũ để so). |
 | `--games N` | 100 | Số ván đấu (chia đôi mỗi bên cầm Trắng/Đen cho công bằng). |
-| `--visits N` | 200 | Độ sâu MCTS mỗi nước khi đấu. |
+| `--visits N` | 200 | Số lượt thăm MCTS **hằng** mỗi nước khi đấu (ô 08 đặt 400; arena không có tìm kiếm nông PCR). |
 | `--max-moves N` | 200 | Trần số **ply** (nửa nước) mỗi ván (chạm trần ⇒ tính hòa). |
 | `--start-fen FILE\|FEN` | thế cố định tạm | **Thế khởi đầu của arena** (từ 2026-11-20): một tệp một FEN mỗi dòng (như tự đấu) thì **mỗi cặp ván** (ván $2k$ và $2k+1$: A cầm Trắng rồi A cầm Đen) chơi cùng thế thứ $k$, quay vòng nếu thiếu dòng, nên mỗi thế được chơi với cả hai màu (hai bên của thế ngẫu nhiên không đối xứng); cần (số ván + 1) / 2 thế, sinh bằng `python/sinh_the_khoi_dau.py`. Một FEN đơn: mọi ván chơi từ nó. Không đặt: thế cố định tạm như trước. Mỗi FEN được kiểm trước ván đầu (như tự đấu); tệp hỏng dừng ngay kèm tên tệp và số dòng. `--arena-moves` in thêm dòng `start:` mỗi ván. |
-| `--temp-cutoff N` | 30 | Số nước đầu lấy mẫu theo visit (để hai ván không giống hệt nhau); đấu nghiêm ngặt có thể đặt nhỏ (vd 6) hoặc 0 để hai mạng đánh "tốt nhất" hoàn toàn. |
+| `--temperature T` | 0.5 | **Từ 2026-11-20** arena chọn nước đi **cho cả ván** như tự đấu: xác suất ∝ (N / Nmax)^(1/T), N = số lượt thăm của nước (T = 0.5 ⇒ ∝ N²; T = 0: luôn đi nước nhiều lượt nhất). Thay cho `--temp-cutoff` cũ (lấy mẫu N nước đầu rồi chọn nước nhiều lượt nhất): `--temp-cutoff` nay là lỗi, để lệnh cũ không âm thầm chạy sai. |
 | `--provider cpu\|cuda\|dml` | cpu | Thiết bị suy luận. `cuda` cho Colab (bản `-Duse_cuda`); `dml` cho GPU Windows — kể cả NVIDIA (bản `-Duse_dml`). |
 | `--backend-threads N` | 1 | Số luồng intra-op cho ONNX khi `cpu`/`dml` (nên đặt = số nhân, vd 4). |
 | `--fixed-batch N` | 16 | Kích thước batch cố định khi `--provider cuda`. |
-| `--cpuct F` | (mặc định search) | Hằng số thám hiểm MCTS; đặt giống nhau cho cả hai mạng để công bằng. |
+| `--cpuct F` | 1.25 | Hằng số thám hiểm MCTS, **hằng** cả ván và giống nhau cho cả hai mạng (mặc định arena 1.25 từ 2026-11-20; không nhiễu Dirichlet). |
 | `--policy-temp F` | 1.0 | Nhiệt độ làm mềm policy của mạng (giữ 1.0 cho đánh giá trung tính). |
 | `--show-nps` | tắt | In NPS (playout/giây) gộp sau mỗi ván + tổng kết, để đo tốc độ. |
 | `--arena-moves` | tắt | In **danh sách nước đi (UCI)** của mỗi ván (`moves: 1.e2e4 ...`) để bạn theo dõi/xem lại ván — vd kiểm tra mạng có thí quân bậy không. |
@@ -895,7 +897,7 @@ nó dùng các cờ thiết bị/độ sâu/tìm kiếm dưới đây, nhưng **
 ```powershell
 .\custom_engine.exe --arena `
   --model-a models\model_gen2.onnx --model-b models\model_gen1.onnx `
-  --games 20 --visits 400 --temp-cutoff 6 `
+  --games 20 --visits 400 --temperature 0.5 `
   --provider dml --backend-threads 4
 ```
 
@@ -909,7 +911,7 @@ nó dùng các cờ thiết bị/độ sâu/tìm kiếm dưới đây, nhưng **
 ```bash
 !/content/FairyZero/.../custom_engine --arena \
   --model-a models/model_gen2.onnx --model-b models/model_gen1.onnx \
-  --games 40 --visits 400 --temp-cutoff 6 \
+  --games 40 --visits 400 --temperature 0.5 \
   --provider cuda --fixed-batch 32
 ```
 

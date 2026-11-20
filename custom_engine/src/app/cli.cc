@@ -194,12 +194,13 @@ EngineOptions parse_cli(int argc, char* argv[]) {
     if (o.sp_provider != "cpu" && o.sp_provider != "cuda" && o.sp_provider != "dml" &&
         o.sp_provider != "tensorrt")
         error("--provider " + o.sp_provider + ": expected cpu, cuda, tensorrt or dml");
+    // Neither self-play nor the arena has an opening phase any more: every move of the game is drawn
+    // with --temperature (2026-11-20). A stale --temp-cutoff would otherwise be accepted and silently do
+    // nothing (the arena used to read it as the length of its sampled opening).
+    if (o.sp_temp_cutoff_given)
+        error("--temp-cutoff no longer exists: --selfplay and --arena draw every move of the game with "
+              "--temperature (default 0.5)");
     if (o.selfplay_mode) {
-        // Self-play no longer has an opening phase: every move is drawn with --temperature. A
-        // stale --temp-cutoff would otherwise be accepted and silently do nothing.
-        if (o.sp_temp_cutoff_given)
-            error("--temp-cutoff does not apply to --selfplay (every move is drawn with "
-                  "--temperature); it is the opening length of --arena");
         // A shallow search that is deeper than the full one is a mistake in the flags.
         if (o.sp_fast_prob > 0.0f && o.sp_fast_visits > o.sp_visits)
             error("--fast-visits " + std::to_string(o.sp_fast_visits) +

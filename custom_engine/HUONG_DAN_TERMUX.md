@@ -161,10 +161,13 @@ Chạy thẳng ô cũng được: `o @B 05`. `fz @<tên>` nhận cả tên của
 cảnh báo "hai cửa sổ sẽ dùng CHUNG máy 'fz'" và chỉ tiếp tục khi gõ `co`. Danh sách ở mục `a` ghi
 `<- cửa sổ này` / `đang mở ở cửa sổ khác` cạnh từng tài khoản.
 
-Mục `a` còn làm được:
+Mục `a` còn làm được (từ 2026-11-20 vào `a` chỉ hiện **số tài khoản theo từng loại**, tức thì, không hỏi mạng:
+ví dụ `42 tài khoản`, `20 còn đủ hạn mức`, `5 đã tới giờ nạp lại`, `12 còn ít / hết`, `4 đang giữ máy`; danh sách từng
+tài khoản với số thứ tự và hạn mức nằm ở lệnh `l`, nơi mới chụp lại hạn mức của các tài khoản đang giữ máy):
 
 | Gõ | Việc |
 |---|---|
+| `l` | **Xem từng tài khoản**: số thứ tự, hạn mức, giờ nạp lại, tài khoản đang mở ở cửa sổ khác (màn hình cũ của `a`). Enter quay về bản tóm tắt |
 | số | Cửa sổ này dùng tài khoản đó (cửa sổ khác không đổi). Tài khoản đang dùng còn giữ máy thì menu liệt kê các máy đó và hỏi: **`co`** = trả HẾT rồi đổi (chụp hạn mức trước khi trả; `/content` các máy đó mất), **`giu`** = đổi mà giữ máy (vẫn tiêu hạn mức), **Enter** = huỷ. Colab miễn phí giờ không cho chạy nhiều máy cùng lúc trên một tài khoản, nên thường chọn `co` |
 | `n` | Thêm tài khoản mới |
 | `r` | Đổi tên (tên nội bộ để phân biệt, vd `phuc`, `phuc2`) — cả tài khoản chính (mặc định tên `chinh`). Chữ, số, `_`, `-`, tối đa 20 ký tự. Không đổi được khi tài khoản đang mở ở cửa sổ khác |
@@ -247,7 +250,7 @@ trả máy) và khi mở `a`. Không giữ máy thì `h` in lần chụp gần n
 CPU tên `fzhm<số>` (~30 giây, gần như không tốn hạn mức), đọc hạn mức + giờ nạp lại, rồi trả ngay
 (Ctrl+C giữa chừng vẫn trả).
 
-Mục **`a`** hiện dưới mỗi tài khoản một dòng từ lần chụp gần nhất, để biết nên đổi sang tài khoản nào:
+Mục **`a`** → **`l`** hiện dưới mỗi tài khoản một dòng từ lần chụp gần nhất, để biết nên đổi sang tài khoản nào:
 
 ```
 == Tài khoản Colab ==

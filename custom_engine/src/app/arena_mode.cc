@@ -59,6 +59,12 @@
 
 using namespace Stockfish;
 
+namespace {
+// c_puct of every arena search unless --cpuct overrides it (owner's decision, 2026-11-20; the PCR shallow searches of
+// self-play use the same 1.25, the full ones 1.5).
+constexpr float kArenaCpuct = 1.25f;
+}  // namespace
+
 int run_arena(const EngineOptions& o) {
     if (o.arena_a.empty() || o.arena_b.empty()) {
         std::cerr << "[arena] need --model-a <onnx> and --model-b <onnx>" << std::endl;
@@ -69,11 +75,18 @@ int run_arena(const EngineOptions& o) {
     const int games = o.sp_games;
     const int visits = o.sp_visits;
     const int max_moves = o.sp_max_moves;
-    const int temp_cutoff = o.sp_temp_cutoff;
+    // Owner's decisions (2026-11-20): the arena searches EVERY move with the same constant number of playouts
+    // (--visits, the cell passes 400), a constant c_puct (kArenaCpuct unless --cpuct is given), no Dirichlet noise,
+    // and draws EVERY move of the game with temperature --temperature (default 0.5: weight (N / N_max)^(1 / T)),
+    // exactly as self-play draws its moves. There is no opening phase any more (the old --temp-cutoff).
+    const float temperature = o.sp_temperature;
+    const float cpuct = o.sp_cpuct >= 0.0f ? o.sp_cpuct : kArenaCpuct;
 
     std::cout << "\n=== ARENA: A=" << model_a << "  vs  B=" << model_b
               << "  (" << games << " games, visits=" << visits
               << ", provider=" << o.sp_provider << ") ===" << std::endl;
+    std::cout << "[arena] search: PUCT, " << visits << " playouts every move (cpuct " << cpuct
+              << ", no noise); every move drawn with temperature " << temperature << std::endl;
     setup_custom_variant();
     // Start positions. With --start-fen FILE every PAIR of games (2k and 2k+1, A is White in the even one) starts
     // from line k of the book (wrapping round), so each position is played once with each color: the two sides of a
@@ -126,8 +139,7 @@ int run_arena(const EngineOptions& o) {
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, o.sp_policy_temp);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "always");  // ghi lai cho dung; mang luon ma hoa ALWAYS (onnx_backend.cc)
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.0f);
-        if (o.sp_cpuct >= 0.0f)
-            parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_cpuct);
+        parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, cpuct);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights);
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bopts);
         // --search-opt applies to BOTH nets (arena used to ignore it silently).
@@ -276,23 +288,10 @@ int run_arena(const EngineOptions& o) {
 
                 lczero::classic::Node* root = tree->GetCurrentHead();
                 game_nodes += static_cast<int64_t>(root->GetN());
-                lczero::classic::EdgeAndNode best;
-                uint64_t total = 0, best_n = 0;
-                for (const auto& e : root->Edges()) {
-                    total += e.GetN();
-                    if (e.GetN() >= best_n) { best_n = e.GetN(); best = e; }
-                }
-                if (best.GetMove().is_null()) break;
-
-                lczero::Move played = best.GetMove();       // greedy by default
-                if (ply < temp_cutoff && total > 0) {       // temperature opening for diversity
-                    const double toss = lczero::Random::Get().GetDouble(static_cast<double>(total));
-                    double acc = 0.0;
-                    for (const auto& e : root->Edges()) {
-                        acc += static_cast<double>(e.GetN());
-                        if (acc > toss) { played = e.GetMove(); break; }
-                    }
-                }
+                // The same draw as self-play, for every move of the game.
+                const lczero::classic::EdgeAndNode played_edge = lczero::SelectMoveEdge(root, temperature);
+                if (played_edge.GetMove().is_null()) break;
+                lczero::Move played = played_edge.GetMove();
                 if (o.arena_show_moves) {
                     if ((ply % 2) == 0) moves_str += std::to_string(ply / 2 + 1) + ".";
                     moves_str += CanonicalMoveToUci(played, !white_to_move) + " ";

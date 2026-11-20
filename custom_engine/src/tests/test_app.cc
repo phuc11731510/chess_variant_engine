@@ -73,6 +73,8 @@ void TestParseCli() {
     // Flags that must stop the run instead of being taken or ignored.
     for (const auto& bad : std::vector<std::vector<std::string>>{
              {"--selfplay", "--temp-cutoff", "32"},                              // no opening phase any more
+             {"--arena", "--temp-cutoff", "32"},                                 // ... nor in the arena
+             {"--arena", "--temperature", "-1"},
              {"--selfplay", "--visits", "100", "--fast-prob", "0.5"},            // shallow (200) deeper than full (100)
              {"--selfplay", "--visits", "800", "--fast-visits", "900", "--fast-prob", "0.5"},
              {"--selfplay", "--fast-prob", "1.5"},
@@ -82,14 +84,17 @@ void TestParseCli() {
              {"--selfplay", "--fast-noise-eps", "1.5"}}) {
         EXPECT(!Parse(bad).errors.empty(), "should be refused: " << Join(bad));
     }
-    // Allowed: the same visits (PCR with no depth difference), PCR off with a larger --fast-visits, and
-    // --temp-cutoff for the ARENA, whose opening length it still is.
+    // Allowed: the same visits (PCR with no depth difference), PCR off with a larger --fast-visits.
     {
         EXPECT(Parse({"--selfplay", "--visits", "200", "--fast-prob", "0.5"}).errors.empty() &&
-                   Parse({"--selfplay", "--visits", "100"}).errors.empty() &&
-                   Parse({"--arena", "--temp-cutoff", "32"}).errors.empty(),
-               "valid PCR / arena flag combinations were refused");
-        EXPECT(Parse({"--arena", "--temp-cutoff", "32"}).sp_temp_cutoff == 32, "--temp-cutoff of the arena");
+                   Parse({"--selfplay", "--visits", "100"}).errors.empty(),
+               "valid PCR flag combinations were refused");
+        // The arena draws every move with --temperature (default 0.5, as self-play) and takes --cpuct (its own default
+        // 1.25 is applied in arena_mode.cc, so the parsed value stays "not given" = -1).
+        const auto a = Parse({"--arena"});
+        EXPECT(a.errors.empty() && std::fabs(a.sp_temperature - 0.5f) < 1e-7 && a.sp_cpuct < 0.0f &&
+                   !a.sp_temp_cutoff_given,
+               "arena defaults (temperature 0.5, c_puct left to the arena's 1.25)");
     }
     // Cell 04 on Colab with the soft-stop file (menu fz / automatic loop).
     {
@@ -102,7 +107,7 @@ void TestParseCli() {
     // The arena command of the notebook.
     {
         const auto o = Parse({"--arena", "--model-a", "a.onnx", "--model-b", "b.onnx", "--games", "400",
-                              "--visits", "200", "--temp-cutoff", "32", "--provider", "cuda",
+                              "--visits", "200", "--provider", "cuda",
                               "--fixed-batch", "16", "--max-moves", "400", "--show-nps"});
         EXPECT(o.errors.empty() && o.arena_mode && o.arena_a == "a.onnx" && o.arena_b == "b.onnx" &&
                    o.sp_games == 400 && o.sp_visits == 200,
@@ -111,14 +116,14 @@ void TestParseCli() {
     // The arena command of the Colab cell 08 (parallel games, no prefetch).
     {
         const auto o = Parse({"--arena", "--model-a", "a.onnx", "--model-b", "b.onnx", "--games", "100",
-                              "--visits", "400", "--temp-cutoff", "32", "--provider", "cuda",
+                              "--visits", "400", "--temperature", "0.5", "--cpuct", "1.25", "--provider", "cuda",
                               "--fixed-batch", "16", "--max-moves", "400", "--show-nps",
                               "--search-opt", "max-prefetch=0", "--parallel", "4",
                               "--start-fen", "/content/the_khoi_dau_arena_gen0.txt"});
-        EXPECT(o.errors.empty() && o.arena_mode && o.sp_games == 100 && o.sp_parallel == 4 &&
-                   o.sp_search_opts.size() == 1 && o.sp_start_fen == "/content/the_khoi_dau_arena_gen0.txt" &&
-                   o.sp_temp_cutoff == 32,
-               "cell 08 arena command (--parallel, --search-opt, --start-fen book, --temp-cutoff kept for arena)");
+        EXPECT(o.errors.empty() && o.arena_mode && o.sp_games == 100 && o.sp_parallel == 4 && o.sp_visits == 400 &&
+                   std::fabs(o.sp_temperature - 0.5f) < 1e-7 && std::fabs(o.sp_cpuct - 1.25f) < 1e-7 &&
+                   o.sp_search_opts.size() == 1 && o.sp_start_fen == "/content/the_khoi_dau_arena_gen0.txt",
+               "cell 08 arena command (400 playouts, temperature 0.5, c_puct 1.25, --parallel, --start-fen book)");
     }
     // Other documented forms.
     for (const auto& args : std::vector<std::vector<std::string>>{
