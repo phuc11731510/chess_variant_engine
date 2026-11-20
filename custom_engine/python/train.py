@@ -330,6 +330,11 @@ def main():
                          "(highest games_gen<g> folder: games the warm-start net played and never "
                          "trained on), then train on ALL games including those; no other [val] "
                          "lines. Needs --val-frac 0")
+    ap.add_argument("--stats-newest-gen", action="store_true",
+                    help="before training, print two statistics of the games of the newest generation "
+                         "(highest games_gen<g> folder, every machine's games): the average number of pieces left "
+                         "when a game ended, and how often the side that attacked more won (thong_ke_doi.py). "
+                         "A failure only prints a warning")
     ap.add_argument("--report-every", type=int, default=0, help="print running loss every N steps (0 = per-epoch)")
     ap.add_argument("--save-every", type=int, default=0, help="export an ONNX checkpoint every N steps (0 = only final)")
     args = ap.parse_args()
@@ -504,6 +509,12 @@ def main():
     else:
         swa_desc = f"averages the end of epochs {swa_start}..{args.epochs}"
     print(f"[train] params={sum(p.numel() for p in net.parameters())/1e6:.2f}M swa: {swa_desc}")
+    if args.stats_newest_gen:
+        try:
+            import thong_ke_doi
+            thong_ke_doi.newest_generation_report(args.data)
+        except Exception as e:          # a statistic must never stop a training run
+            print(f"[stats] WARNING: could not compute the statistics of the newest generation: {e!r}", flush=True)
     report("start weights", net)
     if first_val is not None:
         gen, n_games, n_pos, loader = first_val

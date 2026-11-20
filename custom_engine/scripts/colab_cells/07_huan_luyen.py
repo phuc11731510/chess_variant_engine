@@ -13,9 +13,12 @@ if not os.path.exists(CURRENT_PT):
 # nhau. Không chụp trước bước 1: lần học quá ngắn để đủ 10 lần thì chụp ít hơn (đời 0, 146 bước: 8 lần).
 # --val-frac 0: không giữ ván nào ra ngoài. Không còn chấm mạng cũ trên đời mới nhất (bỏ --val-newest-gen
 # 2026-11-20 để bớt ~1,5 phút mỗi đời; cờ vẫn còn trong train.py). Mạnh/yếu của mạng: arena.
+# --stats-newest-gen: trước khi học, in hai số thống kê của đời mới nhất (thư mục games_gen<g> số lớn nhất, ván của
+# mọi máy): số quân còn lại trung bình lúc ván kết thúc, và tỉ lệ bên công nhiều hơn thắng (dòng "[stats] ...").
+# Tính từ bản ghi, chỉ đọc; lỗi chỉ in cảnh báo, không dừng việc học.
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
-    --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --batch 512 --accum-steps 2 --lr 1e-3 \
+    --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen --batch 512 --accum-steps 2 --lr 1e-3 \
     --q-ratio 0.25 --weight-decay 1e-4 --report-every 20 \
     --out {NEXT_ONNX}"""
 

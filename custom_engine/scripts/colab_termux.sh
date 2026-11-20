@@ -99,7 +99,7 @@ fetch)
 train)
   check_gpu || { echo "[fz] VM khong co GPU -- dung lai."; exit 1; }
   echo "!nohup python $E/python/train.py --data \"${DATA:-/content/games_gen$GEN.zip}\" --init-from /content/gen$GEN.pt \
---epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --batch 512 --accum-steps 2 --lr 1e-3 \
+--epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen --batch 512 --accum-steps 2 --lr 1e-3 \
 --q-ratio 0.25 --weight-decay 1e-4 --report-every 20 \
 --out /content/gen$NEXT.onnx > /content/train.log 2>&1 &" | rx
   echo "[fz] da chay nen tren VM; xem: bash $0 status train"
