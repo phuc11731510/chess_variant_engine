@@ -11,9 +11,13 @@ set -euo pipefail
 # ngay thi van nhan ban CU. Tai theo ma commit moi nhat cua main (hoi GitHub API) thi luon moi;
 # API loi (gioi han 60 lan/gio) thi dung main.
 REPO=phuc11731510/chess_variant_engine
-SHA=$(curl -fsSL -H 'Accept: application/vnd.github.sha' "https://api.github.com/repos/$REPO/commits/main" 2>/dev/null) || SHA=
-[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || SHA=main
-URL=https://raw.githubusercontent.com/$REPO/$SHA/custom_engine/scripts/colab_cells
+if [ -n "${FZ_LAY_VE_URL:-}" ]; then      # chi de kiem thu (python/test_lay_ve.py): may chu gia thay GitHub
+  SHA=thu; URL=$FZ_LAY_VE_URL
+else
+  SHA=$(curl -fsSL -H 'Accept: application/vnd.github.sha' "https://api.github.com/repos/$REPO/commits/main" 2>/dev/null) || SHA=
+  [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || SHA=main
+  URL=https://raw.githubusercontent.com/$REPO/$SHA/custom_engine/scripts/colab_cells
+fi
 CELLS="00_cau_hinh 01_kiem_gpu 02_khoi_dong 02b_bien_dich 02c_chuan_bi_huan_luyen 03_tao_gen0 04_sinh_du_lieu
 05_xem_log 06_dong_goi 07_huan_luyen 08_arena 09_dung_viec_nen 09b_dung_mem"
 DIR=$HOME/storage/downloads/FairyZero/o_lenh
@@ -35,20 +39,40 @@ if [ ! -d "$HOME/storage/downloads" ]; then
   exit 1
 fi
 mkdir -p "$DIR"
-# Co tai lai o $c khong: -f = moi o; danh sach so = chi cac o do.
+
+# O LENH (2026-11-20): cap nhat TUNG O, CHI doi cai da doi, khong ghi de cho ban da sua. May nho ban goc cua tung o
+# (~/.fz_lay_ve/co_so/); o ban chua sua ma co ban moi thi thay, o ban da sua ma ban moi doi cho khac thi TRON ba ben, cung sua
+# mot cho thi de ban moi o <o>.py.moi (khong ghi de). Chi tiet va quy tac: dau tep fz_lay_ve.py.
+#   bash lay_ve.sh          cap nhat cac o co ban moi (nhu tren)
+#   bash lay_ve.sh --xem    chi cho biet se doi gi, khong ghi gi
+#   bash lay_ve.sh -f       ep thay TAT CA cac o bang ban moi (ghi de ca phan ban da sua)
+#   bash lay_ve.sh 08 07    ep thay RIENG cac o do
+# Cach cu (khi khong tai duoc fz_lay_ve.py): chi tai o CHUA co; -f hoac so o = ghi de.
 ghi_de() {
   local a
   for a in "$@"; do [ "$a" = -f ] || [ "$a" = "${c%%_*}" ] && return 0; done
   return 1
 }
-for c in $CELLS; do
-  f=$DIR/$c.py
-  if [ -f "$f" ] && ! ghi_de "$@"; then
-    echo "[giu nguyen] $f"
+lay_o_lenh_cu() {
+  for c in $CELLS; do
+    f=$DIR/$c.py
+    if [ -f "$f" ] && ! ghi_de "$@"; then
+      echo "[giu nguyen] $f"
+    else
+      curl -fsSL -o "$f" "$URL/$c.py" && echo "[tai]        $f"
+    fi
+  done
+}
+lay_o_lenh() {
+  if curl -fsSL -o ~/fz_lay_ve.py "$URL/fz_lay_ve.py" && python3 ~/fz_lay_ve.py --kiem-tra >/dev/null 2>&1; then
+    python3 ~/fz_lay_ve.py --url "$URL" --dir "$DIR" --state "$HOME/.fz_lay_ve" --cells "$CELLS" "$@"
   else
-    curl -fsSL -o "$f" "$URL/$c.py" && echo "[tai]        $f"
+    echo "[!] khong co / loi fz_lay_ve.py -> dung cach cu"
+    lay_o_lenh_cu "$@"
   fi
-done
+}
+if [ "${1:-}" = "--xem" ]; then lay_o_lenh "$@"; exit 0; fi
+lay_o_lenh "$@"
 # Menu + phan chay tren may Colab khong phai thu ban sua -> luon lay ban moi.
 curl -fsSL -o ~/fz_menu.sh "$URL/menu.sh" && echo "[tai]        ~/fz_menu.sh"
 curl -fsSL -o ~/fz_may.py "$URL/fz_may.py" && echo "[tai]        ~/fz_may.py"

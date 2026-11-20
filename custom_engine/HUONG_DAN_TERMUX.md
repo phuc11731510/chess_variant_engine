@@ -311,13 +311,30 @@ source ~/.bashrc
 `lay_ve.sh` trước hết **tự cập nhật chính nó** (tải bản mới nhất của `lay_ve.sh`, khác thì thay
 và chạy lại bằng bản mới), rồi làm ba việc:
 
-1. Tải 11 ô về **`Download/FairyZero/o_lenh/`** (trong Termux: `~/storage/downloads/FairyZero/o_lenh`).
-   Ô nào **đã có thì giữ nguyên** (không ghi đè ô bạn đã sửa). Muốn lấy bản mới nhất:
-   - riêng vài ô (ghi đè đúng các ô đó): `bash lay_ve.sh 05 07`;
-   - tất cả (ghi đè mọi ô đã sửa): `bash lay_ve.sh -f`.
+1. Cập nhật các ô trong **`Download/FairyZero/o_lenh/`** (trong Termux: `~/storage/downloads/FairyZero/o_lenh`)
+   **đúng cái đã đổi, không ghi đè phần bạn đã sửa** (từ 2026-11-20, `fz_lay_ve.py`). Máy nhớ **bản gốc** của từng ô
+   (`~/.fz_lay_ve/co_so/`: bản mới nhất đã lấy về lần trước) và so ba bản: bản gốc, bản của bạn (có thể bạn sửa tay, hoặc
+   menu/vòng lặp đã ghi `SECS`, `GAMES`, `GEN_CURRENT` vào), và bản mới trên GitHub. Mỗi ô được xử lý một trong các cách sau
+   (dòng in ra có nhãn tương ứng; ô không đổi gì thì không in):
+
+   | Tình huống | Việc làm | Nhãn |
+   |---|---|---|
+   | chưa có ô đó | tải về | `[tai]` |
+   | bạn không sửa, GitHub có bản mới | thay bằng bản mới | `[moi]` |
+   | bạn sửa, GitHub không đổi ô đó | giữ bản của bạn | `[giu]` |
+   | bạn sửa một chỗ, GitHub đổi chỗ khác | **trộn** (giữ phần bạn sửa, thêm phần mới; vd `GEN_CURRENT = 7` vẫn còn) | `[tron]` |
+   | cả hai sửa **cùng một chỗ** | **không ghi đè**; bản mới lưu ở `<ô>.py.moi`, kèm lệnh thay hẳn | `[XUNG DOT]` |
+   | máy chưa có bản gốc (lần đầu dùng cách này) và ô khác bản mới | **không ghi đè** (không biết bạn sửa chưa); bản mới ở `<ô>.py.moi` | `[chua ro]` |
+
+   - **Xem trước, không ghi gì:** `bash lay_ve.sh --xem`.
+   - Ép thay riêng vài ô (ghi đè cả phần bạn sửa, xoá `.moi`): `bash lay_ve.sh 05 07`.
+   - Ép thay tất cả: `bash lay_ve.sh -f`.
+   - `.moi` là tệp phụ, menu không thấy (nó chỉ tìm `NN_*.py`). So sánh: `diff 08_arena.py 08_arena.py.moi`.
+   - Không tải được `fz_lay_ve.py` thì `lay_ve.sh` dùng cách cũ (chỉ tải ô còn thiếu; `-f` hoặc số ô để ghi đè), không báo lỗi.
+   - Kiểm: `python/test_lay_ve.py` (40 mục: trộn ba bên, mọi tình huống ở bảng trên, và chạy cả `lay_ve.sh` với máy chủ giả thay GitHub).
 
    **Xoá một tệp ô** trong `o_lenh` thì ô đó biến khỏi menu và không chạy được nữa — menu đọc thẳng
-   các tệp này mỗi lần. Lấy lại: `bash lay_ve.sh` (chỉ tải ô còn thiếu). Riêng `00_cau_hinh.py` mà
+   các tệp này mỗi lần. Lấy lại: `bash lay_ve.sh` (tải ô còn thiếu). Riêng `00_cau_hinh.py` mà
    mất thì **mọi ô** đều hỏng (chúng cần biến của nó).
 2. Tải menu về `~/fz_menu.sh` và phần chạy trên máy Colab về `~/fz_may.py` (luôn lấy bản mới —
    đây không phải thứ bạn sửa).
