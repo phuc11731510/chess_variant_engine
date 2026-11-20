@@ -333,21 +333,17 @@ chua_phut() { local n; n=$(cat "$CHUA_F" 2>/dev/null); so_nguyen "$n" && echo $(
 # Duoi van khi o 04 dung mem vi het SECS: van dang do van choi not (vuot SECS vai phut; nhieu van
 # song song thi lau hon). Moi lan 04 dung vi het SECS, ghi_duoi_log ghi "<song song> <giay vuot>" vao
 # $DUOI_F (tu log o 04 tren may). duoi_giay P = lan vuot DAI NHAT trong 10 lan gan nhat cung P; chua
-# co lan nao thi so do ban dau (cu, T4, 2026-09-28, mang CNN 4.900 nps: 4 van ~1,5 phut, 16 van ~3,4 phut).
+# co lan nao thi so do ban dau (T4, 2026-09-28: 4 van ~1,5 phut, 16 van ~3,4 phut, 24 van ~7 phut).
 # SECS = han muc con lai - chua_phut (gom zip + tai ve) - duoi_giay.
-# LUAT MOI (2026-11-20): lich su doi sang tep .duoi_van_luat_moi (so do cu cua mang CNN KHONG dung duoc cho transformer FP32:
-# ~1.300 nps, ~500 luot TB moi nuoc -> moi van choi lau hon ~3-4 lan, duoi van dai hon ~2 lan; dung so cu thi lan chay dau
-# co the xong SAU khi het han muc va mat het van chua tai ve). Mac dinh ben duoi la UOC LUONG (4 van ~10 phut, 16 van ~20 phut
-# = ~12 phut tinh toan + du phong cho van dai cua mang moi chua hoc), se duoc thay bang so do that sau lan chay dau.
-DUOI_F=$TKG/.duoi_van_luat_moi
+DUOI_F=$TKG/.duoi_van
 song_song_o04() { local p; p=$(gia_tri "$1" PARALLEL); so_nguyen "$p" && echo $((10#$p)) || echo 4; }
 duoi_giay() {
   local p=$1 m
   m=$(awk -v p="$p" '$1 == p { a[n++] = $2 } END { for (i = (n > 10 ? n - 10 : 0); i < n; i++) if (a[i] > m) m = a[i]; print m + 0 }' "$DUOI_F" 2>/dev/null)
   if [ "${m:-0}" -gt 0 ]; then echo "$m"
-  elif [ "$p" -le 4 ]; then echo 600
-  elif [ "$p" -le 16 ]; then echo 1200
-  else echo $((p * 75)); fi
+  elif [ "$p" -le 4 ]; then echo 120
+  elif [ "$p" -le 16 ]; then echo 240
+  else echo $((p * 20)); fi
 }
 duoi_phut() { echo $(( ($(duoi_giay "$1") + 59) / 60 )); }
 # Doc log o 04 tren may: 04 dung vi het SECS -> ghi so giay vuot. Im lang neu khong co gi de ghi.
