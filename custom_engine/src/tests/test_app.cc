@@ -116,14 +116,15 @@ void TestParseCli() {
     // The arena command of the Colab cell 08 (parallel games, no prefetch).
     {
         const auto o = Parse({"--arena", "--model-a", "a.onnx", "--model-b", "b.onnx", "--games", "100",
-                              "--visits", "400", "--temperature", "0.5", "--cpuct", "1.25", "--provider", "cuda",
+                              "--visits", "400", "--temperature", "0", "--cpuct", "1.25", "--provider", "cuda",
                               "--fixed-batch", "16", "--max-moves", "400", "--show-nps",
                               "--search-opt", "max-prefetch=0", "--parallel", "4",
                               "--start-fen", "/content/the_khoi_dau_arena_gen0.txt"});
+        // Since 2026-11-21 the cell passes temperature 0 (most visited move, ties shared): it must parse, not be an error.
         EXPECT(o.errors.empty() && o.arena_mode && o.sp_games == 100 && o.sp_parallel == 4 && o.sp_visits == 400 &&
-                   std::fabs(o.sp_temperature - 0.5f) < 1e-7 && std::fabs(o.sp_cpuct - 1.25f) < 1e-7 &&
+                   o.sp_temperature == 0.0f && std::fabs(o.sp_cpuct - 1.25f) < 1e-7 &&
                    o.sp_search_opts.size() == 1 && o.sp_start_fen == "/content/the_khoi_dau_arena_gen0.txt",
-               "cell 08 arena command (400 playouts, temperature 0.5, c_puct 1.25, --parallel, --start-fen book)");
+               "cell 08 arena command (400 playouts, temperature 0, c_puct 1.25, --parallel, --start-fen book)");
     }
     // Other documented forms.
     for (const auto& args : std::vector<std::vector<std::string>>{
