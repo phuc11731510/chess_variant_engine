@@ -16,7 +16,7 @@ SECS = 0            # > 0: dừng MỀM sau chừng này giây (ván dở chơi 
 A_ONNX = NEXT_ONNX      # mạng A (kết quả "A wins" = A thắng)
 B_ONNX = CURRENT_ONNX   # mạng B
 
-# Mạng .onnx của hai bên: máy chưa có thì lấy từ Release NN_Model. Release chỉ giữ .onnx của đời MỚI NHẤT
+# Mạng .onnx của hai bên: máy chưa có thì lấy từ Release NN_Model. Release chỉ giữ .pt (không giữ .onnx)
 # (từ 2026-10-20, vì một Release chứa tối đa 1000 tệp); đời cũ hơn thì python/lay_mang.py tải .pt đời đó rồi
 # chuyển sang .onnx ngay trên máy (~1-3 phút, CPU), nên đấu hai đời bất kỳ đều được. Đã có sẵn thì bỏ qua.
 import os

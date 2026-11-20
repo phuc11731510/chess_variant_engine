@@ -104,9 +104,10 @@ void EncodePositionForNN(
             has_board = true;
         } else if (fill_empty_history == FillEmptyHistory::ALWAYS ||
                    (fill_empty_history == FillEmptyHistory::FEN_ONLY && history.StartingIsCustom())) {
-            // Lịch sử chưa đủ sâu: chép thế ban đầu vào các bàn còn trống. FEN_ONLY (như lc0) chỉ làm
-            // vậy khi thế ban đầu không phải thế xuất phát (vd. FEN tự đặt): ván tự chơi luôn bắt đầu
-            // từ thế xuất phát nên dữ liệu huấn luyện không đổi (các bàn trước nước đầu vẫn để trống).
+            // Lịch sử chưa đủ sâu: chép thế ban đầu của ván vào các bàn còn trống. ALWAYS làm vậy với mọi
+            // ván; FEN_ONLY (như lc0) chỉ làm khi thế ban đầu không phải thế xuất phát của biến thể.
+            // Mạng và bản ghi huấn luyện dùng ALWAYS (từ 2026-11-20), nên các nước đầu của mọi ván đều có
+            // 7 bàn lịch sử bằng thế ban đầu, không còn bàn rỗng.
             raw_board_ptr = &starting_position.GetBoard().GetRawPosition();
             rep = starting_position.GetRepetitions();
             has_board = true;
@@ -144,7 +145,8 @@ void EncodePositionForNN(
     // Mã hóa các mặt phẳng phụ trợ (enum AuxPlane, nn_layout.h) ở phần cuối
     const auto& raw_pos = last_position.GetBoard().GetRawPosition();
 
-    // Các ô có thể bị ăn tốt qua đường (En Passant), lật góc nhìn khi Đen đi
+    // Ô ep (En Passant): các ô TRỐNG mà quân vừa bước đôi đã nhảy qua (nơi quân ăn qua đường sẽ hạ cánh),
+    // KHÔNG phải ô quân bị ăn đang đứng. Lật góc nhìn khi Đen đi.
     Stockfish::Bitboard ep = raw_pos.ep_squares();
     if (ep && is_flipped) {
         Stockfish::Bitboard flipped_ep = 0;
@@ -158,9 +160,6 @@ void EncodePositionForNN(
 
     // Đếm luật 50 nước đi (chuẩn hóa rule50 / 100.0f)
     (*output_planes)[kAuxPlaneBase + kAuxRule50].Fill(static_cast<float>(last_position.GetRule50Ply()) / 100.0f);
-
-    // Đầy 1.0f giúp mạng nơ-ron nhận biết biên bàn cờ 10x10
-    (*output_planes)[kAuxPlaneBase + kAuxOnes].Fill(1.0f);
 
     // Số lượt chiếu còn lại, chuẩn hóa checks / 10.0f.
     //

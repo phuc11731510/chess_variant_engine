@@ -164,6 +164,7 @@ OnnxComputation::OnnxComputation(Ort::Session* session, Ort::MemoryInfo& memory_
       input_buffer_(new float[slots_ * InputBufferUnitSize]),
       policy_output_buffer_(new float[slots_ * PolicyOutputSize]),
       value_output_buffer_(new float[slots_ * ValueOutputSize]),
+      mlh_output_buffer_(new float[slots_ * MlhOutputSize]),
       results_(capacity_),
       position_moves_(capacity_),
       softmax_temp_(softmax_temp), fixed_batch_(fixed_batch),
@@ -214,13 +215,16 @@ BackendComputation::AddInputResult OnnxComputation::AddInput(
         position_moves_[slot][i] = pos.legal_moves[i];
     }
 
-    // Encode board features using position history. FEN_ONLY is fixed here (lc0 default): the
-    // HistoryFill option is NOT read. Before 2026-10-17 the encoder treated FEN_ONLY as NO, so a
-    // position given as a bare FEN (no moves) reached the net with 7 all-zero history boards --
-    // never seen in training -- and gen79's raw value was off by 0.87 on average (do_lich_su.py).
+    // Encode board features using position history. ALWAYS is fixed here (lc0's "always" mode): the
+    // HistoryFill option is NOT read. A history board that does not exist yet (the first moves of a game)
+    // is a copy of the first position of the game, for every game, whatever its start position -- the
+    // training records (training_extract.cc) are encoded the same way. (Before 2026-10-17 the encoder
+    // treated FEN_ONLY as NO, so a position given as a bare FEN reached the net with 7 all-zero history
+    // boards -- never seen in training -- and gen79's raw value was off by 0.87 on average. 2026-11-20:
+    // ALWAYS instead of FEN_ONLY, so a game from the variant's own start position is filled too.)
     alignas(64) InputPlanes planes;
     int transform = 0;
-    EncodePositionForNN(*pos.history, kMoveHistory, FillEmptyHistory::FEN_ONLY, &planes, &transform);
+    EncodePositionForNN(*pos.history, kMoveHistory, FillEmptyHistory::ALWAYS, &planes, &transform);
 
     // Unpack bits into flat float buffer
     float* current_input_ptr = input_buffer_.get() + slot * InputBufferUnitSize;
@@ -323,12 +327,21 @@ void OnnxComputation::ComputeBlocking() {
             value_shape.size()
         );
         
+        std::array<int64_t, 2> mlh_shape = { static_cast<int64_t>(run_batch), static_cast<int64_t>(MlhOutputSize) };
+        Ort::Value mlh_tensor = Ort::Value::CreateTensor<float>(
+            memory_info_,
+            mlh_output_buffer_.get() + offset * MlhOutputSize,
+            run_batch * MlhOutputSize,
+            mlh_shape.data(),
+            mlh_shape.size()
+        );
+        
         // 2. Setup inputs and outputs pointers
         const char* input_names[] = { "input" };
-        char* output_names[] = { "policy", "value" };
+        char* output_names[] = { "policy", "value", "mlh" };
         
         Ort::Value inputs[] = { std::move(input_tensor) };
-        Ort::Value outputs[] = { std::move(policy_tensor), std::move(value_tensor) };
+        Ort::Value outputs[] = { std::move(policy_tensor), std::move(value_tensor), std::move(mlh_tensor) };
         
         // 3. Execute inference synchronously on CPU/GPU
         const auto t_run = std::chrono::steady_clock::now();
@@ -339,7 +352,7 @@ void OnnxComputation::ComputeBlocking() {
             1,
             output_names,
             outputs,
-            2
+            3
         );
         
         // Instrumentation (see OnnxEvalCounters): current_batch is what the
@@ -356,6 +369,7 @@ void OnnxComputation::ComputeBlocking() {
     for (size_t b = 0; b < enqueued; ++b) {
         const float* raw_policy = policy_output_buffer_.get() + b * PolicyOutputSize;
         const float* raw_value = value_output_buffer_.get() + b * ValueOutputSize;
+        const float raw_mlh = mlh_output_buffer_[b * MlhOutputSize];
         EvalResultPtr res = results_[b];
 
         // 4.1. WDL value. The graph must end with a softmax (python/train.py's
@@ -372,7 +386,16 @@ void OnnxComputation::ComputeBlocking() {
         }
         if (res.q) *res.q = raw_value[0] - raw_value[2];
         if (res.d) *res.d = raw_value[1];
-        if (res.m) *res.m = 50.0f;      // no moves-left head (has_mlh = false)
+        // 4.1b. Moves left, in plies (the network's linear output; lc0 clamps it at 0 where it is used). A
+        // NaN here would spread through the search through the moves-left utility, so it is refused like
+        // the other outputs.
+        if (!std::isfinite(raw_mlh)) {
+            const std::string msg =
+                "ONNX Backend: the network's moves-left output is not finite (NaN/inf); the weights are broken.";
+            std::cerr << msg << std::endl;
+            throw Exception(msg);
+        }
+        if (res.m) *res.m = std::max(raw_mlh, 0.0f);
 
         // 4.2. Policy: softmax over the legal moves' logits.
         const size_t num_legal = std::min(position_moves_[b].size(), static_cast<size_t>(384));
@@ -425,7 +448,7 @@ BackendAttributes OnnxBackend::GetAttributes() const {
     int rec_batch = fixed_batch_ ? static_cast<int>(fixed_batch_size_) : 16;
     int max_batch = fixed_batch_ ? static_cast<int>(fixed_batch_size_) : static_cast<int>(MaxBatchSize);
     return BackendAttributes{
-        .has_mlh = false,
+        .has_mlh = true,
         .has_wdl = true,
         .runs_on_cpu = (provider_ == "cpu"),
         .suggested_num_search_threads = 2,
@@ -657,6 +680,21 @@ std::unique_ptr<Ort::Session> OnnxBackend::BuildSession(size_t batch) {
 #else
         auto session = std::make_unique<Ort::Session>(env_, weights_path_.c_str(), session_options_);
 #endif
+        // The graph must have exactly the interface this backend reads: input "input", outputs "policy",
+        // "value", "mlh" (python/train.py's ExportNet). A network from before the moves-left head, or a
+        // renamed output, would otherwise fail inside Run() with an opaque message.
+        {
+            Ort::AllocatorWithDefaultOptions alloc;
+            std::vector<std::string> outs;
+            for (size_t i = 0; i < session->GetOutputCount(); ++i)
+                outs.push_back(session->GetOutputNameAllocated(i, alloc).get());
+            for (const char* want : {"policy", "value", "mlh"}) {
+                if (std::find(outs.begin(), outs.end(), want) == outs.end())
+                    throw Exception(std::string("ONNX Backend: the network has no output named \"") + want +
+                                    "\" (it needs policy, value and mlh; see python/train.py ExportNet). "
+                                    "A network trained before the moves-left head cannot be used.");
+            }
+        }
         std::cout << "[ONNX Backend] ORT Session initialized successfully." << std::endl;
         return session;
     } catch (const std::exception& e) {

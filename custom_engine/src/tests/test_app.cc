@@ -38,20 +38,58 @@ std::string Join(const std::vector<std::string>& v) {
 
 void TestParseCli() {
     std::cout << "--- 1. parse_cli ---" << std::endl;
-    // The self-play command of the operating notebook (FairyZero_vanhanh.ipynb).
+    // The self-play command of Colab cell 04 (scripts/colab_cells/04_sinh_du_lieu.py, 2026-11-20): PUCT with
+    // playout cap randomization (800 / 200 playouts, c_puct 1.5 / 1.25, noise 0.25 / 0.125), every move drawn
+    // with temperature 0.5, a book of random start positions.
     {
         const auto o = Parse({"--selfplay", "--games", "100000", "--max-seconds", "19080",
-                              "--visits", "800", "--max-moves", "400", "--temp-cutoff", "32",
+                              "--visits", "800", "--max-moves", "400",
+                              "--fast-visits", "200", "--fast-prob", "0.5", "--fast-cpuct", "1.25",
+                              "--fast-noise-eps", "0.125", "--temperature", "0.5",
+                              "--start-fen", "/content/book_gen0.txt",
                               "--parallel", "4", "--provider", "cuda", "--fixed-batch", "16",
                               "--noise-alpha", "0.15", "--show-nps", "--weights", "/content/seed_gen0.onnx",
                               "--out", "/content/games_gen0"});
-        EXPECT(o.errors.empty(), "notebook self-play command: " << (o.errors.empty() ? "" : o.errors[0]));
+        EXPECT(o.errors.empty(), "cell 04 self-play command: " << (o.errors.empty() ? "" : o.errors[0]));
         EXPECT(o.selfplay_mode && o.sp_games == 100000 && o.sp_max_seconds == 19080.0 &&
-                   o.sp_visits == 800 && o.sp_max_moves == 400 && o.sp_temp_cutoff == 32 &&
+                   o.sp_visits == 800 && o.sp_max_moves == 400 &&
+                   o.sp_fast_visits == 200 && std::fabs(o.sp_fast_prob - 0.5f) < 1e-7 &&
+                   std::fabs(o.sp_fast_cpuct - 1.25f) < 1e-7 && std::fabs(o.sp_fast_noise_eps - 0.125f) < 1e-7 &&
+                   std::fabs(o.sp_temperature - 0.5f) < 1e-7 && o.sp_start_fen == "/content/book_gen0.txt" &&
                    o.sp_parallel == 4 && o.sp_provider == "cuda" && o.sp_fixed_batch == 16 &&
                    std::fabs(o.sp_noise_alpha - 0.15f) < 1e-7 && o.sp_show_nps &&
                    o.weights_file == "/content/seed_gen0.onnx" && o.sp_out == "/content/games_gen0",
-               "notebook self-play command: a value was not taken");
+               "cell 04 self-play command: a value was not taken");
+    }
+    // Defaults of the playout cap randomization: off (every move a full search), shallow search settings
+    // ready, temperature 0.5; c_puct is 1.5 for full searches (selfplay_mode.cc), not an option default.
+    {
+        const auto o = Parse({"--selfplay"});
+        EXPECT(o.errors.empty() && o.sp_fast_prob == 0.0f && o.sp_fast_visits == 200 &&
+                   std::fabs(o.sp_fast_cpuct - 1.25f) < 1e-7 && std::fabs(o.sp_fast_noise_eps - 0.125f) < 1e-7 &&
+                   std::fabs(o.sp_temperature - 0.5f) < 1e-7 && !o.sp_temp_cutoff_given,
+               "self-play defaults of PCR / temperature");
+    }
+    // Flags that must stop the run instead of being taken or ignored.
+    for (const auto& bad : std::vector<std::vector<std::string>>{
+             {"--selfplay", "--temp-cutoff", "32"},                              // no opening phase any more
+             {"--selfplay", "--visits", "100", "--fast-prob", "0.5"},            // shallow (200) deeper than full (100)
+             {"--selfplay", "--visits", "800", "--fast-visits", "900", "--fast-prob", "0.5"},
+             {"--selfplay", "--fast-prob", "1.5"},
+             {"--selfplay", "--fast-prob", "-0.1"},
+             {"--selfplay", "--fast-visits", "0"},
+             {"--selfplay", "--temperature", "-1"},
+             {"--selfplay", "--fast-noise-eps", "1.5"}}) {
+        EXPECT(!Parse(bad).errors.empty(), "should be refused: " << Join(bad));
+    }
+    // Allowed: the same visits (PCR with no depth difference), PCR off with a larger --fast-visits, and
+    // --temp-cutoff for the ARENA, whose opening length it still is.
+    {
+        EXPECT(Parse({"--selfplay", "--visits", "200", "--fast-prob", "0.5"}).errors.empty() &&
+                   Parse({"--selfplay", "--visits", "100"}).errors.empty() &&
+                   Parse({"--arena", "--temp-cutoff", "32"}).errors.empty(),
+               "valid PCR / arena flag combinations were refused");
+        EXPECT(Parse({"--arena", "--temp-cutoff", "32"}).sp_temp_cutoff == 32, "--temp-cutoff of the arena");
     }
     // Cell 04 on Colab with the soft-stop file (menu fz / automatic loop).
     {

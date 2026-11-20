@@ -96,7 +96,7 @@ for cfg in $CONFIGS; do
 
   $RUN --selfplay \
       --games 100000 --max-seconds "$SECS" \
-      --visits "$VISITS" --max-moves "$MAXMOVES" --temp-cutoff 32 \
+      --visits "$VISITS" --max-moves "$MAXMOVES" --temperature 0.5 \
       --parallel "$PAR" --provider cuda --fixed-batch "$FB" $EXTRA \
       --noise-alpha 0.15 --show-nps \
       --weights "$WEIGHTS" --out "$OUT" > "$LOG" 2>&1

@@ -501,7 +501,7 @@ SECS = 3600
 
 cmd = f"""bash {E}/run.sh --selfplay \
     --games 1000 --max-seconds {SECS} \
-    --visits 400 --max-moves 400 --temp-cutoff 32 \
+    --visits 400 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 \
     ...
 ```
 

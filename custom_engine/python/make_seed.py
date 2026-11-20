@@ -26,10 +26,9 @@ from run_seed import resolve_seed  # noqa: E402
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="model_gen0.onnx")
-    ap.add_argument("--channels", type=int, default=128)
-    ap.add_argument("--blocks", type=int, default=10)
-    ap.add_argument("--se-ratio", type=int, default=8,
-                    help="SE block squeeze ratio (must match train.py --se-ratio for warm-start)")
+    ap.add_argument("--d-model", type=int, default=192, help="must match train.py --d-model for warm-start")
+    ap.add_argument("--layers", type=int, default=10, help="must match train.py --layers for warm-start")
+    ap.add_argument("--heads", type=int, default=6, help="must match train.py --heads for warm-start")
     ap.add_argument("--seed", type=int, default=None,
                     help="seed of the starting weights (default: random for every run, printed)")
     args = ap.parse_args()
@@ -41,7 +40,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     torch.manual_seed(args.seed)
-    net = FairyNet(channels=args.channels, blocks=args.blocks, se_ratio=args.se_ratio)
+    net = FairyNet(d_model=args.d_model, layers=args.layers, heads=args.heads)
     net.eval()
 
     params = sum(p.numel() for p in net.parameters()) / 1e6

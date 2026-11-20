@@ -13,6 +13,7 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from nn_layout import NUM_PLANES  # noqa: E402
 from trainingdata_reader import (  # noqa: E402
     RECORD_SIZE, read_records, reconstruct_planes, ShuffleBuffer, downsample,
 )
@@ -24,9 +25,9 @@ def main():
     rec_file = prefix + "_records.gz"
     dense_file = prefix + "_dense.bin"
 
-    print(f"RECORD_SIZE = {RECORD_SIZE} (expect 49280)")
+    print(f"RECORD_SIZE = {RECORD_SIZE} (expect 49283)")
     records = read_records(rec_file)
-    dense = np.fromfile(dense_file, dtype=np.float32).reshape(-1, 205, 10, 10)
+    dense = np.fromfile(dense_file, dtype=np.float32).reshape(-1, NUM_PLANES, 10, 10)
     assert len(records) == dense.shape[0], \
         f"case count mismatch: {len(records)} records vs {dense.shape[0]} dense"
     print(f"Loaded {len(records)} cases from {os.path.basename(rec_file)}")
@@ -58,6 +59,7 @@ def main():
         assert abs(rec["orig_q"] - 0.123) < 1e-4
         assert abs(rec["policy_kld"] - 0.456) < 1e-4
         assert rec["visits"] == 777
+        assert rec["plies_left"] == 77 and rec["fast_search"] == 1
         assert abs(rec["probabilities"][2005] - 0.75) < 1e-6
         assert abs(rec["probabilities"][100] - 0.25) < 1e-6
 

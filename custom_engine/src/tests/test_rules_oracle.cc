@@ -463,15 +463,8 @@ void planes_of(const std::vector<OState>& hist, const std::vector<int>& reps, fl
     // The plane of each piece type within the 12 of one side: P N R Q K, then b m v y s c g.
     static const int plane_of_type[NPT] = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     const int n = static_cast<int>(hist.size());
-    // lc0 FEN_ONLY: an empty history board is a copy of the first position, unless that is the variant start.
-    static const OState kStartState = [] {
-        OState s;
-        parse_fen(lczero::ChessBoard::kStartposFen, s);
-        return s;
-    }();
-    const bool custom = hist[0].stm != kStartState.stm ||
-                        !std::equal(hist[0].b, hist[0].b + 100, kStartState.b);
-    for (int d = 0; d < 8 && (d < n || custom); ++d) {
+    // lc0 ALWAYS: every history board that does not exist yet is a copy of the first position of the game.
+    for (int d = 0; d < 8; ++d) {
         const OState& h = hist[d < n ? n - 1 - d : 0];
         for (int s = 0; s < 100; ++s) {
             const int8_t pc = h.b[s];
@@ -490,7 +483,6 @@ void planes_of(const std::vector<OState>& hist, const std::vector<int>& reps, fl
         if (cur.ep_two) set(lczero::kAuxEnPassant, cur.ep_victim);
     }
     fill(lczero::kAuxRule50, static_cast<float>(cur.rule50) / 100.0f);
-    fill(lczero::kAuxOnes, 1.0f);
     fill(lczero::kAuxChecksUs, static_cast<float>(cur.checks[us]) / 10.0f);
     fill(lczero::kAuxChecksThem, static_cast<float>(cur.checks[them]) / 10.0f);
 }
@@ -931,7 +923,7 @@ void run_rules_oracle_audit(int num_games, int max_plies) {
                 lczero::InputPlanes planes;
                 int transform = 0;
                 lczero::EncodePositionForNN(*history, lczero::kMoveHistory,
-                                            lczero::FillEmptyHistory::FEN_ONLY, &planes, &transform);
+                                            lczero::FillEmptyHistory::ALWAYS, &planes, &transform);
                 lczero::UnpackInputPlanes(planes, dense_engine.data(), 10, 10);
                 orc::planes_of(ohist, oreps, dense_rules.data());
                 ++planes_checked;

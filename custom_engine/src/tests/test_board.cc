@@ -130,7 +130,7 @@ void run_board_tests() {
         lczero::EncodePositionForNN(*history, 8, lczero::FillEmptyHistory::NO, &planes, &transform);
         
         // Xác minh kích thước mặt phẳng
-        constexpr size_t expected_planes = lczero::kAuxPlaneBase + lczero::kAuxPlanesCount; // 226
+        constexpr size_t expected_planes = lczero::kAuxPlaneBase + lczero::kAuxPlanesCount; // 204
         if (planes.size() != expected_planes) {
             std::cerr << "[FAIL] Expected " << expected_planes << " planes, got " << planes.size() << std::endl;
             std::exit(1);

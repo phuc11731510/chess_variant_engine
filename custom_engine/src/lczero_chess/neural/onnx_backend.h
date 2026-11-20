@@ -15,9 +15,10 @@ namespace lczero {
 constexpr size_t InputPlanesCount = kInputPlanes;
 constexpr size_t BoardWidth = kBoardSize;
 constexpr size_t BoardHeight = kBoardSize;
-constexpr size_t InputBufferUnitSize = InputPlanesCount * BoardWidth * BoardHeight; // 20500
+constexpr size_t InputBufferUnitSize = InputPlanesCount * BoardWidth * BoardHeight; // 20400
 constexpr size_t PolicyOutputSize = kPolicySize; // kMoveTypes (115) * 100 squares
 constexpr size_t ValueOutputSize = 3;     // WDL (Win, Draw, Loss)
+constexpr size_t MlhOutputSize = 1;       // moves left (plies), the network's third output "mlh"
 
 // --- Instrumentation: what actually reached the neural network ---------------
 //
@@ -99,6 +100,7 @@ class OnnxComputation : public BackendComputation {
   std::unique_ptr<float[]> input_buffer_;         // slots_ * InputBufferUnitSize
   std::unique_ptr<float[]> policy_output_buffer_; // slots_ * PolicyOutputSize
   std::unique_ptr<float[]> value_output_buffer_;  // slots_ * ValueOutputSize
+  std::unique_ptr<float[]> mlh_output_buffer_;    // slots_ * MlhOutputSize
 
   std::vector<EvalResultPtr> results_;
   std::vector<StaticVector<Move, 384>> position_moves_;

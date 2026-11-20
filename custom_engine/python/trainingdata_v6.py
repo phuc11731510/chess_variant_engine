@@ -1,10 +1,10 @@
 """Compact per-game training-data container (".xz", data version 6).
 
-One self-play game = one file. Instead of N fixed 45940-byte records (92% of
+One self-play game = one file. Instead of N fixed 49283-byte records (92% of
 which is a dense probabilities[POLICY_SIZE] array that is -1 almost everywhere), the
 game is stored column by column and xz-compressed. Measured on 100 real games
 (gen4): 472 -> ~100 bytes per position, LOSSLESS -- decode() rebuilds every
-record bit-identical to the 45940-byte form (test_v6.py checks every field of
+record bit-identical to the 49283-byte form (test_v6.py checks every field of
 every record of real data).
 
 Three facts make it small:
@@ -21,12 +21,12 @@ Three facts make it small:
   3. Anything else survives too: a record whose illegal slots are not exactly
      -1 (or whose policy holds NaN) keeps its whole probabilities[POLICY_SIZE]
      (FLAG_DENSE_PI) -- never the engine's output, but "lossless" holds for any
-     45940-byte record, not only for well-formed ones.
+     49283-byte record, not only for well-formed ones.
   4. Column layout: all indices together, all counts together, all boards
      together... so xz sees long runs of similar bytes.
 
 Payload (little-endian), then xz (LZMA2 preset 9e, 1 MiB dictionary, CRC64):
-  header  4s magic "FZD6", u32 container revision (=2), u32 data_version,
+  header  4s magic "FZD6", u32 container revision (=3), u32 data_version,
           u32 input_format, u32 N records, u32 L legal entries (all records),
           u32 LF legal entries stored as float32, u32 F full records
   u8   flags[N]                 bit0 FLAG_FULL, bit1 FLAG_FLOAT_PI, bit2 FLAG_DENSE_PI
@@ -43,9 +43,11 @@ Payload (little-endian), then xz (LZMA2 preset 9e, 1 MiB dictionary, CRC64):
   f32  floats[11][N]            result_q/d, root_q/d, best_q/d, played_q/d, orig_q/d, policy_kld
   u32  visits[N]
   u16  played_idx[N], best_idx[N]
+  u16  plies_left[N]            (container revision 3; MLH target)
+  u8   fast_search[N]           (container revision 3; PCR flag: 1 = policy target not to be trained on)
 
-data_version keeps the MEANING of the fields (7 since the new rules; the container revision is 2: no
-castling column, 25 planes per ply). The C++ writer/reader
+data_version keeps the MEANING of the fields (7 since the new rules; the container revision is 3: no
+castling column, 25 planes per ply, plies_left and fast_search columns). The C++ writer/reader
 (src/lczero_chess/trainingdata/) implement the same layout.
 """
 
@@ -57,7 +59,7 @@ import numpy as np
 from nn_layout import MOVE_HISTORY, PIECE_KINDS, PLANES_PER_BOARD, POLICY_SIZE
 
 MAGIC = b"FZD6"
-CONTAINER_REVISION = 2
+CONTAINER_REVISION = 3
 DATA_VERSION = 7
 FLAG_FULL = 1
 FLAG_FLOAT_PI = 2
@@ -196,6 +198,8 @@ def encode_game(records):
     cols.append(np.array([r["visits"] for r in records], "<u4").tobytes())
     cols.append(np.array([r["played_idx"] for r in records], "<u2").tobytes())
     cols.append(np.array([r["best_idx"] for r in records], "<u2").tobytes())
+    cols.append(np.array([r["plies_left"] for r in records], "<u2").tobytes())
+    cols.append(np.array([r["fast_search"] for r in records], np.uint8).tobytes())
     return lzma.compress(b"".join(cols), format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC64,
                          filters=XZ_FILTERS)
 
@@ -230,7 +234,7 @@ def decode_arrays(data, where=""):
                  whole policy; their legal_idx/legal_pi ranges are empty),
       planes     uint64[N, 8, PLY_PLANES, 2] (all 8 plies, rebuilt),
       rule50 uint8[N], ep uint64[N, 2], checks_us, checks_them, stm,
-      floats     dict key -> float32[N], visits, played_idx, best_idx.
+      floats     dict key -> float32[N], visits, played_idx, best_idx, plies_left, fast_search.
     Raises ValueError on a damaged or inconsistent file."""
     try:
         buf = lzma.decompress(data, format=lzma.FORMAT_XZ)
@@ -268,6 +272,8 @@ def decode_arrays(data, where=""):
     visits = c.take("<u4", n)
     played_idx = c.take("<u2", n)
     best_idx = c.take("<u2", n)
+    plies_left = c.take("<u2", n)
+    fast_search = c.take(np.uint8, n)
     if c.pos != len(buf):
         raise ValueError(f"v6 game has {len(buf) - c.pos} trailing bytes ({where})")
 
@@ -301,6 +307,7 @@ def decode_arrays(data, where=""):
         "rule50": rule50, "ep": ep,
         "checks_us": checks_us, "checks_them": checks_them, "stm": stm,
         "floats": floats, "visits": visits, "played_idx": played_idx, "best_idx": best_idx,
+        "plies_left": plies_left, "fast_search": fast_search,
     }
 
 
@@ -357,7 +364,7 @@ def _clean(ply):
 
 def decode_game(data, where="", dense=True):
     """Compressed game -> list of record dicts, the same keys and values as
-    trainingdata_reader.unpack_record gives for the 45940-byte form, plus
+    trainingdata_reader.unpack_record gives for the 49283-byte form, plus
     'legal_idx' / 'legal_pi' (the sparse policy, which dataset.py uses instead of
     scanning the dense one). 'probabilities' is a read-only float32[POLICY_SIZE] view;
     dense=False leaves it out (saves building 42 KB per position)."""
@@ -376,6 +383,7 @@ def decode_game(data, where="", dense=True):
     ep = a["ep"].tolist()
     cu, ct, stm = a["checks_us"].tolist(), a["checks_them"].tolist(), a["stm"].tolist()
     pidx, bidx = a["played_idx"].tolist(), a["best_idx"].tolist()
+    plies, fast = a["plies_left"].tolist(), a["fast_search"].tolist()
     dense_of = {int(j): i for i, j in enumerate(a["dense_rec"])}
     out = []
     for k in range(n):
@@ -400,5 +408,7 @@ def decode_game(data, where="", dense=True):
         r["visits"] = visits[k]
         r["played_idx"] = pidx[k]
         r["best_idx"] = bidx[k]
+        r["plies_left"] = plies[k]
+        r["fast_search"] = fast[k]
         out.append(r)
     return out

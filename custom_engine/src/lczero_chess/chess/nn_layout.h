@@ -22,11 +22,13 @@ constexpr int kMoveHistory = 8;                         // positions fed to the 
 constexpr int kPlanesPerBoard = 2 * kPieceKinds + 1;    // our pieces, their pieces, repetition
 constexpr int kHistoryPlanes = kPlanesPerBoard * kMoveHistory;
 
-// Scalar planes after the history, in this order.
+// Scalar planes after the history, in this order. (There used to be an all-ones plane here to mark the
+// board edge of a zero-padded convolution; the transformer has no padding, so it was removed.)
 enum AuxPlane : int {
-  kAuxEnPassant,    // the squares a pawn can be captured on en passant (a bitboard)
+  kAuxEnPassant,    // the en passant square(s) (a bitboard): the EMPTY square(s) the piece that just made a
+                    // double step jumped over, where a capturing piece would land -- not the square of the
+                    // piece that would be captured (that one is in the piece planes)
   kAuxRule50,       // rule-50 count / 100
-  kAuxOnes,         // all ones: tells the network where the board ends
   kAuxChecksUs,     // checks the side to move still needs / 10
   kAuxChecksThem,   // checks the other side still needs / 10
   kAuxPlanesCount

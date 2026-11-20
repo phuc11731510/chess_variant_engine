@@ -83,21 +83,23 @@ Toàn bộ con số nằm ở `src/lczero_chess/chess/nn_layout.h` (nguồn chí
 |---|---|---|
 | Loại quân mỗi bên | 13 | **12**: Tốt, Mã, Tượng, Xe, Hậu, Hoàng gia, Centaur, wildebeest, Alibaba, Sergeant, Pháo, Grasshopper |
 | Mặt phẳng mỗi bước lịch sử | 27 | **25** (12 + 12 + lặp thế) |
-| Mặt phẳng phụ trợ | 10 | **5**: ep, rule50, toàn 1, số chiếu còn lại của hai bên (bỏ 4 mặt phẳng nhập thành và 1 mặt phẳng trống) |
-| Đầu vào | 226 | **205** |
+| Mặt phẳng phụ trợ | 10 | **4**: ep, rule50, số chiếu còn lại của hai bên (bỏ 4 mặt phẳng nhập thành, 1 mặt phẳng trống và mặt phẳng toàn số 1) |
+| Đầu vào | 226 | **204** (bỏ mặt phẳng toàn số 1 ngày 2026-11-20; bản ghi không đổi vì nó không lưu mặt phẳng này) |
 | Quân phong cấp có ô policy | 6 | **9**: Mã, Tượng, Xe, Hậu, Centaur, wildebeest, Alibaba, Pháo, Grasshopper |
 | Chỉ số policy | 106 loại x 100 = 10600 | **115 loại x 100 = 11500** (88 loại nước đi như cũ + 9 quân x 3 hướng phong cấp) |
-| Bản ghi huấn luyện | 45940 byte, version 6 | **49280 byte, version 7** (bỏ 4 byte nhập thành); container `.xz` bản 2 |
+| Bản ghi huấn luyện | 45940 byte, version 6 | **49283 byte, version 7** (bỏ 4 byte nhập thành; thêm `plies_left` uint16 và `fast_search` uint8 ngày 2026-11-20); container `.xz` bản 3 |
 
 - Hình học nước đi không đổi: nước của Hoàng gia (viền 5×5), Pháo, Grasshopper, Alibaba, Centaur đều rơi vào các loại trượt / Mã / Lạc đà sẵn có. Nước Tốt đi lên hàng 8 **không phong cấp** dùng ô nước thường (trước đây không bao giờ xuất hiện), nên không đụng ô phong cấp.
 - `EncoderCoversVariant` (encoder.cc) kiểm mọi quân và mọi quân phong cấp của luật có chỗ trong mạng; `setup_custom_variant()` gọi nó và thoát nếu thiếu. Một quân hay quân phong cấp chưa có chỗ trong mạng thì engine thoát ngay lúc khởi động thay vì để quân biến mất khỏi đầu vào.
+- **Lịch sử ở đầu ván (2026-11-20):** mạng và bản ghi mã hoá bằng `FillEmptyHistory::ALWAYS` (kiểu lc0): mỗi bàn lịch sử chưa có (7 bàn trước nước đầu tiên, 6 bàn trước nước thứ hai...) là bản sao của **thế đầu ván**, với mọi ván và mọi thế xuất phát; trước đó là `FEN_ONLY` nên ván bắt đầu từ thế xuất phát của biến thể có các bàn rỗng.
+- **Thế khởi đầu ngẫu nhiên:** `python/sinh_the_khoi_dau.py` (xem Walkthrough) sinh tệp FEN cho `--start-fen`; `ChessBoard::kStartposFen` vẫn là thế tạm.
 - Dữ liệu và mạng của các đời trước **không đọc được** (`KNOWN_VERSIONS = (7,)`). `python/chuyen_v6.py` (đổi dữ liệu cũ sang container) hết tác dụng.
 
 
 ## Trạng thái cài đặt (2026-11-16, nhánh `luat-moi`)
 
 Đã làm và có test (`custom_engine --test-*`, `--audit-rules`, `--audit-generation`, `fz_test` đều qua): luật và mọi quân ở trên, phong cấp hai tầng,
-đếm chiếu (7, chiếu ba), không nhập thành, ký hiệu nước đi, bộ mã hoá (205 plane, 11500 policy), bản ghi huấn luyện version 7.
+đếm chiếu (7, chiếu ba), không nhập thành, ký hiệu nước đi, bộ mã hoá (204 plane, 11500 policy), bản ghi huấn luyện version 7.
 Chưa làm: thế cờ đầu thật (chủ dự án chọn), GUI, mạng mới (cần huấn luyện từ đầu; `--test-selfplay` / `--test-mcts` cần một tệp
 `.onnx` đúng cỡ vào/ra mới), và các tài liệu khác (`HUONG_DAN*.md`) còn nói tới luật cũ.
 

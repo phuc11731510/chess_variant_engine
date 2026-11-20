@@ -13,8 +13,8 @@ for lan in (1, 2, 3):
     time.sleep(5)
 !BIN_URL={REL}/custom_engine bash {E}/scripts/colab_quickstart.sh
 
-# Tải mạng đời hiện tại (.onnx) từ GitHub Release NN_Model (REL_NN). Release chỉ giữ .onnx của đời mới nhất:
-# đời cũ hơn thì tự tải .pt rồi chuyển sang .onnx ngay trên máy (python/lay_mang.py). Đặt False nếu bạn tự
+# Mạng đời hiện tại (.onnx): Release NN_Model (REL_NN) chỉ giữ .pt, nên lay_mang.py tải gen<N>.pt rồi chuyển
+# sang .onnx ngay trên máy (cần torch, onnx, onnxscript, onnxruntime: tự pip install nếu thiếu). Đặt False nếu bạn tự
 # tải lên từ điện thoại (colab upload) hoặc tự tạo (ô 03, đời 0). .pt + thư viện huấn luyện: ô 02c
 # (chỉ máy huấn luyện).
 TAI_ONNX = True

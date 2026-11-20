@@ -79,8 +79,8 @@ bool SamePlanes(const lczero::PositionHistory& a, const lczero::PositionHistory&
                 int* first_diff) {
     lczero::InputPlanes pa, pb;
     int ta = 0, tb = 0;
-    lczero::EncodePositionForNN(a, lczero::kMoveHistory, lczero::FillEmptyHistory::FEN_ONLY, &pa, &ta);
-    lczero::EncodePositionForNN(b, lczero::kMoveHistory, lczero::FillEmptyHistory::FEN_ONLY, &pb, &tb);
+    lczero::EncodePositionForNN(a, lczero::kMoveHistory, lczero::FillEmptyHistory::ALWAYS, &pa, &ta);
+    lczero::EncodePositionForNN(b, lczero::kMoveHistory, lczero::FillEmptyHistory::ALWAYS, &pb, &tb);
     for (size_t i = 0; i < pa.size(); ++i) {
         if (!(pa[i].mask == pb[i].mask) || pa[i].value != pb[i].value) {
             *first_diff = static_cast<int>(i);
@@ -289,8 +289,8 @@ void TestCacheKeyRepetitions() {
     int plane = -1;
     lczero::InputPlanes p1, p2;
     int t = 0;
-    lczero::EncodePositionForNN(*first, lczero::kMoveHistory, lczero::FillEmptyHistory::FEN_ONLY, &p1, &t);
-    lczero::EncodePositionForNN(*again, lczero::kMoveHistory, lczero::FillEmptyHistory::FEN_ONLY, &p2, &t);
+    lczero::EncodePositionForNN(*first, lczero::kMoveHistory, lczero::FillEmptyHistory::ALWAYS, &p1, &t);
+    lczero::EncodePositionForNN(*again, lczero::kMoveHistory, lczero::FillEmptyHistory::ALWAYS, &p2, &t);
     const bool rep_plane_differs = !(p1[2 * lczero::kPieceKinds].mask == p2[2 * lczero::kPieceKinds].mask) || p1[2 * lczero::kPieceKinds].value != p2[2 * lczero::kPieceKinds].value;
     (void)plane;
     // Cache the first occurrence, then ask for the repeated one.
@@ -436,7 +436,7 @@ void TestRepetitionAnyRule50() {
             lczero::InputPlanes planes;
             int t = 0;
             lczero::EncodePositionForNN(*h, lczero::kMoveHistory,
-                                        lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
+                                        lczero::FillEmptyHistory::ALWAYS, &planes, &t);
             const bool rep_plane = bool(planes[2 * lczero::kPieceKinds].mask) && planes[2 * lczero::kPieceKinds].value == 1.0f;
             EXPECT(reps == want_reps, "rule50 start " << r50 << ", ply " << ply << ": repetitions "
                    << reps << ", expected " << want_reps);

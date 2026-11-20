@@ -61,7 +61,7 @@ EOF
     if [ -f "$LOCAL/gen$GEN.$x" ]; then
       colab upload -s "$S" "$LOCAL/gen$GEN.$x" "/content/gen$GEN.$x"
     elif [ "$GEN" -eq 0 ]; then
-      [ "$x" = onnx ] && echo "!cd $E/python && python make_seed.py --channels 144 --blocks 12 --se-ratio 8 --out /content/gen0.onnx" | rx
+      [ "$x" = onnx ] && echo "!cd $E/python && python make_seed.py --out /content/gen0.onnx" | rx
       colab download -s "$S" "/content/gen0.$x" "$LOCAL/gen0.$x"
     else
       # .onnx doi cu khong con tren Release: lay_mang.py tai .pt roi chuyen sang .onnx tren VM
@@ -77,8 +77,12 @@ gpu)
   ;;
 selfplay)
   check_gpu || { echo "[fz] VM khong co GPU -- dung lai."; exit 1; }
+  # Thế khởi đầu ngẫu nhiên (một thế mỗi ván) + PUCT với PCR: 50% nước tìm nông 200 lượt (c_puct 1,25,
+  # nhiễu 0,125), còn lại 800 lượt (c_puct 1,5, nhiễu 0,25); mọi nước chọn theo N^(1/T), T = 0,5.
+  echo "!python $E/python/sinh_the_khoi_dau.py --n 1000 --out /content/the_khoi_dau_gen$GEN.txt" | rx
   echo "!nohup bash $E/run.sh --selfplay --games 1000 --max-seconds ${SECS:-15480} \
---visits 800 --max-moves 400 --temp-cutoff 32 --parallel 4 --provider cuda --fixed-batch 16 \
+--visits 800 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 \
+--temperature 0.5 --start-fen /content/the_khoi_dau_gen$GEN.txt --parallel 4 --provider cuda --fixed-batch 16 \
 --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 \
 --weights /content/gen$GEN.onnx --out /content/games_gen$GEN > /content/selfplay.log 2>&1 &" | rx
   echo "[fz] da chay nen tren VM; xem: bash $0 status"
@@ -95,8 +99,9 @@ fetch)
 train)
   check_gpu || { echo "[fz] VM khong co GPU -- dung lai."; exit 1; }
   echo "!nohup python $E/python/train.py --data \"${DATA:-/content/games_gen$GEN.zip}\" --init-from /content/gen$GEN.pt \
---epochs 2 --batch 1024 --lr 1e-3 --amp --q-ratio 0.2 --weight-decay 1e-4 --report-every 20 \
---channels 144 --blocks 12 --out /content/gen$NEXT.onnx > /content/train.log 2>&1 &" | rx
+--epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --batch 512 --accum-steps 2 --lr 1e-3 \
+--q-ratio 0.25 --weight-decay 1e-4 --report-every 20 \
+--out /content/gen$NEXT.onnx > /content/train.log 2>&1 &" | rx
   echo "[fz] da chay nen tren VM; xem: bash $0 status train"
   ;;
 getnet)

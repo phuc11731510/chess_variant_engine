@@ -20,7 +20,7 @@ void run_mcts_tests(const std::string& weights_path) {
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
-    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "fen_only");  // ghi lai cho dung; mang luon ma hoa FEN_ONLY (onnx_backend.cc)
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "always");  // ghi lai cho dung; mang luon ma hoa ALWAYS (onnx_backend.cc)
     
     // Kích hoạt Nhiễu Dirichlet và Nhiệt độ cực đại để tạo ngẫu nhiên tuyệt đối
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 1.0f);
@@ -101,7 +101,7 @@ void run_extract_tests(const std::string& weights_path) {
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
-    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "fen_only");  // ghi lai cho dung; mang luon ma hoa FEN_ONLY (onnx_backend.cc)
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "always");  // ghi lai cho dung; mang luon ma hoa ALWAYS (onnx_backend.cc)
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.25f);
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, 0.3f);
     parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_path);
@@ -239,7 +239,7 @@ void run_selfplay_tests(const std::string& weights_path) {
     lczero::OptionsParser parser;
     lczero::classic::SearchParams::Populate(&parser);
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
-    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "fen_only");  // ghi lai cho dung; mang luon ma hoa FEN_ONLY (onnx_backend.cc)
+    parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "always");  // ghi lai cho dung; mang luon ma hoa ALWAYS (onnx_backend.cc)
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, 0.25f);
     parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, 0.3f);
     parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kWeightsId, weights_path);
@@ -261,10 +261,12 @@ void run_selfplay_tests(const std::string& weights_path) {
     const std::string out_file =
         std::string("test_selfplay_game") + lczero::TrainingDataWriter::Extension();
 
-    std::cout << "Playing 1 game (visits=32, max_moves=30, temp_cutoff_ply=8)..." << std::endl;
+    std::cout << "Playing 1 game (visits=32, max_moves=30, temperature 0.5)..." << std::endl;
+    lczero::SelfPlaySearchPlan plan;
+    plan.full_visits = 32;
+    plan.temperature = 0.5f;
     lczero::GameResult result = lczero::PlayOneGame(
-        fen, backend.get(), options, /*visits=*/32, /*max_moves=*/30,
-        /*temp_cutoff_ply=*/8, out_file, /*search_threads=*/2);
+        fen, backend.get(), options, plan, /*max_moves=*/30, out_file, /*search_threads=*/2);
     std::cout << "Game finished: result=" << (int)result << ", file=" << out_file << std::endl;
 
     // --- Verify the file round-trips and every record is valid ---

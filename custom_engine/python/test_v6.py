@@ -104,7 +104,8 @@ def synth_game(n, broken_at=(), float_at=(), empty_at=(), zero_at=(), dense_at=(
              "ep_mask": (int(rng.integers(0, 2**63)), int(rng.integers(0, 2**63))),
              "checks_remaining_us": 8, "checks_remaining_them": int(rng.integers(0, 9)),
              "side_to_move": k & 1, "visits": visits,
-             "played_idx": int(rng.integers(0, POLICY_SIZE)), "best_idx": 65535}
+             "played_idx": int(rng.integers(0, POLICY_SIZE)), "best_idx": 65535,
+             "plies_left": int(rng.integers(0, 65536)), "fast_search": int(rng.integers(0, 2))}
         for key in v6.FLOAT_KEYS:
             r[key] = float(np.float32(rng.standard_normal()))
         r["policy_kld"] = float(np.float32(3.4e38))

@@ -27,6 +27,9 @@
 //      best/played indices, game end and z of every record.
 //   9. Self-play soft stop (--stop-file): no new game once the file exists, the
 //      games in flight finish into complete files.
+//  10. Playout cap randomization and the move choice: the weights (N/N_max)^(1/T)
+//      and their sampling, the coin, the visits and fast_search mark of both search
+//      kinds, and that each kind searches with its own c_puct / noise options.
 //
 // Every sub-test runs even if an earlier one failed; the process exits 1 at the
 // end if anything failed.
@@ -785,9 +788,12 @@ void TestSelfPlayRecordsReplay() {
         {"4k5/10/10/10/10/10/10/10/10/R3K4R w - - 7+7 0 1", 300},    // ends by the rules
         {"n3k5/10/10/10/10/10/10/10/10/4K4N b - - 7+7 20 1", 300},   // quiet: repetition / rule 50
     };
+    lczero::SelfPlaySearchPlan plan;   // PCR off: every move is a full search of 48 playouts
+    plan.full_visits = 48;
+    plan.temperature = 0.5f;
     for (const auto& c : cases) {
         const lczero::GameResult res = lczero::PlayOneGame(
-            c.fen, &backend, opts.Dict(), /*visits=*/48, c.max_moves, /*temp_cutoff_ply=*/10,
+            c.fen, &backend, opts.Dict(), plan, c.max_moves,
             file, /*search_threads=*/1, /*verbose=*/false);
         std::vector<lczero::TrainingDataV1> recs;
         if (!lczero::ReadTrainingData(file, recs) || recs.empty()) {
@@ -844,9 +850,10 @@ void TestSelfPlayRecordsReplay() {
                 if (lczero::MoveToNNIndex(m, 0) == r.played_idx) played = m;
             check(!played.is_null(), i, "played_idx is not a legal move");
             if (played.is_null()) { replayed_all = false; break; }
-            if (static_cast<int>(i) >= 10)   // greedy after the temperature cutoff
-                check(r.played_idx == r.best_idx || r.probabilities[r.played_idx] == top, i,
-                      "played a non-best move after the temperature cutoff");
+            // Every move is drawn with weight N^2 (T = 0.5): a move nobody visited is never played,
+            // and PCR is off here, so no record is marked as a shallow search.
+            check(r.probabilities[r.played_idx] > 0.0f, i, "played a move that was never visited");
+            check(r.fast_search == 0, i, "fast_search set although PCR is off");
             h->Append(played);
         }
         if (!replayed_all) continue;
@@ -902,9 +909,8 @@ void TestSelfPlayStopFile() {
         cfg.start_fen = lczero::ChessBoard::kStartposFen;
         cfg.out_dir = dir.string();
         cfg.num_games = games;
-        cfg.visits = 16;
+        cfg.plan.full_visits = 16;
         cfg.max_moves = 30;
-        cfg.temp_cutoff_ply = 10;
         cfg.parallel = 2;
         cfg.stop_file = stop.string();
         lczero::RunSelfPlay(cfg, &backend, opts.Dict());
@@ -944,6 +950,237 @@ void TestSelfPlayStopFile() {
     fs::remove_all(dir, ec);
 }
 
+// ---------------------------------------------------------------------------
+// 10. Playout cap randomization (PCR) and the move choice.
+// ---------------------------------------------------------------------------
+// Before EVERY move of a self-play game a coin picks a full search (plan.full_visits, the plain
+// options) or a shallow one (plan.fast_visits, plan.fast_options: its own c_puct and Dirichlet
+// epsilon); a shallow move's record carries fast_search = 1 so the trainer leaves its policy
+// target out. The move played is drawn for EVERY move with weight (N / N_max)^(1 / T), T = 0.5
+// meaning N^2, while the policy label stays the visit fraction.
+void TestPlayoutCapRandomization() {
+    std::cout << "\n--- 10. Playout cap randomization and the move choice ---" << std::endl;
+    // Earlier tests leave cout on one decimal; this one prints probabilities.
+    const std::ios_base::fmtflags saved_flags = std::cout.flags();
+    const std::streamsize saved_precision = std::cout.precision();
+    std::cout << std::fixed << std::setprecision(4);
+    auto close = [](double a, double b, double tol = 1e-12) { return std::abs(a - b) < tol; };
+    namespace bp = lczero::classic;
+
+    // a) The weights of the move choice, worked out by hand.
+    const std::vector<uint32_t> visits = {100, 50, 25, 0};
+    const auto p5 = lczero::MoveChoiceProbabilities(visits, 0.5f);
+    {
+        const double z = 10000.0 + 2500.0 + 625.0;   // N^2
+        EXPECT(p5.size() == 4 && close(p5[0], 10000.0 / z) && close(p5[1], 2500.0 / z) &&
+                   close(p5[2], 625.0 / z) && p5[3] == 0.0,
+               "T=0.5 on visits 100/50/25/0 is not 10000/2500/625/0 normalised");
+        const auto p1 = lczero::MoveChoiceProbabilities(visits, 1.0f);
+        EXPECT(close(p1[0], 100.0 / 175) && close(p1[1], 50.0 / 175) && close(p1[2], 25.0 / 175) &&
+                   p1[3] == 0.0,
+               "T=1 is not the visit fraction");
+        const auto p2 = lczero::MoveChoiceProbabilities(visits, 2.0f);   // square root of N
+        const double w1 = std::sqrt(0.5), z2 = 1.0 + w1 + 0.5;
+        EXPECT(close(p2[0], 1.0 / z2) && close(p2[1], w1 / z2) && close(p2[2], 0.5 / z2) && p2[3] == 0.0,
+               "T=2 is not proportional to sqrt(N)");
+        const auto g = lczero::MoveChoiceProbabilities({7, 7, 3}, 0.0f);
+        EXPECT(close(g[0], 0.5) && close(g[1], 0.5) && g[2] == 0.0, "T=0 must share the most visited moves");
+        const auto gn = lczero::MoveChoiceProbabilities({7, 9, 3}, -1.0f);
+        EXPECT(gn[0] == 0.0 && gn[1] == 1.0 && gn[2] == 0.0, "T<0 must be the most visited move");
+        const auto none = lczero::MoveChoiceProbabilities({0, 0, 0}, 0.5f);
+        EXPECT(none.size() == 3 && none[0] == 0.0 && none[1] == 0.0 && none[2] == 0.0,
+               "nothing visited must give all zeros");
+        EXPECT(lczero::MoveChoiceProbabilities({}, 0.5f).empty(), "no moves must give an empty vector");
+        // A tiny T underflows the weaker moves to 0 instead of overflowing like N^(1/T) would.
+        const auto tiny = lczero::MoveChoiceProbabilities({800, 400, 1}, 0.001f);
+        EXPECT(std::isfinite(tiny[0]) && tiny[0] > 0.999999 && tiny[2] == 0.0 &&
+                   close(tiny[0] + tiny[1] + tiny[2], 1.0, 1e-9),
+               "T=0.001 is not (almost) greedy and finite");
+        // Every distribution sums to 1.
+        bool sums = true;
+        for (const float t : {0.1f, 0.5f, 1.0f, 3.0f})
+            for (const auto& v : std::vector<std::vector<uint32_t>>{{1}, {5, 0, 5}, {800, 3, 2, 1}}) {
+                double s = 0;
+                for (const double x : lczero::MoveChoiceProbabilities(v, t)) s += x;
+                sums &= close(s, 1.0, 1e-9);
+            }
+        EXPECT(sums, "a move-choice distribution does not sum to 1");
+    }
+    // The sampler: cumulative, and the last entry when rounding leaves a gap at the top.
+    {
+        const std::vector<double> p = {0.5, 0.0, 0.5};
+        EXPECT(lczero::SampleIndex(p, 0.0) == 0 && lczero::SampleIndex(p, 0.4999) == 0 &&
+                   lczero::SampleIndex(p, 0.5) == 2 && lczero::SampleIndex(p, 0.9999) == 2 &&
+                   lczero::SampleIndex(p, 1.0) == 2,
+               "SampleIndex does not follow the cumulative distribution");
+        EXPECT(lczero::SampleIndex({0.0, 0.0}, 0.3) == -1 && lczero::SampleIndex({}, 0.3) == -1,
+               "SampleIndex of an all-zero distribution must be -1");
+    }
+    // Drawing 200000 moves with T = 0.5 reproduces the weights (4 sigma <= 0.0045).
+    {
+        std::vector<int> count(4, 0);
+        const int draws = 200000;
+        for (int i = 0; i < draws; ++i)
+            ++count[lczero::SampleIndex(p5, lczero::Random::Get().GetDouble(1.0))];
+        double worst = 0;
+        for (int k = 0; k < 4; ++k) worst = std::max(worst, std::abs(count[k] / double(draws) - p5[k]));
+        EXPECT(count[3] == 0 && worst < 0.0045,
+               "drawn move frequencies differ from the weights by " << worst);
+        std::cout << "  move choice T=0.5 on visits 100/50/25/0: drawn " << count[0] / double(draws) << " / "
+                  << count[1] / double(draws) << " / " << count[2] / double(draws) << " / " << count[3]
+                  << " (weights " << p5[0] << " / " << p5[1] << " / " << p5[2] << " / 0), worst gap "
+                  << worst << std::endl;
+    }
+
+    // b) The coin.
+    {
+        auto rate = [](float prob) {
+            int hits = 0;
+            const int n = 100000;
+            for (int i = 0; i < n; ++i) hits += lczero::ChooseFastSearch(prob) ? 1 : 0;
+            return hits / double(n);
+        };
+        const double r5 = rate(0.5f), r25 = rate(0.25f);
+        EXPECT(std::abs(r5 - 0.5) < 0.008 && std::abs(r25 - 0.25) < 0.008,
+               "coin rates " << r5 << " / " << r25 << " for 0.5 / 0.25");
+        EXPECT(rate(0.0f) == 0.0 && rate(-1.0f) == 0.0 && rate(1.0f) == 1.0 && rate(2.0f) == 1.0 &&
+                   rate(std::nanf("")) == 0.0,
+               "the coin must never land shallow at 0 and always at 1");
+        std::cout << "  coin: 0.5 -> " << r5 << ", 0.25 -> " << r25 << std::endl;
+    }
+
+    // c) The two searches read different c_puct and noise epsilon, the rest is shared.
+    fztest::DetBackend backend(/*runs_on_cpu=*/true, /*batch=*/8, /*immediate_mod=*/0);
+    fztest::TestSearchOptions opts;
+    opts.SetNoise(0.25f, 0.3f);
+    opts.Set("cpuct", "1.5");
+    opts.Set("minibatch-size", "4");   // a search overshoots its playout cap by at most one mini-batch
+    lczero::OptionsDict fast(&opts.Dict());
+    fast.Set<float>(bp::BaseSearchParams::kCpuctId, 1.25f);
+    fast.Set<float>(bp::BaseSearchParams::kNoiseEpsilonId, 0.125f);
+    {
+        const bp::SearchParams full_p(opts.Dict()), fast_p(fast);
+        EXPECT(close(full_p.GetCpuct(false), 1.5, 1e-6) && close(full_p.GetCpuct(true), 1.5, 1e-6) &&
+                   close(full_p.GetNoiseEpsilon(), 0.25, 1e-6),
+               "full-search options: cpuct " << full_p.GetCpuct(false) << " / root " << full_p.GetCpuct(true)
+               << ", noise " << full_p.GetNoiseEpsilon());
+        EXPECT(close(fast_p.GetCpuct(false), 1.25, 1e-6) && close(fast_p.GetCpuct(true), 1.25, 1e-6) &&
+                   close(fast_p.GetNoiseEpsilon(), 0.125, 1e-6) &&
+                   fast_p.GetNoiseAlpha() == full_p.GetNoiseAlpha() &&
+                   fast_p.GetMiniBatchSize() == full_p.GetMiniBatchSize(),
+               "shallow-search options: cpuct " << fast_p.GetCpuct(false) << " / root " << fast_p.GetCpuct(true)
+               << ", noise " << fast_p.GetNoiseEpsilon() << " (alpha and mini-batch must be shared)");
+    }
+
+    // d) Games with PCR: the coin, the visits, the marks.
+    const std::string file = std::string("test_pcr_game") + lczero::TrainingDataWriter::Extension();
+    {
+        struct Run { float prob; float temp; const char* name; };
+        const Run runs[] = {{0.5f, 0.5f, "PCR 50%, T=0.5"}, {0.0f, 0.5f, "PCR off, T=0.5"},
+                            {1.0f, 0.5f, "all shallow"}, {0.0f, 0.0f, "PCR off, T=0 (greedy)"}};
+        for (const Run& run : runs) {
+            lczero::SelfPlaySearchPlan plan;
+            plan.full_visits = 64;
+            plan.fast_visits = 16;
+            plan.fast_prob = run.prob;
+            plan.temperature = run.temp;
+            plan.fast_options = &fast;
+            int total = 0, shallow = 0, off_best = 0, bad = 0, over_full = 0, over_fast = 0;
+            int under = 0, mismatch = 0;
+            for (int game = 0; game < 6; ++game) {
+                int moves = -1, fast_moves = -1;
+                lczero::PlayOneGame(lczero::ChessBoard::kStartposFen, &backend, opts.Dict(), plan, 40, file,
+                                    /*search_threads=*/1, /*verbose=*/false, -2.0f, 3, true, 0, nullptr,
+                                    nullptr, nullptr, nullptr, &moves, &fast_moves);
+                std::vector<lczero::TrainingDataV1> recs;
+                if (!lczero::ReadTrainingData(file, recs) || recs.empty()) { ++bad; continue; }
+                int marked = 0;
+                for (const auto& r : recs) {
+                    const bool is_fast = r.fast_search == 1;
+                    bad += (r.fast_search > 1) ? 1 : 0;
+                    marked += is_fast ? 1 : 0;
+                    const int want = is_fast ? 16 : 64;
+                    under += (static_cast<int>(r.visits) < want) ? 1 : 0;
+                    (is_fast ? over_fast : over_full) =
+                        std::max(is_fast ? over_fast : over_full, static_cast<int>(r.visits) - want);
+                    double sum = 0.0;
+                    float top = -1.0f;
+                    for (int k = 0; k < lczero::kPolicySize; ++k)
+                        if (r.probabilities[k] > 0.0f) { sum += r.probabilities[k]; top = std::max(top, r.probabilities[k]); }
+                    bad += (std::abs(sum - 1.0) > 1e-3) ? 1 : 0;   // the label is the visit fraction, shallow or not
+                    off_best += (r.probabilities[r.played_idx] < top) ? 1 : 0;
+                }
+                mismatch += (moves != static_cast<int>(recs.size()) || fast_moves != marked) ? 1 : 0;
+                total += static_cast<int>(recs.size());
+                shallow += marked;
+            }
+            std::remove(file.c_str());
+            const double frac = total > 0 ? shallow / double(total) : 0.0;
+            std::cout << "  " << run.name << ": " << total << " records, " << shallow << " shallow (" << frac
+                      << "), root visits overshoot at most +" << over_full << " (full, 64) / +" << over_fast
+                      << " (shallow, 16), played a non-best move in " << off_best << std::endl;
+            EXPECT(total >= 200 && bad == 0, run.name << ": unreadable game or bad record (" << bad << ")");
+            EXPECT(under == 0, run.name << ": " << under << " record(s) searched fewer playouts than their cap");
+            EXPECT(over_full <= 16 && over_fast <= 16,
+                   run.name << ": a search overshot its playout cap by " << std::max(over_full, over_fast));
+            EXPECT(mismatch == 0, run.name << ": out_moves / out_fast_moves differ from the records");
+            if (run.prob == 0.5f) EXPECT(std::abs(frac - 0.5) < 0.15, "PCR 50%: shallow fraction " << frac);
+            if (run.prob == 0.0f) EXPECT(shallow == 0, run.name << ": " << shallow << " shallow record(s)");
+            if (run.prob == 1.0f) EXPECT(shallow == total, run.name << ": not every record is shallow");
+            // T = 0 plays the most visited move; T = 0.5 draws, so on 48+ moves it often is not.
+            if (run.temp == 0.0f) EXPECT(off_best == 0, run.name << ": played " << off_best << " non-best move(s)");
+            if (run.temp == 0.5f && run.prob == 0.0f)
+                EXPECT(off_best >= total / 10, run.name << ": only " << off_best << " of " << total
+                                                          << " moves were not the most visited");
+        }
+    }
+
+    // e) The options of each kind really reach its searches. Noise is the probe: a search is
+    // deterministic without it (one thread, deterministic net) and differs run to run with it.
+    {
+        lczero::SelfPlaySearchPlan plan;
+        plan.full_visits = 32;
+        plan.fast_visits = 32;
+        plan.temperature = 0.5f;
+        auto first_pi = [&](const lczero::OptionsDict& o, const lczero::OptionsDict* fo, float prob) {
+            plan.fast_prob = prob;
+            plan.fast_options = fo;
+            lczero::PlayOneGame(lczero::ChessBoard::kStartposFen, &backend, o, plan, 1, file, 1, false);
+            std::vector<lczero::TrainingDataV1> recs;
+            std::vector<float> pi;
+            if (lczero::ReadTrainingData(file, recs) && !recs.empty())
+                pi.assign(recs[0].probabilities, recs[0].probabilities + lczero::kPolicySize);
+            std::remove(file.c_str());
+            return pi;
+        };
+        fztest::TestSearchOptions noisy, quiet;
+        noisy.SetNoise(1.0f, 0.3f);
+        quiet.SetNoise(0.0f, 0.3f);
+        lczero::OptionsDict fast_quiet(&noisy.Dict()), fast_noisy(&quiet.Dict());
+        fast_quiet.Set<float>(bp::BaseSearchParams::kNoiseEpsilonId, 0.0f);
+        fast_noisy.Set<float>(bp::BaseSearchParams::kNoiseEpsilonId, 1.0f);
+        // Full options noisy, shallow quiet.
+        const auto a1 = first_pi(noisy.Dict(), &fast_quiet, 1.0f), a2 = first_pi(noisy.Dict(), &fast_quiet, 1.0f);
+        const auto b1 = first_pi(noisy.Dict(), &fast_quiet, 0.0f), b2 = first_pi(noisy.Dict(), &fast_quiet, 0.0f);
+        // Full options quiet, shallow noisy.
+        const auto c1 = first_pi(quiet.Dict(), &fast_noisy, 1.0f), c2 = first_pi(quiet.Dict(), &fast_noisy, 1.0f);
+        const auto d1 = first_pi(quiet.Dict(), &fast_noisy, 0.0f), d2 = first_pi(quiet.Dict(), &fast_noisy, 0.0f);
+        const bool ok = !a1.empty() && !b1.empty() && !c1.empty() && !d1.empty();
+        EXPECT(ok, "no record from the options probe games");
+        if (ok) {
+            EXPECT(a1 == a2, "shallow search with noise epsilon 0 is not repeatable: it used the full (noisy) options");
+            EXPECT(b1 != b2, "full search with noise epsilon 1 repeated itself: noise did not reach it");
+            EXPECT(c1 != c2, "shallow search with noise epsilon 1 repeated itself: it did not use fast_options");
+            EXPECT(d1 == d2, "full search with noise epsilon 0 is not repeatable: it used fast_options");
+            std::cout << "  options probe: shallow-with-quiet-options repeatable " << (a1 == a2)
+                      << ", full-with-noise differs " << (b1 != b2) << ", shallow-with-noise differs "
+                      << (c1 != c2) << ", full-quiet repeatable " << (d1 == d2) << std::endl;
+        }
+    }
+    std::cout.flags(saved_flags);
+    std::cout.precision(saved_precision);
+}
+
 }  // namespace
 
 void run_search_logic_tests(const std::string& weights_path) {
@@ -961,6 +1198,7 @@ void run_search_logic_tests(const std::string& weights_path) {
     TestSearchLifecycleStress();
     TestSelfPlayRecordsReplay();
     TestSelfPlayStopFile();
+    TestPlayoutCapRandomization();
 
     std::cout << "\n========================================" << std::endl;
     if (g_failures == 0) {

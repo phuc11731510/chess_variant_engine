@@ -3,7 +3,17 @@
 # Cấu hình mặc định đã đo là tốt nhất trên T4 (2026-09-28, gen9, 300 s mỗi cấu hình, so trên CÙNG máy):
 # gom batch mạng của NHIỀU ván (--batch-aggregate), PARALLEL = 16 ván cùng lúc, --fixed-batch 64, mỗi
 # ván gom 32 lá mỗi lượt (--search-opt minibatch-size=32, như lc0 self-play). Engine từ c1217ef dùng
-# thông số self-play kiểu lc0 (cpuct 1,3 cố định, fpu 0, không tính lặp 2 lần là hoà, task-workers 0).
+# thông số self-play kiểu lc0 (cpuct cố định, fpu 0, không tính lặp 2 lần là hoà, task-workers 0).
+#
+# Luật mới (2026-11-20, chủ dự án chọn): tìm kiếm PUCT với PLAYOUT CAP RANDOMIZATION (PCR). Trước MỖI nước
+# tung đồng xu 50/50: tìm đủ 800 lượt (c_puct 1,5, nhiễu Dirichlet eps 0,25) hoặc tìm nông 200 lượt
+# (c_puct 1,25, eps 0,125); alpha 0,15 chung. Nước tìm nông ghi fast_search = 1: huấn luyện value + mlh,
+# KHÔNG huấn luyện policy. Mỗi nước tạo cây mới (không tái dùng cây). Nước đi được chọn cho CẢ ván theo
+# trọng số N^(1/T), T = 0,5 (--temperature; nhãn policy vẫn là tỷ lệ lượt thăm). Số lượt thăm là mức
+# SÀN: một lượt tìm kiếm dừng sau lô lá cuối (tối đa +31 với minibatch-size=32), như lc0.
+# Thế khởi đầu: MỖI VÁN một thế ngẫu nhiên (python/sinh_the_khoi_dau.py: Tốt và Sergeant cố định, 18 quân
+# còn lại xếp ngẫu nhiên, an toàn hai nước), sinh mới ở mỗi lần chạy ô (hạt giống ngẫu nhiên nên các máy
+# Colab khác nhau không trùng thế).
 # Đo: cấu hình cũ (4 ván, batch 16) 2.766 nps -> 4.049 nps. 24/32 ván không hơn mà phần đuôi dừng mềm
 # dài ra; va chạm 1/1 và tắt out-of-order-eval (như lc0) thì chậm hơn trên máy này -> giữ mặc định.
 # Cache NN 2.000.000 mục (--search-opt nn-cache-size=2000000, như mặc định self-play của lc0; mặc định
@@ -40,9 +50,16 @@ print("FZ_DUNG_MEM=" + ("co" if co_dung_mem else "khong"))
 if not co_dung_mem:
     print("[!] Binary chưa có --stop-file (bản cũ): không dừng mềm được. Chạy ô 02b, đưa binary mới lên Release.")
 
+# Tệp thế khởi đầu: một dòng FEN mỗi ván (engine lấy dòng g % số dòng; GAMES dòng nên không lặp thế).
+BOOK = f"/content/the_khoi_dau_gen{GEN_CURRENT}.txt"
+!python {E}/python/sinh_the_khoi_dau.py --n {GAMES} --out {BOOK}
+if not os.path.exists(BOOK) or os.path.getsize(BOOK) == 0:
+    raise SystemExit(f"[!] Không sinh được {BOOK} (python/sinh_the_khoi_dau.py lỗi) -- dừng, không sinh ván.")
+
 cmd = f"""bash {E}/run.sh --selfplay \
     --games {GAMES} --max-seconds {SECS} \
-    --visits 800 --max-moves 400 --temp-cutoff 32 \
+    --visits 800 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 \
+    --temperature 0.5 --start-fen {BOOK} \
     --parallel {PARALLEL} --provider cuda --fixed-batch 64 --batch-aggregate \
     --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 \
     --search-opt nn-cache-size=2000000 \

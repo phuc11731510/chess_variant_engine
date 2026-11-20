@@ -1,6 +1,6 @@
 """Reader for FairyZero TrainingDataV1 records (10x10 variant).
 
-Mirrors the C++ struct `TrainingDataV1` (#pragma pack(1), 49280 bytes) and the
+Mirrors the C++ struct `TrainingDataV1` (#pragma pack(1), 49283 bytes) and the
 plane reconstruction of `UnpackInputPlanes` / `EncodePlanesIntoRecord`.
 
 THE 3 CONVENTIONS THIS MUST MATCH (locked by the T5 round-trip test):
@@ -19,7 +19,7 @@ import zipfile
 import numpy as np
 
 import trainingdata_v6
-from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_ONES, AUX_RULE50, BOARD,
+from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_RULE50, BOARD,
                        HISTORY_PLANES, NUM_PLANES, POLICY_SIZE)
 
 # Little-endian, packed (matches #pragma pack(1)). Field order == the C++ struct.
@@ -32,18 +32,19 @@ _FMT = ("<"
         "3B"                       # checks_us, checks_them, side_to_move
         "11f"                      # result_q/d, root_q/d, best_q/d, played_q/d, orig_q/d, policy_kld
         "I"                        # visits
-        "2H")                      # played_idx, best_idx
+        "2H"                       # played_idx, best_idx
+        "HB")                      # plies_left (MLH target), fast_search (PCR flag)
 _STRUCT = struct.Struct(_FMT)
 RECORD_SIZE = _STRUCT.size
-assert RECORD_SIZE == 49280, f"record size {RECORD_SIZE} != 49280 (layout drift!)"
+assert RECORD_SIZE == 49283, f"record size {RECORD_SIZE} != 49283 (layout drift!)"
 
 
 # The one record version this reader understands (src/lczero_chess/trainingdata/trainingdata_v1.h keeps the
-# history). Version 7 is a new layout (new rules: 205-plane input, 11500-entry policy, no castling), so records of
+# history). Version 7 is a new layout (new rules: 204-plane input, 11500-entry policy, no castling), so records of
 # versions 1-6 cannot be read at all, not even by size. Anything else is refused: a future version may change what
 # a field means, and a record that parses by size alone would then be read wrong without any error.
 # The engine writes it in the compact per-game .xz container (trainingdata_v6.py), or -- built without liblzma --
-# as these 49280-byte records in a .bin file.
+# as these 49283-byte records in a .bin file.
 KNOWN_VERSIONS = (7,)
 INPUT_FORMAT_10X10 = 1
 
@@ -55,7 +56,7 @@ INPUT_FORMAT_10X10 = 1
 _HEAD = struct.Struct("<II")
 _OFF_PROBS = _HEAD.size
 _OFF_PLANES = _OFF_PROBS + POLICY_SIZE * 4
-_TAIL = struct.Struct("<B2Q3B11fI2H")    # == the tail of _FMT, from rule50 on
+_TAIL = struct.Struct("<B2Q3B11fI2HHB")    # == the tail of _FMT, from rule50 on
 _OFF_TAIL = _OFF_PLANES + HISTORY_PLANES * 2 * 8
 assert _OFF_TAIL + _TAIL.size == RECORD_SIZE, "tail layout drift"
 _U64 = np.dtype("<u8")
@@ -63,7 +64,7 @@ _F32 = np.dtype("<f4")
 
 
 def unpack_record(buf):
-    """Unpack a 49280-byte record into a dict.
+    """Unpack a 49283-byte record into a dict.
 
     probabilities: float32[POLICY_SIZE], a READ-ONLY view into `buf` (no copy; copy it
     before writing). piece_planes: its own uint64[2 * HISTORY_PLANES] (lo,hi per plane), so a
@@ -94,6 +95,7 @@ def unpack_record(buf):
     r["policy_kld"] = v[i]; i += 1
     r["visits"] = v[i]; i += 1
     r["played_idx"] = v[i]; r["best_idx"] = v[i + 1]; i += 2
+    r["plies_left"] = v[i]; r["fast_search"] = v[i + 1]; i += 2
     return r
 
 
@@ -137,7 +139,6 @@ def reconstruct_planes(rec):
     planes[:HISTORY_PLANES] = _unpack_block(pp)                      # history planes
     planes[AUX_BASE + AUX_EN_PASSANT] = _unpack_block(np.asarray(rec["ep_mask"], dtype=np.uint64))
     planes[AUX_BASE + AUX_RULE50, :, :] = rec["rule50_count"] / 100.0
-    planes[AUX_BASE + AUX_ONES, :, :] = 1.0                          # board edge
     # Remaining checks normalized by 10 (the most Fairy-SF can express; N<=9). MUST match encoder.cc (/ 10.0f).
     # The 10 is that ceiling, NOT the rule N, so the scale does not depend on the N-checks value.
     planes[AUX_BASE + AUX_CHECKS_US, :, :] = rec["checks_remaining_us"] / 10.0

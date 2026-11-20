@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "neural/backend.h"
+#include "selfplay/selfplay_game.h"  // SelfPlaySearchPlan
 #include "utils/optionsdict.h"
 
 namespace lczero {
@@ -18,9 +19,11 @@ struct SelfPlayConfig {
                                   // taking NEW games once exceeded; in-flight games finish.
   std::string stop_file;          // soft stop on demand: once this file exists, stop taking
                                   // NEW games; in-flight games finish ("" = off).
-  int visits = 200;               // NEW MCTS playouts per move.
+  // Search of every move: visits of the full and the shallow search, the PCR coin, the temperature
+  // of the move choice and the options of the shallow searches (selfplay_game.h). `plan.full_visits`
+  // is the number of NEW MCTS playouts of a full search.
+  SelfPlaySearchPlan plan;
   int max_moves = 200;            // hard cap per game (cutoff -> draw).
-  int temp_cutoff_ply = 30;       // plies below this use temperature sampling.
   int parallel = 1;               // games played concurrently (worker threads).
   int threads_per_game = 1;       // MCTS threads within each game.
   // Early resignation (plan A5). resign_threshold <= -1.0 disables it.

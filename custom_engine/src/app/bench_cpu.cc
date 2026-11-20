@@ -132,16 +132,16 @@ int run_bench_cpu(const EngineOptions& o) {
     int t = 0;
     const auto t0 = Clock::now();
     for (const auto& h : snaps) {
-      lczero::EncodePositionForNN(*h, lczero::kMoveHistory, lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
+      lczero::EncodePositionForNN(*h, lczero::kMoveHistory, lczero::FillEmptyHistory::ALWAYS, &planes, &t);
       sink += static_cast<uint64_t>(bool(planes[5].mask));
     }
     *ns += since(t0);
     return uint64_t(snaps.size());
   });
-  bench("UnpackInputPlanes (22600 floats)", [&](double* ns) {
+  bench("UnpackInputPlanes (20400 floats)", [&](double* ns) {
     int t = 0;
     for (const auto& h : snaps) {
-      lczero::EncodePositionForNN(*h, lczero::kMoveHistory, lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
+      lczero::EncodePositionForNN(*h, lczero::kMoveHistory, lczero::FillEmptyHistory::ALWAYS, &planes, &t);
       const auto t0 = Clock::now();
       lczero::UnpackInputPlanes(planes, dense.data(), 10, 10);
       *ns += since(t0);

@@ -59,7 +59,7 @@ void run_policy_tests() {
         }
         std::cout << "Promotion slots: " << promotions << " decodable, " << seen.size() << " pieces" << std::endl;
     }
-    static_assert(lczero::kPolicySize == 11500 && lczero::kInputPlanes == 205 && lczero::kPlanesPerBoard == 25,
+    static_assert(lczero::kPolicySize == 11500 && lczero::kInputPlanes == 204 && lczero::kPlanesPerBoard == 25,
                   "layout constants changed: update python/nn_layout.py and the network");
 
     if (mismatches == 0) {
@@ -319,7 +319,6 @@ void run_encoder_tests() {
         const float exp_cu = static_cast<float>(pos.checks_remaining(us)) / 10.0f;
         const float exp_ct = static_cast<float>(pos.checks_remaining(them)) / 10.0f;
         for (int rk = 0; rk < 10 && errs < 40; ++rk) for (int fl = 0; fl < 10; ++fl) {
-            if (auxcell(lczero::kAuxOnes, rk, fl) != 1.0f)       { std::cerr << "  [FAIL] " << c.name << ": ones plane != 1\n"; ++errs; break; }
             if (std::abs(auxcell(lczero::kAuxRule50, rk, fl) - exp_r50) > 1e-6) { std::cerr << "  [FAIL] " << c.name << ": rule50 plane mismatch\n"; ++errs; break; }
             if (std::abs(auxcell(lczero::kAuxChecksUs, rk, fl) - exp_cu) > 1e-6)  { std::cerr << "  [FAIL] " << c.name << ": checks_us plane mismatch\n"; ++errs; break; }
             if (std::abs(auxcell(lczero::kAuxChecksThem, rk, fl) - exp_ct) > 1e-6)  { std::cerr << "  [FAIL] " << c.name << ": checks_them plane mismatch\n"; ++errs; break; }

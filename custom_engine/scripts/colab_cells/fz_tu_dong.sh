@@ -20,13 +20,14 @@
 #   3. Du muc tieu va moi may da tai ve: cua so co may nhieu han muc nhat huan luyen (cua so kia tra
 #      may, cho). Gop du lieu (fz_tu_dong.py gop), can >= 20 phut T4 LUC SAP TAI LEN, tai len, 07,
 #      tai mang moi ve. May mat giua chung -> xin may moi ngay, roi cu 10 phut mot lan, lam lai.
-#   4. gh release upload gen<n>.onnx + gen<n>.pt -> GitHub Release NN_Model (REL_NN cua o 00; ve kiem tra
-#      sha256), xoa .onnx cac doi truoc tren Release (Release giu .pt MOI doi nhung chi .onnx doi moi nhat;
+#   4. gh release upload gen<n>.pt -> GitHub Release NN_Model (REL_NN cua o 00; ve kiem tra sha256). Release
+#      CHI giu .pt cua MOI doi, KHONG giu .onnx (2026-11-20, chu du an chon de bot tai len / tai xuong, ~19 MB
+#      moi doi thay vi ~40 MB: .onnx tao lai tu .pt tren tung may Colab bang python/lay_mang.py, o 02 / 08;
 #      mot Release chua toi da 1000 tep nen vong lap DUNG khi ra doi TD_GEN_CUOI = 990), GEN_CURRENT + 1,
 #      roi don dien thoai (td_don_dep): goi van doi truoc, thu muc van ngoai cua so huan luyen, mang da len
 #      GitHub (sha256 khop). Don cung chay luc bat dau vong lap.
 #   0. ARENA (tuy chon, hoi luc bat dau: day doi a b c ...): khi doi hien tai G la mot so trong day
-#      (khong phai so dau; mang .onnx doi cu khong con tren Release -> o 08 tu tai .pt roi chuyen sang
+#      (khong phai so dau; Release khong giu .onnx -> o 08 tu tai .pt roi chuyen sang
 #      .onnx tren may), truoc khi sinh du lieu doi G: o 08 cho genG dau voi doi dung truoc no
 #      trong day, tong TD_AR_VAN van (mac dinh 100) chia cho cac may nhu o 04 (dem ca van dang do,
 #      du thi dung mem, khong thua ca loat van song song). Ket qua tung may cong vao
@@ -41,7 +42,7 @@ TD_PHUT_HL=20      # phut T4 toi thieu luc sap tai du lieu len de huan luyen
 TD_PHUT_SINH=20    # sau khi tru so phut chua, con it hon chung nay phut choi thi khong chay 04, tra may
 TD_SO_DOI=4        # so doi du lieu moi lan huan luyen: doi hien tai + 3 doi truoc (tu doi 12, 2026-09-29; truoc la 3)
 TD_GEN_CUOI=990    # doi mang cuoi cung duoc huan luyen + len GitHub: ra doi nay thi DUNG vong lap
-TD_REL_TOI_DA=1000 # so tep toi da cua mot Release GitHub (NN_Model: .pt gen0..gen990 + 1 .onnx = 992 tep)
+TD_REL_TOI_DA=1000 # so tep toi da cua mot Release GitHub (NN_Model: .pt gen0..gen990 = 991 tep)
 TD_CO_MAY=0        # cua so nay dang giu may (tai khoan $TK, ten $S)
 TD_THOAT=0         # q: thoat vong lap o cua so nay, may van chay
 TD_LOI=0           # loi khong tu sua duoc -> dung vong lap
@@ -67,7 +68,7 @@ td_gen() { doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^GEN_CURRENT *= *\([0
 td_muc() { local n; n=$(cat "$TD_MUC_F" 2>/dev/null); so_nguyen "$n" && echo $((10#$n)) || echo 1000; }
 td_home() { if [ -n "$1" ]; then echo "$TKG/$1"; else echo "$HOME"; fi; }
 td_song() { tr '\0' ' ' 2>/dev/null < "/proc/$1/cmdline" | grep -q 'menu\.sh'; }
-# Release giu mang (REL_NN cua o 00): .pt MOI doi + .onnx doi moi nhat. td_rel_nn in "<chu>/<kho> <tag>",
+# Release giu mang (REL_NN cua o 00): CHI .pt MOI doi (khong .onnx). td_rel_nn in "<chu>/<kho> <tag>",
 # td_rel_nn_url in URL thu muc tai ve (REL_NN dung cho wget tren Colab). REL (v3.0.0) chi con binary + ONNX Runtime.
 td_rel_nn() { doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's#^REL_NN *= *"https://github.com/\([^/]*/[^/]*\)/releases/download/\([^"]*\)".*#\1 \2#p' | head -1; }
 td_rel_nn_url() { doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^REL_NN *= *"\([^"]*\)".*/\1/p' | head -1; }
@@ -174,7 +175,8 @@ td_tong() {
   [ $co = 0 ] && rmdir "$TAI/.khoa_dat_ten" 2>/dev/null
   echo $t
 }
-td_co_mang() { [ -s "$TAI/gen$1.onnx" ] && [ -s "$TAI/gen$1.pt" ]; }
+# Mang doi $1 tren dien thoai = gen$1.pt (khong con .onnx: o 07 chi tai .pt ve, Release chi giu .pt).
+td_co_mang() { [ -s "$TAI/gen$1.pt" ]; }
 # Den luot giai doan 3-4 cua doi $1: da co mang doi sau tren dien thoai (chi con tai len GitHub), da co
 # goi gop, hoac so van DA TAI VE du muc tieu.
 td_toi_luot_hl() {
@@ -606,10 +608,10 @@ td_chuan_bi() {
     # 02; 6 lan lien (30 phut) van khong co thi moi dung (va tra may, xem td_vong).
     TD_LOI_ONNX=$((${TD_LOI_ONNX:-0} + 1))
     if [ $TD_LOI_ONNX -ge 6 ]; then
-      td_in "${M_DO}[!] $TD_LOI_ONNX lần liền không tải được gen$g.onnx từ Release${M_HET} -- dừng"
+      td_in "${M_DO}[!] $TD_LOI_ONNX lần liền không có được gen$g.onnx (tải gen$g.pt từ Release rồi chuyển sang .onnx)${M_HET} -- dừng"
       TD_LOI_ONNX=0; return 2
     fi
-    td_in "${M_VANG}[!] chưa tải được gen$g.onnx từ Release (lần $TD_LOI_ONNX/6)${M_HET} -- 5 phút nữa thử lại"
+    td_in "${M_VANG}[!] chưa có gen$g.onnx (tải .pt từ Release + chuyển; lần $TD_LOI_ONNX/6)${M_HET} -- 5 phút nữa thử lại"
     ssh_colab "rm -f /content/gen$g.onnx" 2>/dev/null
     td_ngu 300 || return 4
     return 1
@@ -783,9 +785,9 @@ td_ar_ghi() {
   [ $co = 0 ] && rmdir "$TAI/.khoa_dat_ten" 2>/dev/null
   return 0
 }
-# Mang .onnx cua doi thu gen$1 len may Colab: co san / .onnx tren Release NN_Model / (Release chi giu .onnx doi
-# moi nhat) .pt cua doi do tren Release roi chuyen sang .onnx ngay tren may (python/lay_mang.py, ~1-3 phut) /
-# mang tren dien thoai (.onnx, hoac .pt roi chuyen). 0 = co, 1 = loi mang (thu lai), 2 = khong co o dau ca.
+# Mang .onnx cua doi thu gen$1 len may Colab: co san / .pt cua doi do tren Release NN_Model roi chuyen sang
+# .onnx ngay tren may (python/lay_mang.py; Release khong giu .onnx) / .pt tren dien thoai roi chuyen.
+# 0 = co, 1 = loi mang (thu lai), 2 = khong co o dau ca.
 td_ar_mang() {
   local a=$1 url out rc x lenh
   url=$(td_rel_nn_url)
@@ -794,7 +796,7 @@ td_ar_mang() {
   rc=$(sed -n 's/^FZ_RC=//p' <<<"$out" | tail -1)
   case "$rc" in
     0) return 0 ;;
-    10) ;;                                  # Release khong co .onnx lan .pt cua doi do: thu dien thoai
+    10) ;;                                  # Release khong co .pt cua doi do: thu dien thoai
     *) tail -5 <<<"$out"; return 1 ;;
   esac
   for x in onnx pt; do
@@ -1033,8 +1035,8 @@ td_huan_luyen() {
   rm -rf "$TD/hl_$g"
   TD_VAI=
 }
-# Giai doan 4: gen$1.onnx + .pt len GitHub Release NN_Model (REL_NN trong o 00), kiem sha256 tren Release, roi xoa
-# .onnx cac doi truoc tren Release. Loi mang -> thu lai. Release chua toi da TD_REL_TOI_DA tep: kiem truoc khi tai.
+# Giai doan 4: gen$1.pt len GitHub Release NN_Model (REL_NN trong o 00), kiem sha256 tren Release. Loi mang ->
+# thu lai. Release chua toi da TD_REL_TOI_DA tep: kiem truoc khi tai. (Khong tai .onnx: xem dau tep.)
 td_len_github() {
   local n=$1 repo tag tsv so them x
   read -r repo tag <<<"$(td_rel_nn)"
@@ -1053,56 +1055,32 @@ td_len_github() {
       td_ngu 120 || return 1; continue
     fi
     so=$(grep -c . <<<"$tsv"); them=0
-    for x in onnx pt; do grep -q "^gen$n\.$x"$'\t' <<<"$tsv" || them=$((them + 1)); done
+    for x in pt; do grep -q "^gen$n\.$x"$'\t' <<<"$tsv" || them=$((them + 1)); done
     if [ $((so + them)) -gt "$TD_REL_TOI_DA" ]; then
       td_in "${M_DO}[!] Release $tag có $so tệp, thêm $them tệp sẽ vượt giới hạn $TD_REL_TOI_DA${M_HET} -- không tải lên"
       TD_LOI=1; return 1
     fi
-    td_in "tải gen$n.onnx + gen$n.pt lên GitHub ($tag, đang có $so/$TD_REL_TOI_DA tệp)"
-    if ( trap '' INT; gh release upload "$tag" "$TAI/gen$n.onnx" "$TAI/gen$n.pt" --clobber -R "$repo" ) &&
+    td_in "tải gen$n.pt lên GitHub ($tag, đang có $so/$TD_REL_TOI_DA tệp)"
+    if ( trap '' INT; gh release upload "$tag" "$TAI/gen$n.pt" --clobber -R "$repo" ) &&
        td_kiem_len "$repo" "$tag" "$n"; then
       td_in "${M_XANH}đã lên Release $tag${M_HET} (sha256 trên GitHub khớp tệp trên điện thoại)"
-      td_xoa_onnx_cu "$repo" "$tag" "$n"
       return 0
     fi
     td_in "tải lên GitHub lỗi (mạng?) -- 2 phút nữa thử lại"
     td_ngu 120 || return 1
   done
 }
-# gen$3.onnx + .pt tren Release $2 ($1 = chu/kho) co sha256 giong tep tren dien thoai. 0 = khop.
+# gen$3.pt tren Release $2 ($1 = chu/kho) co sha256 giong tep tren dien thoai. 0 = khop.
 td_kiem_len() {
   local tsv x h s ten tsz dg
   tsv=$(td_tep_release "$1" "$2") || return 1
-  for x in onnx pt; do
+  for x in pt; do
     h=$(sha256sum "$TAI/gen$3.$x" 2>/dev/null | cut -d' ' -f1); s=$(stat -c %s "$TAI/gen$3.$x" 2>/dev/null)
     [ -n "$h" ] && [ -n "$s" ] || return 1
     IFS=$'\t' read -r ten tsz dg < <(grep "^gen$3\.$x"$'\t' <<<"$tsv" | head -1) || return 1
     [ "$tsz" = "$s" ] || return 1
     [ -z "$dg" ] || [ "$dg" = "sha256:$h" ] || return 1     # GitHub chua ghi sha256 -> chi so kich thuoc
   done
-}
-# Xoa gen<k>.onnx (k < $3) tren Release: Release chi giu .onnx doi moi nhat (cac doi cu tao lai tu .pt khi can,
-# xem python/lay_mang.py). Chi xoa khi gen$3.onnx da len (td_kiem_len); loi xoa khong dung vong lap -- lan sau xoa tiep.
-td_xoa_onnx_cu() {
-  local repo=$1 tag=$2 n=$3 tsv k ten xoa=0 loi=0
-  tsv=$(td_tep_release "$repo" "$tag") || { td_in "[!] chưa đọc được danh sách Release -- chưa xoá .onnx đời cũ (lần sau xoá tiếp)"; return 0; }
-  grep -q "^gen$n\.onnx"$'\t' <<<"$tsv" || return 0
-  while IFS=$'\t' read -r ten _; do
-    [[ "$ten" =~ ^gen([0-9]+)\.onnx$ ]] || continue
-    k=$((10#${BASH_REMATCH[1]}))
-    [ "$k" -lt "$n" ] || continue
-    if gh release delete-asset "$tag" "$ten" -y -R "$repo" >/dev/null 2>&1; then xoa=$((xoa + 1)); else loi=$((loi + 1)); fi
-  done <<<"$tsv"
-  [ $xoa -gt 0 ] && td_in "đã xoá $xoa tệp .onnx đời cũ trên Release (giữ gen$n.onnx)"
-  [ $loi -gt 0 ] && td_in "${M_VANG}[!] chưa xoá được $loi tệp .onnx đời cũ trên Release -- lần sau xoá tiếp${M_HET}"
-  return 0
-}
-# Dau vong lap: .onnx doi cu con sot tren Release (lan xoa truoc bi loi) thi xoa tiep. Chi khi gen$1.onnx da o do.
-td_xoa_onnx_thua() {
-  local repo tag
-  read -r repo tag <<<"$(td_rel_nn)"
-  [ -n "$tag" ] && command -v gh >/dev/null && gh auth status >/dev/null 2>&1 || return 0
-  td_xoa_onnx_cu "$repo" "$tag" "$1"
 }
 # Don dien thoai truoc khi sinh du lieu doi $1: goi van cac doi truoc, thu muc van ngoai cua so huan luyen, mang da
 # len GitHub (sha256 khop) -- chi tiet o `fz_tu_dong.py don_dep`. Khong doc duoc Release -> bo qua phan mang.
@@ -1186,7 +1164,7 @@ td_bat_dau() {
   g=$(td_gen)
   [[ "$g" =~ ^[0-9]+$ ]] || { echo "[!] Không đọc được GEN_CURRENT trong 00_cau_hinh.py"; return 1; }
   if [ "$g" -ge "$TD_GEN_CUOI" ]; then
-    echo "${M_DO}[!] Đời hiện tại $g >= $TD_GEN_CUOI.${M_HET} Release NN_Model chứa tối đa $TD_REL_TOI_DA tệp (.pt mỗi đời + 1 .onnx):"
+    echo "${M_DO}[!] Đời hiện tại $g >= $TD_GEN_CUOI.${M_HET} Release NN_Model chứa tối đa $TD_REL_TOI_DA tệp (.pt mỗi đời):"
     echo "    đời $g đã huấn luyện xong cuối cùng, vòng lặp không chạy tiếp (cần Release mới)."
     return 1
   fi
@@ -1194,7 +1172,7 @@ td_bat_dau() {
   if [ -z "$(td_rel_nn)" ] && [ -n "$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n '/^REL *=/p')" ]; then
     k=$(doc "$D/00_cau_hinh.py" | sed -n 's/^REL *= *"\(.*\)\/releases\/download\/[^"]*".*/\1/p' | head -1)
     if [ -n "$k" ]; then
-      sed -i "/^REL *=/a REL_NN = \"$k/releases/download/NN_Model\"   # mạng: .pt mọi đời + .onnx đời mới nhất (thêm tự động)" "$D/00_cau_hinh.py"
+      sed -i "/^REL *=/a REL_NN = \"$k/releases/download/NN_Model\"   # mạng: chỉ .pt của mọi đời (thêm tự động)" "$D/00_cau_hinh.py"
       echo "${M_XANH}[đã thêm]${M_HET} REL_NN vào 00_cau_hinh.py (GEN_CURRENT giữ nguyên = $g)"
     fi
   fi
@@ -1253,7 +1231,7 @@ td_bat_dau() {
   if td_ar_viec "$g"; then
     echo "Arena gen$g vs gen$(td_ar_doi_thu "$g") chưa xong ($(td_ar_da "$g" "$(td_ar_doi_thu "$g")")/$(td_ar_van)) -> đấu trước"
   fi
-  if td_co_mang $((g + 1)); then echo "Đã có gen$((g + 1)).onnx + .pt -> chỉ còn"; echo "tải lên GitHub (giai đoạn 4)"
+  if td_co_mang $((g + 1)); then echo "Đã có gen$((g + 1)).pt -> chỉ còn"; echo "tải lên GitHub (giai đoạn 4)"
   elif [ -f "$TAI/games_gen$g.zip" ]; then echo "Đã có games_gen$g.zip -> huấn luyện"
   else
     n=$(tong_tich_luy "$g")
@@ -1263,7 +1241,6 @@ td_bat_dau() {
   read -rp "Enter = bắt đầu, n = thôi: " x || { echo; return 1; }      # Ctrl+D = thoi
   [ -z "$x" ] || return 1
   td_don_dep "$g"                 # don dien thoai (goi van / thu muc van cu, mang da len GitHub) truoc khi sinh doi $g
-  td_xoa_onnx_thua "$g"           # Release chi giu .onnx doi moi nhat: xoa phan con sot (lan xoa truoc bi loi)
   # Khong con cua so nao chay vong lap: lenh dung tay cu (lan truoc) het hieu luc.
   # (va lich xin may chung cua lan truoc: mo lai vong lap = xin ngay)
   [ ${#khac[@]} -eq 0 ] && rm -f "$TD_DUNG" "$TD_XIN_SAU"
@@ -1295,7 +1272,7 @@ td_vong_chinh() {
     # Ctrl+C luc dang lam viec khac (tai len / tai ve / ssh ngan): hoi ngay khi viec do dung.
     if [ $NGAT = 1 ]; then td_hoi_ngat; [ $TD_THOAT = 1 ] && break; fi
     g=$(td_gen)
-    # Release GitHub chua toi da 1000 tep (.pt moi doi + 1 .onnx): ra doi TD_GEN_CUOI thi dung ca vong lap
+    # Release GitHub chua toi da 1000 tep (.pt moi doi): ra doi TD_GEN_CUOI thi dung ca vong lap
     # (dung mem nhu `fz dung`: tra may, thoat moi cua so) -- khong sinh du lieu / huan luyen them.
     if [ "${g:-0}" -ge "$TD_GEN_CUOI" ] && [ ! -f "$TD_DUNG" ]; then
       td_in "${M_VANG}đã tới đời $g (giới hạn $TD_GEN_CUOI)${M_HET}: Release GitHub chứa tối đa $TD_REL_TOI_DA tệp -> dừng vòng lặp"

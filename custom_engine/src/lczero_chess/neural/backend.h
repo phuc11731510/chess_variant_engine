@@ -15,7 +15,7 @@ namespace lczero {
 
 // Hard ceiling on a single NN batch. OnnxComputation sizes its STATIC buffers
 // from this, so raising it costs memory per live computation:
-//   input  20500 floats/pos, policy 11500, plus ~1.5 KB of move scratch
+//   input  20400 floats/pos, policy 11500, plus ~1.5 KB of move scratch
 //   => ~129 KB per slot, i.e. ~8.3 MB at 64 and ~33 MB at 256.
 // There is one live computation per search worker (or exactly one when
 // --batch-aggregate is on), so the cost is bounded and small.

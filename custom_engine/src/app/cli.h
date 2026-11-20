@@ -30,6 +30,15 @@ struct EngineOptions {
     std::string sp_out="selfplay_data";
     std::string sp_provider="cpu";
     float sp_noise_eps=0.25f, sp_noise_alpha=0.3f, sp_policy_temp=1.0f, sp_cpuct=-1.0f;
+    // Playout cap randomization (self-play only; 2026-11-20): with probability --fast-prob a move
+    // is searched shallowly with --fast-visits playouts, --fast-cpuct and --fast-noise-eps
+    // instead of --visits / --cpuct / --noise-epsilon; its record is marked fast_search = 1 (the
+    // trainer skips its policy target). 0 (the default) = every move is a full search.
+    float sp_fast_prob=0.0f, sp_fast_cpuct=1.25f, sp_fast_noise_eps=0.125f;
+    int sp_fast_visits=200;
+    // --temperature: self-play draws EVERY move with weight (N / N_max)^(1 / T) (0 = most visited).
+    float sp_temperature=0.5f;
+    bool sp_temp_cutoff_given=false;  // --temp-cutoff is the ARENA's opening length; --selfplay rejects it
     std::string sp_start_fen;
     float sp_resign_threshold=-2.0f, sp_no_resign_frac=0.10f;
     int sp_resign_consecutive=3, sp_resign_earliest=0;

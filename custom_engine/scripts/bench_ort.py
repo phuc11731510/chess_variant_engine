@@ -60,7 +60,7 @@ def bench(model, provider, board, batches, gflop, iters, warmup, popts=None):
     iname = sess.get_inputs()[0].name
     res = {}
     for b in batches:
-        x = np.random.rand(b, 205, board, board).astype(np.float32)
+        x = np.random.rand(b, 204, board, board).astype(np.float32)
         try:
             for _ in range(warmup):
                 sess.run(None, {iname: x})

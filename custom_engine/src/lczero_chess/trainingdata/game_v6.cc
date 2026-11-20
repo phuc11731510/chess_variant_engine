@@ -148,6 +148,8 @@ bool GameV6Encoder::Add(const TrainingDataV1& r) {
   visits_.push_back(r.visits);
   played_idx_.push_back(r.played_idx);
   best_idx_.push_back(r.best_idx);
+  plies_left_.push_back(r.plies_left);
+  fast_search_.push_back(r.fast_search);
   flags_.push_back(flags);
   return true;
 }
@@ -179,6 +181,8 @@ std::string GameV6Encoder::Payload() const {
   Append(&s, visits_);
   Append(&s, played_idx_);
   Append(&s, best_idx_);
+  Append(&s, plies_left_);
+  Append(&s, fast_search_);
   return s;
 }
 
@@ -245,8 +249,11 @@ bool DecodeGameV6Payload(const std::string& payload, std::vector<TrainingDataV1>
   const char* visits = take(n, 4);
   const char* played = take(n, 2);
   const char* best = take(n, 2);
+  const char* plies_left = take(n, 2);
+  const char* fast_search = take(n, 1);
   if (!delta || !counts || !pif || !pid || !cur || !hist || !rule50 || !ep ||
-      !checks_us || !checks_them || !stm || !floats || !visits || !played || !best)
+      !checks_us || !checks_them || !stm || !floats || !visits || !played || !best ||
+      !plies_left || !fast_search)
     return fail("truncated v6 game");
   if (pos != payload.size()) return fail("v6 game has trailing bytes");
 
@@ -320,6 +327,8 @@ bool DecodeGameV6Payload(const std::string& payload, std::vector<TrainingDataV1>
     std::memcpy(&r.visits, visits + static_cast<size_t>(k) * 4, 4);
     std::memcpy(&r.played_idx, played + static_cast<size_t>(k) * 2, 2);
     std::memcpy(&r.best_idx, best + static_cast<size_t>(k) * 2, 2);
+    std::memcpy(&r.plies_left, plies_left + static_cast<size_t>(k) * 2, 2);
+    r.fast_search = static_cast<uint8_t>(fast_search[k]);
   }
   return true;
 }

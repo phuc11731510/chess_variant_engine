@@ -16,7 +16,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_ONES, AUX_RULE50, BOARD,
+from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_RULE50, BOARD,
                        HISTORY_PLANES, NUM_PLANES, POLICY_SIZE)
 from trainingdata_reader import is_game_member, iter_games, reconstruct_planes
 
@@ -190,7 +190,11 @@ def _diff_focus_keep(rec, slope, kld_w, pmin):
 
 
 class FairyDataset(Dataset):
-    """Yields (input[NUM_PLANES,10,10], pi[POLICY_SIZE], value[3]).
+    """Yields (input[NUM_PLANES,10,10], pi[POLICY_SIZE], value[5]).
+
+    value = [W, D, L target (the qMix of the search value and the game result), plies_left (the moves-left
+    target; 0 = not filled in), has_policy (1 = full search; 0 = fast_search, the policy target is not to
+    be trained on)].
 
     Two in-RAM cache representations (both produce identical training tensors):
       * sparse=True  (default, 8.2.2): per record keep only the compact bitboard
@@ -203,7 +207,7 @@ class FairyDataset(Dataset):
 
     packed = False   # test subclasses skip __init__
 
-    def __init__(self, data, q_ratio=0.2, downsample_keep=1.0, cache=True, seed=0,
+    def __init__(self, data, q_ratio=0.25, downsample_keep=1.0, cache=True, seed=0,
                  diff_focus=False, df_slope=1.0, df_kld_w=0.5, df_min=0.2, sparse=True,
                  max_records=0, games=None, label="", packed=False):
         """`games` (from list_games / split_games) loads only those games; by
@@ -302,10 +306,13 @@ class FairyDataset(Dataset):
               f"sparse={sparse and cache})")
 
     def _value(self, r):
+        """[W, D, L, plies_left, has_policy] (float32[5]); the WDL part is q_ratio * the search value (best_q /
+        best_d: the average value of the most-visited move) + (1 - q_ratio) * the game result."""
         z_wdl = wdl_from_qd(r["result_q"], r["result_d"])
         q_wdl = wdl_from_qd(search_q(r), r["best_d"])
         v = self.q_ratio * q_wdl + (1.0 - self.q_ratio) * z_wdl
-        return v.astype(np.float32)
+        extra = np.array([float(r.get("plies_left", 0)), 0.0 if r.get("fast_search", 0) else 1.0])
+        return np.concatenate([v, extra]).astype(np.float32)
 
     def _build(self, r):
         """Dense tensors (used by sparse=False cache and by streaming)."""
@@ -370,7 +377,7 @@ assert AUX_EN_PASSANT == 0
 
 
 def pack_compact(c):
-    """One compact record -> (masks int64[N_MASKS,2], scalars f32[3], pi_idx, pi_val, value).
+    """One compact record -> (masks int64[N_MASKS,2], scalars f32[3], pi_idx, pi_val, value f32[5]).
     The scalars are computed exactly as reconstruct_planes does (float64 division
     rounded to float32), so the planes rebuilt from them are bit-identical."""
     masks = np.empty((N_MASKS, 2), dtype=np.uint64)
@@ -405,7 +412,7 @@ _BIT_T = torch.from_numpy(
 
 
 def unpack_batch(batch, device, channels_last=False):
-    """collate_packed batch -> (x f32[B,NUM_PLANES,10,10], pi f32[B,POLICY_SIZE], value f32[B,3])
+    """collate_packed batch -> (x f32[B,NUM_PLANES,10,10], pi f32[B,POLICY_SIZE], value f32[B,5])
     on `device`; x in channels_last memory format when asked (same values)."""
     masks, scal, idx, val, value = (t.to(device, non_blocking=True) for t in batch)
     b = masks.size(0)
@@ -417,7 +424,6 @@ def unpack_batch(batch, device, channels_last=False):
     # arithmetic shift of a negative int64 is harmless: only bit 0 is kept.
     x[:, :N_MASKS] = torch.bitwise_and(torch.bitwise_right_shift(masks[:, :, word], bit), 1)
     x[:, AUX_BASE + AUX_RULE50] = scal[:, 0, None, None]         # rule50 / 100
-    x[:, AUX_BASE + AUX_ONES] = 1.0                              # board edge
     x[:, AUX_BASE + AUX_CHECKS_US] = scal[:, 1, None, None]      # checks us / 10
     x[:, AUX_BASE + AUX_CHECKS_THEM] = scal[:, 2, None, None]     # checks them / 10
     pi = torch.full((b, POLICY_SIZE + 1), -1.0, dtype=torch.float32, device=device)

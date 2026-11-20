@@ -187,7 +187,7 @@ void run_bits_tests() {
             h->Reset(*board, 0, 1);
             lczero::InputPlanes planes; int t = 0;
             lczero::EncodePositionForNN(*h, lczero::kMoveHistory,
-                                        lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
+                                        lczero::FillEmptyHistory::ALWAYS, &planes, &t);
             Stockfish::Bitboard plane_union = Stockfish::Bitboard(static_cast<uint64_t>(0));
             int total_bits = 0;
             for (int p = 0; p < 2 * lczero::kPieceKinds; ++p) {

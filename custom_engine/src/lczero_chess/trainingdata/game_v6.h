@@ -19,7 +19,7 @@ namespace lczero {
 // ones, which fall back to wider storage (FLAG_FLOAT_PI / FLAG_DENSE_PI / FLAG_FULL).
 
 constexpr char kGameV6Magic[4] = {'F', 'Z', 'D', '6'};
-constexpr uint32_t kGameV6Revision = 2;
+constexpr uint32_t kGameV6Revision = 3;   // 3: + plies_left and fast_search columns (2026-11-20)
 constexpr uint8_t kGameV6FlagFull = 1;
 constexpr uint8_t kGameV6FlagFloatPi = 2;
 constexpr uint8_t kGameV6FlagDensePi = 4;
@@ -51,7 +51,8 @@ class GameV6Encoder {
   std::vector<uint64_t> ep_;
   std::vector<float> floats_[11];
   std::vector<uint32_t> visits_;
-  std::vector<uint16_t> played_idx_, best_idx_;
+  std::vector<uint16_t> played_idx_, best_idx_, plies_left_;
+  std::vector<uint8_t> fast_search_;
 };
 
 // Payload -> records. Returns false (with a reason in *err) on any inconsistency.

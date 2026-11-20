@@ -4,7 +4,7 @@
 #include "tests/test_common.h"
 
 // Fills every byte of a record with a deterministic, record-specific pattern so
-// the round-trip compares all 49280 bytes (not just a few named fields).
+// the round-trip compares all 49283 bytes (not just a few named fields).
 static void fill_deterministic(lczero::TrainingDataV1& rec, int seed) {
     auto* bytes = reinterpret_cast<uint8_t*>(&rec);
     for (size_t k = 0; k < sizeof(rec); ++k) {
@@ -15,16 +15,16 @@ static void fill_deterministic(lczero::TrainingDataV1& rec, int seed) {
     rec.input_format = lczero::kInputFormat10x10;
 }
 
-// T1: verify TrainingDataV1 layout (49280 bytes) and Writer/Reader round-trip.
+// T1: verify TrainingDataV1 layout (49283 bytes) and Writer/Reader round-trip.
 void run_trainingdata_tests() {
     std::cout << "\n========================================" << std::endl;
     std::cout << "RUNNING TRAINING DATA (T1) TESTS..." << std::endl;
     std::cout << "========================================\n" << std::endl;
 
-    // TEST 1: struct layout size is locked at 49280 bytes.
+    // TEST 1: struct layout size is locked at 49283 bytes.
     std::cout << "TEST 1: sizeof(TrainingDataV1) = " << sizeof(lczero::TrainingDataV1)
-              << " (expected 49280)" << std::endl;
-    if (sizeof(lczero::TrainingDataV1) != 49280) {
+              << " (expected 49283)" << std::endl;
+    if (sizeof(lczero::TrainingDataV1) != 49283) {
         std::cerr << "[FAIL] Unexpected struct size!" << std::endl;
         std::exit(1);
     }
@@ -116,6 +116,8 @@ void run_trainingdata_tests() {
             rec.result_q = (ply & 1) ? -1.0f : 1.0f;
             rec.best_q = static_cast<float>(rng() % 2001) / 1000.0f - 1.0f;
             rec.played_idx = rec.best_idx = lczero::MoveToNNIndex(lm[0], 0);
+            rec.plies_left = static_cast<uint16_t>(1000 - ply);   // MLH target
+            rec.fast_search = static_cast<uint8_t>(rng() % 2);    // PCR flag
             game.push_back(rec);
             h->Append(lm[static_cast<size_t>(rng() % lm.size())]);
         }
@@ -130,7 +132,7 @@ void run_trainingdata_tests() {
 
 // --emit-roundtrip: ground truth for python/test_roundtrip.py. For each case
 // writes BOTH <prefix>_records.gz (TrainingDataV1 records) and <prefix>_dense.bin
-// (the [226*100] floats UnpackInputPlanes gives the NN for the SAME position);
+// (the [kInputPlanes*100] floats UnpackInputPlanes gives the NN for the SAME position);
 // Python rebuilds the planes from the record and compares. With --weights it also
 // writes <prefix>_eval.bin for python/test_engine_parity.py (eval_backend below).
 void run_roundtrip_emit(const std::string& prefix, const std::string& weights_path) {
@@ -180,8 +182,8 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
         lczero::InputPlanes planes;
         int t = 0;
         lczero::EncodePositionForNN(h, lczero::kMoveHistory,
-                                    lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
-        std::vector<float> dense(226 * 100, 0.0f);
+                                    lczero::FillEmptyHistory::ALWAYS, &planes, &t);
+        std::vector<float> dense(lczero::kInputPlanes * 100, 0.0f);
         lczero::UnpackInputPlanes(planes, dense.data(), 10, 10);
         dense_out.write(reinterpret_cast<const char*>(dense.data()),
                         dense.size() * sizeof(float));
@@ -198,6 +200,7 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
         rec.root_q = 0.1f; rec.best_q = 0.5f; rec.orig_q = 0.123f;
         rec.policy_kld = 0.456f; rec.visits = 777;
         rec.played_idx = 2005; rec.best_idx = 2005;
+        rec.plies_left = 77; rec.fast_search = 1;
         writer.WriteChunk(rec);
         if (writer_xz) writer_xz->WriteChunk(rec);
         ++num_cases;
@@ -213,6 +216,7 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
             const uint32_t n = static_cast<uint32_t>(legal.size());
             eval_out.write(reinterpret_cast<const char*>(&r.q), 4);
             eval_out.write(reinterpret_cast<const char*>(&r.d), 4);
+            eval_out.write(reinterpret_cast<const char*>(&r.m), 4);   // moves left (plies), the "mlh" output
             eval_out.write(reinterpret_cast<const char*>(&n), 4);
             for (uint32_t i = 0; i < n; ++i) {
                 const uint16_t idx = lczero::MoveToNNIndex(legal[i], 0);

@@ -82,7 +82,7 @@ finish_local() {
   chmod +x "$ENGINE_DIR/build-linux/custom_engine" 2>/dev/null || true
   write_wrapper
   # torch is preinstalled on Colab; the train/seed scripts also import these.
-  pip install -q onnx onnxruntime 2>/dev/null || true
+  pip install -q onnx onnxscript onnxruntime 2>/dev/null || true
   echo "[prebuilt] health check: --test-uci ..."
   if bash "$ENGINE_DIR/run.sh" --test-uci 2>/tmp/fz_health | grep -q '\[PASS\]'; then
     echo "[prebuilt] OK — engine runs on this Colab image. SKIP colab_setup.sh."

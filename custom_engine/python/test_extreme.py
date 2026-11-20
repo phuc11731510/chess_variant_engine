@@ -2,7 +2,7 @@
 
 Pure-Python + torch only (no engine, no CUDA) — fast and deterministic. Targets the
 convention-sensitive logic where a silent bug would corrupt training without crashing:
-  1. binary record layout round-trips (struct pack/unpack, 49280 B, field order)
+  1. binary record layout round-trips (struct pack/unpack, 49283 B, field order)
   2. wdl_from_qd invariants over a (q,d) sweep incl. inconsistent inputs
   3. qMix value target = q_ratio*q + (1-q_ratio)*z (exact)
   4. sparse cache == dense cache, bit-identical, over fuzz + degenerate records
@@ -32,7 +32,7 @@ sys.path.insert(0, HERE)
 
 import dataset as D
 import trainingdata_reader as R
-from nn_layout import (AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_ONES, AUX_RULE50, NUM_PLANES)
+from nn_layout import (AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_RULE50, NUM_PLANES)
 from train import policy_loss
 
 PASS, FAIL = 0, 0
@@ -93,7 +93,7 @@ class _DS(D.FairyDataset):
 # --------------------------------------------------------------------------- #
 def test_struct_layout():
     print("\n[1] binary record layout (pack -> unpack)")
-    check(R.RECORD_SIZE == 49280, f"record size == 49280 (got {R.RECORD_SIZE})")
+    check(R.RECORD_SIZE == 49283, f"record size == 49283 (got {R.RECORD_SIZE})")
     pi = [-1.0] * R.POLICY_SIZE
     pi[123] = 0.25; pi[7777] = 0.75
     pp = list(range(R.HISTORY_PLANES * 2))           # 0,1,2,... distinct sentinels
@@ -102,7 +102,8 @@ def test_struct_layout():
                0xAAAA, 0xBBBB,                       # ep_mask
                6, 7, 1,                              # checks_us/them, side
                1.0, 0.0, 0.2, 0.1, -0.3, 0.15, 0.4, 0.05, 0.6, 0.2, 1.234,  # 11 floats
-               300, 123, 7777])                      # visits, played_idx, best_idx
+               300, 123, 7777,                       # visits, played_idx, best_idx
+               4321, 1])                             # plies_left, fast_search
     rec = R.unpack_record(R._STRUCT.pack(*fields))
     check(rec["version"] == 7 and rec["input_format"] == 1, "version/input_format")
     # A version or input format the reader does not know must be refused, not read.
@@ -125,7 +126,8 @@ def test_struct_layout():
            [int(g.integers(0, 256)),
             int(g.integers(0, 2**64, dtype=np.uint64)), int(g.integers(0, 2**64, dtype=np.uint64)),
             5, 8, 0] + [float(x) for x in g.standard_normal(11).astype(np.float32)] +
-           [int(g.integers(0, 2**32)), int(g.integers(0, 2**16)), int(g.integers(0, 2**16))])
+           [int(g.integers(0, 2**32)), int(g.integers(0, 2**16)), int(g.integers(0, 2**16)),
+            int(g.integers(0, 2**16)), int(g.integers(0, 2))])      # plies_left, fast_search
     buf = R._STRUCT.pack(*rnd)
     fast, ref = R.unpack_record(buf), R._STRUCT.unpack(buf)
     npl = R.POLICY_SIZE + len(pp)
@@ -141,7 +143,7 @@ def test_struct_layout():
            [fast[k] for k in ("checks_remaining_us", "checks_remaining_them", "side_to_move",
                               "result_q", "result_d", "root_q", "root_d", "best_q", "best_d",
                               "played_q", "played_d", "orig_q", "orig_d", "policy_kld",
-                              "visits", "played_idx", "best_idx")])
+                              "visits", "played_idx", "best_idx", "plies_left", "fast_search")])
     check(got == list(tail), "fast unpack: every tail field identical")
     check(rec["rule50_count"] == 200, "scalar aux field (rule50)")
     check(rec["ep_mask"] == (0xAAAA, 0xBBBB), "ep_mask pair")
@@ -151,6 +153,7 @@ def test_struct_layout():
           abs(rec["policy_kld"] - 1.234) < 1e-5, "value/kld floats in order")
     check(rec["visits"] == 300 and rec["played_idx"] == 123 and rec["best_idx"] == 7777,
           "visits/played_idx/best_idx")
+    check(rec["plies_left"] == 4321 and rec["fast_search"] == 1, "plies_left/fast_search")
 
 
 # --------------------------------------------------------------------------- #
@@ -194,10 +197,22 @@ def test_qmix():
         z = D.wdl_from_qd(rec["result_q"], rec["result_d"])
         q = D.wdl_from_qd(rec["best_q"], rec["best_d"])
         expect = qr * q + (1 - qr) * z
-        check(np.allclose(v, expect, atol=1e-6), f"q_ratio={qr}: value == qr*q+(1-qr)*z")
-    check(np.allclose(_DS(0.0)._value(make_rec(3)),
+        check(v.shape == (5,) and v.dtype == np.float32, "value row = [W, D, L, plies_left, has_policy]")
+        check(np.allclose(v[:3], expect, atol=1e-6), f"q_ratio={qr}: value == qr*q+(1-qr)*z")
+    check(np.allclose(_DS(0.0)._value(make_rec(3))[:3],
                       D.wdl_from_qd(make_rec(3)["result_q"], make_rec(3)["result_d"])),
           "q_ratio=0 -> pure z (result)")
+    # the two extra columns: the moves-left target and the policy flag (fast_search = 1 -> no policy target)
+    rec = make_rec(seed=3)
+    rec["plies_left"], rec["fast_search"] = 37, 0
+    v = _DS(0.25)._value(rec)
+    check(v[3] == 37.0 and v[4] == 1.0, "plies_left 37, full search -> row [.., 37, 1]")
+    rec["fast_search"] = 1
+    v = _DS(0.25)._value(rec)
+    check(v[3] == 37.0 and v[4] == 0.0, "fast_search 1 -> has_policy 0, plies_left kept")
+    rec.pop("plies_left"); rec.pop("fast_search")
+    v = _DS(0.25)._value(rec)
+    check(v[3] == 0.0 and v[4] == 1.0, "a record without the two fields: plies_left 0 (not filled in), policy kept")
 
 
 # --------------------------------------------------------------------------- #
@@ -214,8 +229,8 @@ def test_legacy_search_q_sign():
     v2 = dict(base, version=2)
     v1 = dict(base, version=1, best_q=-0.6, root_q=-0.5, played_q=-0.4)
     good = 0.2 * D.wdl_from_qd(0.6, 0.2) + 0.8 * D.wdl_from_qd(1.0, 0.0)
-    check(np.allclose(ds._value(v2), good, atol=1e-6), "v2: value target uses best_q as stored")
-    check(np.allclose(ds._value(v1), good, atol=1e-6), "v1: value target undoes the legacy sign")
+    check(np.allclose(ds._value(v2)[:3], good, atol=1e-6), "v2: value target uses best_q as stored")
+    check(np.allclose(ds._value(v1)[:3], good, atol=1e-6), "v1: value target undoes the legacy sign")
     for key, want in (("best_q", 0.6), ("root_q", 0.5), ("played_q", 0.4)):
         check(abs(D.search_q(v1, key) - want) < 1e-9 and abs(D.search_q(v2, key) - want) < 1e-9,
               f"search_q({key}) is side-to-move for v1 and v2")
@@ -300,7 +315,7 @@ def test_reconstruct_aux():
     set_cell(ep, 4, 6)                                # ep bit at (rank4,file6)
     rec["ep_mask"] = (int(ep[0]), int(ep[1]))
     pl = R.reconstruct_planes(rec)
-    check(np.allclose(pl[AB + AUX_ONES], 1.0), "board-edge plane all ones")
+    check(NUM_PLANES == 204, "input has 204 planes (no all-ones plane)")
     check(np.allclose(pl[AB + AUX_RULE50], 0.5), "rule50 plane == 50/100")
     check(np.allclose(pl[AB + AUX_CHECKS_US], 3 / 10) and np.allclose(pl[AB + AUX_CHECKS_THEM], 7 / 10),
           "checks planes == n/10")
@@ -358,7 +373,7 @@ def test_archive_roundtrip():
                                    rec["checks_remaining_us"], rec["checks_remaining_them"],
                                    rec["side_to_move"],
                                    rec["result_q"], rec["result_d"], 0, 0,
-                                   rec["best_q"], rec["best_d"], 0, 0, 0, 0, 0, 200, 0, 0])
+                                   rec["best_q"], rec["best_d"], 0, 0, 0, 0, 0, 200, 0, 0, 1, 0])
                         f.write(R._STRUCT.pack(*fields))
         bundle = os.path.join(tmp, "b.zip")
         rc = subprocess.run([sys.executable, os.path.join(HERE, "archive.py"),
@@ -408,7 +423,7 @@ def _audit_pack(rec):
               [3, 0, 0, 7, 7, rec["stm"],
                rec["result_q"], rec["result_d"], 0.1, 0.2, rec["best_q"], rec["best_d"],
                rec["best_q"], rec["best_d"], rec["orig_q"], rec["orig_d"], rec["kld"],
-               800, rec["played"], rec["best"]])
+               800, rec["played"], rec["best"], 1, 0])
     return R._STRUCT.pack(*fields)
 
 

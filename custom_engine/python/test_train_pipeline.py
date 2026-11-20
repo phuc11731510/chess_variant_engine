@@ -62,7 +62,7 @@ def write_games(path, n_records, seed):
             fields = ([7, 1] + pi.tolist() + [int(x) for x in planes.reshape(-1)] +
                       [i % 100, 0, 0, 7, 7, stm,
                        z, 0.0, 0.1, 0.2, 0.3 * z, 0.1, 0.3 * z, 0.1, 0.2 * z, 0.2, 0.5,
-                       800, int(legal[0]), int(legal[0])])
+                       800, int(legal[0]), int(legal[0]), 1, 0])
             f.write(R._STRUCT.pack(*fields))
 
 
@@ -127,20 +127,22 @@ def test_validation(tmp, base, seed_pt, net_args):
 
     # One number per set: the mean over positions, whatever the batch size.
     torch.manual_seed(0)
-    net = FairyNet(channels=8, blocks=1, se_ratio=8)
+    net = FairyNet(d_model=16, layers=1, heads=2)
     a = T.evaluate(net, DataLoader(dst, batch_size=7), "cpu")
     b = T.evaluate(net, DataLoader(dst, batch_size=len(dst)), "cpu")
     x, pi, val = next(iter(DataLoader(dst, batch_size=len(dst))))
     net.eval()
     with torch.no_grad():
-        pl, vl = net(x)
+        pl, vl, ml = net(x)
         per_pos_p = -(pi.clamp(min=0) * torch.log_softmax(pl.masked_fill(pi < 0, float("-inf")), 1)
                       .masked_fill(pi < 0, 0.0)).sum(1)
-        per_pos_v = -(val * torch.log_softmax(vl, 1)).sum(1)
-    check(abs(a[0] - b[0]) < 1e-5 and abs(a[1] - b[1]) < 1e-5 and
-          abs(a[0] - per_pos_p.mean().item()) < 1e-5 and abs(a[1] - per_pos_v.mean().item()) < 1e-5,
+        per_pos_v = -(val[:, :3] * torch.log_softmax(vl, 1)).sum(1)
+        mlh_all = T.mlh_loss(ml.squeeze(1), val[:, 3]).item()
+    check(abs(a[0] - b[0]) < 1e-5 and abs(a[1] - b[1]) < 1e-5 and abs(a[2] - b[2]) < 1e-4 and
+          abs(a[0] - per_pos_p.mean().item()) < 1e-5 and abs(a[1] - per_pos_v.mean().item()) < 1e-5 and
+          abs(a[2] - mlh_all) < 1e-4,
           f"evaluate() = mean of the per-position losses, batch 7 or {len(dst)} "
-          f"(policy {a[0]:.5f} / {b[0]:.5f}, value {a[1]:.5f} / {b[1]:.5f})")
+          f"(policy {a[0]:.5f} / {b[0]:.5f}, value {a[1]:.5f} / {b[1]:.5f}, mlh {a[2]:.4f} / {b[2]:.4f})")
 
     # train.py end to end: 4 reports (start, epoch 1, epoch 2, exported model).
     args = list(base)
@@ -148,11 +150,11 @@ def test_validation(tmp, base, seed_pt, net_args):
     rc, out = run(args + ["--epochs", "2", "--out", os.path.join(tmp, "v.onnx")], tmp)
     lines = [l for l in out.splitlines() if "[val] " in l and "validation: policy=" in l]
     whats = [re.search(r"\[val\] (.+?)\s+train:", l).group(1).strip() for l in lines]
-    nums_ok = all(len(re.findall(r"=\d+\.\d{4}", l)) == 4 for l in lines)
+    nums_ok = all(len(re.findall(r"=\d+\.\d{4}", l)) == 6 for l in lines)   # policy, value, mlh: train and validation
     check(rc == 0 and "[val] 2 of 60 games held out (16 positions), compared with 16 training positions" in out,
           "train.py holds out 2 of the 60 games")
     check(whats == ["start weights", "epoch 1", "epoch 2", "exported model"] and nums_ok,
-          f"--epochs 2 prints 4 validation lines with 4 numbers each (got {whats})")
+          f"--epochs 2 prints 4 validation lines with 6 numbers each (got {whats})")
     rc, out = run(args + ["--epochs", "1", "--val-frac", "0", "--out", os.path.join(tmp, "w.onnx")], tmp)
     check(rc == 0 and "[val]" not in out, "--val-frac 0: no validation")
 
@@ -194,8 +196,62 @@ def test_seeds(tmp, base, net_args):
     check(rc != 0 and "--seed must be >= 0" in out, "--seed -5 is refused")
 
 
+def test_tail_swa(tmp, base):
+    """Tail SWA averages (equal weights) the weights at the LAST optimizer step and every K steps back from it,
+    at most N snapshots, none before step 1. The data is 192 records at --batch 32: 6 optimizer steps per epoch."""
+    import train as T
+    # The steps themselves.
+    check(T.swa_tail_steps(586, 10, 20) == list(range(406, 587, 20)), "586 steps: 406, 426, ..., 586 (10 snapshots)")
+    check(T.swa_tail_steps(100, 10, 20) == [20, 40, 60, 80, 100], "100 steps: only 5 fit, never step 0")
+    check(T.swa_tail_steps(181, 10, 20) == list(range(1, 182, 20)), "181 steps: 1, 21, ..., 181 (the 10th is step 1)")
+    check(T.swa_tail_steps(180, 10, 20) == list(range(20, 181, 20)), "180 steps: step 0 is left out -> 9 snapshots")
+    check(T.swa_tail_steps(7, 10, 20) == [7], "7 steps: just the last one")
+    check(T.swa_tail_steps(0, 10, 20) == [] and T.swa_tail_steps(50, 0, 20) == [], "no steps or no snapshots: none")
+    check(T.swa_tail_steps(50, 3, 20) == [10, 30, 50], "the count caps the number of snapshots")
+
+    # The training loop takes exactly those snapshots.
+    def tail(extra, name):
+        return run(base + extra + ["--out", os.path.join(tmp, name)], tmp)
+
+    rc, out = tail(["--epochs", "5", "--swa-tail", "10", "--swa-tail-every", "2"], "t1.onnx")      # 30 steps
+    check(rc == 0 and "tail: 10 snapshot(s) at steps 12..30 every 2" in out and "averaged 10 snapshot(s)" in out
+          and "WARNING: tail SWA" not in out, "30 steps, 10 every 2: steps 12..30, 10 snapshots averaged")
+    rc, out = tail(["--epochs", "2", "--swa-tail", "10", "--swa-tail-every", "2"], "t2.onnx")      # 12 steps
+    check(rc == 0 and "tail: 6 snapshot(s) at steps 2..12" in out and "averaged 6 snapshot(s)" in out,
+          "12 steps: not enough for 10 -> 6 snapshots, no failure")
+    rc, out = tail(["--epochs", "5", "--max-steps", "5", "--swa-tail", "3", "--swa-tail-every", "2"], "t3.onnx")
+    check(rc == 0 and "tail: 3 snapshot(s) at steps 1..5" in out and "averaged 3 snapshot(s)" in out,
+          "--max-steps 5: the last step is 5, snapshots at 5, 3, 1")
+    rc, out = tail(["--epochs", "2", "--accum-steps", "4", "--swa-tail", "10", "--swa-tail-every", "1"], "t4.onnx")
+    check(rc == 0 and "tail: 3 snapshot(s) at steps 1..3" in out and "averaged 3 snapshot(s)" in out
+          and "WARNING: tail SWA" not in out, "--accum-steps 4: 12 micro-batches are 3 optimizer steps")
+
+    # The weights. Same seed, same data order: the three runs follow one trajectory.
+    def weights(extra, name):
+        path = os.path.join(tmp, name)
+        rc, _ = run(base + ["--seed", "5"] + extra + ["--out", path], tmp)
+        return rc, torch.load(path.replace(".onnx", ".pt"), map_location="cpu")
+
+    rc_a, w_last = weights(["--epochs", "20", "--max-steps", "6"], "w6.onnx")   # the weights after step 6
+    rc_b, w_prev = weights(["--epochs", "20", "--max-steps", "5"], "w5.onnx")   # ... after step 5
+    rc_c, w_one = weights(["--epochs", "1", "--swa-tail", "1"], "s1.onnx")      # tail SWA, one snapshot
+    rc_d, w_two = weights(["--epochs", "1", "--swa-tail", "2", "--swa-tail-every", "1"], "s2.onnx")
+    check(rc_a == rc_b == rc_c == rc_d == 0, "the four weight runs finished")
+    floats = [k for k, v in w_last.items() if v.is_floating_point() and "running_" not in k]
+    check(all(torch.equal(w_one[k], w_last[k]) for k in floats),
+          "--swa-tail 1 exports exactly the weights of the last step (the snapshot step is right)")
+    check(all(torch.allclose(w_two[k], (w_prev[k] + w_last[k]) / 2, atol=1e-6) for k in floats)
+          and not all(torch.equal(w_two[k], w_last[k]) for k in floats),
+          "--swa-tail 2 --swa-tail-every 1 exports the plain mean of the weights after steps 5 and 6")
+
+    rc, out = tail(["--swa-steps", "25", "--swa-tail", "10"], "t5.onnx")
+    check(rc != 0 and "two different SWA schemes" in out, "--swa-steps together with --swa-tail is refused")
+    rc, out = tail(["--swa-tail", "10", "--swa-tail-every", "0"], "t6.onnx")
+    check(rc != 0 and "--swa-tail-every >= 1" in out, "--swa-tail-every 0 is refused")
+
+
 def main():
-    net_args = ["--channels", "8", "--blocks", "1", "--se-ratio", "8"]
+    net_args = ["--d-model", "16", "--layers", "1", "--heads", "2"]
     with tempfile.TemporaryDirectory() as tmp:
         data = os.path.join(tmp, "game.gz")
         write_games(data, 192, seed=1)
@@ -214,7 +270,7 @@ def main():
         out_a = os.path.join(tmp, "a.onnx")
         rc, out = run(base + ["--epochs", "20", "--max-steps", "3", "--out", out_a], tmp)
         check(rc == 0, "train.py --max-steps 3 finished")
-        check("training stopped before any SWA epoch ended" in out, "said that no SWA epoch was averaged")
+        check("training stopped before any SWA snapshot was taken" in out, "said that no SWA snapshot was averaged")
         check(os.path.exists(out_a.replace(".onnx", ".pt")) and
               not same_weights(out_a.replace(".onnx", ".pt"), seed_pt),
               "the exported weights are the trained ones, not the starting weights")
@@ -229,6 +285,9 @@ def main():
         rc, out = run(base + ["--epochs", "2", "--swa-start-frac", "0", "--out", out_c], tmp)
         check(rc == 0 and "averages the end of epochs 1..2" in out and "averaged 2 epoch(s)" in out,
               "--swa-start-frac 0: SWA averages both epochs")
+
+        print("\n[3b] tail SWA (--swa-tail N --swa-tail-every K)")
+        test_tail_swa(tmp, base)
 
         print("\n[4] --data with a part that matches nothing")
         rc, out = run(base + ["--epochs", "1", "--data", data + "," + os.path.join(tmp, "gen9.zip"),

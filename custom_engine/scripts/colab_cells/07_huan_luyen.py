@@ -7,19 +7,16 @@ import os
 if not os.path.exists(CURRENT_PT):
     print(f"[!] Chưa có {CURRENT_PT} -- chạy ô 02c trước (tải .pt + thư viện huấn luyện)")
 
-# Từ đời 12 (2026-09-29, chủ dự án chọn): cửa sổ 4 đời (vòng lặp v gộp đời hiện tại + 3 đời trước),
-# 1 epoch, SWA kiểu lc0: cứ 25 bước lấy trung bình trọng số một lần, tối đa 10 bản (trung bình
-# trượt ~250 bước cuối), tốc độ học không đổi. Trước đó: 3 đời, 2 epoch, SWA theo epoch -- với 2
-# epoch nó chỉ chụp 1 lần (log "averaged 1 epoch(s)") nên thực ra không lấy trung bình gì.
-# --val-frac 0 --val-newest-gen (chủ dự án chọn, 2026-09-30): trước khi học, chấm mạng đời hiện tại
-# MỘT LẦN trên TOÀN BỘ ván của đời mới nhất (thư mục games_gen<g> số lớn nhất trong gói gộp, bao
-# nhiêu ván cũng được) -- ván chính nó vừa chơi, chưa từng học -> dòng "[val] start weights on
-# generation g ...". Rồi học tất cả, kể cả các ván đó. So con số này giữa các đời; mạnh/yếu: arena.
+# Cửa sổ 4 đời (vòng lặp v gộp đời hiện tại + 3 đời trước), 1 epoch, tốc độ học không đổi.
+# SWA "đuôi" (chủ dự án chọn, 2026-11-20): chụp trọng số ở BƯỚC HỌC CUỐI CÙNG rồi lùi mỗi 20 bước, tối
+# đa 10 lần (cửa sổ 4 đời ~586 bước: các bước 406, 426, ..., 586), lấy trung bình với trọng số bằng
+# nhau. Không chụp trước bước 1: lần học quá ngắn để đủ 10 lần thì chụp ít hơn (đời 0, 146 bước: 8 lần).
+# --val-frac 0: không giữ ván nào ra ngoài. Không còn chấm mạng cũ trên đời mới nhất (bỏ --val-newest-gen
+# 2026-11-20 để bớt ~1,5 phút mỗi đời; cờ vẫn còn trong train.py). Mạnh/yếu của mạng: arena.
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
-    --epochs 1 --swa-steps 25 --swa-max-n 10 --val-frac 0 --val-newest-gen --batch 1024 --lr 1e-3 --amp \
-    --q-ratio 0.2 --weight-decay 1e-4 --report-every 20 \
-    --channels 144 --blocks 12 \
+    --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --batch 512 --accum-steps 2 --lr 1e-3 \
+    --q-ratio 0.25 --weight-decay 1e-4 --report-every 20 \
     --out {NEXT_ONNX}"""
 
 print(cmd)
@@ -28,8 +25,8 @@ import os
 if _exit_code == 0 and os.path.exists(NEXT_ONNX) and os.path.exists(NEXT_PT):
     !ls -la {NEXT_ONNX} {NEXT_PT}
     # Menu fz đọc các dòng FZ_TAI_VE=: tải mạng đời mới về Download/FairyZero khi ô xong
-    # (đã có tệp cùng tên -> "gen1 (2).onnx", không ghi đè).
-    print(f"FZ_TAI_VE={NEXT_ONNX}")
+    # (đã có tệp cùng tên -> "gen1 (2).pt", không ghi đè). CHỈ .pt (2026-11-20): Release không giữ .onnx, mỗi
+    # máy Colab chuyển .pt -> .onnx tại chỗ (python/lay_mang.py); nên điện thoại chỉ tải về và tải lên ~19 MB.
     print(f"FZ_TAI_VE={NEXT_PT}")
 else:
     print("[!] Huấn luyện lỗi -- không tải về")

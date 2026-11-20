@@ -729,7 +729,11 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--parallel K` | 1 | Số ván chạy **song song** cùng lúc. Đặt ≈ số nhân CPU để tận dụng hết máy → sinh nhanh hơn nhiều. |
 | `--threads-per-game T` | 1 | Số luồng MCTS dùng cho **mỗi** ván. Thường để 1 và tăng `--parallel` thay vì cái này. |
 | `--max-moves N` | 200 | Trần số **ply** (nửa nước: mỗi nước của một bên tính 1; 400 ply = 200 nước đầy đủ) mỗi ván; tới hạn thì xử hòa để khỏi kẹt ván dài vô tận. |
-| `--temp-cutoff N` | 30 | Trong N nước đầu, chọn nước **lấy mẫu theo số visit** (ngẫu nhiên có trọng số) để dữ liệu đa dạng; sau đó đi nước tốt nhất. |
+| `--temperature T` | 0.5 | Cách chọn nước đi trong tự đấu, **cho cả ván** (từ 2026-11-20 không còn mốc `--temp-cutoff`: dùng nó với `--selfplay` là lỗi): xác suất chọn nước ∝ (N / Nmax)^(1/T), N = số lượt thăm của nước (T = 0.5 ⇒ ∝ N²). T = 0: luôn đi nước nhiều lượt nhất. Nhãn policy trong bản ghi vẫn là tỉ lệ lượt thăm, không bị T đổi. `--temp-cutoff` vẫn là độ dài khai cuộc của `--arena`. |
+| `--fast-prob P` | 0 (tắt) | **Playout cap randomization (PCR).** Trước MỖI nước tung đồng xu: với xác suất P nước đó tìm **nông** (`--fast-visits` lượt, `--fast-cpuct`, `--fast-noise-eps`), còn lại tìm đủ (`--visits`). Bản ghi nước nông có `fast_search = 1`: huấn luyện value + mlh, **không** huấn luyện policy. Ô 04 dùng 0.5. |
+| `--fast-visits N` | 200 | Số lượt thăm của nước tìm nông. Phải ≤ `--visits` khi `--fast-prob` > 0. Số lượt là mức sàn: một lượt tìm dừng sau lô lá cuối (tối đa +`minibatch-size`−1). |
+| `--fast-cpuct F` | 1.25 | c_puct của nước tìm nông (nước tìm đủ dùng `--cpuct`, mặc định 1.5). Hệ số tăng theo log = 0 cho cả hai. |
+| `--fast-noise-eps F` | 0.125 | Hệ số trộn nhiễu Dirichlet ở gốc của nước tìm nông (nước tìm đủ dùng `--noise-epsilon`, 0.25); alpha chung (`--noise-alpha`). |
 | `--backend-threads N` | 1 | Số luồng tính mạng nơ-ron trên CPU (dùng khi `--provider cpu`). |
 | `--provider cpu\|cuda` | cpu | Thiết bị chạy mạng: CPU (Windows) hoặc GPU (Colab). |
 | `--fixed-batch N` | 16 | Cỡ batch đẩy GPU mỗi lần (khi `cuda`); lớn → GPU hiệu quả hơn. |
@@ -738,7 +742,7 @@ ponder mới ở mức cơ bản (kết thúc khi `ponderhit`, chưa cấp thêm
 | `--noise-epsilon F` | 0.25 | Lượng nhiễu Dirichlet trộn vào gợi ý ở **nút gốc** để engine thử nước mới (cốt lõi của tự học AlphaZero). 0 = không nhiễu. |
 | `--noise-alpha F` | 0.3 | Độ "tù" của nhiễu Dirichlet: lớn → nhiễu trải đều các nước; nhỏ → dồn vào ít nước. |
 | `--policy-temp F` | 1.0 | Làm "mềm" gợi ý mạng khi tự chơi (xem `policy-softmax-temp` ở D.1). |
-| `--cpuct F` | auto(1.745) | Hệ số thăm dò MCTS khi tự chơi (xem `cpuct` ở D.1). |
+| `--cpuct F` | 1.5 (tự đấu) | Hệ số thăm dò MCTS của nước **tìm đủ** khi tự chơi, cố định (hệ số tăng theo log = 0; xem `cpuct` ở D.1). Nước tìm nông dùng `--fast-cpuct`. |
 | `--zobrist-seed N` | ngẫu nhiên | Seed 10 chữ số (10^9 … 10^10−1) của **khoá Zobrist** ("dấu vân tay" thế cờ dùng cho lặp thế và cache mạng). Mặc định mỗi lần chạy chương trình một seed mới, rút từ nguồn ngẫu nhiên của hệ điều hành, in ở dòng đầu log: `Zobrist seed … (random for this run; --zobrist-seed … repeats it)`. Chỉ ảnh hưởng dấu vân tay, **không** ảnh hưởng nước đi, nhiễu hay nhiệt độ. Có ở mọi chế độ (self-play, arena, UCI, test). |
 | `--start-fen FEN\|FILE` | startpos | Thế cờ bắt đầu mỗi ván; truyền một tệp để xoay vòng nhiều thế (đa dạng khai cuộc; một FEN mỗi dòng, `#` là chú thích). Mỗi FEN được **kiểm trước ván đầu**: đủ trường `N+N` (thiếu thì FSF chơi 1+1), bàn 10×10, đúng một Hoàng gia mỗi bên, bên không tới lượt không bị chiếu, quyền nhập thành ra đúng như viết (xem A.4). Sai là dừng và báo số dòng. |
 | `--resign-threshold F` | tắt | Tự xin thua khi điểm tốt nhất `best_q ≤ F` để bỏ ván thua rõ (nhanh hơn). Bật bằng vd `-0.90`; mặc định tắt = đánh tới cùng. |
@@ -826,6 +830,8 @@ backend_opts tương ứng (xem `onnx_backend.cc`) sau khi đã xác minh.
 | `--amp` | tắt | Bật tính toán nửa độ chính xác (FP16) — nhanh hơn nhiều và tốn ít VRAM trên GPU. Chỉ có lợi trên GPU (cuda tự bật). |
 | `--value-weight F` / `--policy-weight F` | 1.0 / 1.0 | Trọng số của hai phần loss (đánh giá thế ↔ gợi ý nước). Tăng cái nào → mạng ưu tiên học giỏi phần đó. |
 | `--weight-decay F` | 1e-4 | Phạt L2 lên trọng số để chống quá khớp (giữ mạng "đơn giản"). Đây cũng là L2 của AdamW. |
+| `--swa-tail N` | 0 (tắt) | **SWA đuôi** (cách các lần chạy FairyZero dùng, từ 2026-11-20): chụp trọng số tại **bước học cuối cùng** rồi lùi mỗi `--swa-tail-every` bước, tối đa N lần, rồi lấy trung bình với trọng số **bằng nhau**. Không chụp trước bước 1: lần học quá ngắn để đủ N lần thì chụp ít hơn. Tốc độ học không đổi. Log: `swa: tail: 10 snapshot(s) at steps 406..586 every 20 ...` và `[swa] averaged 10 snapshot(s)`. Không dùng chung với `--swa-steps`. |
+| `--swa-tail-every K` | 20 | SWA đuôi: số bước học giữa hai lần chụp, đếm lùi từ bước cuối. |
 | `--swa-start-frac F` | 0.75 | **SWA**: mạng xuất ra là trung bình trọng số ở cuối các epoch **bắt đầu sau** mốc F của quá trình train (20 epoch, 0.75 → epoch 16–20). `train.py` in ra `swa: averages the end of epochs a..b`. Với `--epochs 2` chỉ còn epoch 2 (tức không trung bình); `--swa-start-frac 0` trung bình mọi epoch — đây là cách gen1 đã được train, vì trước 2026-09-24 mốc bị tính sớm một epoch. |
 | `--optimizer adamw\|sgd\|nadam` | adamw | Thuật toán tối ưu. `adamw` (mặc định) bền, chạy ngon với LR hằng; `sgd`+momentum = recipe chuẩn lc0 (mạnh nhất nhưng cần lịch LR đúng); `nadam` = Adam + Nesterov. |
 | `--momentum M` | 0.9 | Quán tính cho `--optimizer sgd` (bật luôn Nesterov). Chỉ dùng khi chọn sgd. |
@@ -849,7 +855,7 @@ backend_opts tương ứng (xem `onnx_backend.cc`) sau khi đã xác minh.
 > lc0 (SGD + lịch LR), dùng: `--optimizer sgd --momentum 0.9 --warmup-steps 250
 > --lr-values 0.02,0.002,0.0005 --lr-boundaries 100000,130000` (theo `example.yaml`).
 
-**CHƯA DÙNG ĐƯỢC (chưa có cờ):** `--loss-scale`, `--batch-renorm`, `--ema`, `--swa-max-n/--swa-every`,
+**CHƯA DÙNG ĐƯỢC (chưa có cờ):** `--loss-scale`, `--batch-renorm`, `--ema`,
 `--val-split/--test-every`, `--shuffle-size`.
 
 ### D.4. Đấu thử giữa hai đời (`custom_engine.exe --arena`)

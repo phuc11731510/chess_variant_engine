@@ -25,18 +25,19 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet  # noqa: E402
 from dataset import FairyDataset  # noqa: E402
-from train import policy_loss, value_loss  # noqa: E402
+from train import compute_losses  # noqa: E402
 
 DEV = "cuda"
 
 
-def make_step(net, opt, scaler, cl):
+def make_step(net, opt, scaler, cl, amp=False):
+    """One training step of the transformer (FP32 unless amp: the FairyZero runs are FP32)."""
     def step(x, pi, val):
         if cl:
             x = x.contiguous(memory_format=torch.channels_last)
-        with torch.autocast(device_type=DEV):
-            p, v = net(x)
-            loss = policy_loss(p, pi) + value_loss(v, val)
+        with torch.autocast(device_type=DEV, enabled=amp):
+            lp, lv, lm = compute_losses(net(x), pi, val)
+            loss = lp + lv + lm
         scaler.scale(loss).backward()
         scaler.step(opt)
         scaler.update()
@@ -47,13 +48,13 @@ def make_step(net, opt, scaler, cl):
 
 def build(args, cl, comp):
     torch.manual_seed(1234)                      # cùng trọng số khởi đầu cho mọi phương án
-    net = FairyNet(channels=args.channels, blocks=args.blocks).to(DEV)
+    net = FairyNet(d_model=args.d_model, layers=args.layers, heads=args.heads).to(DEV)
     if cl:
         net = net.to(memory_format=torch.channels_last)
     opt = torch.optim.AdamW(net.parameters(), lr=1e-3, weight_decay=1e-4)
-    scaler = torch.amp.GradScaler("cuda")
+    scaler = torch.amp.GradScaler("cuda", enabled=args.amp)
     model = torch.compile(net, mode=comp) if comp else net
-    return make_step(model, opt, scaler, cl)
+    return make_step(model, opt, scaler, cl, args.amp)
 
 
 def run_variant(args, name, batches, cl, comp, item):
@@ -166,13 +167,15 @@ def part_p1(args, ds, cl, comp, item, label):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True)
-    ap.add_argument("--batch", type=int, default=1024)
+    ap.add_argument("--batch", type=int, default=512)   # FP32 on a T4: 1024 does not fit
     ap.add_argument("--max-records", type=int, default=200000)
     ap.add_argument("--steps", type=int, default=40)
     ap.add_argument("--warmup", type=int, default=5)
     ap.add_argument("--n-batches", type=int, default=8)
-    ap.add_argument("--channels", type=int, default=144)
-    ap.add_argument("--blocks", type=int, default=12)
+    ap.add_argument("--d-model", type=int, default=192)
+    ap.add_argument("--layers", type=int, default=10)
+    ap.add_argument("--heads", type=int, default=6)
+    ap.add_argument("--amp", action="store_true", help="FP16 autocast (the FairyZero runs are FP32: default off)")
     ap.add_argument("--workers", default="2")
     ap.add_argument("--variants", default="", help="phần P4: danh sách phương án (mặc định: tất cả)")
     ap.add_argument("--real", default="item,cl+noitem,cl+compile",

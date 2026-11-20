@@ -4,4 +4,5 @@
 numpy>=2.0
 torch>=2.2
 onnx>=1.16
+onnxscript>=0.1     # the dynamo ONNX exporter of torch.onnx.export (train.py export_onnx)
 onnxruntime>=1.18

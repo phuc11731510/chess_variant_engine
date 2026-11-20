@@ -1,18 +1,19 @@
 """lay_mang.py -- lấy mạng NN về máy Colab từ GitHub Release "NN_Model" (ô 02, 02c, 08 và vòng lặp tự động).
 
-Release NN_Model giữ .pt của MỌI đời nhưng chỉ .onnx của đời MỚI NHẤT (vòng lặp tải .onnx đời mới
-lên và xoá .onnx đời trước, vì một Release chứa tối đa 1000 tệp). Muốn có .onnx của đời cũ (arena)
-thì tải .pt của đời đó rồi chuyển sang .onnx ngay trên máy, bằng đúng hàm xuất của train.py
-(export_onnx + verify_onnx): .onnx ra có cùng trọng số với .onnx lúc huấn luyện xuất ra.
+Release NN_Model CHỈ giữ .pt của mọi đời, không giữ .onnx (từ 2026-11-20, để bớt tải lên và tải xuống: mỗi
+đời chỉ ~19 MB lên Release thay vì ~40 MB). Muốn có .onnx của một đời (sinh dữ liệu, arena) thì tải .pt của
+đời đó rồi chuyển sang .onnx ngay trên máy, bằng đúng hàm xuất của train.py (export_onnx + verify_onnx):
+.onnx ra có cùng trọng số với .onnx lúc huấn luyện xuất ra.
 
     python lay_mang.py pt   /content/gen90.pt   --rel <URL thư mục Release>
-    python lay_mang.py onnx /content/gen90.onnx --rel <URL thư mục Release> [--tu-pt]
+    python lay_mang.py onnx /content/gen90.onnx --rel <URL thư mục Release> [--tu-pt] [--thu-release]
 
   pt    tệp đã có (khác rỗng) thì thôi; chưa có thì tải gen<N>.pt từ Release.
-  onnx  tệp đã có thì thôi; chưa có: tải gen<N>.onnx từ Release; Release không có .onnx đó thì lấy
-        gen<N>.pt (đã có trên máy, hoặc tải từ Release) rồi chuyển sang .onnx. --tu-pt: bỏ qua
-        .onnx trên Release, luôn chuyển từ .pt (để kiểm).
-  Kiến trúc mạng (số kênh, số khối, tỉ lệ SE) suy ra từ chính tệp .pt, nên mạng đời nào cũng chuyển được.
+  onnx  tệp đã có thì thôi; chưa có: lấy gen<N>.pt (đã có trên máy, hoặc tải từ Release) rồi chuyển sang
+        .onnx (~10 giây xuất + kiểm, chưa kể nạp torch). --tu-pt: chuyển lại dù .onnx đã có (để kiểm).
+        --thu-release: thử tải gen<N>.onnx từ Release trước (Release không còn giữ .onnx, nên mặc định bỏ
+        qua, đỡ một lần gọi mạng vô ích).
+  Kiến trúc mạng (d_model, số tầng, số đầu chú ý) suy ra từ chính tệp .pt, nên mạng đời nào cũng chuyển được.
 
 Mã thoát: 0 = có tệp (in "FZ_MANG_CO <tệp>"); 10 = Release không có (HTTP 404) và máy cũng không có
 .pt để chuyển; 1 = lỗi khác (mạng, chuyển lỗi) -- thử lại được.
@@ -77,10 +78,10 @@ def doi_so(p):
 
 
 def suy_kien_truc(sd):
-    """(kênh, số khối, tỉ lệ SE) của FairyNet từ state_dict."""
-    kenh = sd["stem_conv.weight"].shape[0]
-    khoi = 1 + max(int(k.split(".")[1]) for k in sd if k.startswith("tower."))
-    return kenh, khoi, kenh // sd["tower.0.se.fc1.weight"].shape[0]
+    """(độ rộng d_model, số tầng, số đầu chú ý) của FairyNet (transformer) từ state_dict."""
+    d_model = sd["embed.weight"].shape[0]
+    tang = 1 + max(int(k.split(".")[1]) for k in sd if k.startswith("blocks."))
+    return d_model, tang, sd["blocks.0.attn.rel_bias"].shape[0]
 
 
 def chuyen(pt, onnx):
@@ -94,9 +95,9 @@ def chuyen(pt, onnx):
     from model import FairyNet
     from train import export_onnx, verify_onnx
     sd = torch.load(pt, map_location="cpu")
-    kenh, khoi, se = suy_kien_truc(sd)
-    print(f"[lay_mang] {os.path.basename(pt)}: {kenh} kênh x {khoi} khối, SE 1/{se}")
-    net = FairyNet(channels=kenh, blocks=khoi, se_ratio=se)
+    d_model, tang, dau = suy_kien_truc(sd)
+    print(f"[lay_mang] {os.path.basename(pt)}: d_model {d_model}, {tang} tầng, {dau} đầu chú ý")
+    net = FairyNet(d_model=d_model, layers=tang, heads=dau)
     net.load_state_dict(sd)
     net.eval()
     tam = onnx + ".dang_chuyen"
@@ -119,18 +120,18 @@ def lay_pt(dich, rel):
     return tai(f"{rel}/gen{g}.pt", dich)
 
 
-def lay_onnx(dich, rel, tu_pt):
+def lay_onnx(dich, rel, tu_pt, thu_release=False):
     if co_tep(dich) and not tu_pt:
         return 0
     g = doi_so(dich)
     if g is None or not rel:
         print(f"[lay_mang] không có {dich} và không biết tải từ đâu")
         return 1
-    if not tu_pt:
+    if thu_release and not tu_pt:
         rc = tai(f"{rel}/gen{g}.onnx", dich)
         if rc != KHONG_CO:
             return rc
-        print(f"[lay_mang] gen{g}.onnx không còn trên Release -> chuyển từ gen{g}.pt")
+        print(f"[lay_mang] gen{g}.onnx không có trên Release -> chuyển từ gen{g}.pt")
     pt = dich[:-len(".onnx")] + ".pt"
     rc = lay_pt(pt, rel)
     if rc != 0:
@@ -148,9 +149,12 @@ def main():
     ap.add_argument("loai", choices=("pt", "onnx"))
     ap.add_argument("tep", help="đường dẫn đích, dạng .../gen<N>.pt | .../gen<N>.onnx")
     ap.add_argument("--rel", default="", help="URL thư mục Release (…/releases/download/NN_Model)")
-    ap.add_argument("--tu-pt", action="store_true", help="onnx: bỏ qua .onnx trên Release, luôn chuyển từ .pt")
+    ap.add_argument("--tu-pt", action="store_true", help="onnx: chuyển lại từ .pt dù .onnx đã có")
+    ap.add_argument("--thu-release", action="store_true",
+                    help="onnx: thử tải gen<N>.onnx từ Release trước (Release không còn giữ .onnx)")
     a = ap.parse_args()
-    rc = lay_pt(a.tep, a.rel) if a.loai == "pt" else lay_onnx(a.tep, a.rel.rstrip("/"), a.tu_pt)
+    rc = (lay_pt(a.tep, a.rel) if a.loai == "pt"
+          else lay_onnx(a.tep, a.rel.rstrip("/"), a.tu_pt, a.thu_release))
     if rc == 0:
         print(f"FZ_MANG_CO {a.tep}")
     sys.exit(rc)

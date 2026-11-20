@@ -108,13 +108,14 @@ int run_selfplay(const EngineOptions& o) {
         lczero::OptionsParser parser;
         lczero::classic::SearchParams::Populate(&parser);
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, o.sp_policy_temp);
-        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "fen_only");  // ghi lai cho dung; mang luon ma hoa FEN_ONLY (onnx_backend.cc)
+        parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kHistoryFill, "always");  // ghi lai cho dung; mang luon ma hoa ALWAYS (onnx_backend.cc)
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, o.sp_noise_eps);
         parser.GetMutableDefaultsOptions()->Set<float>(lczero::classic::BaseSearchParams::kNoiseAlphaId, o.sp_noise_alpha);
         // Self-play search parameters of lc0's own self-play (upstream/lc0
         // src/selfplay/tournament.cc), not the UCI defaults, which are tuned for
         // playing strength (2026-09-28, owner's decision):
-        //   cpuct 1.3 FIXED (owner's choice; lc0 self-play 1.2), cpuct-factor 0
+        //   cpuct 1.5 FIXED for the full searches (owner's choice 2026-11-20; it was 1.3, lc0
+        //     self-play 1.2; the shallow searches of PCR use --fast-cpuct, 1.25), cpuct-factor 0
         //     -- UCI: 1.745 growing with visits (factor 3.894);
         //   fpu reduction 0 (an unvisited move starts at its parent's Q) -- UCI 0.33;
         //   two-fold-draws off: the variant's rule is THREEFOLD repetition, a
@@ -124,7 +125,7 @@ int run_selfplay(const EngineOptions& o) {
         //     the 2 vCPUs from the other games (T4, 16 games aggregated: +13%).
         // --cpuct and --search-opt still override.
         auto* sd = parser.GetMutableDefaultsOptions();
-        sd->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_cpuct >= 0.0f ? o.sp_cpuct : 1.3f);
+        sd->Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_cpuct >= 0.0f ? o.sp_cpuct : 1.5f);
         sd->Set<float>(lczero::classic::BaseSearchParams::kCpuctFactorId, 0.0f);
         sd->Set<float>(lczero::classic::BaseSearchParams::kFpuValueId, 0.0f);
         sd->Set<bool>(lczero::classic::BaseSearchParams::kTwoFoldDrawsId, false);
@@ -172,6 +173,12 @@ int run_selfplay(const EngineOptions& o) {
         parser.GetMutableDefaultsOptions()->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, sp_backend_opts);
         std::cout << "[selfplay] backend: " << sp_backend_opts << std::endl;
         const lczero::OptionsDict& sp_options = parser.GetOptionsDict();
+        // Options of the shallow searches of PCR: a child of sp_options (so --search-opt and every
+        // other default apply to them as well) that overrides only c_puct and the noise epsilon.
+        // Declared here, after sp_options and before the games, so it outlives every search.
+        lczero::OptionsDict fast_options(&sp_options);
+        fast_options.Set<float>(lczero::classic::BaseSearchParams::kCpuctId, o.sp_fast_cpuct);
+        fast_options.Set<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId, o.sp_fast_noise_eps);
 
         std::unique_ptr<lczero::Backend> backend;
         lczero::BatchingBackend* batcher = nullptr;  // owned by `backend`
@@ -214,9 +221,12 @@ int run_selfplay(const EngineOptions& o) {
         cfg.num_games = o.sp_games;
         cfg.max_seconds = o.sp_max_seconds;
         cfg.stop_file = o.sp_stop_file;
-        cfg.visits = o.sp_visits;
+        cfg.plan.full_visits = o.sp_visits;
+        cfg.plan.fast_visits = o.sp_fast_visits;
+        cfg.plan.fast_prob = o.sp_fast_prob;
+        cfg.plan.temperature = o.sp_temperature;
+        cfg.plan.fast_options = &fast_options;
         cfg.max_moves = o.sp_max_moves;
-        cfg.temp_cutoff_ply = o.sp_temp_cutoff;
         cfg.parallel = o.sp_parallel;
         cfg.threads_per_game = o.sp_threads_per_game;
         cfg.resign_threshold = o.sp_resign_threshold;
@@ -227,6 +237,19 @@ int run_selfplay(const EngineOptions& o) {
         if (batcher) {
             cfg.producer_enter = [batcher] { batcher->ProducerEnter(); };
             cfg.producer_leave = [batcher] { batcher->ProducerLeave(); };
+        }
+        {   // what every move will be searched and chosen with (one line the log keeps)
+            const float full_cpuct = sp_options.Get<float>(lczero::classic::BaseSearchParams::kCpuctId);
+            const float full_eps = sp_options.Get<float>(lczero::classic::BaseSearchParams::kNoiseEpsilonId);
+            std::cout << "[selfplay] search: PUCT, full " << o.sp_visits << " playouts (cpuct " << full_cpuct
+                      << ", noise eps " << full_eps << ")";
+            if (o.sp_fast_prob > 0.0f)
+                std::cout << "; PCR: " << 100.0 * o.sp_fast_prob << "% of the moves shallow, "
+                          << o.sp_fast_visits << " playouts (cpuct " << o.sp_fast_cpuct
+                          << ", noise eps " << o.sp_fast_noise_eps << "), policy target not trained";
+            else
+                std::cout << "; PCR off";
+            std::cout << "; every move drawn with temperature " << o.sp_temperature << std::endl;
         }
         if (o.sp_resign_threshold > -1.0f) {
             std::cout << "[selfplay] resign: best_q<=" << o.sp_resign_threshold

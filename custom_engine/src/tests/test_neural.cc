@@ -196,6 +196,7 @@ std::vector<std::unique_ptr<lczero::PositionHistory>> MakePositions(size_t count
 struct RefEval {
     float w, d, l;
     std::vector<float> logits;     // raw policy logit of each legal move, legal order
+    float m = 0.0f;                // raw moves-left output of the network (plies); the backend serves max(m, 0)
 };
 
 // ---------------------------------------------------------------------------
@@ -222,26 +223,40 @@ void TestOnnxBackend(const std::string& weights) {
 #endif
         Ort::MemoryInfo mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         std::vector<float> input(lczero::InputBufferUnitSize), policy(lczero::PolicyOutputSize),
-            value(3);
+            value(3), mlh(1);
         for (size_t k = 0; k < positions.size(); ++k) {
             lczero::InputPlanes planes;
             int t = 0;
             lczero::EncodePositionForNN(*positions[k], lczero::kMoveHistory,
-                                        lczero::FillEmptyHistory::FEN_ONLY, &planes, &t);
+                                        lczero::FillEmptyHistory::ALWAYS, &planes, &t);
             lczero::UnpackInputPlanes(planes, input.data(), 10, 10);
-            const int64_t ishape[4] = {1, 226, 10, 10}, pshape[2] = {1, 10600}, vshape[2] = {1, 3};
+            const int64_t ishape[4] = {1, lczero::kInputPlanes, 10, 10},
+                          pshape[2] = {1, lczero::kPolicySize}, vshape[2] = {1, 3}, mshape[2] = {1, 1};
             Ort::Value in = Ort::Value::CreateTensor<float>(mem, input.data(), input.size(), ishape, 4);
-            Ort::Value outs[2] = {
+            Ort::Value outs[3] = {
                 Ort::Value::CreateTensor<float>(mem, policy.data(), policy.size(), pshape, 2),
-                Ort::Value::CreateTensor<float>(mem, value.data(), value.size(), vshape, 2)};
+                Ort::Value::CreateTensor<float>(mem, value.data(), value.size(), vshape, 2),
+                Ort::Value::CreateTensor<float>(mem, mlh.data(), mlh.size(), mshape, 2)};
             const char* in_names[] = {"input"};
-            const char* out_names[] = {"policy", "value"};
-            session.Run(Ort::RunOptions{nullptr}, in_names, &in, 1, out_names, outs, 2);
-            RefEval r{value[0], value[1], value[2], {}};
+            const char* out_names[] = {"policy", "value", "mlh"};
+            session.Run(Ort::RunOptions{nullptr}, in_names, &in, 1, out_names, outs, 3);
+            RefEval r{value[0], value[1], value[2], {}, mlh[0]};
             for (const auto& m : legal[k]) r.logits.push_back(policy[lczero::MoveToNNIndex(m, 0)]);
             ref.push_back(std::move(r));
         }
     }
+
+    // The moves-left check below can only catch a wrong slot of the output buffer if the network gives
+    // DIFFERENT numbers for different positions. A freshly initialised network gives about 50 for all of them.
+    float m_min = std::max(ref[0].m, 0.0f), m_max = m_min;   // the backend serves max(m, 0)
+    for (const RefEval& r : ref) {
+        m_min = std::min(m_min, std::max(r.m, 0.0f));
+        m_max = std::max(m_max, std::max(r.m, 0.0f));
+    }
+    const bool m_varies = (m_max - m_min) > 1e-3f * std::max(1.0f, std::fabs(m_max));
+    std::cout << "  the network's moves-left output over " << ref.size() << " positions: " << m_min << " .. "
+              << m_max << (m_varies ? "" : "   [WARN] constant: slot mix-ups of the mlh output would go "
+                                           "unnoticed; test with a trained network") << std::endl;
 
     struct Config { const char* opts; float temp; };
     const Config configs[] = {
@@ -251,7 +266,7 @@ void TestOnnxBackend(const std::string& weights) {
         {"threads=1,fixed_batch=64", 1.0f},  {"threads=1,fixed_batch=16", 0.25f},
         {"threads=1", 0.25f},
     };
-    double worst_q = 0.0, worst_p = 0.0;
+    double worst_q = 0.0, worst_p = 0.0, worst_m = 0.0;
     for (const Config& c : configs) {
         lczero::OptionsParser parser;
         auto* d = parser.GetMutableDefaultsOptions();
@@ -260,6 +275,7 @@ void TestOnnxBackend(const std::string& weights) {
         d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, c.temp);
         lczero::OnnxBackend backend;
         backend.UpdateConfiguration(parser.GetOptionsDict());
+        EXPECT(backend.GetAttributes().has_mlh, c.opts << ": the backend does not report a moves-left head");
         int f = 64;
         if (const char* fb = std::strstr(c.opts, "fixed_batch=")) f = std::atoi(fb + 12);
         std::vector<int> sizes = {1, f - 1, f, f + 1, 37, 64};
@@ -284,6 +300,14 @@ void TestOnnxBackend(const std::string& weights) {
                 worst_q = std::max({worst_q, dq, dd});
                 EXPECT(dq < 1e-4 && dd < 1e-4, c.opts << " T=" << c.temp << " batch " << bs << " slot "
                                                       << i << ": q/d off by " << dq << "/" << dd);
+                // Moves left: the position's own number, from the right slot of the output buffer (this is what
+                // a wrong offset between several Run()s of a fixed batch would break), never negative.
+                const double want_m = std::max(r.m, 0.0f);
+                const double dm = std::fabs(res[i].m - want_m) / std::max(1.0, want_m);
+                worst_m = std::max(worst_m, dm);
+                EXPECT(std::isfinite(res[i].m) && res[i].m >= 0.0f && dm < 1e-4,
+                       c.opts << " T=" << c.temp << " batch " << bs << " slot " << i << ": moves left "
+                              << res[i].m << " (network says " << r.m << ")");
                 const auto p = ExactSoftmax(r.logits, c.temp);
                 double dp = 0.0;
                 for (size_t m = 0; m < p.size(); ++m) dp = std::max(dp, std::fabs(res[i].p[m] - p[m]));
@@ -294,7 +318,8 @@ void TestOnnxBackend(const std::string& weights) {
         }
     }
     std::cout << "  " << (sizeof(configs) / sizeof(configs[0])) << " backend configs x 6 batch sizes: "
-              << "max |q|/|d| diff " << worst_q << ", max prior diff " << worst_p << std::endl;
+              << "max |q|/|d| diff " << worst_q << ", max prior diff " << worst_p << ", max moves-left diff "
+              << worst_m << std::endl;
 }
 
 // ---------------------------------------------------------------------------

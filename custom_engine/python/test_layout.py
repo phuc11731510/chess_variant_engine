@@ -37,7 +37,7 @@ def main():
         if cpp[c_name] != getattr(nn_layout, py_name):
             print(f"[FAIL] {c_name} = {cpp[c_name]} in C++, {py_name} = {getattr(nn_layout, py_name)} in nn_layout.py")
             bad += 1
-    for c_name, py_name in (("kAuxEnPassant", "AUX_EN_PASSANT"), ("kAuxRule50", "AUX_RULE50"), ("kAuxOnes", "AUX_ONES"),
+    for c_name, py_name in (("kAuxEnPassant", "AUX_EN_PASSANT"), ("kAuxRule50", "AUX_RULE50"),
                             ("kAuxChecksUs", "AUX_CHECKS_US"), ("kAuxChecksThem", "AUX_CHECKS_THEM"),
                             ("kAuxPlanesCount", "AUX_PLANES")):
         if cpp[c_name] != getattr(nn_layout, py_name):
@@ -45,7 +45,7 @@ def main():
             bad += 1
     if bad:
         sys.exit(1)
-    print(f"[PASS] nn_layout.py == nn_layout.h ({len(NAMES) + 6} numbers; input {nn_layout.NUM_PLANES} planes, "
+    print(f"[PASS] nn_layout.py == nn_layout.h ({len(NAMES) + 5} numbers; input {nn_layout.NUM_PLANES} planes, "
           f"policy {nn_layout.POLICY_SIZE})")
 
 

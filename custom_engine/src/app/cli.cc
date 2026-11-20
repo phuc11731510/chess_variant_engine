@@ -110,7 +110,12 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         else if (a == "--threads-per-game")   int_value(&o.sp_threads_per_game, 1, 256);
         else if (a == "--max-moves")          int_value(&o.sp_max_moves, 1, kBig);
         else if (a == "--max-seconds")        real_value(&o.sp_max_seconds, 0.0, 1e9);
-        else if (a == "--temp-cutoff")        int_value(&o.sp_temp_cutoff, 0, kBig);
+        else if (a == "--temp-cutoff")        { int_value(&o.sp_temp_cutoff, 0, kBig); o.sp_temp_cutoff_given = true; }
+        else if (a == "--temperature")        real_value(&o.sp_temperature, 0.0, 100.0);
+        else if (a == "--fast-visits")        int_value(&o.sp_fast_visits, 1, kBig);
+        else if (a == "--fast-prob")          real_value(&o.sp_fast_prob, 0.0, 1.0);
+        else if (a == "--fast-cpuct")         real_value(&o.sp_fast_cpuct, 0.0, 1e6);
+        else if (a == "--fast-noise-eps")     real_value(&o.sp_fast_noise_eps, 0.0, 1.0);
         else if (a == "--backend-threads")    int_value(&o.sp_backend_threads, 1, 256);
         else if (a == "--fixed-batch")        int_value(&o.sp_fixed_batch, 0, 64);  // 0 = dynamic batch (CUDA: no padding)
         else if (a == "--noise-epsilon")      real_value(&o.sp_noise_eps, 0.0, 1.0);
@@ -189,5 +194,17 @@ EngineOptions parse_cli(int argc, char* argv[]) {
     if (o.sp_provider != "cpu" && o.sp_provider != "cuda" && o.sp_provider != "dml" &&
         o.sp_provider != "tensorrt")
         error("--provider " + o.sp_provider + ": expected cpu, cuda, tensorrt or dml");
+    if (o.selfplay_mode) {
+        // Self-play no longer has an opening phase: every move is drawn with --temperature. A
+        // stale --temp-cutoff would otherwise be accepted and silently do nothing.
+        if (o.sp_temp_cutoff_given)
+            error("--temp-cutoff does not apply to --selfplay (every move is drawn with "
+                  "--temperature); it is the opening length of --arena");
+        // A shallow search that is deeper than the full one is a mistake in the flags.
+        if (o.sp_fast_prob > 0.0f && o.sp_fast_visits > o.sp_visits)
+            error("--fast-visits " + std::to_string(o.sp_fast_visits) +
+                  " is more than --visits " + std::to_string(o.sp_visits) +
+                  " (a shallow search must not be the deeper one)");
+    }
     return o;
 }

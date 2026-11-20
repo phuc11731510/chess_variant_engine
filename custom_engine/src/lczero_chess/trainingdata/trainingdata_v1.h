@@ -54,6 +54,11 @@ namespace lczero {
 //      kinds per side instead of 13 (25 planes per ply, 200 history planes), no castling (the four
 //      castling bytes are gone, and with them the castling aux planes), 9 promotion pieces (11500
 //      policy entries instead of 10600), a 205-plane input. nn_layout.h is the one place for the numbers.
+//      2026-11-20, before any real version-7 data existed (so the number stays 7): the input lost its all-ones
+//      plane (204 planes; the records never held it), the record got two fields at its end, plies_left (the
+//      moves-left target) and fast_search (1 = the move was searched with the reduced playout cap, so its
+//      policy target is not to be trained on), and an empty history board is a copy of the game's first
+//      position (FillEmptyHistory::ALWAYS) in the stored planes.
 constexpr uint32_t kTrainingDataVersion = 7;
 constexpr uint32_t kInputFormat10x10 = 1;
 
@@ -89,11 +94,18 @@ struct TrainingDataV1 {
   uint32_t visits;     // total root visits
   uint16_t played_idx;  // index into probabilities[] of the played move
   uint16_t best_idx;    // index into probabilities[] of the best move
+
+  // --- Added 2026-11-20 ---
+  uint16_t plies_left;   // moves-left target: plies from this position to the end of the game, counting the
+                         // move played here (the last record of a game has 1); a game cut at --max-moves
+                         // keeps its numbers as they are. 0 = not filled in.
+  uint8_t fast_search;   // 1 = searched with the reduced playout cap: train the value and moves-left heads
+                         // on this record, NOT the policy head; 0 = full search
 };
 #pragma pack(pop)
 
-// Layout lock: 8 + 46000 + 3200 + 20 + 48 + 4 = 49280.
-static_assert(sizeof(TrainingDataV1) == 49280,
+// Layout lock: 8 + 46000 + 3200 + 20 + 48 + 4 + 3 = 49283.
+static_assert(sizeof(TrainingDataV1) == 49283,
               "TrainingDataV1 layout changed; update Python reader + this size.");
 
 }  // namespace lczero

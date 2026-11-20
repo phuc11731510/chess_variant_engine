@@ -28,6 +28,7 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
   std::atomic<int> w_wins{0}, b_wins{0}, draws{0}, done{0};
   std::atomic<int64_t> total_nodes{0};   // sum of MCTS playouts (all workers) -> NPS
   std::atomic<int64_t> total_final_pieces{0};  // sum of pieces-left-on-board at game end
+  std::atomic<int64_t> total_moves{0}, total_fast_moves{0};  // moves played / of them shallow (PCR)
   std::atomic<int64_t> total_white_attack{0}, total_black_attack{0};  // cumulative attack scores
   std::atomic<int> w_more_aggr{0}, b_more_aggr{0};  // games where each side attacked more
   // P(bên công nhiều hơn thắng): chỉ tính ván CÓ thắng-bại VÀ có bên-công-rõ (wa != ba).
@@ -39,8 +40,12 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
 
   std::cout << "[selfplay] Generating " << cfg.num_games << " games into '"
             << cfg.out_dir << "' (" << workers << " parallel x "
-            << cfg.threads_per_game << " threads/game, visits=" << cfg.visits
+            << cfg.threads_per_game << " threads/game, visits=" << cfg.plan.full_visits
             << ", max_moves=" << cfg.max_moves << ")";
+  if (cfg.plan.fast_prob > 0.0f)
+    std::cout << " [PCR: " << 100.0 * cfg.plan.fast_prob << "% nuoc tim nong "
+              << cfg.plan.fast_visits << " luot]";
+  std::cout << " [temperature " << cfg.plan.temperature << "]";
   if (cfg.max_seconds > 0.0)
     std::cout << " [gioi han thoi gian: " << cfg.max_seconds << "s]";
   if (!cfg.stop_file.empty())
@@ -100,14 +105,17 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
       int64_t game_nodes = 0;
       int game_pieces = 0;
       int64_t game_wa = 0, game_ba = 0;
+      int game_moves = 0, game_fast_moves = 0;
       const GameResult r =
-          PlayOneGame(fen, backend, options, cfg.visits,
-                      cfg.max_moves, cfg.temp_cutoff_ply, fname,
+          PlayOneGame(fen, backend, options, cfg.plan,
+                      cfg.max_moves, fname,
                       cfg.threads_per_game, /*verbose=*/false,
                       cfg.resign_threshold, cfg.resign_consecutive, allow_resign,
                       cfg.resign_earliest_move, &game_nodes, &game_pieces,
-                      &game_wa, &game_ba);
+                      &game_wa, &game_ba, &game_moves, &game_fast_moves);
       total_nodes.fetch_add(game_nodes);
+      total_moves.fetch_add(game_moves);
+      total_fast_moves.fetch_add(game_fast_moves);
       total_final_pieces.fetch_add(game_pieces);
       total_white_attack.fetch_add(game_wa);
       total_black_attack.fetch_add(game_ba);
@@ -248,10 +256,16 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
   // P(bên công nhiều hơn thắng) = số ván bên-công-nhiều THẮNG / số ván phân thắng-bại + công rõ.
   const int aggr_dec = aggr_decisive.load(), aggr_w = aggr_won.load();
   const double aggr_pct = aggr_dec > 0 ? 100.0 * aggr_w / aggr_dec : 0.0;
+  const int64_t moves_all = total_moves.load(), moves_fast = total_fast_moves.load();
   std::cout << ".\n"
             << "  White wins: " << w_wins.load()
             << " | Black wins: " << b_wins.load()
             << " | Draws: " << draws.load() << "\n"
+            << "  Nuoc di: " << moves_all << " (" << moves_all - moves_fast << " tim du, "
+            << moves_fast << " tim nong = "
+            << (moves_all > 0 ? 100.0 * moves_fast / moves_all : 0.0) << "%)"
+            << ", luot tim TB moi nuoc: "
+            << (moves_all > 0 ? static_cast<double>(total_nodes.load()) / moves_all : 0.0) << "\n"
             << "  So quan con lai trung binh luc ket thuc: " << avg_pieces << "\n"
             << "  Diem tan cong tich luy trung binh moi van: Trang=" << avg_wa
             << "  Den=" << avg_ba << "\n"

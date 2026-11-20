@@ -152,7 +152,7 @@ void EncodePlanesIntoRecord(const PositionHistory& history,
                             TrainingDataV1& rec) {
   InputPlanes planes;
   int transform = 0;
-  EncodePositionForNN(history, kMoveHistory, FillEmptyHistory::FEN_ONLY,
+  EncodePositionForNN(history, kMoveHistory, FillEmptyHistory::ALWAYS,
                       &planes, &transform);
 
   // kHistoryPlanes history piece planes -> 128-bit bitboard masks, split into a WELL-DEFINED

@@ -46,7 +46,7 @@ nvidia-smi -L || echo "[colab] WARNING: no GPU visible (Runtime > Change runtime
 
 # --- (1) build tools + python deps -------------------------------------------
 echo "[colab] installing meson + ninja + onnx + onnxruntime ..."
-pip install -q meson ninja onnx onnxruntime
+pip install -q meson ninja onnx onnxscript onnxruntime
 apt-get -qq install -y ninja-build >/dev/null 2>&1 || true
 # liblzma-dev: header for the compact v6 game files (.xz). Without it meson falls
 # back to .gz records, 4.8x bigger -- so say it loudly if the install failed.
@@ -139,5 +139,5 @@ echo "[colab] 1) Generate self-play data on GPU:"
 echo "  $BIN --selfplay --games 1000 --visits 200 --parallel 2 \\"
 echo "      --provider cuda --fixed-batch 32 --weights $PY_DIR/seed.onnx --out $PY_DIR/games_gen0"
 echo "[colab] 2) Train next generation (warm-start from the gen-0 .pt):"
-echo "  python $PY_DIR/train.py --data $PY_DIR/games_gen0 --epochs 20 --batch 1024 \\"
-echo "      --amp --init-from $PY_DIR/seed.pt --out $PY_DIR/model_gen1.onnx"
+echo "  python $PY_DIR/train.py --data $PY_DIR/games_gen0 --epochs 20 --batch 512 --accum-steps 2 \\"
+echo "      --init-from $PY_DIR/seed.pt --out $PY_DIR/model_gen1.onnx"

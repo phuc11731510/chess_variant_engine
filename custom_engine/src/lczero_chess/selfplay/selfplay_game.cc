@@ -1,7 +1,9 @@
 #include "selfplay/selfplay_game.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -59,34 +61,65 @@ class PlayoutStopper : public classic::SearchStopper {
   std::atomic<int64_t> new_playouts_{0};
 };
 
-// Picks the move to play: temperature=1 (visit-proportional) sampling for plies
-// below the cutoff (opening diversity), greedy (max-visit) afterwards.
-classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, int ply,
-                                    int temp_cutoff_ply) {
+// Picks the move to play: drawn for EVERY move of the game with weight (N / N_max)^(1 / T)
+// (MoveChoiceProbabilities); the most visited move if nothing was visited.
+classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, float temperature) {
+  std::vector<classic::EdgeAndNode> edges;
+  std::vector<uint32_t> visits;
   classic::EdgeAndNode best;
   uint32_t best_n = 0;
-  uint64_t total = 0;
   for (const auto& e : root->Edges()) {
     const uint32_t n = e.GetN();
-    total += n;
+    edges.push_back(e);
+    visits.push_back(n);
     if (n >= best_n) {
       best_n = n;
       best = e;
     }
   }
-  if (ply >= temp_cutoff_ply || total == 0) return best;
-
-  // Sample proportional to visit counts.
-  const double toss = Random::Get().GetDouble(static_cast<double>(total));
-  double acc = 0.0;
-  for (const auto& e : root->Edges()) {
-    acc += static_cast<double>(e.GetN());
-    if (acc > toss) return e;
-  }
-  return best;
+  const int i = SampleIndex(MoveChoiceProbabilities(visits, temperature),
+                            Random::Get().GetDouble(1.0));
+  return i < 0 ? best : edges[i];
 }
 
 }  // namespace
+
+bool ChooseFastSearch(float fast_prob) {
+  if (!(fast_prob > 0.0f)) return false;
+  if (fast_prob >= 1.0f) return true;
+  return Random::Get().GetDouble(1.0) < static_cast<double>(fast_prob);
+}
+
+std::vector<double> MoveChoiceProbabilities(const std::vector<uint32_t>& visits,
+                                            float temperature) {
+  std::vector<double> p(visits.size(), 0.0);
+  uint32_t n_max = 0;
+  for (const uint32_t n : visits) n_max = std::max(n_max, n);
+  if (n_max == 0) return p;
+  // (N / N_max) <= 1, so a small T underflows to 0 for every move but the best instead of
+  // overflowing as N^(1/T) would; the best move always weighs exactly 1.
+  double sum = 0.0;
+  for (size_t i = 0; i < visits.size(); ++i) {
+    p[i] = temperature <= 0.0f
+               ? (visits[i] == n_max ? 1.0 : 0.0)
+               : std::pow(static_cast<double>(visits[i]) / n_max, 1.0 / temperature);
+    sum += p[i];
+  }
+  for (double& x : p) x /= sum;
+  return p;
+}
+
+int SampleIndex(const std::vector<double>& probabilities, double toss) {
+  double acc = 0.0;
+  int last = -1;
+  for (size_t i = 0; i < probabilities.size(); ++i) {
+    if (!(probabilities[i] > 0.0)) continue;
+    last = static_cast<int>(i);
+    acc += probabilities[i];
+    if (toss < acc) return last;
+  }
+  return last;
+}
 
 int64_t SearchSelfPlayMove(classic::NodeTree* tree, Backend* backend,
                            const OptionsDict& options, int visits,
@@ -118,13 +151,14 @@ int64_t SearchSelfPlayMove(classic::NodeTree* tree, Backend* backend,
 }
 
 GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
-                       const OptionsDict& options, int visits, int max_moves,
-                       int temp_cutoff_ply, const std::string& out_filename,
+                       const OptionsDict& options, const SelfPlaySearchPlan& plan,
+                       int max_moves, const std::string& out_filename,
                        int search_threads, bool verbose,
                        float resign_threshold, int resign_consecutive,
                        bool allow_resign, int resign_earliest_move,
                        int64_t* out_nodes, int* out_final_pieces,
-                       int64_t* out_white_attack, int64_t* out_black_attack) {
+                       int64_t* out_white_attack, int64_t* out_black_attack,
+                       int* out_moves, int* out_fast_moves) {
   auto tree = std::make_unique<classic::NodeTree>();
   tree->ResetToPosition(start_fen, {});
 
@@ -136,6 +170,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
   stm_black.reserve(max_moves);
   GameResult result = GameResult::UNDECIDED;
   int64_t local_nodes = 0;   // total MCTS playouts across this game's moves (NPS)
+  int fast_moves = 0;        // moves searched with the reduced playout cap
 
   // Early-resign tracking: count consecutive own-moves where each side judged
   // itself badly losing. Index 0 = White, 1 = Black. Only active when the caller
@@ -167,9 +202,16 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
       black_attack += Stockfish::popcount(rp.pieces(Stockfish::BLACK) & kWhiteHalf);
     }
 
+    // Playout cap randomization: the coin is tossed before EVERY move, independently. A shallow
+    // search has its own visits and its own options (c_puct, noise epsilon); its record is marked
+    // so the trainer leaves its policy target out.
+    const bool fast = ChooseFastSearch(plan.fast_prob);
     {
-      const int64_t n =
-          SearchSelfPlayMove(tree.get(), backend, options, visits, search_threads);
+      const OptionsDict& search_options =
+          (fast && plan.fast_options != nullptr) ? *plan.fast_options : options;
+      const int64_t n = SearchSelfPlayMove(
+          tree.get(), backend, search_options,
+          fast ? plan.fast_visits : plan.full_visits, search_threads);
       local_nodes += n;
       g_live_playouts.fetch_add(n, std::memory_order_relaxed);
     }
@@ -179,6 +221,7 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     std::memset(&rec, 0, sizeof(rec));
     rec.version = kTrainingDataVersion;
     rec.input_format = kInputFormat10x10;
+    rec.fast_search = fast ? 1 : 0;
     const bool black = tree->IsBlackToMove();
 
     // pi / value / orig_q / policy_kld (T2).
@@ -189,13 +232,13 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     // Input planes + scalar aux (T3).
     EncodePlanesIntoRecord(tree->GetPositionHistory(), rec);
 
-    // Move selection (temperature early, greedy late).
-    const classic::EdgeAndNode played_edge =
-        SelectMoveEdge(root, ply, temp_cutoff_ply);
+    // Move selection: weight (N / N_max)^(1 / T) for every move of the game.
+    const classic::EdgeAndNode played_edge = SelectMoveEdge(root, plan.temperature);
     const Move played = RecordPlayedMove(played_edge, best, rec);
 
     records.push_back(rec);
     stm_black.push_back(black);
+    if (fast) ++fast_moves;
 
     // --- Early resignation (plan A5) ---
     // best_q is from the side-to-move's perspective. If a side judges itself
@@ -238,6 +281,10 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
 
   for (size_t i = 0; i < records.size(); ++i) {
     AssignResult(records[i], final_result, stm_black[i]);
+    // Moves-left target (lc0's plies_left): plies from this position to the end of the game, counting
+    // the move played here, so the last record has 1. A game cut at --max-moves keeps its numbers as
+    // they are (owner's decision, 2026-11-17).
+    records[i].plies_left = static_cast<uint16_t>(std::min<size_t>(records.size() - i, 65535));
   }
 
   // Write all positions to one game file (.xz v6 / .gz, see trainingdata/writer.h).
@@ -246,6 +293,8 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
   writer.Finalize();
 
   if (out_nodes) *out_nodes = local_nodes;
+  if (out_moves) *out_moves = static_cast<int>(records.size());
+  if (out_fast_moves) *out_fast_moves = fast_moves;
   // Số quân còn lại trên bàn lúc ván kết thúc (cả Trắng + Đen, kể cả royal).
   if (out_final_pieces) {
     const auto& fb = tree->GetPositionHistory().Last().GetBoard();
