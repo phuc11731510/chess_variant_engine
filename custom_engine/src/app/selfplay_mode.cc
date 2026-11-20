@@ -66,43 +66,16 @@ int run_selfplay(const EngineOptions& o) {
         if (!o.sp_start_fen.empty()) {
             // Every start position is checked before the first game (CheckStartFen:
             // Fairy-Stockfish itself accepts a FEN without "7+7" as 1+1, etc.).
-            auto trim = [](std::string s) {
-                const auto b = s.find_first_not_of(" \t\r\n");
-                if (b == std::string::npos) return std::string();
-                return s.substr(b, s.find_last_not_of(" \t\r\n") - b + 1);
-            };
-            std::ifstream ff(o.sp_start_fen);
-            if (ff) {  // an opening book: one FEN per line (# = comment)
-                std::string line;
-                for (int line_no = 1; std::getline(ff, line); ++line_no) {
-                    line = trim(line);   // a book saved on Windows ends its lines in \r
-                    if (line.empty() || line[0] == '#') continue;
-                    const std::string why = CheckStartFen(line);
-                    if (!why.empty()) {
-                        std::cerr << "[selfplay] FATAL: " << o.sp_start_fen << ":" << line_no
-                                  << ": " << why << "\n  " << line << std::endl;
-                        Threads.set(0);
-                        return 1;
-                    }
-                    start_fens.push_back(line);
-                }
-                if (start_fens.empty()) {
-                    std::cerr << "[selfplay] FATAL: no FEN in " << o.sp_start_fen << std::endl;
-                    Threads.set(0);
-                    return 1;
-                }
+            // The same reader serves --arena (variant_setup.cc).
+            const std::string why = LoadStartFens(o.sp_start_fen, &start_fens, &start_fen);
+            if (!why.empty()) {
+                std::cerr << "[selfplay] FATAL: " << why << std::endl;
+                Threads.set(0);
+                return 1;
+            }
+            if (!start_fens.empty())
                 std::cout << "[selfplay] opening book: " << start_fens.size()
                           << " FENs from " << o.sp_start_fen << std::endl;
-            } else {
-                start_fen = trim(o.sp_start_fen);  // a single FEN string
-                const std::string why = CheckStartFen(start_fen);
-                if (!why.empty()) {
-                    std::cerr << "[selfplay] FATAL: --start-fen is neither a readable file nor a "
-                                 "valid FEN: " << why << "\n  " << start_fen << std::endl;
-                    Threads.set(0);
-                    return 1;
-                }
-            }
         }
 
         lczero::OptionsParser parser;

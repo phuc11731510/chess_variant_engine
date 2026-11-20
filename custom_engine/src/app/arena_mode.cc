@@ -75,7 +75,30 @@ int run_arena(const EngineOptions& o) {
               << "  (" << games << " games, visits=" << visits
               << ", provider=" << o.sp_provider << ") ===" << std::endl;
     setup_custom_variant();
-    const std::string fen = lczero::ChessBoard::kStartposFen;
+    // Start positions. With --start-fen FILE every PAIR of games (2k and 2k+1, A is White in the even one) starts
+    // from line k of the book (wrapping round), so each position is played once with each color: the two sides of a
+    // random start position are not symmetric, and this is what keeps the colors fair. A single FEN, or no
+    // --start-fen (the fixed placeholder lczero::ChessBoard::kStartposFen), starts every game from that position.
+    std::string fen = lczero::ChessBoard::kStartposFen;
+    std::vector<std::string> arena_fens;
+    if (!o.sp_start_fen.empty()) {
+        const std::string why = LoadStartFens(o.sp_start_fen, &arena_fens, &fen);
+        if (!why.empty()) {
+            std::cerr << "[arena] FATAL: " << why << std::endl;
+            return 1;
+        }
+    }
+    if (!arena_fens.empty()) {
+        std::cout << "[arena] start positions: " << arena_fens.size() << " FENs from " << o.sp_start_fen
+                  << ", each played by a PAIR of games with the colors swapped ("
+                  << (games + 1) / 2 << " position(s) needed for " << games << " games"
+                  << (static_cast<int>(arena_fens.size()) < (games + 1) / 2 ? "; the book wraps round" : "")
+                  << ")" << std::endl;
+    } else if (!o.sp_start_fen.empty()) {
+        std::cout << "[arena] start position: one FEN for every game" << std::endl;
+    } else {
+        std::cout << "[arena] start position: the fixed placeholder (no --start-fen)" << std::endl;
+    }
 
     // Backend options per provider (same selection as self-play / --uci-nn).
     // CUDA (Colab, needs -Duse_cuda): fixed batch. DML (Windows iGPU, needs
@@ -164,6 +187,10 @@ int run_arena(const EngineOptions& o) {
     // games finish in. Results/printing under one mutex; totals are exact, not sampled.
     const int workers = std::max(1, std::min(o.sp_parallel, games));
     int a_wins = 0, b_wins = 0, draws = 0, done = 0;
+    // A's results by color (index 0: A is White, 1: A is Black). With random start positions the two sides of a
+    // position are not symmetric, so a soft stop that splits a pair of games (see the book note above) shows up as
+    // unequal game counts here instead of silently biasing the score.
+    int a_col_games[2] = {0, 0}, a_col_wins[2] = {0, 0}, a_col_draws[2] = {0, 0};
     const bool show_nps = o.sp_show_nps;          // --show-nps: aggregate MCTS NPS
     std::atomic<int64_t> total_nodes{0};
     // Throughput breakdown (B4): time inside Search::RunBlocking vs building the
@@ -214,7 +241,10 @@ int run_arena(const EngineOptions& o) {
             const int g = next_game.fetch_add(1);
             if (g >= games) break;
             const bool a_is_white = (g % 2 == 0);        // alternate colors for fairness
-            tree->ResetToPosition(fen, {});
+            // Games 2k and 2k+1 share a start position (colors swapped); see the book note above.
+            const std::string& game_fen =
+                arena_fens.empty() ? fen : arena_fens[static_cast<size_t>(g / 2) % arena_fens.size()];
+            tree->ResetToPosition(game_fen, {});
             lczero::GameResult result = lczero::GameResult::UNDECIDED;
             std::string moves_str;                       // --arena-moves: UCI move list
             int64_t game_nodes = 0;
@@ -274,11 +304,14 @@ int run_arena(const EngineOptions& o) {
             total_nodes.fetch_add(game_nodes);
 
             std::lock_guard<std::mutex> lk(mu);
+            const int col = a_is_white ? 0 : 1;
+            ++a_col_games[col];
             if (result == lczero::GameResult::WHITE_WON || result == lczero::GameResult::BLACK_WON) {
                 const bool white_won = (result == lczero::GameResult::WHITE_WON);
-                if (white_won == a_is_white) a_wins++; else b_wins++;
+                if (white_won == a_is_white) { a_wins++; ++a_col_wins[col]; } else b_wins++;
             } else {
                 draws++;  // DRAW or cutoff (UNDECIDED)
+                ++a_col_draws[col];
             }
             ++done;
             std::cout << "  game " << done << "/" << games;
@@ -293,7 +326,10 @@ int run_arena(const EngineOptions& o) {
                 std::cout << "  | " << nps << " nps (tong)";
             }
             std::cout << std::endl;
-            if (o.arena_show_moves) std::cout << "    moves: " << moves_str << std::endl;
+            if (o.arena_show_moves) {
+                std::cout << "    start: " << game_fen << std::endl;
+                std::cout << "    moves: " << moves_str << std::endl;
+            }
         }
     };
     std::vector<std::thread> pool;
@@ -321,6 +357,13 @@ int run_arena(const EngineOptions& o) {
     std::cout << "\n=== ARENA RESULT ===" << std::endl;
     std::cout << "  A wins=" << a_wins << "  draws=" << draws << "  B wins=" << b_wins << std::endl;
     std::cout << "  A score = " << score_a << "  (>0.5 => A stronger than B)" << std::endl;
+    std::cout << "  by color: A as White " << a_col_wins[0] << "W/" << a_col_draws[0] << "D/"
+              << (a_col_games[0] - a_col_wins[0] - a_col_draws[0]) << "L (" << a_col_games[0]
+              << " games) | A as Black " << a_col_wins[1] << "W/" << a_col_draws[1] << "D/"
+              << (a_col_games[1] - a_col_wins[1] - a_col_draws[1]) << "L (" << a_col_games[1] << " games)";
+    if (a_col_games[0] != a_col_games[1])
+        std::cout << "  [colors NOT balanced: a pair of games was split (soft stop or an odd --games)]";
+    std::cout << std::endl;
     if (show_nps) {
         const double secs = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - arena_start).count();

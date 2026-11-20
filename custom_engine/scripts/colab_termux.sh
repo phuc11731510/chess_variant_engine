@@ -108,8 +108,11 @@ getnet)
   for x in onnx pt; do colab download -s "$S" "/content/gen$NEXT.$x" "$LOCAL/gen$NEXT.$x"; done
   ;;
 arena)
+  # Thế khởi đầu ngẫu nhiên: mỗi CẶP ván (đổi màu) một thế, 48 ván = 24 thế.
+  echo "!python $E/python/sinh_the_khoi_dau.py --n 24 --out /content/the_khoi_dau_arena_gen$GEN.txt" | rx
   echo "!nohup bash $E/run.sh --arena --model-a /content/gen$NEXT.onnx --model-b /content/gen$GEN.onnx \
---games 48 --visits 400 --temp-cutoff 32 --provider cuda --fixed-batch 16 --max-moves 400 --show-nps \
+--games 48 --visits 400 --temp-cutoff 32 --start-fen /content/the_khoi_dau_arena_gen$GEN.txt \
+--provider cuda --fixed-batch 16 --max-moves 400 --show-nps \
 > /content/arena.log 2>&1 &" | rx
   echo "[fz] da chay nen tren VM; xem: bash $0 status arena"
   ;;

@@ -23,7 +23,8 @@
 # phiên nhỏ nhất vừa đủ thay vì điền 0 cho đủ 64. Đo T4 gen23 ABAB 360 s (cache 2M): 4.372 -> 4.634 nps
 # khi 16 ván chạy (+6%), cả lần chạy 4.162 -> 4.522 (+8,6%), phí pad 10% -> 5%; kết quả NN lệch 0,000005.
 # --max-seconds dừng MỀM: ván đang chạy vẫn chơi nốt (16 ván: vượt giờ ~3-4 phút). Menu fz tự trừ phần
-# này khỏi SECS theo số đo các lần trước (đuôi ván, ~/.fz_tk/.duoi_van).
+# này khỏi SECS theo số đo các lần trước (đuôi ván, ~/.fz_tk/.duoi_van_luat_moi; từ 2026-11-20 tệp mới, số đo của
+# mạng CNN cũ không dùng được cho transformer FP32 -- đuôi ván dài hơn ~2 lần, mặc định 16 ván = 20 phút).
 # fz: che_do_sinh
 # (dòng trên: menu fz hỏi chế độ khi chạy ô -- tối đa theo hạn mức T4 / tự chọn số ván / tự đặt cả
 #  hai -- rồi GHI số đã chọn vào SECS, GAMES dưới đây; Enter = dùng số đang ghi.)

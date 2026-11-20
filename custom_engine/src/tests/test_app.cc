@@ -113,10 +113,12 @@ void TestParseCli() {
         const auto o = Parse({"--arena", "--model-a", "a.onnx", "--model-b", "b.onnx", "--games", "100",
                               "--visits", "400", "--temp-cutoff", "32", "--provider", "cuda",
                               "--fixed-batch", "16", "--max-moves", "400", "--show-nps",
-                              "--search-opt", "max-prefetch=0", "--parallel", "4"});
+                              "--search-opt", "max-prefetch=0", "--parallel", "4",
+                              "--start-fen", "/content/the_khoi_dau_arena_gen0.txt"});
         EXPECT(o.errors.empty() && o.arena_mode && o.sp_games == 100 && o.sp_parallel == 4 &&
-                   o.sp_search_opts.size() == 1,
-               "cell 08 arena command (--parallel, --search-opt)");
+                   o.sp_search_opts.size() == 1 && o.sp_start_fen == "/content/the_khoi_dau_arena_gen0.txt" &&
+                   o.sp_temp_cutoff == 32,
+               "cell 08 arena command (--parallel, --search-opt, --start-fen book, --temp-cutoff kept for arena)");
     }
     // Other documented forms.
     for (const auto& args : std::vector<std::vector<std::string>>{
