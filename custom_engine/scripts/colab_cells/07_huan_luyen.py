@@ -16,10 +16,14 @@ if not os.path.exists(CURRENT_PT):
 # --stats-newest-gen: trước khi học, in hai số thống kê của đời mới nhất (thư mục games_gen<g> số lớn nhất, ván của
 # mọi máy): số quân còn lại trung bình lúc ván kết thúc, và tỉ lệ bên công nhiều hơn thắng (dòng "[stats] ...").
 # Tính từ bản ghi, chỉ đọc; lỗi chỉ in cảnh báo, không dừng việc học.
+# FP16 (chủ dự án quyết định 2026-11-20, theo cách truyền thống): --amp = huấn luyện hỗn hợp: trọng số gốc + optimizer FP32,
+# nhân ma trận FP16 (autocast), softmax / layer norm / ba hàm mất mát FP32, nhân tỉ lệ loss động (GradScaler), --grad-clip 10 cắt
+# gradient SAU khi bỏ tỉ lệ, bước có gradient vô cực/NaN bị bỏ và đếm (dòng "[amp] ..."; 16 bước liền như vậy thì dừng, không xuất mạng).
+# --onnx-fp16 = .onnx cho engine ở FP16, chỉ dùng sau khi kiểm trên GPU là ra gần như số FP32 (lệch thì giữ FP32 và nói lý do).
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
     --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen --batch 512 --accum-steps 2 --lr 1e-3 \
-    --q-ratio 0.25 --weight-decay 1e-4 --report-every 20 \
+    --q-ratio 0.25 --weight-decay 1e-4 --report-every 20 --amp --grad-clip 10 --onnx-fp16 \
     --out {NEXT_ONNX}"""
 
 print(cmd)

@@ -32,3 +32,8 @@ option('onnxruntime_dir_win_dml',
        type : 'string',
        value: 'third_party/onnxruntime-win-x64-directml-1.18.0',
        description: 'ONNX Runtime DirectML package root (Windows, used when use_dml=true)')
+
+option('portable',
+       type : 'boolean',
+       value: false,
+       description: 'x86-64: only -mavx2 -mfma (no x86-64-v3, no -DUSE_POPCNT): for a CPU older than 2013 or an unknown host. Default false = x86-64-v3 + popcnt (about 10% faster move generation)')

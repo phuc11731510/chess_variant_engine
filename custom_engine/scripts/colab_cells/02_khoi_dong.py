@@ -14,7 +14,8 @@ for lan in (1, 2, 3):
 !BIN_URL={REL}/custom_engine bash {E}/scripts/colab_quickstart.sh
 
 # Mạng đời hiện tại (.onnx): Release NN_Model (REL_NN) chỉ giữ .pt, nên lay_mang.py tải gen<N>.pt rồi chuyển
-# sang .onnx ngay trên máy (cần torch, onnx, onnxscript, onnxruntime: tự pip install nếu thiếu). Đặt False nếu bạn tự
+# sang .onnx FP16 (--fp16, kiểm trên GPU so với FP32; lệch thì giữ FP32) ngay trên máy (cần torch, onnx, onnxscript,
+# onnxruntime-gpu: tự pip install nếu thiếu). Đặt False nếu bạn tự
 # tải lên từ điện thoại (colab upload) hoặc tự tạo (ô 03, đời 0). .pt + thư viện huấn luyện: ô 02c
 # (chỉ máy huấn luyện).
 TAI_ONNX = True
@@ -22,5 +23,5 @@ for tai, f in [(TAI_ONNX, CURRENT_ONNX)]:
     if tai:
         # lay_mang.py không để lại tệp rỗng/dở khi lỗi; thử lại 4 lần với HTTP 429/5xx
         name = f.split("/")[-1]
-        !python {E}/python/lay_mang.py onnx {f} --rel {REL_NN} || echo "[!] Khong lay duoc {name} tu Release NN_Model"
+        !python {E}/python/lay_mang.py onnx {f} --rel {REL_NN} --fp16 || echo "[!] Khong lay duoc {name} tu Release NN_Model"
 !ls -la /content/gen*.onnx /content/gen*.pt 2>/dev/null
