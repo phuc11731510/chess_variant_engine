@@ -17,3 +17,12 @@ const Stockfish::Variant* setup_custom_variant();
 // without their rook are dropped, a missing royal piece is not reported -- so a
 // bad line would otherwise change the rules of every game it starts, silently.
 std::string CheckStartFen(const std::string& fen);
+
+#include <vector>
+
+// Reads the start positions given with --start-fen (self-play and arena): `arg` is either a FILE with one FEN per
+// line ('#' comments and blank lines skipped, Windows line ends tolerated) or a single FEN string. Every position
+// goes through CheckStartFen before the first game. Returns "" on success, else the reason (for a file with its
+// name and line number). On success `book` holds the lines of a file (and `single` is untouched), or `book` is
+// empty and `single` holds the one FEN.
+std::string LoadStartFens(const std::string& arg, std::vector<std::string>* book, std::string* single);

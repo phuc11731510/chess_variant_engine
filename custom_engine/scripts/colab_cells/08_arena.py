@@ -31,22 +31,42 @@ DUNG_MEM = "/content/fz_log/dung_mem"
 if os.path.exists(DUNG_MEM):
     os.remove(DUNG_MEM)   # tệp của lần dừng trước: để lại thì engine dừng ngay từ ván đầu
 try:
-    co_dung_mem = b"FZ_ARENA" in open(f"{E}/build-linux/custom_engine", "rb").read()
+    _bin = open(f"{E}/build-linux/custom_engine", "rb").read()
 except OSError:
-    co_dung_mem = False
+    _bin = b""
+co_dung_mem = b"FZ_ARENA" in _bin
+# Arena --start-fen (2026-11-20): một binary cũ vẫn nhận cờ nhưng BỎ QUA nó trong arena (chơi từ thế cố định) mà
+# không báo gì, nên phải kiểm trước khi chạy, không đợi lỗi.
+co_the_arena = b"each played by a PAIR" in _bin
+del _bin
 print("FZ_ARENA_DUNG_MEM=" + ("co" if co_dung_mem else "khong"))
+print("FZ_ARENA_THE_NGAU_NHIEN=" + ("co" if co_the_arena else "khong"))
+
+# Thế khởi đầu NGẪU NHIÊN như ô 04 (2026-11-20, chủ dự án chọn): mỗi CẶP ván (ván chẵn A cầm Trắng, ván lẻ A cầm
+# Đen) chơi cùng một thế, nên mỗi thế được chơi với cả hai màu -- hai bên của một thế ngẫu nhiên không đối xứng.
+# Cần (GAMES + 1) // 2 thế; hạt giống ngẫu nhiên mỗi lần chạy (mỗi máy một tệp khác nhau). Binary cũ không có
+# --start-fen cho arena: ô sẽ báo lỗi "unknown flag" -> lấy binary mới (ô 02).
+BOOK = f"/content/the_khoi_dau_arena_gen{GEN_CURRENT}.txt"
+N_THE = (GAMES + 1) // 2
+if not _thieu and co_the_arena:
+    !python {E}/python/sinh_the_khoi_dau.py --n {N_THE} --out {BOOK}
+    if not os.path.exists(BOOK) or os.path.getsize(BOOK) == 0:
+        raise SystemExit(f"[!] Không sinh được {BOOK} (python/sinh_the_khoi_dau.py lỗi) -- dừng, không chạy arena.")
 
 cmd = f"""bash {E}/run.sh --arena \
     --model-a {A_ONNX} \
     --model-b {B_ONNX} \
-    --games {GAMES} --visits 400 --temp-cutoff 32 \
+    --games {GAMES} --visits 400 --temp-cutoff 32 --start-fen {BOOK} \
     --provider cuda --fixed-batch 32 --max-moves 400 --show-nps \
     --search-opt max-prefetch=0 --parallel {PARALLEL} --batch-aggregate \
     --search-opt minibatch-size=32 --search-opt task-workers=0"""
 if co_dung_mem:
     cmd += f" --stop-file {DUNG_MEM}" + (f" --max-seconds {SECS}" if SECS > 0 else "")
 
-if _thieu:
+if not co_the_arena:
+    print("[!] Binary chưa hỗ trợ --start-fen cho arena (bản cũ, sẽ chơi từ thế cố định mà không báo) -- "
+          "lấy binary mới ở ô 02 / Release v3.0.0 -- không chạy arena")
+elif _thieu:
     print(f"[!] Thiếu mạng {_thieu} (không tải / chuyển được từ Release NN_Model) -- không chạy arena")
 else:
     print(cmd)

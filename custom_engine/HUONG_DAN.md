@@ -870,6 +870,7 @@ nó dùng các cờ thiết bị/độ sâu/tìm kiếm dưới đây, nhưng **
 | `--games N` | 100 | Số ván đấu (chia đôi mỗi bên cầm Trắng/Đen cho công bằng). |
 | `--visits N` | 200 | Độ sâu MCTS mỗi nước khi đấu. |
 | `--max-moves N` | 200 | Trần số **ply** (nửa nước) mỗi ván (chạm trần ⇒ tính hòa). |
+| `--start-fen FILE\|FEN` | thế cố định tạm | **Thế khởi đầu của arena** (từ 2026-11-20): một tệp một FEN mỗi dòng (như tự đấu) thì **mỗi cặp ván** (ván $2k$ và $2k+1$: A cầm Trắng rồi A cầm Đen) chơi cùng thế thứ $k$, quay vòng nếu thiếu dòng, nên mỗi thế được chơi với cả hai màu (hai bên của thế ngẫu nhiên không đối xứng); cần (số ván + 1) / 2 thế, sinh bằng `python/sinh_the_khoi_dau.py`. Một FEN đơn: mọi ván chơi từ nó. Không đặt: thế cố định tạm như trước. Mỗi FEN được kiểm trước ván đầu (như tự đấu); tệp hỏng dừng ngay kèm tên tệp và số dòng. `--arena-moves` in thêm dòng `start:` mỗi ván. |
 | `--temp-cutoff N` | 30 | Số nước đầu lấy mẫu theo visit (để hai ván không giống hệt nhau); đấu nghiêm ngặt có thể đặt nhỏ (vd 6) hoặc 0 để hai mạng đánh "tốt nhất" hoàn toàn. |
 | `--provider cpu\|cuda\|dml` | cpu | Thiết bị suy luận. `cuda` cho Colab (bản `-Duse_cuda`); `dml` cho GPU Windows — kể cả NVIDIA (bản `-Duse_dml`). |
 | `--backend-threads N` | 1 | Số luồng intra-op cho ONNX khi `cpu`/`dml` (nên đặt = số nhân, vd 4). |

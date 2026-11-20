@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -222,5 +223,32 @@ std::string CheckStartFen(const std::string& fen) {
     if (pos.attackers_to(pos.square<Stockfish::KING>(~us), us))
         return "the side that is not to move is in check";
     if (board.GenerateLegalMoves().empty()) return "no legal move: the game is already over";
+    return "";
+}
+
+std::string LoadStartFens(const std::string& arg, std::vector<std::string>* book, std::string* single) {
+    book->clear();
+    auto trim = [](std::string s) {
+        const auto b = s.find_first_not_of(" \t\r\n");
+        if (b == std::string::npos) return std::string();
+        return s.substr(b, s.find_last_not_of(" \t\r\n") - b + 1);
+    };
+    std::ifstream ff(arg);
+    if (ff) {  // an opening book: one FEN per line (# = comment)
+        std::string line;
+        for (int line_no = 1; std::getline(ff, line); ++line_no) {
+            line = trim(line);   // a book saved on Windows ends its lines in \r
+            if (line.empty() || line[0] == '#') continue;
+            const std::string why = CheckStartFen(line);
+            if (!why.empty()) return arg + ":" + std::to_string(line_no) + ": " + why + "\n  " + line;
+            book->push_back(line);
+        }
+        if (book->empty()) return "no FEN in " + arg;
+        return "";
+    }
+    *single = trim(arg);  // a single FEN string
+    const std::string why = CheckStartFen(*single);
+    if (!why.empty())
+        return "--start-fen is neither a readable file nor a valid FEN: " + why + "\n  " + *single;
     return "";
 }
