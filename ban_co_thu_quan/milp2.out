@@ -1,0 +1,35 @@
+pool 1089
+iter 0 0 Optimization terminated successfully. (HiGHS Status 7: Optimal) 0.030895290875922736
+  verify False 4 ['a2+a3', 'j2+j3']
+  cuts + 2 total 2
+iter 1 0 Optimization terminated successfully. (HiGHS Status 7: Optimal) 0.030895290875922736
+  verify False 6 ['a2+a3', 'j2+j3']
+  cuts + 2 total 4
+iter 2 0 Optimization terminated successfully. (HiGHS Status 7: Optimal) 0.03089529087592271
+  verify False 8 ['a2+a3', 'j2+j3']
+  cuts + 2 total 6
+iter 3 0 Optimization terminated successfully. (HiGHS Status 7: Optimal) 0.031088223476802134
+  verify False 6 ['a2+a3', 'j1+j3', 'j2+j3']
+  cuts + 3 total 9
+iter 4 0 Optimization terminated successfully. (HiGHS Status 7: Optimal) 0.031088223476799685
+  verify False 2 ['a2+a3']
+  cuts + 1 total 10
+iter 5 0 Optimization terminated successfully. (HiGHS Status 7: Optimal) 0.031088223476802228
+  verify False 4 ['f1+f2', 'j2+j3']
+  cuts + 2 total 12
+iter 6 0 Optimization terminated successfully. (HiGHS Status 7: Optimal) 0.03108822347680214
+  verify True 0 []
+  F2t[WFF]                 1.08 1.07 1.04 avg 1.06 x1 t
+  vWFFmWWcpWW              1.03 0.97 0.94 avg 0.98 x1 p
+  CHmFF[cj1]FF             1.02 0.92 0.79 avg 0.91 x1 cj
+  NmF4cpF4                 0.92 0.78 0.62 avg 0.77 x1 p
+  FZgF3                    0.96 0.69 0.45 avg 0.70 x1 g
+  DHfrClfCblCrbC           0.82 0.62 0.44 avg 0.63 x1 chiral
+  WGgW3                    0.81 0.58 0.36 avg 0.58 x2 g
+  sDt[WnA]                 0.57 0.50 0.42 avg 0.49 x2 t
+  ZnD                      0.56 0.47 0.37 avg 0.46 x1 leap
+  nGsWWvW                  0.46 0.45 0.45 avg 0.45 x2 sv
+  nNfrNlfNblNrbN           0.39 0.34 0.27 avg 0.33 x2 chiral
+  nN[cj]nN                 0.24 0.28 0.26 avg 0.26 x2 cj
+  setup {'d1': 'F2t[WFF]', 'e2': 'sDt[WnA]', 'j2': 'sDt[WnA]', 'i1': 'vWFFmWWcpWW', 'f1': 'NmF4cpF4', 'a1': 'WGgW3', 'e1': 'WGgW3', 'g1': 'FZgF3', 'b1': 'CHmFF[cj1]FF', 'a3': 'nNfrNlfNblNrbN', 'a2': 'nNfrNlfNblNrbN', 'h1': 'DHfrClfCblCrbC', 'j3': 'nGsWWvW', 'c2': 'nGsWWvW', 'f2': 'nN[cj]nN', 'h2': 'nN[cj]nN', 'c1': 'ZnD', 'j1': 'K'} 
+  code wggw3chmff[cj1]ffzndf2t[wff]wggw3nmf4cpf4fzgf3dhfrclfcblcrbcvwffmwwcpwwk/nnfrnlfnblnrbntngswwvwtsdt[wna]nn[cj]nntnn[cj]nntsdt[wna]/nnfrnlfnblnrbnppppppppngswwvw/10/10/10/10/nNfrNlfNblNrbNPPPPPPPPnGsWWvW/nNfrNlfNblNrbNTnGsWWvWTsDt[WnA]nN[cj]nNTnN[cj]nNTsDt[WnA]/WGgW3CHmFF[cj1]FFZnDF2t[WFF]WGgW3NmF4cpF4FZgF3DHfrClfCblCrbCvWFFmWWcpWWK

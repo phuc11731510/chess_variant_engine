@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L77.6,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.8,23.4 L77.6,22.4 L76.6,29.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23.4,29.2 L22.4,22.4 L29.2,23.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L77.6,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M76.6,70.8 L77.6,77.6 L70.8,76.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29.2,76.6 L22.4,77.6 L23.4,70.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L66.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M60.5,45.9 L66.0,50.0 L60.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M74.5,50.0 L85.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="87.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L34.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M39.5,54.1 L34.0,50.0 L39.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M25.5,50.0 L14.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="12.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,34.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M45.9,39.5 L50.0,34.0 L54.1,39.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,25.5 L50.0,14.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="12.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,66.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M54.1,60.5 L50.0,66.0 L45.9,60.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,74.5 L50.0,85.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="87.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>

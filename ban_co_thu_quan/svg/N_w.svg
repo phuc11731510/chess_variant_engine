@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,30.0 L70.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,27.8 L62.2,32.2 M57.8,32.2 L62.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,40.0 L40.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,30.0 L30.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,27.8 L42.2,32.2 M37.8,32.2 L42.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L60.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,70.0 L70.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,67.8 L62.2,72.2 M57.8,72.2 L62.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,70.0 L30.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,67.8 L42.2,72.2 M37.8,72.2 L42.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,40.0 L90.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,37.8 L72.2,42.2 M67.8,42.2 L72.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,40.0 L10.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,37.8 L32.2,42.2 M27.8,42.2 L32.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,60.0 L90.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,57.8 L72.2,62.2 M67.8,62.2 L72.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,60.0 L10.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,57.8 L32.2,62.2 M27.8,62.2 L32.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>

@@ -1,0 +1,1809 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biểu tượng quân cờ</title><style>
+:root{--bg:#f6f4ef;--fg:#1d1d1f;--card:#fff;--line:#dedbd2;--muted:#62626a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#16161a;--fg:#ececf0;--card:#202026;--line:#34343c;--muted:#a4a4ae}}
+:root[data-theme="dark"]{--bg:#16161a;--fg:#ececf0;--card:#202026;--line:#34343c;--muted:#a4a4ae}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:18px 16px 50px}
+h2{margin:26px 0 10px}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:6px 18px}
+.lg{display:flex;align-items:center;gap:8px} .lg svg{flex:none;color:var(--fg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.pair{display:flex;gap:10px;margin-bottom:6px} .pair svg{width:110px;height:110px}
+.code{display:inline-block;border:1px solid var(--line);border-radius:5px;padding:0 6px;font-weight:700}
+code{font-size:.85rem}
+.board{display:grid;grid-template-columns:repeat(10,1fr);width:min(100%,640px);aspect-ratio:1/1;border:2px solid #6b5137}
+.sq{display:flex;align-items:center;justify-content:center} .sq.l{background:#f0d9b5} .sq.d{background:#b58863}
+.sq svg{width:88%;height:88%}
+.pawn{width:62%;aspect-ratio:1/1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:clamp(10px,2.2vw,18px);border:2px solid #1d1d1d}
+.pawn.w{background:#f7f5ef;color:#1d1d1d} .pawn.b{background:#262626;color:#f3f3f3}
+.muted{color:var(--muted);font-size:.88rem}
+</style></head><body><main>
+<h1 style="margin:0">Biểu tượng 13 quân</h1>
+<p class="muted">Mỗi biểu tượng vẽ quân ở tâm, hướng tiến là phía trên. Chữ ở góc thẻ là chữ cái quân dùng trên trang bàn cờ. Biểu tượng chỉ gợi ý hình dạng nước đi, không vẽ đúng tỉ lệ khoảng cách.</p>
+<h2>Chú giải</h2><div class="legend"><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><path d="M0.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/></svg><span>đường liền: đi và ăn được</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><path d="M0.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/></svg><span>đường đứt: chỉ đi, không ăn</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><path d="M0.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/><path d="M24.5,45.9 L30.0,50.0 L24.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/></svg><span>mũi tên: trượt không giới hạn</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><path d="M0.0,50.0 L26.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/><path d="M26.0,45.5 L26.0,54.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/><text x="31.5" y="44.5" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text></svg><span>vạch chặn: trượt tối đa tới đó (số = số ô)</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><circle cx="15.0" cy="50.0" r="3.1" fill="currentColor"/></svg><span>chấm đứng riêng: nhảy tới, bỏ qua mọi quân ở giữa</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><path d="M0.0,50.0 L25.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/><circle cx="25.0" cy="50.0" r="3.1" fill="currentColor"/></svg><span>đường thẳng tới chấm: nhảy bị cản (n), các ô trên đường phải trống</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><circle cx="15.0" cy="50.0" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span>chấm rỗng: ô chỉ đi được</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><path d="M15.0,46.4 L18.6,50.0 L15.0,53.6 L11.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/></svg><span>thoi vàng: quân bàn đạp (phe nào cũng được), không bị ăn</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><path d="M5.0,46.4 L8.6,50.0 L5.0,53.6 L1.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/><circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/></svg><span>thoi vàng + chấm ngay sau: Châu chấu (g), đáp ngay sau bàn đạp</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><path d="M0.0,46.4 L3.6,50.0 L0.0,53.6 L-3.6,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/><path d="M6.0,50.0 L22.0,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="26.0" cy="50.0" r="3.1" fill="#e0352b"/></svg><span>thoi vàng + chấm đỏ: Pháo (p), chỉ ăn quân sau bàn đạp</span></div><div class="lg"><svg viewBox="-4 32 42 36" width="80" height="68" color="currentColor"><path d="M2.0,47.0 L8.0,53.0 M2.0,53.0 L8.0,47.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/><circle cx="22.0" cy="50.0" r="2.6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span>× đỏ + vòng rỗng: bắt nhảy [cj], quân bị nhảy qua bị ăn, hạ cánh ở ô trống phía sau</span></div></div>
+<h2>13 quân (trắng / đen)</h2><div class="grid"><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M40.0,60.0 L60.0,60.0 L60.0,40.0 L40.0,40.0 L40.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M30.0,70.0 L70.0,70.0 L70.0,30.0 L30.0,30.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="60.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="50.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="40.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="40.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="40.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="50.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="50.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="60.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="60.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="60.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="50.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="40.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M40.0,60.0 L60.0,60.0 L60.0,40.0 L40.0,40.0 L40.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M30.0,70.0 L70.0,70.0 L70.0,30.0 L30.0,30.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="60.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="50.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="40.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="40.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="40.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="50.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="50.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="60.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="60.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="60.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="50.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="40.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><b>Quân hoàng gia</b> <span class="code">K</span><br><code>WFmnDmnAmnN</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L70.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M66.8,26.8 L73.2,33.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L30.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M26.8,33.2 L33.2,26.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L70.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M73.2,66.8 L66.8,73.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M33.2,73.2 L26.8,66.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,50.0 L79.0,31.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M72.2,32.0 L79.0,31.0 L78.0,37.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,50.0 L79.0,69.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M78.0,62.2 L79.0,69.0 L72.2,68.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,50.0 L21.0,31.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22.0,37.8 L21.0,31.0 L27.8,32.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,50.0 L21.0,69.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27.8,68.0 L21.0,69.0 L22.0,62.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,40.0 L69.0,21.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M62.2,22.0 L69.0,21.0 L68.0,27.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,40.0 L31.0,21.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32.0,27.8 L31.0,21.0 L37.8,22.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,60.0 L69.0,79.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M68.0,72.2 L69.0,79.0 L62.2,78.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,60.0 L31.0,79.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M37.8,78.0 L31.0,79.0 L32.0,72.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L70.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M66.8,26.8 L73.2,33.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L30.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M26.8,33.2 L33.2,26.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L70.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M73.2,66.8 L66.8,73.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M33.2,73.2 L26.8,66.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,50.0 L79.0,31.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M72.2,32.0 L79.0,31.0 L78.0,37.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,50.0 L79.0,69.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M78.0,62.2 L79.0,69.0 L72.2,68.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,50.0 L21.0,31.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22.0,37.8 L21.0,31.0 L27.8,32.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,50.0 L21.0,69.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27.8,68.0 L21.0,69.0 L22.0,62.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,40.0 L69.0,21.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M62.2,22.0 L69.0,21.0 L68.0,27.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,40.0 L31.0,21.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32.0,27.8 L31.0,21.0 L37.8,22.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,60.0 L69.0,79.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M68.0,72.2 L69.0,79.0 L62.2,78.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,60.0 L31.0,79.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M37.8,78.0 L31.0,79.0 L32.0,72.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+</svg>
+</div><b>Quân 1</b> <span class="code">A</span><br><code>F2t[WFF]</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L77.6,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.8,23.4 L77.6,22.4 L76.6,29.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23.4,29.2 L22.4,22.4 L29.2,23.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L77.6,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M76.6,70.8 L77.6,77.6 L70.8,76.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29.2,76.6 L22.4,77.6 L23.4,70.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L66.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M60.5,45.9 L66.0,50.0 L60.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M74.5,50.0 L85.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="87.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L34.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M39.5,54.1 L34.0,50.0 L39.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M25.5,50.0 L14.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="12.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,34.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M45.9,39.5 L50.0,34.0 L54.1,39.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,25.5 L50.0,14.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="12.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,66.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M54.1,60.5 L50.0,66.0 L45.9,60.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,74.5 L50.0,85.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="87.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L77.6,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.8,23.4 L77.6,22.4 L76.6,29.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23.4,29.2 L22.4,22.4 L29.2,23.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L77.6,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M76.6,70.8 L77.6,77.6 L70.8,76.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29.2,76.6 L22.4,77.6 L23.4,70.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L66.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M60.5,45.9 L66.0,50.0 L60.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M74.5,50.0 L85.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="87.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L34.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M39.5,54.1 L34.0,50.0 L39.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M25.5,50.0 L14.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="12.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,34.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M45.9,39.5 L50.0,34.0 L54.1,39.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,25.5 L50.0,14.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="12.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,66.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M54.1,60.5 L50.0,66.0 L45.9,60.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,74.5 L50.0,85.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="87.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><b>Quân 2</b> <span class="code">B</span><br><code>vWFFmWWcpWW</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="60.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L65.5,34.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M67.0,27.0 L73.0,33.0 M67.0,33.0 L73.0,27.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="80.0" cy="20.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L34.5,34.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M27.0,27.0 L33.0,33.0 M27.0,33.0 L33.0,27.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="20.0" cy="20.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L65.5,65.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M67.0,67.0 L73.0,73.0 M67.0,73.0 L73.0,67.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="80.0" cy="80.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L34.5,65.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M27.0,67.0 L33.0,73.0 M27.0,73.0 L33.0,67.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="20.0" cy="80.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="60.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L65.5,34.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M67.0,27.0 L73.0,33.0 M67.0,33.0 L73.0,27.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="80.0" cy="20.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L34.5,34.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M27.0,27.0 L33.0,33.0 M27.0,33.0 L33.0,27.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="20.0" cy="20.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L65.5,65.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M67.0,67.0 L73.0,73.0 M67.0,73.0 L73.0,67.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="80.0" cy="80.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L34.5,65.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M27.0,67.0 L33.0,73.0 M27.0,73.0 L33.0,67.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="20.0" cy="80.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><b>Quân 3</b> <span class="code">C</span><br><code>CHmFF[cj1]FF</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L77.5,22.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M74.3,19.3 L80.7,25.7" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="77.5" y="14.7" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M63.5,33.5 L66.5,36.5 L63.5,39.5 L60.5,36.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M67.5,32.5 L73.5,26.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75.5" cy="24.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L22.5,22.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M19.3,25.7 L25.7,19.3" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="14.7" y="22.5" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M36.5,33.5 L39.5,36.5 L36.5,39.5 L33.5,36.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M32.5,32.5 L26.5,26.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24.5" cy="24.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L77.5,77.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M80.7,74.3 L74.3,80.7" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="85.3" y="77.5" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M63.5,60.5 L66.5,63.5 L63.5,66.5 L60.5,63.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M67.5,67.5 L73.5,73.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75.5" cy="75.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L22.5,77.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M25.7,80.7 L19.3,74.3" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="22.5" y="85.3" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M36.5,60.5 L39.5,63.5 L36.5,66.5 L33.5,63.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M32.5,67.5 L26.5,73.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24.5" cy="75.5" r="2.6" fill="#e0352b"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L77.5,22.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M74.3,19.3 L80.7,25.7" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="77.5" y="14.7" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M63.5,33.5 L66.5,36.5 L63.5,39.5 L60.5,36.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M67.5,32.5 L73.5,26.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75.5" cy="24.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L22.5,22.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M19.3,25.7 L25.7,19.3" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="14.7" y="22.5" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M36.5,33.5 L39.5,36.5 L36.5,39.5 L33.5,36.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M32.5,32.5 L26.5,26.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24.5" cy="24.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L77.5,77.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M80.7,74.3 L74.3,80.7" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="85.3" y="77.5" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M63.5,60.5 L66.5,63.5 L63.5,66.5 L60.5,63.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M67.5,67.5 L73.5,73.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75.5" cy="75.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L22.5,77.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M25.7,80.7 L19.3,74.3" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="22.5" y="85.3" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M36.5,60.5 L39.5,63.5 L36.5,66.5 L33.5,63.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M32.5,67.5 L26.5,73.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24.5" cy="75.5" r="2.6" fill="#e0352b"/>
+</svg>
+</div><b>Quân 4</b> <span class="code">D</span><br><code>NmF4cpF4</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L60.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,40.0 L70.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,26.4 L73.6,30.0 L70.0,33.6 L66.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,40.0 L30.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,26.4 L33.6,30.0 L30.0,33.6 L26.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,60.0 L70.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,66.4 L73.6,70.0 L70.0,73.6 L66.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,60.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,66.4 L33.6,70.0 L30.0,73.6 L26.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L60.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,40.0 L70.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,26.4 L73.6,30.0 L70.0,33.6 L66.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,40.0 L30.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,26.4 L33.6,30.0 L30.0,33.6 L26.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,60.0 L70.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,66.4 L73.6,70.0 L70.0,73.6 L66.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,60.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,66.4 L33.6,70.0 L30.0,73.6 L26.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><b>Quân 5</b> <span class="code">E</span><br><code>FZgF3</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 Q61.5,34.5 80.0,40.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="80.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q34.5,38.5 40.0,20.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="40.0" cy="20.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q38.5,65.5 20.0,60.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="20.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q65.5,61.5 60.0,80.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="60.0" cy="80.0" r="3.4" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 Q61.5,34.5 80.0,40.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="80.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q34.5,38.5 40.0,20.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="40.0" cy="20.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q38.5,65.5 20.0,60.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="20.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q65.5,61.5 60.0,80.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="60.0" cy="80.0" r="3.4" fill="currentColor"/>
+</svg>
+</div><b>Quân 6</b> <span class="code">F</span><br><code>DHfrClfCblCrbC</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><b>Quân 7</b> <span class="code">G</span><br><code>WGgW3</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,40.0 L70.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L30.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,60.0 L70.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L30.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,40.0 L70.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L30.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,60.0 L70.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L30.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><b>Quân 8</b> <span class="code">H</span><br><code>sDt[WnA]</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="70.0" r="3.1" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="70.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><b>Quân 9</b> <span class="code">J</span><br><code>ZnD</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L89.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M83.5,45.9 L89.0,50.0 L83.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L11.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16.5,54.1 L11.0,50.0 L16.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L89.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M83.5,45.9 L89.0,50.0 L83.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L11.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16.5,54.1 L11.0,50.0 L16.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><b>Quân 10</b> <span class="code">L</span><br><code>nGsWWvW</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.4" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.4" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><b>Quân 11</b> <span class="code">M</span><br><code>nNfrNlfNblNrbN</code></div><div class="card"><div class="pair"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,30.0 L70.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,27.8 L62.2,32.2 M57.8,32.2 L62.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,40.0 L40.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,30.0 L30.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,27.8 L42.2,32.2 M37.8,32.2 L42.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L60.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,70.0 L70.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,67.8 L62.2,72.2 M57.8,72.2 L62.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,70.0 L30.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,67.8 L42.2,72.2 M37.8,72.2 L42.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,40.0 L90.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,37.8 L72.2,42.2 M67.8,42.2 L72.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,40.0 L10.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,37.8 L32.2,42.2 M27.8,42.2 L32.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,60.0 L90.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,57.8 L72.2,62.2 M67.8,62.2 L72.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,60.0 L10.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,57.8 L32.2,62.2 M27.8,62.2 L32.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,30.0 L70.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,27.8 L62.2,32.2 M57.8,32.2 L62.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,40.0 L40.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,30.0 L30.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,27.8 L42.2,32.2 M37.8,32.2 L42.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L60.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,70.0 L70.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,67.8 L62.2,72.2 M57.8,72.2 L62.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,70.0 L30.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,67.8 L42.2,72.2 M37.8,72.2 L42.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,40.0 L90.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,37.8 L72.2,42.2 M67.8,42.2 L72.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,40.0 L10.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,37.8 L32.2,42.2 M27.8,42.2 L32.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,60.0 L90.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,57.8 L72.2,62.2 M67.8,62.2 L72.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,60.0 L10.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,57.8 L32.2,62.2 M27.8,62.2 L32.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><b>Quân 12</b> <span class="code">N</span><br><code>nN[cj]nN</code></div></div>
+<h2>Cỡ thật trên bàn cờ (Thế 1)</h2><div class="board"><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="60.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L65.5,34.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M67.0,27.0 L73.0,33.0 M67.0,33.0 L73.0,27.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="80.0" cy="20.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L34.5,34.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M27.0,27.0 L33.0,33.0 M27.0,33.0 L33.0,27.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="20.0" cy="20.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L65.5,65.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M67.0,67.0 L73.0,73.0 M67.0,73.0 L73.0,67.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="80.0" cy="80.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L34.5,65.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M27.0,67.0 L33.0,73.0 M27.0,73.0 L33.0,67.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="20.0" cy="80.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 Q61.5,34.5 80.0,40.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="80.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q34.5,38.5 40.0,20.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="40.0" cy="20.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q38.5,65.5 20.0,60.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="20.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q65.5,61.5 60.0,80.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="60.0" cy="80.0" r="3.4" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L77.6,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.8,23.4 L77.6,22.4 L76.6,29.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23.4,29.2 L22.4,22.4 L29.2,23.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L77.6,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M76.6,70.8 L77.6,77.6 L70.8,76.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29.2,76.6 L22.4,77.6 L23.4,70.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L66.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M60.5,45.9 L66.0,50.0 L60.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M74.5,50.0 L85.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="87.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L34.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M39.5,54.1 L34.0,50.0 L39.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M25.5,50.0 L14.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="12.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,34.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M45.9,39.5 L50.0,34.0 L54.1,39.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,25.5 L50.0,14.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="12.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,66.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M54.1,60.5 L50.0,66.0 L45.9,60.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,74.5 L50.0,85.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="87.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L60.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,40.0 L70.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,26.4 L73.6,30.0 L70.0,33.6 L66.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,40.0 L30.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,26.4 L33.6,30.0 L30.0,33.6 L26.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,60.0 L70.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,66.4 L73.6,70.0 L70.0,73.6 L66.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,60.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,66.4 L33.6,70.0 L30.0,73.6 L26.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M40.0,60.0 L60.0,60.0 L60.0,40.0 L40.0,40.0 L40.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M30.0,70.0 L70.0,70.0 L70.0,30.0 L30.0,30.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="60.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="50.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="40.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="40.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="40.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="50.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="50.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="60.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="60.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="60.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="50.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="40.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="70.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L77.5,22.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M74.3,19.3 L80.7,25.7" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="77.5" y="14.7" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M63.5,33.5 L66.5,36.5 L63.5,39.5 L60.5,36.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M67.5,32.5 L73.5,26.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75.5" cy="24.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L22.5,22.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M19.3,25.7 L25.7,19.3" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="14.7" y="22.5" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M36.5,33.5 L39.5,36.5 L36.5,39.5 L33.5,36.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M32.5,32.5 L26.5,26.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24.5" cy="24.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L77.5,77.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M80.7,74.3 L74.3,80.7" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="85.3" y="77.5" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M63.5,60.5 L66.5,63.5 L63.5,66.5 L60.5,63.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M67.5,67.5 L73.5,73.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75.5" cy="75.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L22.5,77.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M25.7,80.7 L19.3,74.3" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="22.5" y="85.3" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M36.5,60.5 L39.5,63.5 L36.5,66.5 L33.5,63.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M32.5,67.5 L26.5,73.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24.5" cy="75.5" r="2.6" fill="#e0352b"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L70.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M66.8,26.8 L73.2,33.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L30.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M26.8,33.2 L33.2,26.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L70.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M73.2,66.8 L66.8,73.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M33.2,73.2 L26.8,66.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,50.0 L79.0,31.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M72.2,32.0 L79.0,31.0 L78.0,37.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,50.0 L79.0,69.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M78.0,62.2 L79.0,69.0 L72.2,68.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,50.0 L21.0,31.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22.0,37.8 L21.0,31.0 L27.8,32.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,50.0 L21.0,69.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27.8,68.0 L21.0,69.0 L22.0,62.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,40.0 L69.0,21.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M62.2,22.0 L69.0,21.0 L68.0,27.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,40.0 L31.0,21.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32.0,27.8 L31.0,21.0 L37.8,22.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,60.0 L69.0,79.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M68.0,72.2 L69.0,79.0 L62.2,78.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,60.0 L31.0,79.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M37.8,78.0 L31.0,79.0 L32.0,72.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,40.0 L70.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L30.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,60.0 L70.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L30.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><div class="pawn b">T</div></div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,30.0 L70.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,27.8 L62.2,32.2 M57.8,32.2 L62.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,40.0 L40.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,30.0 L30.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,27.8 L42.2,32.2 M37.8,32.2 L42.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L60.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,70.0 L70.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,67.8 L62.2,72.2 M57.8,72.2 L62.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,70.0 L30.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,67.8 L42.2,72.2 M37.8,72.2 L42.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,40.0 L90.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,37.8 L72.2,42.2 M67.8,42.2 L72.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,40.0 L10.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,37.8 L32.2,42.2 M27.8,42.2 L32.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,60.0 L90.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,57.8 L72.2,62.2 M67.8,62.2 L72.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,60.0 L10.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,57.8 L32.2,62.2 M27.8,62.2 L32.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><div class="sq l"><div class="pawn b">T</div></div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.4" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,40.0 L70.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L30.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,60.0 L70.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L30.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><div class="pawn b">T</div></div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,30.0 L70.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,27.8 L62.2,32.2 M57.8,32.2 L62.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,40.0 L40.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,30.0 L30.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,27.8 L42.2,32.2 M37.8,32.2 L42.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L60.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,70.0 L70.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,67.8 L62.2,72.2 M57.8,72.2 L62.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,70.0 L30.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,67.8 L42.2,72.2 M37.8,72.2 L42.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,40.0 L90.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,37.8 L72.2,42.2 M67.8,42.2 L72.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,40.0 L10.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,37.8 L32.2,42.2 M27.8,42.2 L32.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,60.0 L90.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,57.8 L72.2,62.2 M67.8,62.2 L72.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,60.0 L10.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,57.8 L32.2,62.2 M27.8,62.2 L32.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><div class="sq d"><div class="pawn b">T</div></div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <circle cx="70.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.4" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L89.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M83.5,45.9 L89.0,50.0 L83.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L11.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16.5,54.1 L11.0,50.0 L16.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><div class="pawn b">P</div></div><div class="sq l"><div class="pawn b">P</div></div><div class="sq d"><div class="pawn b">P</div></div><div class="sq l"><div class="pawn b">P</div></div><div class="sq d"><div class="pawn b">P</div></div><div class="sq l"><div class="pawn b">P</div></div><div class="sq d"><div class="pawn b">P</div></div><div class="sq l"><div class="pawn b">P</div></div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#f3f3f3">
+  <circle cx="50" cy="50" r="48" fill="#262626" stroke="#f3f3f3" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#f3f3f3"/>
+  <path d="M50.0,50.0 L89.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M83.5,45.9 L89.0,50.0 L83.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L11.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16.5,54.1 L11.0,50.0 L16.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq l"></div><div class="sq d"></div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L89.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M83.5,45.9 L89.0,50.0 L83.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L11.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16.5,54.1 L11.0,50.0 L16.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><div class="pawn w">P</div></div><div class="sq d"><div class="pawn w">P</div></div><div class="sq l"><div class="pawn w">P</div></div><div class="sq d"><div class="pawn w">P</div></div><div class="sq l"><div class="pawn w">P</div></div><div class="sq d"><div class="pawn w">P</div></div><div class="sq l"><div class="pawn w">P</div></div><div class="sq d"><div class="pawn w">P</div></div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L89.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M83.5,45.9 L89.0,50.0 L83.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L11.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16.5,54.1 L11.0,50.0 L16.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L80.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L20.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,40.0 L70.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L30.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,60.0 L70.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L30.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><div class="pawn w">T</div></div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,30.0 L70.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,27.8 L62.2,32.2 M57.8,32.2 L62.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,40.0 L40.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,30.0 L30.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,27.8 L42.2,32.2 M37.8,32.2 L42.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L60.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,70.0 L70.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,67.8 L62.2,72.2 M57.8,72.2 L62.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,70.0 L30.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,67.8 L42.2,72.2 M37.8,72.2 L42.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,40.0 L90.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,37.8 L72.2,42.2 M67.8,42.2 L72.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,40.0 L10.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,37.8 L32.2,42.2 M27.8,42.2 L32.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,60.0 L90.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,57.8 L72.2,62.2 M67.8,62.2 L72.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,60.0 L10.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,57.8 L32.2,62.2 M27.8,62.2 L32.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><div class="sq d"><div class="pawn w">T</div></div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.4" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L80.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L20.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,40.0 L70.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L30.0,20.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,60.0 L70.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L30.0,80.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><div class="pawn w">T</div></div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,30.0 L70.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,27.8 L62.2,32.2 M57.8,32.2 L62.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,40.0 L40.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,30.0 L30.0,10.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,27.8 L42.2,32.2 M37.8,32.2 L42.2,27.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="13.2" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L60.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,70.0 L70.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M57.8,67.8 L62.2,72.2 M57.8,72.2 L62.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="68.4" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,70.0 L30.0,90.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M37.8,67.8 L42.2,72.2 M37.8,72.2 L42.2,67.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="31.6" cy="86.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,40.0 L90.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,37.8 L72.2,42.2 M67.8,42.2 L72.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,40.0 L10.0,30.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,37.8 L32.2,42.2 M27.8,42.2 L32.2,37.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="31.6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,60.0 L90.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M67.8,57.8 L72.2,62.2 M67.8,62.2 L72.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="86.8" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,60.0 L10.0,70.0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M27.8,57.8 L32.2,62.2 M27.8,62.2 L32.2,57.8" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="13.2" cy="68.4" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><div class="sq l"><div class="pawn w">T</div></div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.4" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0 L60.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0 L30.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0 L40.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,50.0 L70.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="60.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L65.5,34.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M67.0,27.0 L73.0,33.0 M67.0,33.0 L73.0,27.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="80.0" cy="20.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L34.5,34.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M27.0,27.0 L33.0,33.0 M27.0,33.0 L33.0,27.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="20.0" cy="20.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L65.5,65.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M67.0,67.0 L73.0,73.0 M67.0,73.0 L73.0,67.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="80.0" cy="80.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <path d="M50.0,50.0 L34.5,65.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M27.0,67.0 L33.0,73.0 M27.0,73.0 L33.0,67.0" stroke="#e0352b" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="20.0" cy="80.0" r="2.8" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 Q61.5,34.5 80.0,40.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="80.0" cy="40.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q34.5,38.5 40.0,20.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="40.0" cy="20.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q38.5,65.5 20.0,60.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="20.0" cy="60.0" r="3.4" fill="currentColor"/>
+  <path d="M50.0,50.0 Q65.5,61.5 60.0,80.0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="1.5 2.2" opacity="0.8"/>
+  <circle cx="60.0" cy="80.0" r="3.4" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L77.6,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.8,23.4 L77.6,22.4 L76.6,29.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,22.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23.4,29.2 L22.4,22.4 L29.2,23.4" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L77.6,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M76.6,70.8 L77.6,77.6 L70.8,76.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L22.4,77.6" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29.2,76.6 L22.4,77.6 L23.4,70.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L66.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M60.5,45.9 L66.0,50.0 L60.5,54.1" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M74.5,50.0 L85.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="87.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L34.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M39.5,54.1 L34.0,50.0 L39.5,45.9" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M25.5,50.0 L14.5,50.0" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="12.5" cy="50.0" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,34.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M45.9,39.5 L50.0,34.0 L54.1,39.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,25.5 L50.0,14.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="12.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,66.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M54.1,60.5 L50.0,66.0 L45.9,60.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M50.0,74.5 L50.0,85.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="87.5" r="3.1" fill="#e0352b"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L60.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,40.0 L70.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,26.4 L73.6,30.0 L70.0,33.6 L66.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,40.0 L30.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,26.4 L33.6,30.0 L30.0,33.6 L26.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L60.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,60.0 L70.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,66.4 L73.6,70.0 L70.0,73.6 L66.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,60.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,66.4 L33.6,70.0 L30.0,73.6 L26.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M60.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70.0,46.4 L73.6,50.0 L70.0,53.6 L66.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="80.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M40.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30.0,46.4 L33.6,50.0 L30.0,53.6 L26.4,50.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="20.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,40.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,26.4 L53.6,30.0 L50.0,33.6 L46.4,30.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,60.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,66.4 L53.6,70.0 L50.0,73.6 L46.4,70.0 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <circle cx="50.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="80.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M40.0,60.0 L60.0,60.0 L60.0,40.0 L40.0,40.0 L40.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="50.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <path d="M30.0,70.0 L70.0,70.0 L70.0,30.0 L30.0,30.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <circle cx="30.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="60.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="50.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="40.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="30.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="40.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="40.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="50.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="50.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="60.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="60.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="70.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="60.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="50.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="40.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+  <circle cx="70.0" cy="30.0" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="70.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="20.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="80.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="80.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="20.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L70.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L30.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="30.0" cy="50.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="70.0" r="3.1" fill="currentColor"/>
+</svg>
+</div><div class="sq d"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <circle cx="60.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="30.0" r="3.1" fill="currentColor"/>
+  <circle cx="60.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="40.0" cy="70.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="40.0" r="3.1" fill="currentColor"/>
+  <circle cx="70.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <circle cx="30.0" cy="60.0" r="3.1" fill="currentColor"/>
+  <path d="M50.0,50.0 L77.5,22.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M74.3,19.3 L80.7,25.7" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="77.5" y="14.7" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M63.5,33.5 L66.5,36.5 L63.5,39.5 L60.5,36.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M67.5,32.5 L73.5,26.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75.5" cy="24.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L22.5,22.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M19.3,25.7 L25.7,19.3" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="14.7" y="22.5" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M36.5,33.5 L39.5,36.5 L36.5,39.5 L33.5,36.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M32.5,32.5 L26.5,26.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24.5" cy="24.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L77.5,77.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M80.7,74.3 L74.3,80.7" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="85.3" y="77.5" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M63.5,60.5 L66.5,63.5 L63.5,66.5 L60.5,63.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M67.5,67.5 L73.5,73.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75.5" cy="75.5" r="2.6" fill="#e0352b"/>
+  <path d="M50.0,50.0 L22.5,77.5" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4 3.2"/>
+  <path d="M25.7,80.7 L19.3,74.3" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="22.5" y="85.3" font-size="8.5" font-weight="700" font-family="system-ui,sans-serif" fill="currentColor" text-anchor="middle" dominant-baseline="central">4</text>
+  <path d="M36.5,60.5 L39.5,63.5 L36.5,66.5 L33.5,63.5 Z" fill="#e39b00" stroke="currentColor" stroke-width="0.9"/>
+  <path d="M32.5,67.5 L26.5,73.5" fill="none" stroke="#e0352b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24.5" cy="75.5" r="2.6" fill="#e0352b"/>
+</svg>
+</div><div class="sq l"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" color="#1d1d1d">
+  <circle cx="50" cy="50" r="48" fill="#f7f5ef" stroke="#1d1d1d" stroke-width="2.5"/>
+  <circle cx="50" cy="50" r="2.4" fill="#1d1d1d"/>
+  <path d="M50.0,50.0 L70.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M66.8,26.8 L73.2,33.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L30.0,30.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M26.8,33.2 L33.2,26.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L70.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M73.2,66.8 L66.8,73.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L30.0,70.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M33.2,73.2 L26.8,66.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,50.0 L60.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,50.0 L79.0,31.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M72.2,32.0 L79.0,31.0 L78.0,37.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.0,50.0 L79.0,69.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M78.0,62.2 L79.0,69.0 L72.2,68.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="60.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L40.0,50.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,50.0 L21.0,31.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22.0,37.8 L21.0,31.0 L27.8,32.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.0,50.0 L21.0,69.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M27.8,68.0 L21.0,69.0 L22.0,62.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="40.0" cy="50.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,40.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,40.0 L69.0,21.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M62.2,22.0 L69.0,21.0 L68.0,27.8" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,40.0 L31.0,21.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32.0,27.8 L31.0,21.0 L37.8,22.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="40.0" r="2.6" fill="currentColor"/>
+  <path d="M50.0,50.0 L50.0,60.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,60.0 L69.0,79.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M68.0,72.2 L69.0,79.0 L62.2,78.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50.0,60.0 L31.0,79.0" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M37.8,78.0 L31.0,79.0 L32.0,72.2" fill="none" stroke="currentColor" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50.0" cy="60.0" r="2.6" fill="currentColor"/>
+</svg>
+</div></div>
+<p class="muted">Hai loại Tốt (P, T) tạm hiện bằng chữ, vì bạn đã có ảnh riêng cho chúng.</p>
+</main></body></html>

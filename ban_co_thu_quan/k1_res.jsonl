@@ -1,0 +1,12 @@
+{"piece":"WGgW3","attToMove":"182480/852276","attPct":21.41,"defToMove":"119376/970200","defPct":12.3,"pass":false,"maxHalfMoves":null,"failA":"R a1, Ka c1, X h1","failD":"R a1, Ka c1, X d1","rounds":13,"sec":"43.7"}
+{"piece":"FZgF3","attToMove":"832800/832800","attPct":100,"defToMove":"938008/970200","defPct":96.68,"pass":false,"maxHalfMoves":36,"failA":null,"failD":"R a1, Ka c1, X a2","rounds":19,"sec":"46.5"}
+{"piece":"DHfrClfCblCrbC","attToMove":"825716/825716","attPct":100,"defToMove":"909720/970200","defPct":93.77,"pass":false,"maxHalfMoves":30,"failA":null,"failD":"R a1, Ka c1, X a2","rounds":16,"sec":"46.7"}
+{"piece":"NmF4cpF4","attToMove":"849236/849864","attPct":99.93,"defToMove":"903916/970200","defPct":93.17,"pass":false,"maxHalfMoves":null,"failA":"R b2, Ka e1, X a1","failD":"R a1, Ka c1, X a2","rounds":6,"sec":"48.4"}
+{"piece":"CHmFF[cj1]FF","attToMove":"759040/759040","attPct":100,"defToMove":"931924/970200","defPct":96.05,"pass":false,"maxHalfMoves":6,"failA":null,"failD":"R a1, Ka c1, X a2","rounds":4,"sec":"50.8"}
+{"piece":"vWFFmWWcpWW","attToMove":"780640/780640","attPct":100,"defToMove":"954104/970200","defPct":98.34,"pass":false,"maxHalfMoves":4,"failA":null,"failD":"R a1, Ka d1, X b1","rounds":3,"sec":"54.8"}
+{"piece":"sDt[WnA]","attToMove":"815304/815304","attPct":100,"defToMove":"941912/970200","defPct":97.08,"pass":false,"maxHalfMoves":12,"failA":null,"failD":"R a1, Ka d1, X b2","rounds":7,"sec":"42.8"}
+{"piece":"ZnD","attToMove":"284400/833392","attPct":34.13,"defToMove":"137016/970200","defPct":14.12,"pass":false,"maxHalfMoves":null,"failA":"R a1, Ka c1, X h1","failD":"R a1, Ka c1, X b1","rounds":5,"sec":"40.2"}
+{"piece":"nGsWWvW","attToMove":"788472/788472","attPct":100,"defToMove":"941912/970200","defPct":97.08,"pass":false,"maxHalfMoves":20,"failA":null,"failD":"R a1, Ka d1, X b2","rounds":11,"sec":"41.5"}
+{"piece":"nNfrNlfNblNrbN","attToMove":"177632/850928","attPct":20.88,"defToMove":"119308/970200","defPct":12.3,"pass":false,"maxHalfMoves":null,"failA":"R a1, Ka c1, X d1","failD":"R a1, Ka c1, X d1","rounds":3,"sec":"41.4"}
+{"piece":"nN[cj]nN","attToMove":"177100/850928","attPct":20.81,"defToMove":"119304/970200","defPct":12.3,"pass":false,"maxHalfMoves":null,"failA":"R a1, Ka c1, X d1","failD":"R a1, Ka c1, X b1","rounds":3,"sec":"43.0"}
+{"piece":"WFmnDmnAmnN","attToMove":"840384/840384","attPct":100,"defToMove":"970200/970200","defPct":100,"pass":true,"maxHalfMoves":10,"failA":null,"failD":null,"rounds":6,"sec":"44.9"}
