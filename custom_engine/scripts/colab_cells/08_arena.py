@@ -22,7 +22,7 @@ B_ONNX = CURRENT_ONNX   # mạng B
 import os
 for _f in (A_ONNX, B_ONNX):
     if not (os.path.exists(_f) and os.path.getsize(_f) > 0):
-        !python {E}/python/lay_mang.py onnx {_f} --rel {REL_NN}
+        !python {E}/python/lay_mang.py onnx {_f} --rel {REL_NN} --fp16
 _thieu = [_f for _f in (A_ONNX, B_ONNX) if not (os.path.exists(_f) and os.path.getsize(_f) > 0)]
 
 # Dừng MỀM theo lệnh (như ô 04): có tệp DUNG_MEM thì không nhận ván mới, ván đang chơi chơi nốt, in

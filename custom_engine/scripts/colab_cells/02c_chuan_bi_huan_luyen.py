@@ -1,12 +1,12 @@
 # Chuẩn bị huấn luyện: gen.pt + thư viện (trước ô 07)
 # Chỉ máy sắp HUẤN LUYỆN mới cần (ô 02 không tải để máy chỉ sinh dữ liệu đỡ ~55 MB):
 #   - gen{GEN_CURRENT}.pt từ GitHub Release NN_Model (warm-start của ô 07), nếu /content chưa có;
-#   - onnx, onnxscript, onnxruntime (train.py xuất + kiểm mạng ONNX). Cảnh báo "protobuf ...
+#   - onnx, onnxscript, onnxruntime-gpu (bản GPU: train.py xuất + kiểm mạng ONNX FP16 trên GPU). Cảnh báo "protobuf ...
 #     incompatible" là của các gói khác của Colab, không ảnh hưởng FairyZero.
 # Vòng lặp tự động (menu v) tự chạy ô này trên máy được chọn huấn luyện.
 import os
 
-!pip install -q onnx onnxscript onnxruntime
+!pip install -q onnx onnxscript onnxruntime-gpu
 if os.path.exists(CURRENT_PT) and os.path.getsize(CURRENT_PT) > 0:
     print(f"(đã có {CURRENT_PT})")
 else:

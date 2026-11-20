@@ -14,6 +14,7 @@ import argparse
 import os
 import random
 import sys
+import math
 import time
 
 import numpy as np
@@ -171,9 +172,7 @@ def fuse_onnx(path, net):
         om = optimizer.optimize_model(path, model_type="bert", num_heads=heads, hidden_size=d_model, use_gpu=False,
                                       opt_level=1)
         om.save_model_to_file(fused)
-        rng = np.random.default_rng(0)
-        x = (rng.random((8, NUM_PLANES, 10, 10)) < 0.08).astype(np.float32)
-        x[:, AUX_BASE:] = rng.random((8, AUX_PLANES, 1, 1)).astype(np.float32)
+        x = check_inputs(8)
         outs = []
         for p in (path, fused):
             sess = ort.InferenceSession(p, providers=["CPUExecutionProvider"])
@@ -194,12 +193,257 @@ def fuse_onnx(path, net):
             os.remove(fused)
 
 
-def export_onnx(net, path, fuse=True):
+FP16_TOLERANCE = (0.01, 0.01, 1.0)    # max over the checked positions: total variation of softmax(policy), |WDL|, |mlh| plies
+FP16_CHECK_POSITIONS = 64
+
+
+def check_inputs(n=FP16_CHECK_POSITIONS, seed=0):
+    """n synthetic input positions shaped like real ones (sparse 0/1 piece planes, scalar auxiliary planes)."""
+    rng = np.random.default_rng(seed)
+    x = (rng.random((n, NUM_PLANES, 10, 10)) < 0.08).astype(np.float32)
+    x[:, AUX_BASE:] = rng.random((n, AUX_PLANES, 1, 1)).astype(np.float32)
+    return x
+
+
+def _softmax(a):
+    e = np.exp(a - a.max(axis=1, keepdims=True))
+    return e / e.sum(axis=1, keepdims=True)
+
+
+def fp16_differences(ref, out):
+    """(max total-variation distance of softmax(policy), max |WDL|, max |mlh|) between two (policy, value, mlh) results,
+    or None if `out` has a NaN / infinity. The total variation is what the search sees: how far the move
+    probabilities move, so a logit that is off by 0.01 where the logits are 20 apart does not count as a defect."""
+    if not all(np.isfinite(a).all() for a in out):
+        return None
+    tv = 0.5 * np.abs(_softmax(ref[0].astype(np.float64)) - _softmax(out[0].astype(np.float64))).sum(axis=1).max()
+    return float(tv), float(np.abs(ref[1] - out[1]).max()), float(np.abs(ref[2] - out[2]).max())
+
+
+def fuse_attention_onnx(path, net):
+    """Replaces, in the exported FP32 graph at `path`, the attention of every layer -- Reshape / Transpose / 3 Gather / Mul /
+    Transpose / MatMul / Add(bias) / Softmax / MatMul / Transpose / Reshape, about 12 small kernels plus a 4D bias -- by ONE
+    com.microsoft::MultiHeadAttention node (Split of the qkv product into q, k, v; the learned relative-position bias as the
+    node's relative_position_bias input; scale 1/sqrt(dh)). ONNX Runtime's CUDA kernel runs it as fused attention in half
+    precision. Measured on a T4 (PyTorch, FP16, batch 64): attention as one fused kernel 11.7 -> 8.4 ms (x1.39).
+    Pure graph surgery on the graph the exporter writes, so it looks for the pattern layer by layer and gives up (returns
+    False, file untouched) unless every layer matches. The constants of the bias come from `net` (the same weights).
+    Meant for the half-precision GPU graph (fp16_onnx); the CPU provider is not asked to run it."""
+    import onnx
+    from collections import defaultdict
+    from onnx import helper, numpy_helper, TensorProto
+    try:
+        m = onnx.load(path)
+        g = m.graph
+        heads, d = net.blocks[0].attn.heads, net.embed.out_features
+        dh = d // heads
+        init = {t.name: t for t in g.initializer}
+        prod = {o: n for n in g.node for o in n.output}
+        cons = defaultdict(list)
+        for n in g.node:
+            for i in n.input:
+                cons[i].append(n)
+
+        def const_val(name):
+            return numpy_helper.to_array(init[name]) if name in init else None
+
+        def parent(name, op):
+            n = prod.get(name)
+            return n if n is not None and n.op_type == op else None
+
+        def perm_of(n):
+            return [int(v) for v in next((a.ints for a in n.attribute if a.name == "perm"), [])]
+
+        def axis_of(n):
+            return next((a.i for a in n.attribute if a.name == "axis"), 0)
+
+        def trace(name, is_k):
+            """Walk back from q, k^T or v (as the product sees it) to the Reshape [B,T,3,H,dh] of the qkv product; the graph
+            comes in two layouts, according to the onnxruntime that optimised it:
+              A: Reshape -> Transpose(2,0,3,1,4) -> Gather(axis 0, i) [-> Transpose(0,1,3,2) for k]
+              B: Reshape -> Gather(axis 2, i) -> Transpose(0,2,1,3) [(0,2,3,1) for k, which is already k^T]
+            Returns (component index, the Reshape) or None."""
+            n = prod.get(name)
+            if n is None:
+                return None
+            if n.op_type == "Transpose" and perm_of(n) == ([0, 1, 3, 2] if is_k else None):      # layout A, k
+                n = prod.get(n.input[0])
+            elif n.op_type == "Transpose" and perm_of(n) == ([0, 2, 3, 1] if is_k else [0, 2, 1, 3]):  # layout B
+                gth = prod.get(n.input[0])
+                if gth is None or gth.op_type != "Gather" or axis_of(gth) != 2:
+                    return None
+                i, view = const_val(gth.input[1]), parent(gth.input[0], "Reshape")
+                return (int(i), view) if i is not None and i.size == 1 and view is not None else None
+            if n is None or n.op_type != "Gather" or axis_of(n) != 0:                           # layout A
+                return None
+            i, perm = const_val(n.input[1]), prod.get(n.input[0])
+            if i is None or i.size != 1 or perm is None or perm.op_type != "Transpose" or perm_of(perm) != [2, 0, 3, 1, 4]:
+                return None
+            view = parent(perm.input[0], "Reshape")
+            return (int(i), view) if view is not None else None
+
+        found = []     # (softmax, qkv product output, final reshape node, [nodes to remove])
+        for S in (n for n in g.node if n.op_type == "Softmax"):
+            add = parent(S.input[0], "Add")
+            if add is None:
+                continue
+            mm = parent(add.input[0], "MatMul") or parent(add.input[1], "MatMul")
+            if mm is None or len(S.output) != 1 or len(cons[S.output[0]]) != 1:
+                continue
+            mul = parent(mm.input[0], "Mul")
+            av = cons[S.output[0]][0]
+            if mul is None or av.op_type != "MatMul" or av.input[0] != S.output[0]:
+                continue
+            sc = const_val(mul.input[1])
+            if sc is None or sc.size != 1 or abs(float(sc) - dh ** -0.5) > 1e-6:
+                continue
+            tq, tk, tv = trace(mul.input[0], False), trace(mm.input[1], True), trace(av.input[1], False)
+            if None in (tq, tk, tv) or [tq[0], tk[0], tv[0]] != [0, 1, 2] or not (tq[1] is tk[1] is tv[1]):
+                continue
+            t2 = cons[av.output[0]][0] if len(cons[av.output[0]]) == 1 else None
+            r2 = cons[t2.output[0]][0] if t2 is not None and t2.op_type == "Transpose" and len(cons[t2.output[0]]) == 1 else None
+            if r2 is None or r2.op_type != "Reshape":
+                continue
+            # Only the nodes of the product itself are removed here; everything upstream (Reshape, Transpose, Gather, the old bias
+            # constants) loses its last consumer and goes in the dead-code pass below.
+            found.append((S, tq[1].input[0], r2, [mul, mm, add, S, av, t2, r2], None))
+        if len(found) != len(net.blocks):
+            print(f"[export] attention fusion skipped: found {len(found)} attention blocks, the net has {len(net.blocks)}")
+            return False
+        new_nodes, drop = {}, set()
+        for i, (S, qkv, r2, nodes, bias_in) in enumerate(found):
+            attn = net.blocks[i].attn
+            bias = attn.rel_bias.detach()[:, attn.rel_index].unsqueeze(0).float().numpy()          # [1, H, T, T]
+            bname = f"fz_mha_bias_{i}"
+            g.initializer.append(numpy_helper.from_array(bias, bname))
+            sname = f"fz_mha_split_{i}"
+            g.initializer.append(numpy_helper.from_array(np.array([d, d, d], dtype=np.int64), sname))
+            q, k, v = f"fz_mha_q_{i}", f"fz_mha_k_{i}", f"fz_mha_v_{i}"
+            split = helper.make_node("Split", [qkv, sname], [q, k, v], name=f"fz_mha_split_node_{i}", axis=2)
+            mha = helper.make_node("MultiHeadAttention", [q, k, v, "", "", bname], [r2.output[0]], name=f"fz_mha_node_{i}",
+                                   domain="com.microsoft", num_heads=heads, scale=float(dh ** -0.5))
+            new_nodes[id(r2)] = [split, mha]
+            drop.update(id(n) for n in nodes)
+        nodes_out = []
+        for n in g.node:
+            if id(n) in new_nodes:
+                nodes_out.extend(new_nodes[id(n)])
+            elif id(n) not in drop:
+                nodes_out.append(n)
+        # dead-code elimination (the shape-building nodes, the old bias gather) and unused initializers
+        needed = {o.name for o in g.output}
+        keep = []
+        for n in reversed(nodes_out):
+            if any(o in needed for o in n.output):
+                keep.append(n)
+                needed.update(x for x in n.input if x)
+        keep.reverse()
+        del g.node[:]
+        g.node.extend(keep)
+        used = {x for n in keep for x in n.input}
+        kept_init = [t for t in g.initializer if t.name in used]
+        del g.initializer[:]
+        g.initializer.extend(kept_init)
+        if not any(o.domain == "com.microsoft" for o in m.opset_import):
+            m.opset_import.append(helper.make_opsetid("com.microsoft", 1))
+        onnx.save(m, path)
+        return True
+    except Exception as e:      # noqa: BLE001 - an optimisation: the unfused graph stays valid
+        print(f"[export] attention fusion skipped ({type(e).__name__}: {str(e)[:200]})")
+        return False
+
+
+def fp16_onnx(path, net, x=None):
+    """Turns the weights and the arithmetic of the (fused) FP32 graph at `path` into FP16 in place, for the GPU engine: the
+    T4's tensor cores run FP16 about 8 times faster than its FP32 units, and measured in the engine (T4, ORT 1.20.1, 16
+    games) this is 4,965-5,044 nps against 1,865-2,164 for the fused FP32 graph. Inputs and outputs stay FP32 (Cast nodes at
+    the two ends); the training weights (.pt) stay FP32 -- only this inference file is half precision.
+    The traditional safety checks of FP16 inference, all done here:
+      1. the conversion is checked on a GPU against the FP32 graph run on the CPU (exact reference), on `x` (real positions
+         when the caller has them: the last training batch) or on synthetic positions;
+      2. no NaN or infinity in any output (an FP16 overflow shows up as that);
+      3. the move probabilities, the WDL and the moves-left number must stay within FP16_TOLERANCE of the FP32 ones;
+      4. softmax and LayerNorm run inside ONNX Runtime's CUDA kernels, which accumulate in FP32.
+    If anything fails -- no GPU / no onnxruntime-gpu to check with, a conversion error, a NaN, a difference over the tolerance --
+    the FP32 file is left untouched and the reason is printed. Returns True if `path` now holds the FP16 graph."""
+    mha = path + ".mha"
+    made = []                      # temporary half-precision candidates, removed at the end
+    try:
+        import shutil
+        import time
+        import onnx
+        import onnxruntime as ort
+        from onnxruntime.transformers.onnx_model import OnnxModel
+        if "CUDAExecutionProvider" not in ort.get_available_providers():
+            print("[export] FP16 NOT used: this onnxruntime has no CUDA execution provider to check the half-precision graph "
+                  "with (pip install onnxruntime-gpu on a GPU machine); the FP32 graph is kept")
+            return False
+        xs = check_inputs() if x is None else np.asarray(x, dtype=np.float32)
+        ref = ort.InferenceSession(path, providers=["CPUExecutionProvider"]).run(["policy", "value", "mlh"], {"input": xs})
+        # Candidates: the ordinary attention, and attention as ONE com.microsoft::MultiHeadAttention node per layer. Every candidate
+        # must pass the checks; of those that do, the FASTER one on this GPU is kept (measured here, 20 runs of 64 positions):
+        # on a T4 with ONNX Runtime 1.32 the fused node was slower (14.2 ms against 11.9 ms for a batch of 64), so it is never
+        # assumed to be a win.
+        candidates = [("ordinary attention", path)]
+        if os.environ.get("FZ_ONNX_KHONG_MHA", "") != "1":          # FZ_ONNX_KHONG_MHA=1: do not even try the fused node
+            shutil.copyfile(path, mha)
+            if fuse_attention_onnx(mha, net):
+                candidates.append(("fused attention", mha))
+        timing_x = check_inputs(64, seed=9)
+        passed = []
+        for k, (label, src) in enumerate(candidates):
+            tmp = f"{path}.fp16_{k}"
+            made.append(tmp)
+            try:
+                om = OnnxModel(onnx.load(src))
+                om.convert_float_to_float16(keep_io_types=True)
+                om.save_model_to_file(tmp)
+                sess = ort.InferenceSession(tmp, providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+                out = sess.run(["policy", "value", "mlh"], {"input": xs})
+            except Exception as e:      # noqa: BLE001 - e.g. the fused node does not run on this onnxruntime: try the others
+                print(f"[export] FP16 with {label}: failed ({type(e).__name__}: {str(e)[:160]})")
+                continue
+            diff = fp16_differences(ref, out)
+            if diff is None:
+                print(f"[export] FP16 with {label}: NaN or infinity in the outputs (overflow); not used")
+                continue
+            if any(d > t for d, t in zip(diff, FP16_TOLERANCE)):
+                print(f"[export] FP16 with {label}: differs from FP32 by (policy TV, WDL, mlh) = "
+                      f"({diff[0]:.4f}, {diff[1]:.4f}, {diff[2]:.3f}) > {FP16_TOLERANCE}; not used")
+                continue
+            for _ in range(5):
+                sess.run(None, {"input": timing_x})
+            t0 = time.time()
+            for _ in range(20):
+                sess.run(None, {"input": timing_x})
+            passed.append(((time.time() - t0) / 20, label, tmp, diff))
+        if not passed:
+            print("[export] FP16 NOT used: no half-precision candidate passed the check; the FP32 graph is kept")
+            return False
+        dt, label, best, diff = min(passed)
+        os.replace(best, path)
+        others = ", ".join(f"{lb} {t * 1000:.1f} ms" for t, lb, _, _ in sorted(passed))
+        print(f"[export] FP16 graph, {label} (weights and arithmetic in half precision, inputs/outputs FP32), checked on the GPU "
+              f"against FP32 over {len(xs)} positions: policy TV {diff[0]:.1e}, |WDL| {diff[1]:.1e}, |mlh| {diff[2]:.1e} plies; "
+              f"fastest of the checked candidates for a batch of 64 ({others})")
+        return True
+    except Exception as e:      # noqa: BLE001 - half precision is an optimisation: never lose the export because of it
+        print(f"[export] FP16 skipped ({type(e).__name__}: {str(e)[:200]}); the FP32 graph is kept")
+        return False
+    finally:
+        for f in made + [mha]:
+            if os.path.exists(f):
+                os.remove(f)
+
+
+def export_onnx(net, path, fuse=True, fp16=False, sample=None):
     """FP32 ONNX with the three outputs the engine reads: policy (raw logits), value (softmaxed WDL), mlh.
     The new (dynamo) exporter first, as the plan chose; if it fails (say, a torch/onnxscript mismatch on
     the machine), the legacy TorchScript exporter -- the graph is made of basic operators, so both work.
     With `fuse` (the default, unless the environment sets FZ_ONNX_KHONG_GOP=1) the graph is then fused by fuse_onnx (about 30% more
-    evaluations per second in the engine on a T4); the numbers stay the same to the tolerance in FUSE_TOLERANCE."""
+    evaluations per second in the engine on a T4); the numbers stay the same to the tolerance in FUSE_TOLERANCE.
+    With `fp16` (GPU machines; FZ_ONNX_FP16=0 in the environment turns it off) the graph is finally converted to half precision by
+    fp16_onnx, which checks it and keeps the FP32 file when anything is off. `sample`: real input positions for that check."""
     net.eval()
     exp = ExportNet(net).eval()
     dummy = torch.randn(2, NUM_PLANES, 10, 10)
@@ -228,6 +472,9 @@ def export_onnx(net, path, fuse=True):
     print(f"[export] wrote {path} ({how}, opset {ONNX_OPSET}, FP32)")
     if fuse and os.environ.get("FZ_ONNX_KHONG_GOP", "") != "1":
         fuse_onnx(path, net)
+    if fp16 and os.environ.get("FZ_ONNX_FP16", "") != "0":
+        return fp16_onnx(path, net, sample)
+    return False
 
 
 def verify_onnx(path, net=None):
@@ -258,20 +505,31 @@ def verify_onnx(path, net=None):
             assert list(d) == ["batch", 1], f"bad mlh shape {d}"
     opsets = {o.domain or "ai.onnx": o.version for o in m.opset_import}
     assert opsets.get("ai.onnx", 0) <= 21, f"opset {opsets} is newer than the engine's ONNX Runtime understands"
-    assert not any(t.data_type == 10 for t in m.graph.initializer), "the graph has FP16 weights; the engine runs FP32"
+    # FP16 weights are only legitimate in a graph made by fp16_onnx (a GPU file, checked there); the I/O stays FP32.
+    is16 = any(t.data_type == onnx.TensorProto.FLOAT16 for t in m.graph.initializer)
+    assert m.graph.input[0].type.tensor_type.elem_type == onnx.TensorProto.FLOAT and all(
+        o.type.tensor_type.elem_type == onnx.TensorProto.FLOAT for o in m.graph.output), "the graph's inputs/outputs must be FP32"
     assert not any(t.data_location == onnx.TensorProto.EXTERNAL for t in m.graph.initializer),         "the weights are in an external .data file; the .onnx alone (as uploaded to the release) would not load"
     assert not os.path.exists(path + ".data"), f"{path}.data exists: remove it, the .onnx must be self-contained"
-    print(f"[verify] opset {opsets}, {len(m.graph.node)} nodes, ops: "
+    print(f"[verify] opset {opsets}, {len(m.graph.node)} nodes, {'FP16 weights, ' if is16 else ''}ops: "
           f"{sorted({n.op_type for n in m.graph.node})}")
 
-    sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+    if is16:
+        # Half precision runs on the GPU only (the CPU provider has no FP16 kernels for these operators).
+        if "CUDAExecutionProvider" not in ort.get_available_providers():
+            print("[verify] FP16 graph: no CUDA provider here -> the runtime check was done when it was exported (fp16_onnx)")
+            print("[verify] PASS: ONNX I/O contract matches engine (policy=logits, value=softmax WDL, mlh=plies).")
+            return
+        sess = ort.InferenceSession(path, providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+    else:
+        sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
     x = np.random.randn(2, NUM_PLANES, 10, 10).astype(np.float32)
     pol, val, mlh = sess.run(["policy", "value", "mlh"], {"input": x})
     assert pol.shape == (2, POLICY_SIZE), pol.shape
     assert val.shape == (2, 3), val.shape
     assert mlh.shape == (2, 1), mlh.shape
     vsum = val.sum(axis=1)
-    assert np.allclose(vsum, 1.0, atol=1e-4), f"value (WDL) must sum to 1, got {vsum}"
+    assert np.allclose(vsum, 1.0, atol=2e-3 if is16 else 1e-4), f"value (WDL) must sum to 1, got {vsum}"
     # the batch axis is dynamic: another batch size must run too
     pol5, _, _ = sess.run(["policy", "value", "mlh"], {"input": np.random.randn(5, NUM_PLANES, 10, 10).astype(np.float32)})
     assert pol5.shape == (5, POLICY_SIZE), pol5.shape
@@ -279,20 +537,26 @@ def verify_onnx(path, net=None):
     if net is not None:
         # Same numbers from ONNX Runtime and PyTorch, on inputs shaped like real
         # planes (0/1 squares, scalar aux planes), not only the right shapes.
-        rng = np.random.default_rng(0)
-        xr = (rng.random((8, NUM_PLANES, 10, 10)) < 0.08).astype(np.float32)
-        xr[:, AUX_BASE:] = rng.random((8, AUX_PLANES, 1, 1)).astype(np.float32)
+        xr = check_inputs(8)
         o_pol, o_val, o_mlh = sess.run(["policy", "value", "mlh"], {"input": xr})
         was_training = net.training
         net.eval()
         with torch.no_grad():
             t_pol, t_val, t_mlh = ExportNet(net)(torch.from_numpy(xr))
         net.train(was_training)
-        dp = float(np.abs(o_pol - t_pol.numpy()).max())
-        dv = float(np.abs(o_val - t_val.numpy()).max())
-        dm = float(np.abs(o_mlh - t_mlh.numpy()).max())
-        print(f"[verify] onnx vs torch: max |policy logit| {dp:.2e}, max |WDL| {dv:.2e}, max |mlh| {dm:.2e}")
-        assert dp < 1e-3 and dv < 1e-4 and dm < 1e-3, "the .onnx does not compute what the PyTorch net does"
+        if is16:
+            # Half precision: judged by what the search uses (see fp16_differences), against the FP32 PyTorch net.
+            diff = fp16_differences((t_pol.numpy(), t_val.numpy(), t_mlh.numpy()), (o_pol, o_val, o_mlh))
+            print(f"[verify] FP16 onnx vs FP32 torch: policy TV {diff[0]:.1e}, max |WDL| {diff[1]:.1e}, max |mlh| {diff[2]:.1e}"
+                  if diff else "[verify] FP16 onnx gives a NaN or an infinity")
+            assert diff is not None and all(d <= t for d, t in zip(diff, FP16_TOLERANCE)), \
+                "the FP16 .onnx does not compute what the PyTorch net does"
+        else:
+            dp = float(np.abs(o_pol - t_pol.numpy()).max())
+            dv = float(np.abs(o_val - t_val.numpy()).max())
+            dm = float(np.abs(o_mlh - t_mlh.numpy()).max())
+            print(f"[verify] onnx vs torch: max |policy logit| {dp:.2e}, max |WDL| {dv:.2e}, max |mlh| {dm:.2e}")
+            assert dp < 1e-3 and dv < 1e-4 and dm < 1e-3, "the .onnx does not compute what the PyTorch net does"
     print("[verify] PASS: ONNX I/O contract matches engine (policy=logits, value=softmax WDL, mlh=plies).")
 
 
@@ -344,8 +608,16 @@ def main():
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"],
                     help="training device (auto = cuda if available, else cpu)")
     ap.add_argument("--amp", action="store_true",
-                    help="mixed-precision FP16 training; NOT used by the FairyZero runs (FP32 only, owner's "
-                         "decision 2026-11-20); ignored on CPU")
+                    help="mixed-precision FP16 training (the FairyZero runs, owner's decision 2026-11-20): FP32 master "
+                         "weights and optimizer, FP16 matrix products (torch.autocast), softmax / layer norm / the three losses "
+                         "in FP32, dynamic loss scaling (GradScaler), gradients clipped after unscaling (--grad-clip), "
+                         "steps with an infinite/NaN gradient skipped and counted, the run stopped if they do not stop; "
+                         "ignored on CPU")
+    ap.add_argument("--onnx-fp16", action="store_true",
+                    help="export the .onnx for the GPU engine in FP16 (inputs/outputs FP32), after checking on the GPU that "
+                         "it gives the FP32 numbers (policy / WDL / mlh within a small tolerance, no NaN); otherwise the FP32 "
+                         "graph is kept and the reason printed. Needs onnxruntime-gpu. FZ_ONNX_FP16=0 in the environment "
+                         "turns it off")
     ap.add_argument("--sparse-cache", dest="sparse_cache", action="store_true", default=True,
                     help="cache policy targets sparsely to avoid Colab OOM (8.2.2); default ON")
     ap.add_argument("--dense-cache", dest="sparse_cache", action="store_false",
@@ -509,8 +781,16 @@ def main():
         return lr_vals[min(k, len(lr_vals) - 1)]
     use_lr_sched = bool(lr_vals) or args.warmup_steps > 0
 
-    # GradScaler keeps FP16 gradients from underflowing; a no-op when use_amp=False.
+    # GradScaler = dynamic loss scaling, the standard guard of FP16 training (Micikevicius et al. 2018): the loss is
+    # multiplied by a scale (starts 65536) so small gradients do not flush to zero in FP16; the gradients are divided back
+    # before the optimizer sees them; a step whose gradient has an infinity / NaN is SKIPPED and the scale is halved; after
+    # 2000 clean steps it doubles. A no-op when use_amp=False.
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    amp_skipped = 0        # optimizer steps skipped because of an infinite / NaN gradient
+    amp_streak = 0         # ... in a row
+    amp_bad_loss = 0       # micro-batches whose loss itself was not finite
+    guard_x = None         # first training batch (real positions), for the FP16 export check
+    AMP_MAX_STREAK = 16    # 16 skipped steps in a row = the scale fell from 65536 to 1: something diverged, not an overflow
     print(f"[train] optimizer={args.optimizer} grad_clip={args.grad_clip} "
           f"lr_sched={'on' if use_lr_sched else f'const {args.lr}'} seed={args.seed}")
     accum = max(1, args.accum_steps)
@@ -588,17 +868,33 @@ def main():
                 lp, lv, lm = compute_losses(net(x), pi, val)
                 loss = (args.policy_weight * lp + args.value_weight * lv + args.mlh_weight * lm) / accum
             scaler.scale(loss).backward()
+            if guard_x is None:
+                guard_x = x[:FP16_CHECK_POSITIONS].detach().float().cpu().numpy()   # real positions for the export check
             bs = x.size(0)
             n_has = float(val[:, 4].sum().item())     # positions with a policy target in this batch
-            tp += lp.item() * n_has; n_pol += n_has
-            tv += lv.item() * bs; tm += lm.item() * bs; n += bs
+            lp_v, lv_v, lm_v = lp.item(), lv.item(), lm.item()
+            if use_amp and not all(math.isfinite(v) for v in (lp_v, lv_v, lm_v)):
+                amp_bad_loss += 1                     # a forward overflow: its gradient is NaN, the scaler skips the step;
+            else:                                     # keep the NaN out of the running means
+                tp += lp_v * n_has; n_pol += n_has
+                tv += lv_v * bs; tm += lm_v * bs; n += bs
             micro += 1
             if micro % accum == 0:                  # one optimizer step per `accum` micro-batches
                 if args.grad_clip > 0:
-                    scaler.unscale_(opt)
+                    scaler.unscale_(opt)            # clip the TRUE gradient, not the scaled one
                     torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
-                scaler.step(opt)
+                scale_before = scaler.get_scale()
+                scaler.step(opt)                    # skipped by the scaler if the gradient has an inf / NaN
                 scaler.update()
+                if use_amp and scaler.get_scale() < scale_before:
+                    amp_skipped += 1
+                    amp_streak += 1
+                    if amp_streak >= AMP_MAX_STREAK:
+                        sys.exit(f"[amp] {amp_streak} optimizer steps in a row had an infinite/NaN gradient (loss scale "
+                                 f"{scaler.get_scale():g}): the run diverged or a weight is NaN, not an FP16 overflow. "
+                                 f"Stopped; nothing exported. Re-run without --amp to compare.")
+                else:
+                    amp_streak = 0
                 opt.zero_grad(set_to_none=True)
                 global_step += 1
                 if lc0_swa and global_step % args.swa_steps == 0:
@@ -606,8 +902,8 @@ def main():
                 if tail_swa and global_step in tail_set:
                     swa_net.update_parameters(net)
                 if args.report_every and global_step % args.report_every == 0:
-                    print(f"  step {global_step:7d}: policy_loss={tp/max(n_pol, 1.0):.4f}  value_loss={tv/n:.4f}  "
-                          f"mlh_loss={tm/n:.4f}", flush=True)
+                    print(f"  step {global_step:7d}: policy_loss={tp/max(n_pol, 1.0):.4f}  value_loss={tv/max(n, 1.0):.4f}  "
+                          f"mlh_loss={tm/max(n, 1.0):.4f}", flush=True)
                 if args.save_every and global_step % args.save_every == 0:
                     ckpt = f"{os.path.splitext(args.out)[0]}_step{global_step}.pt"
                     torch.save(net.state_dict(), ckpt)
@@ -617,7 +913,7 @@ def main():
         if in_swa:
             swa_net.update_parameters(net)
             swa_sched.step()
-        print(f"  epoch {epoch:3d}: policy_loss={tp/max(n_pol, 1.0):.4f}  value_loss={tv/n:.4f}  mlh_loss={tm/n:.4f}")
+        print(f"  epoch {epoch:3d}: policy_loss={tp/max(n_pol, 1.0):.4f}  value_loss={tv/max(n, 1.0):.4f}  mlh_loss={tm/max(n, 1.0):.4f}")
         report(f"epoch {epoch}", net)
 
     if int(swa_net.n_averaged) == 0:
@@ -640,11 +936,21 @@ def main():
         # Move back to CPU for a portable checkpoint + a CPU-graph ONNX export
         # (the dummy input in export_onnx lives on CPU).
         final = swa_net.module.to("cpu", memory_format=torch.contiguous_format)
+    if use_amp:
+        print(f"[amp] {amp_skipped} of {global_step} optimizer steps skipped (a gradient had an infinity/NaN: the step is not "
+              f"taken and the loss scale halves), {amp_bad_loss} micro-batches had a non-finite loss; final loss scale "
+              f"{scaler.get_scale():g}")
+        if amp_skipped > max(20, 0.1 * global_step):
+            print(f"[amp] WARNING: more than 10% of the steps were skipped ({amp_skipped} of {global_step}); the run "
+                  f"trained on fewer batches than planned. Compare with a run without --amp.")
+    not_finite = [name for name, p in final.named_parameters() if not torch.isfinite(p).all()]
+    if not_finite:                    # never export (or save as the next generation) a network with a NaN weight
+        sys.exit(f"[train] {len(not_finite)} weight tensor(s) are not finite (e.g. {not_finite[0]}): nothing exported")
     ckpt = os.path.splitext(args.out)[0] + ".pt"
     torch.save(final.state_dict(), ckpt)
     print(f"[ckpt] saved {ckpt}")
 
-    export_onnx(final, args.out)
+    export_onnx(final, args.out, fp16=args.onnx_fp16, sample=guard_x)
     verify_onnx(args.out, final)
 
 

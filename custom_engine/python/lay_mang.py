@@ -84,12 +84,38 @@ def suy_kien_truc(sd):
     return d_model, tang, sd["blocks.0.attn.rel_bias"].shape[0]
 
 
-def chuyen(pt, onnx):
-    """Chuyển pt (state_dict của FairyNet) sang onnx cho engine; kiểm onnx tính ra đúng như torch."""
-    thieu = [m for m in ("onnx", "onnxscript", "onnxruntime") if importlib.util.find_spec(m) is None]
+def co_goi(ten):
+    from importlib import metadata
+    try:
+        metadata.version(ten)
+        return True
+    except metadata.PackageNotFoundError:
+        return False
+
+
+def cai_thu_vien(fp16):
+    """pip install những gói chưa có. Cần FP16 trên máy có GPU thì onnxruntime PHẢI là bản GPU (kiểm .onnx FP16 chạy trên GPU):
+    bản CPU đang có thì gỡ rồi cài bản GPU (hai bản trùng tên module, không để chung)."""
+    import torch
+    gpu = fp16 and torch.cuda.is_available()
+    thieu = [m for m in ("onnx", "onnxscript") if importlib.util.find_spec(m) is None]
+    if gpu:
+        if not co_goi("onnxruntime-gpu"):
+            if co_goi("onnxruntime"):
+                print("[lay_mang] pip uninstall onnxruntime (bản CPU) để cài bản GPU")
+                subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "-q", "onnxruntime"], check=True)
+            thieu.append("onnxruntime-gpu")
+    elif importlib.util.find_spec("onnxruntime") is None:
+        thieu.append("onnxruntime")
     if thieu:
         print(f"[lay_mang] pip install {' '.join(thieu)}")
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", *thieu], check=True)
+
+
+def chuyen(pt, onnx, fp16=False):
+    """Chuyển pt (state_dict của FairyNet) sang onnx cho engine; kiểm onnx tính ra đúng như torch.
+    fp16: .onnx FP16 cho engine chạy trên GPU (train.fp16_onnx kiểm trên GPU so với FP32; lệch hay lỗi thì giữ FP32)."""
+    cai_thu_vien(fp16)
     import torch
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from model import FairyNet
@@ -102,7 +128,7 @@ def chuyen(pt, onnx):
     net.eval()
     tam = onnx + ".dang_chuyen"
     try:
-        export_onnx(net, tam)
+        export_onnx(net, tam, fp16=fp16)
         verify_onnx(tam, net)
         os.replace(tam, onnx)
     finally:
@@ -120,7 +146,7 @@ def lay_pt(dich, rel):
     return tai(f"{rel}/gen{g}.pt", dich)
 
 
-def lay_onnx(dich, rel, tu_pt, thu_release=False):
+def lay_onnx(dich, rel, tu_pt, thu_release=False, fp16=False):
     if co_tep(dich) and not tu_pt:
         return 0
     g = doi_so(dich)
@@ -137,7 +163,7 @@ def lay_onnx(dich, rel, tu_pt, thu_release=False):
     if rc != 0:
         return rc
     try:
-        chuyen(pt, dich)
+        chuyen(pt, dich, fp16)
     except Exception as e:   # noqa: BLE001 -- mọi lỗi chuyển đều là "thử lại / xem log"
         print(f"[lay_mang] chuyển {os.path.basename(pt)} -> onnx lỗi: {type(e).__name__}: {e}")
         return 1
@@ -152,9 +178,12 @@ def main():
     ap.add_argument("--tu-pt", action="store_true", help="onnx: chuyển lại từ .pt dù .onnx đã có")
     ap.add_argument("--thu-release", action="store_true",
                     help="onnx: thử tải gen<N>.onnx từ Release trước (Release không còn giữ .onnx)")
+    ap.add_argument("--fp16", action="store_true",
+                    help="onnx: .onnx FP16 cho engine trên GPU (đã kiểm trên GPU so với FP32; lệch / lỗi / không có GPU thì giữ FP32). "
+                         "FZ_ONNX_FP16=0 trong môi trường thì tắt")
     a = ap.parse_args()
     rc = (lay_pt(a.tep, a.rel) if a.loai == "pt"
-          else lay_onnx(a.tep, a.rel.rstrip("/"), a.tu_pt, a.thu_release))
+          else lay_onnx(a.tep, a.rel.rstrip("/"), a.tu_pt, a.thu_release, a.fp16))
     if rc == 0:
         print(f"FZ_MANG_CO {a.tep}")
     sys.exit(rc)

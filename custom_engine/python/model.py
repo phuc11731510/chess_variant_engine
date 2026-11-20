@@ -63,7 +63,10 @@ class RelativeAttention(nn.Module):
         qkv = self.qkv(x).reshape(b, t, 3, self.heads, self.dh).permute(2, 0, 3, 1, 4)   # [3,B,H,T,dh]
         q, k, v = qkv[0], qkv[1], qkv[2]
         bias = self.rel_bias[:, self.rel_index]                                          # [H,T,T]
-        att = torch.matmul(q, k.transpose(-2, -1)) * self.scale + bias.unsqueeze(0)      # [B,H,T,T]
+        # The 1 / sqrt(dh) goes on q BEFORE the product (as in scaled_dot_product_attention): the same numbers in
+        # exact arithmetic, but the raw q.k sums stay small enough not to overflow in FP16 (max 65504), and the
+        # multiplication touches [B,H,T,dh] instead of [B,H,T,T].
+        att = torch.matmul(q * self.scale, k.transpose(-2, -1)) + bias.unsqueeze(0)      # [B,H,T,T]
         att = torch.softmax(att, dim=-1)
         out = torch.matmul(att, v).transpose(1, 2).reshape(b, t, d)                     # [B,T,d]
         return self.proj(out)

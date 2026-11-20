@@ -13,9 +13,24 @@ fs = import('fs')
 # CPU Architecture specific flags. AVX2/FMA only exist on x86; on ARM (aarch64/
 # Android) we pass nothing here and rely on scalar/NEON fallbacks (Stockfish core
 # via its USE_* macros, onnx_backend via FZ_X86_SIMD).
+#
+# 2026-11-20 (speed first): on x86-64 the default is the x86-64-v3 level (AVX2, FMA, BMI1/2, LZCNT, MOVBE: every CPU of
+# the last ten years, including every Colab host) plus -DUSE_POPCNT. Without USE_POPCNT the 128-bit bitboard popcount
+# is eight table lookups instead of two popcnt instructions; measured with `custom_engine --bench-cpu` (GCC 13, Docker):
+# move generation of a 77-move position 11.5-11.9 -> 10.1-10.6 us, history append+pop 345 -> 306 ns (about 10%).
+# LTO was tried and was SLOWER (12.9-13.7 us), so it stays off. -Dportable=true = the old flags (AVX2 + FMA only).
 if cc.get_id() == 'msvc'
   add_project_arguments('/arch:AVX2', language: 'cpp')
-elif host_machine.cpu_family() == 'x86_64' or host_machine.cpu_family() == 'x86'
+  if not get_option('portable')
+    add_project_arguments('-DUSE_POPCNT', language: 'cpp')
+  endif
+elif host_machine.cpu_family() == 'x86_64'
+  if get_option('portable')
+    add_project_arguments('-mavx2', '-mfma', language: 'cpp')
+  else
+    add_project_arguments('-march=x86-64-v3', '-DUSE_POPCNT', language: 'cpp')
+  endif
+elif host_machine.cpu_family() == 'x86'
   add_project_arguments('-mavx2', '-mfma', language: 'cpp')
 endif
 

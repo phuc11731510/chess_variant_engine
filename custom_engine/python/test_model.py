@@ -374,10 +374,196 @@ def test_fused_export():
         check(kept2 is False and open(plain, "rb").read() == before, "an optimiser error keeps the plain export")
 
 
+def test_fp16_export_guards():
+    print("\n[11] FP16 inference graph (2026-11-20): measured by fp16_differences, refused when it cannot be checked, never loses the FP32 file")
+    net = FairyNet(d_model=48, layers=2, heads=3).eval()
+    # --- the comparison itself: what the search sees (move probabilities), not the raw logits
+    rng = np.random.default_rng(5)
+    pol = rng.normal(0, 3, (6, POLICY_SIZE)).astype(np.float32)
+    val = rng.dirichlet([1, 1, 1], 6).astype(np.float32)
+    mlh = rng.uniform(5, 90, (6, 1)).astype(np.float32)
+    same = T.fp16_differences((pol, val, mlh), (pol, val, mlh))
+    check(same == (0.0, 0.0, 0.0), "identical outputs: no difference")
+    near = T.fp16_differences((pol, val, mlh), (pol + 1e-3, val, mlh + 0.01))
+    check(near is not None and near[0] < 1e-3 and all(d <= t for d, t in zip(near, T.FP16_TOLERANCE)),
+          f"a 1e-3 shift of every logit is a tiny change of the move probabilities (TV {near[0]:.1e}) and passes")
+    far = T.fp16_differences((pol, val, mlh), (rng.normal(0, 3, pol.shape).astype(np.float32), val, mlh))
+    check(far is not None and far[0] > T.FP16_TOLERANCE[0], "unrelated policies are far apart (TV above the tolerance)")
+    bad = pol.copy()
+    bad[2, 7] = np.inf
+    nan = mlh.copy()
+    nan[0, 0] = np.nan
+    check(T.fp16_differences((pol, val, mlh), (bad, val, mlh)) is None and T.fp16_differences((pol, val, mlh), (pol, val, nan)) is None,
+          "an infinity or a NaN in any output is refused")
+    x = T.check_inputs(5, seed=1)
+    check(x.shape == (5, NUM_PLANES, 10, 10) and x.dtype == np.float32, "the synthetic check positions have the net's input shape")
+    # --- no GPU here (this test runs on the PC): the FP32 file must come back untouched, with the reason printed
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "n.onnx")
+        used = T.export_onnx(net, path, fp16=True)
+        import onnx
+        m = onnx.load(path)
+        fp16_w = any(t.data_type == onnx.TensorProto.FLOAT16 for t in m.graph.initializer)
+        import onnxruntime as ort
+        has_gpu = "CUDAExecutionProvider" in ort.get_available_providers()
+        if has_gpu:
+            check(used == fp16_w, "on a GPU machine export_onnx(fp16=True) reports whether the FP16 graph was kept")
+        else:
+            check(used is False and not fp16_w, "without a CUDA provider the FP32 graph is kept and export_onnx says it did not use FP16")
+        check(not os.path.exists(path + ".fp16") and not os.path.exists(path + ".gop"), "no temporary file is left behind")
+        T.verify_onnx(path, net)
+        check(True, "verify_onnx accepts the file either way")
+        before = open(path, "rb").read()
+        os.environ["FZ_ONNX_FP16"] = "0"
+        try:
+            path2 = os.path.join(tmp, "n2.onnx")
+            used2 = T.export_onnx(net, path2, fp16=True)
+        finally:
+            del os.environ["FZ_ONNX_FP16"]
+        check(used2 is False and not any(t.data_type == onnx.TensorProto.FLOAT16 for t in onnx.load(path2).graph.initializer),
+              "FZ_ONNX_FP16=0 forces FP32 even when fp16=True is asked")
+        # a conversion that raises keeps the FP32 file (the GPU branch is not reachable here, so force the error path)
+        import onnxruntime.transformers.onnx_model as OM
+        real = OM.OnnxModel.convert_float_to_float16
+        OM.OnnxModel.convert_float_to_float16 = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+        try:
+            kept = T.fp16_onnx(path, net)
+        finally:
+            OM.OnnxModel.convert_float_to_float16 = real
+        check(kept is False and open(path, "rb").read() == before, "a conversion error keeps the FP32 file")
+    # --- the attention scale moved onto q does not change the function
+    from model import RelativeAttention
+    att = RelativeAttention(24, 3).eval()
+    xx = torch.randn(2, 100, 24)
+    with torch.no_grad():
+        got = att(xx)
+        b, t, d = xx.shape
+        qkv = att.qkv(xx).reshape(b, t, 3, att.heads, att.dh).permute(2, 0, 3, 1, 4)
+        ref = torch.softmax(torch.matmul(qkv[0], qkv[1].transpose(-2, -1)) * att.scale + att.rel_bias[:, att.rel_index].unsqueeze(0), -1)
+        ref = att.proj(torch.matmul(ref, qkv[2]).transpose(1, 2).reshape(b, t, d))
+    check(torch.allclose(got, ref, atol=1e-6), "scaling q before q.k^T gives the same attention as scaling the scores")
+
+
+def test_attention_fusion():
+    print("\n[12] attention fused into one MultiHeadAttention node per layer (2026-11-20): same function, fewer kernels, safe on a miss")
+    import shutil
+    import onnx
+    import onnxruntime as ort
+    torch.manual_seed(2)
+    net = FairyNet(d_model=96, layers=3, heads=6).eval()
+    with torch.no_grad():                      # strong weights and a non-zero positional bias: attention must matter
+        for name, p in net.named_parameters():
+            if "rel_bias" in name:
+                p.copy_(torch.randn_like(p) * 2.0)
+            elif p.dim() >= 2:
+                p.copy_(torch.randn_like(p) * 0.25)
+    x = T.check_inputs(6)
+    with tempfile.TemporaryDirectory() as tmp:
+        plain, mha = os.path.join(tmp, "p.onnx"), os.path.join(tmp, "m.onnx")
+        T.export_onnx(net, plain)
+        shutil.copyfile(plain, mha)
+        ok = T.fuse_attention_onnx(mha, net)
+        n_p, n_m = onnx.load(plain), onnx.load(mha)
+        ops = [n.op_type for n in n_m.graph.node]
+        check(ok and ops.count("MultiHeadAttention") == 3 and ops.count("Split") == 3,
+              "one Split + one MultiHeadAttention per layer (3 layers)")
+        check(len(n_m.graph.node) < len(n_p.graph.node) - 20 and ops.count("Softmax") == 1,
+              f"the graph has {len(n_p.graph.node) - len(n_m.graph.node)} fewer nodes; only the WDL softmax is left")
+        check(any(o.domain == "com.microsoft" for o in n_m.opset_import), "the com.microsoft opset is imported")
+        # the ordinary CPU provider can run the node, which lets us compare numbers without a GPU
+        ref = ort.InferenceSession(plain, providers=["CPUExecutionProvider"]).run(["policy", "value", "mlh"], {"input": x})
+        try:
+            out = ort.InferenceSession(mha, providers=["CPUExecutionProvider"]).run(["policy", "value", "mlh"], {"input": x})
+            d = [float(np.abs(a - b).max()) for a, b in zip(ref, out)]
+            check(max(np.abs(ref[0]).max(), 1.0) > 3 and d[0] < 1e-3 and d[1] < 1e-4 and d[2] < 1e-2,
+                  f"same outputs as the ordinary attention (policy logits up to {np.abs(ref[0]).max():.1f}, differences {d[0]:.1e} / {d[1]:.1e} / {d[2]:.1e})")
+            # a wrong bias would show: move one bias entry and the outputs must change
+            n_bad = onnx.load(mha)
+            for t in n_bad.graph.initializer:
+                if t.name == "fz_mha_bias_0":
+                    arr = onnx.numpy_helper.to_array(t).copy()
+                    arr[0, 0, 0, 1] += 5.0
+                    t.CopyFrom(onnx.numpy_helper.from_array(arr, t.name))
+            bad = os.path.join(tmp, "bad.onnx")
+            onnx.save(n_bad, bad)
+            out_bad = ort.InferenceSession(bad, providers=["CPUExecutionProvider"]).run(["policy", "value", "mlh"], {"input": x})
+            check(np.abs(out_bad[0] - ref[0]).max() > 10 * d[0], "the relative-position bias reaches the output (a changed bias changes it)")
+        except Exception as e:     # noqa: BLE001 - a CPU provider without the node: the GPU job checks it
+            print(f"  [skip] this onnxruntime cannot run MultiHeadAttention on the CPU: {type(e).__name__}")
+        # a graph that is not the exporter's pattern (here: already fused) is left alone and the function says so
+        before = open(mha, "rb").read()
+        again = T.fuse_attention_onnx(mha, net)
+        check(again is False and open(mha, "rb").read() == before, "a graph without the pattern is left untouched (returns False)")
+
+
+def test_attention_fusion_layout_b():
+    print("\n[13] the attention pattern as onnxruntime 1.32 leaves it on a Colab machine (layout B: Reshape -> Gather(axis 2) -> Transpose, bias already a constant)")
+    import onnx
+    import onnxruntime as ort
+    from onnx import helper, numpy_helper, TensorProto
+    D, H, N = 24, 3, 100
+    dh = D // H
+    torch.manual_seed(4)
+    net = FairyNet(d_model=D, layers=1, heads=H).eval()
+    with torch.no_grad():
+        net.blocks[0].attn.rel_bias.copy_(torch.randn_like(net.blocks[0].attn.rel_bias) * 2.0)
+    attn = net.blocks[0].attn
+    bias = attn.rel_bias.detach()[:, attn.rel_index].unsqueeze(0).float().numpy()
+
+    def c(name, arr):
+        return numpy_helper.from_array(np.asarray(arr), name)
+
+    def build(layout_ok=True):
+        nodes = [
+            helper.make_node("Reshape", ["lin", "shp"], ["view"]),
+            helper.make_node("Gather", ["view", "i0"], ["gq"], axis=2),
+            helper.make_node("Transpose", ["gq"], ["q"], perm=[0, 2, 1, 3]),
+            helper.make_node("Gather", ["view", "i1"], ["gk"], axis=2),
+            helper.make_node("Transpose", ["gk"], ["kt"], perm=[0, 2, 3, 1] if layout_ok else [0, 2, 1, 3]),
+            helper.make_node("Gather", ["view", "i2"], ["gv"], axis=2),
+            helper.make_node("Transpose", ["gv"], ["v"], perm=[0, 2, 1, 3]),
+            helper.make_node("Mul", ["q", "scale"], ["qs"]),
+            helper.make_node("MatMul", ["qs", "kt"], ["sc"]),
+            helper.make_node("Add", ["sc", "bias"], ["sb"]),
+            helper.make_node("Softmax", ["sb"], ["p"], axis=-1),
+            helper.make_node("MatMul", ["p", "v"], ["o"]),
+            helper.make_node("Transpose", ["o"], ["ot"], perm=[0, 2, 1, 3]),
+            helper.make_node("Reshape", ["ot", "shp2"], ["out"]),
+        ]
+        inits = [c("shp", np.array([-1, N, 3, H, dh], dtype=np.int64)), c("shp2", np.array([-1, N, D], dtype=np.int64)),
+                 c("i0", np.array(0, dtype=np.int64)), c("i1", np.array(1, dtype=np.int64)), c("i2", np.array(2, dtype=np.int64)),
+                 c("scale", np.array(dh ** -0.5, dtype=np.float32)), c("bias", bias)]
+        g = helper.make_graph(nodes, "attn_b", [helper.make_tensor_value_info("lin", TensorProto.FLOAT, ["B", N, 3 * D])],
+                              [helper.make_tensor_value_info("out", TensorProto.FLOAT, ["B", N, D])], inits)
+        return helper.make_model(g, opset_imports=[helper.make_opsetid("", 18)], ir_version=9)
+
+    x = (np.random.default_rng(0).normal(size=(3, N, 3 * D)) * 1.5).astype(np.float32)
+    with tempfile.TemporaryDirectory() as tmp:
+        p = os.path.join(tmp, "b.onnx")
+        onnx.save(build(), p)
+        ref = ort.InferenceSession(p, providers=["CPUExecutionProvider"]).run(None, {"lin": x})[0]
+        ok = T.fuse_attention_onnx(p, net)
+        ops = [n.op_type for n in onnx.load(p).graph.node]
+        check(ok and ops == ["Split", "MultiHeadAttention"], f"layout B is recognised and becomes Split + MultiHeadAttention (got {ops})")
+        try:
+            out = ort.InferenceSession(p, providers=["CPUExecutionProvider"]).run(None, {"lin": x})[0]
+            check(float(np.abs(ref - out).max()) < 1e-4 and float(np.abs(ref).max()) > 0.1,
+                  f"same attention output as the unfused nodes (max difference {float(np.abs(ref - out).max()):.1e}, output up to {float(np.abs(ref).max()):.2f})")
+        except Exception as e:     # noqa: BLE001
+            print(f"  [skip] no MultiHeadAttention on this CPU provider: {type(e).__name__}")
+        # a wrong transpose in the k branch is not the pattern: the graph must be left alone
+        q = os.path.join(tmp, "wrong.onnx")
+        onnx.save(build(layout_ok=False), q)
+        before = open(q, "rb").read()
+        check(T.fuse_attention_onnx(q, net) is False and open(q, "rb").read() == before,
+              "a k branch with the wrong permutation is not fused and the file is untouched")
+
+
 if __name__ == "__main__":
     for fn in (test_shapes_and_layout, test_relative_index, test_policy_loss_mask, test_mlh_loss,
                test_compute_losses, test_export, test_checkpoint_architecture, test_engine_refuses_net_without_mlh,
-               test_lay_mang_pt_only_release, test_fused_export):
+               test_lay_mang_pt_only_release, test_fused_export, test_fp16_export_guards, test_attention_fusion,
+               test_attention_fusion_layout_b):
         fn()
     print("\nRESULT:", "ALL PASS" if not FAILS else f"{len(FAILS)} FAILED: {FAILS}")
     sys.exit(1 if FAILS else 0)

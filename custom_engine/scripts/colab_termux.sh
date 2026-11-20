@@ -55,7 +55,7 @@ start)
 !rm -rf chess_variant_engine
 !git clone -q --depth 1 -b main https://github.com/phuc11731510/chess_variant_engine.git
 !BIN_URL=$REL/custom_engine bash $E/scripts/colab_quickstart.sh
-!pip install -q onnx onnxscript onnxruntime
+!pip install -q onnx onnxscript onnxruntime-gpu
 EOF
   for x in onnx pt; do
     if [ -f "$LOCAL/gen$GEN.$x" ]; then
@@ -65,7 +65,7 @@ EOF
       colab download -s "$S" "/content/gen0.$x" "$LOCAL/gen0.$x"
     else
       # .onnx doi cu khong con tren Release: lay_mang.py tai .pt roi chuyen sang .onnx tren VM
-      echo "!python $E/python/lay_mang.py $x /content/gen$GEN.$x --rel $REL_NN" | rx
+      echo "!python $E/python/lay_mang.py $x /content/gen$GEN.$x --rel $REL_NN --fp16" | rx
     fi
   done
   echo "!ls -la /content/gen$GEN.*" | rx
@@ -100,7 +100,7 @@ train)
   check_gpu || { echo "[fz] VM khong co GPU -- dung lai."; exit 1; }
   echo "!nohup python $E/python/train.py --data \"${DATA:-/content/games_gen$GEN.zip}\" --init-from /content/gen$GEN.pt \
 --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen --batch 512 --accum-steps 2 --lr 1e-3 \
---q-ratio 0.25 --weight-decay 1e-4 --report-every 20 \
+--q-ratio 0.25 --weight-decay 1e-4 --report-every 20 --amp --grad-clip 10 --onnx-fp16 \
 --out /content/gen$NEXT.onnx > /content/train.log 2>&1 &" | rx
   echo "[fz] da chay nen tren VM; xem: bash $0 status train"
   ;;
