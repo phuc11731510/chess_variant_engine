@@ -599,8 +599,33 @@ kiem_secs() {
 # ~/.fz_tk/<ten>/.config/colab-cli (dang nhap rieng, may rieng, han muc rieng). Chon so = cua so
 # nay dung tai khoan do; cac cua so Termux khac khong bi anh huong.
 tk_dang_nhap() { [ -f "$([ -n "$1" ] && echo "$TKG/$1" || echo "$HOME")/.config/colab-cli/token.json" ]; }
+# Tom tat nhanh (2026-11-20): vao muc a chi in SO tai khoan theo tung loai; xem tung tai khoan thi bam l. Dem theo lan chup
+# han muc gan nhat, KHONG hoi mang va chi MOT tien trinh python cho ca danh sach (truoc day moi lan vao mo mot python rieng
+# cho tung tai khoan, cho tai khoan dang giu may con chup han muc qua mang -> cham khi co hang chuc tai khoan).
+# Dung bien ds cua tai_khoan(). Loai: cung tieu chi voi vong lap tu dong (fz_tu_dong.py xep).
+tom_tat_tk() {
+  local ten muc=() chua_dn=0 giu=0 out n
+  for ten in "${ds[@]}"; do
+    if tk_dang_nhap "$ten"; then
+      muc+=("$(ten_tk "$ten")|$([ -n "$ten" ] && echo "$TKG/$ten" || echo "$HOME")|0")
+      tk_co_phien "$ten" && giu=$((giu + 1))
+    else chua_dn=$((chua_dn + 1)); fi
+  done
+  echo " ${M_DAM}${#ds[@]} tài khoản${M_HET} · cửa sổ này: ${M_LAM}$(ten_tk "$TK")${M_HET}"
+  if [ ${#muc[@]} -gt 0 ] && [ -f ~/fz_tu_dong.py ]; then
+    out=$(python ~/fz_tu_dong.py xep "${muc[@]}" 2>/dev/null)
+    n=$(awk -F'\t' -v k=xanh '$2==k{n++} END{print n+0}' <<<"$out");        [ "$n" -gt 0 ] && echo "   ${M_XANH}$n${M_HET}  còn đủ hạn mức (>= 1 giờ 15 T4)"
+    n=$(awk -F'\t' -v k=nap_lai '$2==k{n++} END{print n+0}' <<<"$out");     [ "$n" -gt 0 ] && echo "   ${M_LAM}$n${M_HET}  đã tới giờ nạp lại"
+    n=$(awk -F'\t' -v k=bo '$2==k{n++} END{print n+0}' <<<"$out");          [ "$n" -gt 0 ] && echo "   ${M_VANG}$n${M_HET}  còn ít / hết, chờ giờ nạp"
+    n=$(awk -F'\t' -v k=het '$2==k{n++} END{print n+0}' <<<"$out");         [ "$n" -gt 0 ] && echo "   ${M_DO}$n${M_HET}  hết, chưa rõ giờ nạp lại"
+    n=$(awk -F'\t' -v k=chua_chup '$2==k{n++} END{print n+0}' <<<"$out");   [ "$n" -gt 0 ] && echo "   ${M_MO}$n  chưa chụp hạn mức${M_HET}"
+  fi
+  [ "$giu" -gt 0 ] && echo "   ${M_VANG}$giu${M_HET}  đang giữ máy"
+  [ "$chua_dn" -gt 0 ] && echo "   ${M_DO}$chua_dn${M_HET}  chưa đăng nhập"
+  echo "${M_MO} (theo lần chụp gần nhất, không hỏi mạng)${M_HET}"
+}
 tai_khoan() {
-  local ds i x ten cu e t gc
+  local ds i x ten cu e t gc chi_tiet=0
   # Tai khoan da "cat" theo cach cu (~/.config/colab-cli/luu/<ten>) -> tai khoan phu cung ten.
   for x in "$HOME/.config/colab-cli/luu"/*/; do
     [ -f "$x/token.json" ] || continue
@@ -612,7 +637,8 @@ tai_khoan() {
   while true; do
     ds=("")
     for x in "$TKG"/*/; do [ -d "$x" ] && ds+=("$(basename "$x")"); done
-    if [ $chup = 1 ]; then
+    if [ $chi_tiet = 1 ] && [ $chup = 1 ]; then
+      # Chi khi xem chi tiet (l): man hinh tom tat phai hien ngay, khong cho mang.
       # Tai khoan nao dang giu may thi may chu tra han muc -> chup lai (song song, <= 20 giay).
       # Chi chup tai khoan dang giu may (co phien cuc bo), toi da 8 giay -- khong doi tai khoan khong co gi de chup.
       gc=0
@@ -629,34 +655,46 @@ tai_khoan() {
     # Moi dong <= ~38 ky tu: man hinh dien thoai hep, dong dai bi gay xuong dong kho doc.
     echo "${M_DAM}== Tài khoản Colab ==${M_HET}"
     echo "${M_MO}giờ điện thoại $(date '+%H:%M %d/%m') · UTC$(date +%:z)${M_HET}"
-    for i in "${!ds[@]}"; do
-      ten=${ds[$i]}
+    if [ $chi_tiet = 1 ]; then
+      for i in "${!ds[@]}"; do
+        ten=${ds[$i]}
+        echo
+        x=""
+        [ "$ten" = "$TK" ] && x=" ${M_LAM}◀ đang dùng${M_HET}"
+        printf ' %s%d  %s%s%s\n' "$M_DAM" $((i + 1)) "$(ten_tk "$ten")" "$M_HET" \
+          "$([ -z "$ten" ] && echo " ${M_MO}(chính)${M_HET}")$x"
+        [ -n "$(cua_so_khac "$ten")" ] && echo "    ${M_VANG}đang mở ở cửa sổ khác (pid $(echo $(cua_so_khac "$ten")))${M_HET}"
+        if tk_dang_nhap "$ten"; then khoi_han_muc "$ten" | sed 's/^   /    /'
+        else echo "    ${M_DO}CHƯA đăng nhập${M_HET}"; fi
+      done
       echo
-      x=""
-      [ "$ten" = "$TK" ] && x=" ${M_LAM}◀ đang dùng${M_HET}"
-      printf ' %s%d  %s%s%s\n' "$M_DAM" $((i + 1)) "$(ten_tk "$ten")" "$M_HET" \
-        "$([ -z "$ten" ] && echo " ${M_MO}(chính)${M_HET}")$x"
-      [ -n "$(cua_so_khac "$ten")" ] && echo "    ${M_VANG}đang mở ở cửa sổ khác (pid $(echo $(cua_so_khac "$ten")))${M_HET}"
-      if tk_dang_nhap "$ten"; then khoi_han_muc "$ten" | sed 's/^   /    /'
-      else echo "    ${M_DO}CHƯA đăng nhập${M_HET}"; fi
-    done
-    echo
-    echo "${M_MO}Hạn mức chỉ đọc được khi đang giữ${M_HET}"
-    echo "${M_MO}máy: số trên là lần chụp gần nhất.${M_HET}"
+      echo "${M_MO}Hạn mức chỉ đọc được khi đang giữ${M_HET}"
+      echo "${M_MO}máy: số trên là lần chụp gần nhất.${M_HET}"
+    else
+      echo
+      tom_tat_tk
+    fi
     echo "---"
-    echo " ${M_DAM}số${M_HET}     cửa sổ này dùng tài khoản đó"
+    if [ $chi_tiet = 1 ]; then
+      echo " ${M_DAM}số${M_HET}     cửa sổ này dùng tài khoản đó"
+    else
+      echo " ${M_DAM}l${M_HET}      xem từng tài khoản (số thứ tự, hạn mức)"
+      echo " ${M_DAM}số${M_HET}     cửa sổ này dùng tài khoản số đó (xem số: l)"
+    fi
     echo " ${M_DAM}n${M_HET}      thêm tài khoản"
     echo " ${M_DAM}r${M_HET}      đổi tên"
     echo " ${M_DAM}x${M_HET}      đăng xuất / xoá"
     echo " ${M_DAM}d${M_HET}      dò tài khoản trùng token"
     echo " ${M_DAM}e${M_HET}      email Google đầy đủ của từng tài khoản"
     echo " ${M_DAM}t${M_HET}      xuất token (chép sang máy tính)"
-    echo " ${M_DAM}Enter${M_HET}  về menu"
+    if [ $chi_tiet = 1 ]; then echo " ${M_DAM}Enter${M_HET}  về tóm tắt"
+    else echo " ${M_DAM}Enter${M_HET}  về menu"; fi
     echo "${M_MO} Cùng lúc: cửa sổ Termux mới,${M_HET}"
     echo "${M_MO} gõ fz @<tên>${M_HET}"
     read -rp "Chọn: " x || return
     case "$x" in
-    "") return ;;
+    "") if [ $chi_tiet = 1 ]; then chi_tiet=0; continue; fi; return ;;
+    l|L) chi_tiet=1; chup=1; continue ;;
     n|N)
       read -rp "Tên tài khoản mới (chữ/số/_/-, tối đa 20, vd B hoac phuc2): " ten
       tk_hop_le "$ten" || { echo "[!] Tên không hợp lệ"; dung; continue; }

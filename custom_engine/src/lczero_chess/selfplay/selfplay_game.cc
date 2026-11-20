@@ -61,8 +61,11 @@ class PlayoutStopper : public classic::SearchStopper {
   std::atomic<int64_t> new_playouts_{0};
 };
 
+}  // namespace
+
 // Picks the move to play: drawn for EVERY move of the game with weight (N / N_max)^(1 / T)
-// (MoveChoiceProbabilities); the most visited move if nothing was visited.
+// (MoveChoiceProbabilities); the most visited move if nothing was visited. Used by self-play and by the
+// arena (2026-11-20: the arena draws every move the same way).
 classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, float temperature) {
   std::vector<classic::EdgeAndNode> edges;
   std::vector<uint32_t> visits;
@@ -81,8 +84,6 @@ classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, float temperature
                             Random::Get().GetDouble(1.0));
   return i < 0 ? best : edges[i];
 }
-
-}  // namespace
 
 bool ChooseFastSearch(float fast_prob) {
   if (!(fast_prob > 0.0f)) return false;

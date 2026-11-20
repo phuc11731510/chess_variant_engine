@@ -327,10 +327,57 @@ def test_lay_mang_pt_only_release():
             server.shutdown()
 
 
+def test_fused_export():
+    print("\n[10] fused graph (2026-11-20): same FP32 function, fewer and bigger kernels; can be switched off; never loses the export")
+    import onnx
+    net = FairyNet(d_model=48, layers=3, heads=3).eval()
+    rng = np.random.default_rng(1)
+    x = (rng.random((5, NUM_PLANES, 10, 10)) < 0.08).astype(np.float32)
+    with tempfile.TemporaryDirectory() as tmp:
+        fused, plain = os.path.join(tmp, "fused.onnx"), os.path.join(tmp, "plain.onnx")
+        T.export_onnx(net, fused)
+        os.environ["FZ_ONNX_KHONG_GOP"] = "1"
+        try:
+            T.export_onnx(net, plain)
+        finally:
+            del os.environ["FZ_ONNX_KHONG_GOP"]
+        ops_f = [n.op_type for n in onnx.load(fused).graph.node]
+        ops_p = [n.op_type for n in onnx.load(plain).graph.node]
+        check({"SkipLayerNormalization", "BiasGelu"} & set(ops_f) and len(ops_f) < len(ops_p),
+              f"the fused graph has fewer nodes ({len(ops_f)} < {len(ops_p)}) and uses the fused operators")
+        check(not ({"SkipLayerNormalization", "BiasGelu", "Gelu"} & set(ops_p)),
+              "FZ_ONNX_KHONG_GOP=1 keeps the plain graph")
+        of, op = _run_onnx(fused, x), _run_onnx(plain, x)
+        check(all(np.abs(a - b).max() <= t for a, b, t in zip(of, op, T.FUSE_TOLERANCE)),
+              "fused and plain graphs compute the same numbers (to the tolerance)")
+        check(not os.path.exists(fused + ".gop") and not os.path.exists(fused + ".data"), "no temporary file is left behind")
+        T.verify_onnx(fused, net)           # I/O contract, runtime, and numbers against PyTorch
+        check(True, "verify_onnx accepts the fused file")
+        # A fused graph that gives other numbers is dropped and the plain file stays (here: a zero tolerance).
+        before = open(plain, "rb").read()
+        saved = T.FUSE_TOLERANCE
+        T.FUSE_TOLERANCE = (-1.0, -1.0, -1.0)
+        try:
+            kept = T.fuse_onnx(plain, net)
+        finally:
+            T.FUSE_TOLERANCE = saved
+        check(kept is False and open(plain, "rb").read() == before and not os.path.exists(plain + ".gop"),
+              "a fused graph outside the tolerance is refused: the plain file is untouched")
+        # A failing optimiser keeps the export.
+        import onnxruntime.transformers.optimizer as O
+        real = O.optimize_model
+        O.optimize_model = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+        try:
+            kept2 = T.fuse_onnx(plain, net)
+        finally:
+            O.optimize_model = real
+        check(kept2 is False and open(plain, "rb").read() == before, "an optimiser error keeps the plain export")
+
+
 if __name__ == "__main__":
     for fn in (test_shapes_and_layout, test_relative_index, test_policy_loss_mask, test_mlh_loss,
                test_compute_losses, test_export, test_checkpoint_architecture, test_engine_refuses_net_without_mlh,
-               test_lay_mang_pt_only_release):
+               test_lay_mang_pt_only_release, test_fused_export):
         fn()
     print("\nRESULT:", "ALL PASS" if not FAILS else f"{len(FAILS)} FAILED: {FAILS}")
     sys.exit(1 if FAILS else 0)

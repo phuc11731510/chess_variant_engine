@@ -130,6 +130,30 @@ def main():
         rc, out = run(base + ["--games", "2", "--start-fen", "not a fen"], cwd)
         check(rc != 0 and "neither a readable file nor a valid FEN" in out, "a path that is no file and no FEN is refused")
 
+        print("\n[5] constant search: same playouts every move, c_puct 1.25, every move drawn with temperature 0.5")
+        rc, out = run(base + ["--games", "2", "--start-fen", book], cwd)
+        check(rc == 0 and "[arena] search: PUCT, 4 playouts every move (cpuct 1.25, no noise); "
+                          "every move drawn with temperature 0.5" in out,
+              "defaults: c_puct 1.25, temperature 0.5, no noise, the --visits playouts every move")
+        rc, out = run(base + ["--games", "2", "--start-fen", book, "--cpuct", "2", "--temperature", "0"], cwd)
+        check(rc == 0 and "(cpuct 2, no noise); every move drawn with temperature 0" in out,
+              "--cpuct and --temperature override the defaults")
+        rc, out = run(base + ["--games", "2", "--start-fen", book, "--temp-cutoff", "8"], cwd)
+        check(rc != 0 and "--temp-cutoff no longer exists" in out and "game 1/" not in out,
+              "the old opening flag --temp-cutoff is refused (no silent change of behaviour)")
+
+        def moves_of(extra, fen):
+            rc2, o2 = run([engine, "--arena", "--model-a", net, "--model-b", net, "--visits", "16", "--max-moves", "6",
+                           "--provider", "cpu", "--parallel", "1", "--arena-moves", "--games", "1",
+                           "--start-fen", fen] + extra, cwd)
+            m = re.search(r"moves: (.*)", o2)
+            return m.group(1).strip() if (rc2 == 0 and m) else None
+        # (Temperature 0 is not checked for repeatability: it draws evenly among the MOST visited moves, and a random
+        # net with 16 playouts leaves many moves tied on the maximum.)
+        sampled = {moves_of(["--temperature", "1"], fens[0]) for _ in range(6)}
+        check(None not in sampled and len(sampled) > 1,
+              f"temperature 1: moves are drawn with weight N (6 runs gave {len(sampled)} different games)")
+
     print("\n" + "=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")
     print("=" * 60)

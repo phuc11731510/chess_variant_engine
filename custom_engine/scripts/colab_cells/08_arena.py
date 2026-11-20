@@ -38,9 +38,14 @@ co_dung_mem = b"FZ_ARENA" in _bin
 # Arena --start-fen (2026-11-20): một binary cũ vẫn nhận cờ nhưng BỎ QUA nó trong arena (chơi từ thế cố định) mà
 # không báo gì, nên phải kiểm trước khi chạy, không đợi lỗi.
 co_the_arena = b"each played by a PAIR" in _bin
+# Arena tìm kiếm HẰNG (2026-11-20, chủ dự án chọn): 400 lượt thăm mỗi nước, c_puct 1,25, KHÔNG nhiễu, nhiệt độ 0,5 cho CẢ ván
+# (trọng số (N/Nmax)^(1/T), như tự đấu). Binary cũ vẫn nhận --temperature/--cpuct nhưng chọn nước theo kiểu cũ (lấy mẫu
+# 32 nước đầu rồi chọn nước nhiều lượt nhất, đọc --temp-cutoff), nên phải kiểm trước: binary mới in dòng "[arena] search: PUCT".
+co_arena_hang = b"[arena] search: PUCT" in _bin
 del _bin
 print("FZ_ARENA_DUNG_MEM=" + ("co" if co_dung_mem else "khong"))
 print("FZ_ARENA_THE_NGAU_NHIEN=" + ("co" if co_the_arena else "khong"))
+print("FZ_ARENA_TIM_KIEM_HANG=" + ("co" if co_arena_hang else "khong"))
 
 # Thế khởi đầu NGẪU NHIÊN như ô 04 (2026-11-20, chủ dự án chọn): mỗi CẶP ván (ván chẵn A cầm Trắng, ván lẻ A cầm
 # Đen) chơi cùng một thế, nên mỗi thế được chơi với cả hai màu -- hai bên của một thế ngẫu nhiên không đối xứng.
@@ -56,7 +61,7 @@ if not _thieu and co_the_arena:
 cmd = f"""bash {E}/run.sh --arena \
     --model-a {A_ONNX} \
     --model-b {B_ONNX} \
-    --games {GAMES} --visits 400 --temp-cutoff 32 --start-fen {BOOK} \
+    --games {GAMES} --visits 400 --temperature 0.5 --cpuct 1.25 --start-fen {BOOK} \
     --provider cuda --fixed-batch 32 --max-moves 400 --show-nps \
     --search-opt max-prefetch=0 --parallel {PARALLEL} --batch-aggregate \
     --search-opt minibatch-size=32 --search-opt task-workers=0"""
@@ -66,6 +71,9 @@ if co_dung_mem:
 if not co_the_arena:
     print("[!] Binary chưa hỗ trợ --start-fen cho arena (bản cũ, sẽ chơi từ thế cố định mà không báo) -- "
           "lấy binary mới ở ô 02 / Release v3.0.0 -- không chạy arena")
+elif not co_arena_hang:
+    print("[!] Binary chưa có arena tìm kiếm hằng (nhiệt độ 0,5 cả ván, c_puct 1,25: bản cũ chỉ lấy mẫu 32 nước đầu rồi chọn "
+          "nước nhiều lượt nhất) -- lấy binary mới ở ô 02 / Release v3.0.0 -- không chạy arena")
 elif _thieu:
     print(f"[!] Thiếu mạng {_thieu} (không tải / chuyển được từ Release NN_Model) -- không chạy arena")
 else:

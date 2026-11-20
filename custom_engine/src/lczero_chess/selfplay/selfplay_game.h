@@ -56,6 +56,11 @@ std::vector<double> MoveChoiceProbabilities(const std::vector<uint32_t>& visits,
 // when rounding leaves a gap at the top. -1 if every probability is 0.
 int SampleIndex(const std::vector<double>& probabilities, double toss);
 
+// The move played from `root` after a search: drawn with weight (N / N_max)^(1 / temperature) over the
+// root edges' visits (temperature <= 0: the most visited move; nothing visited: the last best edge).
+// The same rule in self-play and in the arena.
+classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, float temperature);
+
 // Plays one full self-play game from `start_fen` and writes a training record
 // for EVERY position (no filtering) to `out_filename` via TrainingDataWriter.
 //

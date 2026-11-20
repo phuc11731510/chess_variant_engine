@@ -36,9 +36,9 @@ struct EngineOptions {
     // trainer skips its policy target). 0 (the default) = every move is a full search.
     float sp_fast_prob=0.0f, sp_fast_cpuct=1.25f, sp_fast_noise_eps=0.125f;
     int sp_fast_visits=200;
-    // --temperature: self-play draws EVERY move with weight (N / N_max)^(1 / T) (0 = most visited).
+    // --temperature: self-play AND the arena draw EVERY move with weight (N / N_max)^(1 / T) (0 = most visited).
     float sp_temperature=0.5f;
-    bool sp_temp_cutoff_given=false;  // --temp-cutoff is the ARENA's opening length; --selfplay rejects it
+    bool sp_temp_cutoff_given=false;  // --temp-cutoff (the arena's old opening length) is now an error everywhere
     std::string sp_start_fen;
     float sp_resign_threshold=-2.0f, sp_no_resign_frac=0.10f;
     int sp_resign_consecutive=3, sp_resign_earliest=0;

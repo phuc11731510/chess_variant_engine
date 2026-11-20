@@ -152,10 +152,54 @@ def evaluate(net, loader, device, use_amp=False, channels_last=False):
 ONNX_OPSET = 18      # the engine's ONNX Runtime (1.18) understands up to opset 21; 18 has every operator used
 
 
-def export_onnx(net, path):
+FUSE_TOLERANCE = (1e-4, 1e-5, 1e-3)   # max |policy logit|, |WDL|, |mlh| the fused graph may differ from the plain one
+
+
+def fuse_onnx(path, net):
+    """Fuses the exported graph in place, staying FP32 and computing the same function: LayerNorm after a residual add
+    becomes SkipLayerNormalization, the GELU (written with Erf) and the bias before it become Gelu / BiasGelu (ONNX Runtime's
+    own passes leave most of them alone). This small transformer is bound by the memory traffic of its many small elementwise
+    kernels, not by the matrix products, so fusing them is worth about 30%: measured on a T4 in the engine (ORT 1.20.1,
+    16 games, 800/200 playouts) 1585 -> 2026 NN eval/s, 1690 -> 2164 nps, outputs equal to 7e-7.
+    Returns True if `path` now holds the fused graph. Any failure, or a fused graph that does not give the same numbers as
+    the plain one on realistic inputs, leaves `path` untouched (and says why)."""
+    fused = path + ".gop"
+    try:
+        import onnxruntime as ort
+        from onnxruntime.transformers import optimizer
+        d_model, heads = net.embed.out_features, net.blocks[0].attn.heads
+        om = optimizer.optimize_model(path, model_type="bert", num_heads=heads, hidden_size=d_model, use_gpu=False,
+                                      opt_level=1)
+        om.save_model_to_file(fused)
+        rng = np.random.default_rng(0)
+        x = (rng.random((8, NUM_PLANES, 10, 10)) < 0.08).astype(np.float32)
+        x[:, AUX_BASE:] = rng.random((8, AUX_PLANES, 1, 1)).astype(np.float32)
+        outs = []
+        for p in (path, fused):
+            sess = ort.InferenceSession(p, providers=["CPUExecutionProvider"])
+            outs.append(sess.run(["policy", "value", "mlh"], {"input": x}))
+        diffs = [float(np.abs(a - b).max()) for a, b in zip(*outs)]
+        if any(d > tol for d, tol in zip(diffs, FUSE_TOLERANCE)):
+            print(f"[export] fusion NOT used: the fused graph differs from the plain one by {diffs} (> {FUSE_TOLERANCE})")
+            return False
+        os.replace(fused, path)
+        print(f"[export] fused graph (SkipLayerNormalization / BiasGelu / Gelu, still FP32): "
+              f"max |policy logit| {diffs[0]:.1e}, |WDL| {diffs[1]:.1e}, |mlh| {diffs[2]:.1e} from the plain graph")
+        return True
+    except Exception as e:      # noqa: BLE001 - fusion is an optimisation: never lose the export because of it
+        print(f"[export] fusion skipped ({type(e).__name__}: {str(e)[:200]}); the plain graph is kept")
+        return False
+    finally:
+        if os.path.exists(fused):
+            os.remove(fused)
+
+
+def export_onnx(net, path, fuse=True):
     """FP32 ONNX with the three outputs the engine reads: policy (raw logits), value (softmaxed WDL), mlh.
     The new (dynamo) exporter first, as the plan chose; if it fails (say, a torch/onnxscript mismatch on
-    the machine), the legacy TorchScript exporter -- the graph is made of basic operators, so both work."""
+    the machine), the legacy TorchScript exporter -- the graph is made of basic operators, so both work.
+    With `fuse` (the default, unless the environment sets FZ_ONNX_KHONG_GOP=1) the graph is then fused by fuse_onnx (about 30% more
+    evaluations per second in the engine on a T4); the numbers stay the same to the tolerance in FUSE_TOLERANCE."""
     net.eval()
     exp = ExportNet(net).eval()
     dummy = torch.randn(2, NUM_PLANES, 10, 10)
@@ -182,6 +226,8 @@ def export_onnx(net, path):
         )
         how = "legacy exporter"
     print(f"[export] wrote {path} ({how}, opset {ONNX_OPSET}, FP32)")
+    if fuse and os.environ.get("FZ_ONNX_KHONG_GOP", "") != "1":
+        fuse_onnx(path, net)
 
 
 def verify_onnx(path, net=None):
