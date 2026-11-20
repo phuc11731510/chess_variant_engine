@@ -834,6 +834,28 @@ lại → tổng = số lớn nhất trong tên `games_genG_<số>.zip`, sinh ti
 
 ---
 
+### 9.2. Nhật ký từng cửa sổ (từ 2026-11-20)
+
+Mỗi cửa sổ Termux chạy `fz` (menu hoặc vòng lặp tự động) được bọc bởi `~/fz_nhat_ky.py` (do `lay_ve.sh` tải về): chương
+trình chạy **như bình thường**, nhưng **toàn bộ chữ hiện trên màn hình** (menu, câu hỏi và phím bạn gõ, vòng lặp, cả log engine
+kéo từ Colab về như `[selfplay] k/N ... nps`, `[nhip]`, `step`) được ghi vào **một tệp riêng của cửa sổ đó**:
+
+```
+~/fz_nhat_ky/cua_so_<ngày_giờ>_<pid>.log      mỗi dòng có tiền tố [HH:MM:SS]
+```
+
+- **Mỗi lần mở cửa sổ (hay mở lại) một tệp mới.** `<pid>` cũng là số đầu mỗi dòng của `~/.fz_tk/.tu_dong/nhat_ky.txt`, để đối chiếu.
+- **Tự cắt:** tệp vượt 20.000 dòng thì bỏ phần đầu, chỉ giữ 10.000 dòng cuối (dòng đầu ghi đã cắt bao nhiêu dòng). Màn hình không bị cắt.
+- **Tự xoá:** mỗi lần mở cửa sổ, xoá các tệp `cua_so_*.log` **không thay đổi quá 7 ngày** (nhật ký của cửa sổ đã đóng từ lâu). Chỉ đụng đúng
+  mẫu tên đó.
+- Mã màu và mã di chuyển con trỏ được bỏ; thanh tiến độ (`\r`) chỉ còn dòng cuối. Dòng đang chờ bạn gõ (câu hỏi) được ghi khi bạn bấm Enter.
+- **Không bao giờ làm hỏng cửa sổ:** không phải terminal (ssh không `-t`), thiếu `python3`, `fz_nhat_ky.py` hỏng hoặc chưa tải, hoặc bạn đặt
+  `FZ_KHONG_NHAT_KY=1` thì chương trình chạy thẳng như trước và không ghi gì. Lỗi lúc khởi tạo cũng chạy thẳng.
+- Xem từ máy tính: `ssh dt 'ls -t ~/fz_nhat_ky | head'` rồi `ssh dt 'tail -n 80 ~/fz_nhat_ky/<tệp>'`. Trên điện thoại: mở tệp bằng trình soạn thảo.
+- Cập nhật: `bash ~/lay_ve.sh` (tải thêm `~/fz_nhat_ky.py`; `menu.sh` mới có đoạn bọc ở đầu). Cửa sổ nào đang chạy bằng bản cũ thì chưa được ghi
+  cho tới khi mở lại.
+- Kiểm: `python/test_fz_nhat_ky.py` (48 mục; cần pty Unix: chạy trong WSL/Linux/Termux).
+
 ## 10. Giữ Termux sống khi tắt màn hình
 
 Engine chạy trên Colab nên không phụ thuộc điện thoại. Nhưng tiến trình **giữ máy khỏi bị thu hồi vì
