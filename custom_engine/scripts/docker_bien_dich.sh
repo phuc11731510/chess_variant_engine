@@ -38,8 +38,13 @@ if [ ! -f "$ED/third_party/$ORT/include/onnxruntime_cxx_api.h" ]; then
 fi
 
 cd "$ED"
+# -Donnxruntime_dlopen=true: the binary does not link libonnxruntime.so (neural/ort_loader.cc opens it when an ONNX backend is built),
+# so a Colab machine that runs only the CUDA runner never needs the ONNX Runtime package.
+OPTS="-Duse_cuda=true -Donnxruntime_dir=third_party/$ORT -Donnxruntime_dlopen=true ${FZ_CUDA:+-Duse_fzcuda=true}"
 if [ ! -f build-linux/build.ninja ]; then
-  meson setup build-linux --buildtype=release -Duse_cuda=true -Donnxruntime_dir="third_party/$ORT" ${FZ_CUDA:+-Duse_fzcuda=true}
+  meson setup build-linux --buildtype=release $OPTS
+else
+  meson configure build-linux $OPTS >/dev/null    # a build tree from before an option existed picks it up
 fi
 ninja -C build-linux
 BIN=$ED/build-linux/custom_engine
@@ -50,6 +55,11 @@ cmax=$(objdump -T "$BIN" | grep -o 'GLIBCXX_[0-9.]*' | sort -uV | tail -1)
 echo "[linux] can toi da: $gmax, $cmax"
 printf '%s\n%s\n' "$gmax" GLIBC_2.39 | sort -CV || { echo "[linux] LOI: can glibc moi hon Colab"; exit 1; }
 printf '%s\n%s\n' "$cmax" GLIBCXX_3.4.33 | sort -CV || { echo "[linux] LOI: can libstdc++ moi hon Colab"; exit 1; }
+
+# Binary khong lien ket dong voi ONNX Runtime (nap luc can): phai chay --test-uci khi KHONG co thu vien do tren duong dan.
+if ldd "$BIN" | grep -q libonnxruntime; then echo "[linux] LOI: binary van lien ket dong voi libonnxruntime"; exit 1; fi
+env -u LD_LIBRARY_PATH "$BIN" --test-uci 2>&1 | grep -q '\[PASS\]' || { echo "[linux] LOI: --test-uci khong chay khi thieu ONNX Runtime"; exit 1; }
+echo "[linux] binary chay duoc khi KHONG co ONNX Runtime (nap luc can)"
 
 # Chay thu tren CPU (may nay khong co GPU NVIDIA; phan CUDA chi kiem duoc tren Colab -- o 02 tu chay --test-uci).
 export LD_LIBRARY_PATH="$ED/third_party/$ORT/lib"

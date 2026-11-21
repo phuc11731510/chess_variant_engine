@@ -1,5 +1,6 @@
 #include "neural/onnx_backend.h"
 #include "neural/network_output.h"
+#include "neural/ort_loader.h"
 #include "chess/encoder.h"
 #include "neural/shared_params.h"
 #include "utils/exception.h"
@@ -294,8 +295,16 @@ void OnnxComputation::ComputeBlocking() {
 // OnnxBackend Implementation
 // ==========================================
 
+namespace {
+// ONNX Runtime must be loaded (a Linux build that dlopens it) before the first Ort:: object, and env_ is the first one.
+Ort::Env MakeEnv() {
+    EnsureOnnxRuntime();
+    return Ort::Env(ORT_LOGGING_LEVEL_WARNING, "ONNX_Backend");
+}
+}  // namespace
+
 OnnxBackend::OnnxBackend()
-    : env_(ORT_LOGGING_LEVEL_WARNING, "ONNX_Backend"),
+    : env_(MakeEnv()),
       memory_info_(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault)) {
 }
 

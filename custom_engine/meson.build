@@ -68,6 +68,14 @@ if get_option('use_cuda')
   message('CUDA Execution Provider ENABLED (-DUSE_CUDA)')
 endif
 
+# ONNX Runtime loaded at run time (Linux, Colab): the macro makes the ONNX Runtime C++ API wait for Ort::InitApi() instead of
+# calling OrtGetApiBase() while the program starts; neural/ort_loader.cc dlopens the library and calls it. Declared before any target.
+ort_dlopen = get_option('onnxruntime_dlopen') and host_machine.system() == 'linux'
+if ort_dlopen
+  add_project_arguments('-DORT_API_MANUAL_INIT', language: 'cpp')
+  message('ONNX Runtime will be loaded at run time (-DORT_API_MANUAL_INIT)')
+endif
+
 # CUDA network runner (-Duse_fzcuda=true): the language and the macro are declared here, before any target (meson refuses project
 # arguments after one); the library itself is declared just before the executable.
 if get_option('use_fzcuda')
@@ -153,6 +161,7 @@ search_sources = files(
 # Phase 4 neural backend source files
 neural_sources = files(
   'src/lczero_chess/neural/network_output.cc',
+  'src/lczero_chess/neural/ort_loader.cc',
   'src/lczero_chess/neural/onnx_backend.cc',
   'src/lczero_chess/neural/zero_heap_cache.cc',
   'src/lczero_chess/neural/batching_backend.cc'
@@ -198,7 +207,11 @@ engine_sources = files(
 
 # ONNX Runtime link dependency (platform-specific root resolved above).
 onnx_lib_dir = meson.current_source_dir() / onnx_root / 'lib'
-onnx_dep = cc.find_library('onnxruntime', dirs: onnx_lib_dir, required: true)
+if ort_dlopen
+  onnx_dep = declare_dependency(link_args: ['-ldl'])   # the library is opened by neural/ort_loader.cc, not linked
+else
+  onnx_dep = cc.find_library('onnxruntime', dirs: onnx_lib_dir, required: true)
+endif
 
 if host_machine.system() == 'windows'
   # Bundle the DLL next to the .exe (Windows loader needs it alongside).
