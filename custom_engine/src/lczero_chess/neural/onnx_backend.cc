@@ -118,9 +118,13 @@ float SoftmaxLegal(float* logits, size_t n, float temp, float max_logit, float* 
 
 bool IsWdlDistribution(const float* v) {
     // Written so that NaN fails every test.
+    // The sum tolerance is 5e-3 (was 1e-3): a softmax computed in half precision (TensorRT FP16, 2026-11-21) rounds each
+    // probability to about 5e-4, so the three add up to 1 +- 1e-3 (seen: 0.9839 + 0.0004 + 0.0168 = 1.0011). 5e-3 still
+    // refuses raw logits (almost never within 5e-3 of a sum of 1, and not all in [0, 1]) and NaN. The caller renormalises
+    // the three values to sum to exactly 1 before using them.
     for (int i = 0; i < 3; ++i)
-        if (!(v[i] >= -1e-4f && v[i] <= 1.0f + 1e-4f)) return false;
-    return std::fabs(v[0] + v[1] + v[2] - 1.0f) <= 1e-3f;
+        if (!(v[i] >= -1e-3f && v[i] <= 1.0f + 1e-3f)) return false;
+    return std::fabs(v[0] + v[1] + v[2] - 1.0f) <= 5e-3f;
 }
 
 size_t OnnxBufferSlots(bool fixed_batch, size_t fixed_batch_size) {
@@ -384,8 +388,10 @@ void OnnxComputation::ComputeBlocking() {
             std::cerr << msg.str() << std::endl;
             throw Exception(msg.str());
         }
-        if (res.q) *res.q = raw_value[0] - raw_value[2];
-        if (res.d) *res.d = raw_value[1];
+        // Renormalise (the sum may be off by up to 5e-3 from a half-precision softmax): q = (W - L) / (W + D + L), d = D / (W + D + L).
+        const float wdl_sum = raw_value[0] + raw_value[1] + raw_value[2];
+        if (res.q) *res.q = (raw_value[0] - raw_value[2]) / wdl_sum;
+        if (res.d) *res.d = raw_value[1] / wdl_sum;
         // 4.1b. Moves left, in plies (the network's linear output; lc0 clamps it at 0 where it is used). A
         // NaN here would spread through the search through the moves-left utility, so it is refused like
         // the other outputs.

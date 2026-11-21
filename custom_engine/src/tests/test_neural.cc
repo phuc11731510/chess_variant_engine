@@ -153,6 +153,10 @@ void TestHelpers() {
     EXPECT(lczero::IsWdlDistribution(edge), "1/0/0 rejected");
     EXPECT(!lczero::IsWdlDistribution(logits), "raw logits accepted as WDL");
     EXPECT(!lczero::IsWdlDistribution(sum_off), "sum 1.05 accepted");
+    // A half-precision softmax (TensorRT FP16) sums to 1 +- ~1e-3: accepted; a sum off by 1e-2 is not.
+    const float fp16_like[3] = {0.983887f, 0.000435591f, 0.0167999f}, sum_1e2[3] = {0.5f, 0.3f, 0.21f};
+    EXPECT(lczero::IsWdlDistribution(fp16_like), "FP16-rounded WDL (sum 1.0011) rejected");
+    EXPECT(!lczero::IsWdlDistribution(sum_1e2), "sum 1.01 accepted");
     EXPECT(!lczero::IsWdlDistribution(has_nan), "NaN accepted");
     EXPECT(!lczero::IsWdlDistribution(negative), "negative probability accepted");
 
