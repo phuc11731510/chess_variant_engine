@@ -62,10 +62,11 @@ static void PrintAsciiBoard(const Stockfish::Position& pos) {
             case Stockfish::PAWN: c='p';break;        case Stockfish::KNIGHT: c='n';break;
             case Stockfish::BISHOP: c='b';break;      case Stockfish::ROOK: c='r';break;
             case Stockfish::QUEEN: c='q';break;        case Stockfish::KING: c='k';break;
-            case Stockfish::AMAZON: c='a';break;       case Stockfish::CHANCELLOR: c='e';break;
-            case Stockfish::ARCHBISHOP: c='h';break;   case Stockfish::CENTAUR: c='m';break;
-            case Stockfish::CUSTOM_PIECE_1: c='v';break; case Stockfish::CUSTOM_PIECE_2: c='y';break;
-            case Stockfish::CUSTOM_PIECE_3: c='s';break; default: break;
+            // custom_10x10_variant (variant_setup.cc): customPiece1..7 = b m v y s c g
+            case Stockfish::CUSTOM_PIECE_1: c='b';break; case Stockfish::CUSTOM_PIECE_2: c='m';break;
+            case Stockfish::CUSTOM_PIECE_3: c='v';break; case Stockfish::CUSTOM_PIECE_4: c='y';break;
+            case Stockfish::CUSTOM_PIECE_5: c='s';break; case Stockfish::CUSTOM_PIECE_6: c='c';break;
+            case Stockfish::CUSTOM_PIECE_7: c='g';break; default: break;
         }
         return (Stockfish::color_of(pc) == Stockfish::WHITE) ? static_cast<char>(c - 32) : c;
     };

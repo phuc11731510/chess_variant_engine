@@ -120,15 +120,27 @@ public:
         if (pt == Stockfish::NO_PIECE_TYPE && Stockfish::type_of(m_) == Stockfish::EN_PASSANT)
             pt = Stockfish::ep_promotion_type(m_);   // ep capture landing on a promotion rank
         if (pt != Stockfish::NO_PIECE_TYPE) {
+            // The suffix is the promoted piece's FEN letter in custom_10x10_variant (variant_setup.cc):
+            // customPiece1 = b (Tuong), 2 = m (Centaur), 3 = v, 4 = y, 5 = s, 6 = c (Cannon), 7 = g (Grasshopper).
+            // It must be UNIQUE per promotion piece: the UCI layer finds a move by comparing these strings.
+            // (Until 2026-11-21 this was the table of the previous rules, so promotions to b, v, y, c, g were
+            // written bare or with another piece's letter.) test_board.cc compares it with the variant's own
+            // piece_to_char table.
             char pt_c = ' ';
-            if (pt == Stockfish::KNIGHT) pt_c = 'n';
-            else if (pt == Stockfish::BISHOP) pt_c = 'b';
-            else if (pt == Stockfish::ROOK) pt_c = 'r';
-            else if (pt == Stockfish::QUEEN) pt_c = 'q';
-            else if (pt == Stockfish::ARCHBISHOP) pt_c = 'h';
-            else if (pt == Stockfish::CENTAUR) pt_c = 'm';
-            else if (pt == Stockfish::CUSTOM_PIECE_1) pt_c = 'v';
-            else if (pt == Stockfish::CUSTOM_PIECE_2) pt_c = 'y';
+            switch (pt) {
+                case Stockfish::KNIGHT: pt_c = 'n'; break;
+                case Stockfish::BISHOP: pt_c = 'b'; break;   // not in this variant (bishop = -); kept for other rule sets
+                case Stockfish::ROOK: pt_c = 'r'; break;
+                case Stockfish::QUEEN: pt_c = 'q'; break;
+                case Stockfish::CUSTOM_PIECE_1: pt_c = 'b'; break;
+                case Stockfish::CUSTOM_PIECE_2: pt_c = 'm'; break;
+                case Stockfish::CUSTOM_PIECE_3: pt_c = 'v'; break;
+                case Stockfish::CUSTOM_PIECE_4: pt_c = 'y'; break;
+                case Stockfish::CUSTOM_PIECE_5: pt_c = 's'; break;
+                case Stockfish::CUSTOM_PIECE_6: pt_c = 'c'; break;
+                case Stockfish::CUSTOM_PIECE_7: pt_c = 'g'; break;
+                default: break;
+            }
             if (pt_c != ' ') s += pt_c;
         }
         return s;

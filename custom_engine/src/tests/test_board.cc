@@ -2,6 +2,7 @@
 //   --test-board, --test-adapter, --test-uci.
 
 #include "tests/test_common.h"
+#include <cctype>
 
 void run_board_tests() {
     std::cout << "\n========================================" << std::endl;
@@ -617,8 +618,10 @@ void run_uci_tests() {
         "4k5/10/10/10/10/10/10/10/10/R8K b - - 7+7 0 1",          // Black to move
         "5k4/10/10/10/10/10/10/10/10/5K4 w - - 7+7 0 1",
         "9k/10/10/10/10/10/10/7r2/2q7/K9 w - - 7+7 0 1",
+        "4k5/10/3P6/10/10/10/10/10/10/4K5 w - - 7+7 0 1",          // White pawn on d8: promotion to 9 pieces
+        "4k5/10/10/10/10/10/10/3p6/10/4K5 b - - 7+7 0 1",          // Black pawn on d3 -> d2 (mandatory promotion): the same, Black to move
     };
-    long total = 0;
+    long total = 0, promos = 0;
     int fail = 0;
     for (const auto& fen : fens) {
         auto tree = std::make_unique<lczero::classic::NodeTree>();  // heap: 512-ply history
@@ -630,6 +633,18 @@ void run_uci_tests() {
             const std::string uci = CanonicalMoveToUci(legal[i], black);
             // well-formed: 4-5 chars, file a-j, has a rank
             bool ok_fmt = uci.size() >= 4 && uci.size() <= 6 && uci[0] >= 'a' && uci[0] <= 'j';
+            // A promotion's suffix is the promoted piece's letter of the variant itself (piece_to_char): it was once
+            // the table of older rules, so several promotions were written bare or with another piece's letter.
+            const Stockfish::PieceType ppt = Stockfish::promotion_type(legal[i]);
+            if (ppt != Stockfish::NO_PIECE_TYPE) {
+                const char want = static_cast<char>(std::tolower(static_cast<unsigned char>(
+                    board.GetRawPosition().piece_to_char()[Stockfish::make_piece(Stockfish::BLACK, ppt)])));
+                if (uci.back() != want) {
+                    if (fail < 10) std::cerr << "[FAIL] promotion suffix of '" << uci << "': want '" << want << "'" << std::endl;
+                    ++fail;
+                }
+                ++promos;
+            }
             lczero::Move back = UciToCanonicalMove(board, uci, black);
             if (!ok_fmt || !(back == legal[i])) {
                 if (fail < 10) std::cerr << "[FAIL] round-trip '" << uci << "' (black=" << black << ")" << std::endl;
@@ -639,7 +654,12 @@ void run_uci_tests() {
         }
     }
     std::cout << "  move round-trip: " << (total - fail) << "/" << total
-              << " over " << fens.size() << " positions (incl Black-to-move)" << std::endl;
+              << " over " << fens.size() << " positions (incl Black-to-move, " << promos
+              << " promotion moves with unique suffixes = the variant's piece letters)" << std::endl;
+    if (promos != 18) {   // 9 promotion pieces x the White pawn d8 and the Black pawn d3
+        std::cerr << "[FAIL] expected 18 promotion moves in the promotion positions, saw " << promos << std::endl;
+        ++fail;
+    }
 
     // Absolute sanity: from startpos (White, no flip) a known pawn push exists.
     {
