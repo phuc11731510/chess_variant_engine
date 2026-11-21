@@ -16,8 +16,8 @@ class SearchRecord {
   /// Các dòng `info depth ... multipv k ...` (bỏ tiền tố "info "), theo thứ tự k tăng.
   final List<String> infos;
 
-  /// Các dòng RootStats `<nước> N <lượt> P <prior> Q <giá trị> [Pnet <prior thô>]`, nhiều lượt
-  /// nhất trước. P = prior lưu trong cây (tự đấu: đã trộn nhiễu Dirichlet); Pnet = prior của
+  /// Các dòng RootStats `<nước> N <lượt> P <prior> Q <giá trị> [Pnet <prior thô>]` (P và Q có thể vắng: nhật ký
+  /// dựng từ dữ liệu huấn luyện chỉ có N, và Q của nước đã đi / nước tốt nhất), nhiều lượt nhất trước. P = prior lưu trong cây (tự đấu: đã trộn nhiễu Dirichlet); Pnet = prior của
   /// mạng trước nhiễu (engine từ 2026-10-29; nhật ký cũ không có).
   final List<String> stats;
 
@@ -55,8 +55,8 @@ class SearchRecord {
       out.add(SearchCandidate._(
         move: mv,
         n: int.parse(m.group(2)!),
-        p: double.parse(m.group(3)!),
-        q: double.parse(m.group(4)!),
+        p: m.group(3) == null ? null : double.parse(m.group(3)!),
+        q: m.group(4) == null ? null : double.parse(m.group(4)!),
         pnet: m.group(5) == null ? null : double.parse(m.group(5)!),
         info: byMove[mv],
       ));
@@ -80,7 +80,7 @@ class SearchRecord {
   }
 
   static final RegExp _stat = RegExp(
-      r'^(\S+)\s+N\s+(\d+)\s+P\s+(-?[\d.]+)\s+Q\s+(-?[\d.]+)(?:\s+Pnet\s+(-?[\d.]+))?');
+      r'^(\S+)\s+N\s+(\d+)(?:\s+P\s+(-?[\d.]+))?(?:\s+Q\s+(-?[\d.]+))?(?:\s+Pnet\s+(-?[\d.]+))?');
   static final RegExp _header = RegExp(r'^---\s*nửa nước\s+(\d+).*?→\s*(\S+)');
 
   static int? _intField(List<String> infos, String key) {

@@ -5,12 +5,14 @@ import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 
 import 'config/launch_config.dart';
+import 'config/replay_library.dart';
 import 'config/replay_loader.dart';
 import 'domain/game_controller.dart';
 import 'engine/engine_service.dart';
 import 'engine/uci_process_engine.dart';
 import 'engine/native_ffi_engine.dart';
 import 'ui/board_view.dart';
+import 'ui/game_picker.dart';
 import 'ui/move_strip.dart';
 import 'ui/search_panel.dart';
 
@@ -64,6 +66,21 @@ class _BoardScreenState extends State<BoardScreen> {
   /// Tự đấu / xem lại: hiện bảng tìm kiếm bên phải (phím L bật / tắt).
   bool _showSearch = true;
 
+  /// Cột %N thứ hai của bảng tìm kiếm: luỹ thừa 1/T (1 = không hiện; 2 = T 0,5...). Rê chuột vào tiêu đề %N để chọn.
+  double _pctExp = 1;
+
+  /// Xem lại nhiều ván (--replay-dir): bảng các ván, ván đang mở, và bảng chọn ván bên trái (phím G bật / tắt).
+  ReplayLibrary? _library;
+  ReplayEntry? _current;
+  bool _showPicker = true;
+  final GlobalKey<GamePickerState> _pickerKey = GlobalKey<GamePickerState>();
+
+  /// Chế độ xem lại (một ván: --replay, nhiều ván: --replay-dir).
+  bool get _isReplay => widget.config.replayPath != null || widget.config.replayDir != null;
+
+  /// Bảng chọn ván chỉ hiện khi cửa sổ đủ rộng (bàn vuông + bảng này).
+  static const _pickerWidth = 330.0;
+
   /// Bảng tìm kiếm chỉ hiện khi cửa sổ đủ rộng: phần rộng hơn chiều cao (bàn vuông) >= mức này.
   static const _minSearchWidth = 300.0;
   static const _maxSearchWidth = 520.0;
@@ -75,28 +92,52 @@ class _BoardScreenState extends State<BoardScreen> {
       engine: (widget.engineFactory ?? _makeEngine)(widget.config),
       humanIsWhite: widget.config.humanPlaysWhite,
       selfPlay: widget.config.selfPlay,
-      replay: widget.config.replayPath != null,
+      replay: _isReplay,
       maxPlies: widget.config.selfPlay ? LaunchConfig.selfPlayMaxPlies : 0,
     );
     _start();
   }
 
   Future<void> _start() async {
-    final path = widget.config.replayPath;
-    if (path != null) {
+    final dir = widget.config.replayDir;
+    if (dir != null) {
       try {
-        final g = readReplayFile(path);
-        controller.searches.addAll(g.searches);
-        await controller.initReplay(g.moves, startFen: g.startFen);
+        final lib = ReplayLibrary.load(dir);
+        setState(() => _library = lib);
+        final want = widget.config.replayGame;
+        final first = lib.entries.firstWhere((e) => e.id == want, orElse: () => lib.entries.first);
+        await _openEntry(first);
       } catch (e) {
-        controller.status = 'Không đọc được biên bản $path: $e';
+        controller.status = 'Không đọc được thư mục xem lại $dir: $e';
         controller.notifyListeners();
       }
+      return;
+    }
+    final path = widget.config.replayPath;
+    if (path != null) {
+      await _openFile(path);
       return;
     }
     await controller.init();
     final demo = widget.config.demoMove;
     if (demo != null) await controller.playHumanUci(demo);
+  }
+
+  /// Nạp một nhật ký ván vào bộ điều khiển (xem lại).
+  Future<void> _openFile(String path) async {
+    try {
+      final g = readReplayFile(path);
+      await controller.initReplay(g.moves, startFen: g.startFen, replaySearches: g.searches);
+    } catch (e) {
+      controller.status = 'Không đọc được biên bản $path: $e';
+      controller.notifyListeners();
+    }
+  }
+
+  /// Mở một ván trong bảng chọn.
+  Future<void> _openEntry(ReplayEntry e) async {
+    setState(() => _current = e);
+    await _openFile(_library!.pathOf(e));
   }
 
   @override
@@ -123,10 +164,16 @@ class _BoardScreenState extends State<BoardScreen> {
     final c = controller;
     final ply = c.moves.length;
     final moveNo = ply ~/ 2 + 1;
-    if (widget.config.replayPath != null) {
-      return 'Xem lại ván: nửa nước ${c.shownPly}/$ply · '
-          '${c.autoPlaying ? "đang tự chạy (Space = dừng)" : "Space = tự chạy"} '
-          '· ← → / lăn chuột / bấm nước · L = bảng tìm kiếm';
+    if (_isReplay) {
+      final (w, b) = c.shownBoard.pieceCounts();
+      final cur = _current;
+      final game = cur == null ? '' : ' #${cur.id}';
+      final end = c.end;
+      final fin = end == null
+          ? ''
+          : ' · kết cục: ${_resultText(end.result)}, ${end.reasonText}';
+      return 'Xem lại ván$game: nửa nước ${c.shownPly}/$ply · quân T$w + Đ$b · '
+          '${c.autoPlaying ? "đang tự chạy (Space = dừng)" : "Space = tự chạy"}$fin';
     }
     final side = c.board.whiteToMove ? 'Trắng' : 'Đen';
     if (c.gameOver) return 'Hết ván sau $ply nửa nước';
@@ -149,7 +196,7 @@ class _BoardScreenState extends State<BoardScreen> {
   @override
   Widget build(BuildContext context) {
     final flipped = !widget.config.humanPlaysWhite;
-    final replay = widget.config.replayPath != null;
+    final replay = _isReplay;
     final selfPlay = widget.config.selfPlay || replay; // giao diện xem lại nước đi dùng chung
     return Scaffold(
       backgroundColor: const Color(0xFF302E2B),
@@ -173,6 +220,14 @@ class _BoardScreenState extends State<BoardScreen> {
             const SingleActivator(LogicalKeyboardKey.pageDown): _forward10,
             const SingleActivator(LogicalKeyboardKey.keyL): () =>
                 setState(() => _showSearch = !_showSearch),
+            if (_library != null) ...{
+              const SingleActivator(LogicalKeyboardKey.bracketLeft): () =>
+                  _pickerKey.currentState?.selectRelative(-1),
+              const SingleActivator(LogicalKeyboardKey.bracketRight): () =>
+                  _pickerKey.currentState?.selectRelative(1),
+              const SingleActivator(LogicalKeyboardKey.keyG): () =>
+                  setState(() => _showPicker = !_showPicker),
+            },
           },
         },
         child: Focus(
@@ -266,7 +321,10 @@ class _BoardScreenState extends State<BoardScreen> {
                           child: Text(
                             controller.plyCutoff
                                 ? 'Hòa (đủ ${LaunchConfig.selfPlayMaxPlies} nửa nước, như self-play)'
-                                : '${_resultText(controller.result)} · ${controller.moves.length} nửa nước',
+                                : (controller.end != null
+                                      ? '${_resultText(controller.result)} · ${controller.end!.reasonText} · '
+                                            'còn ${controller.end!.pieces} quân · ${controller.moves.length} nửa nước'
+                                      : '${_resultText(controller.result)} · ${controller.moves.length} nửa nước'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
@@ -296,7 +354,7 @@ class _BoardScreenState extends State<BoardScreen> {
               if (!selfPlay) return stack;
               // Tự đấu: bàn ở trên, thanh nước đi (bấm / mũi tên / lăn chuột để xem lại) ở dưới.
               // Bên phải bàn: lần tìm kiếm đã chọn nước đang xem (khi cửa sổ đủ rộng).
-              return Column(
+              final main = Column(
                 children: [
                   Expanded(
                     child: LayoutBuilder(
@@ -310,6 +368,8 @@ class _BoardScreenState extends State<BoardScreen> {
                             SizedBox(
                               width: w,
                               child: SearchPanel(
+                                exponent: _pctExp,
+                                onExponentChanged: (e) => setState(() => _pctExp = e),
                                 record: controller.shownSearch,
                                 ply: ply,
                                 played: ply == 0 ? null : controller.moves[ply - 1],
@@ -325,6 +385,7 @@ class _BoardScreenState extends State<BoardScreen> {
                     moves: controller.moves,
                     shownPly: controller.shownPly,
                     live: !controller.inReview,
+                    checks: controller.checksGiven,
                     onSelect: controller.goToPly,
                     onFirst: controller.goStart,
                     onPrev: controller.stepBack,
@@ -332,6 +393,31 @@ class _BoardScreenState extends State<BoardScreen> {
                     onLast: controller.goLive,
                   ),
                 ],
+              );
+              final lib = _library;
+              if (lib == null) return main;
+              return LayoutBuilder(
+                builder: (context, box) {
+                  // Chỗ cho bảng chọn ván: phần rộng hơn chiều cao (bàn vuông) trừ chỗ bảng tìm kiếm tối thiểu.
+                  final room = box.maxWidth - box.maxHeight - _minSearchWidth;
+                  if (!_showPicker || room < _pickerWidth) return main;
+                  return Row(
+                    children: [
+                      SizedBox(
+                        width: _pickerWidth,
+                        child: ExcludeFocus(
+                          child: GamePicker(
+                            key: _pickerKey,
+                            library: lib,
+                            selectedId: _current?.id,
+                            onSelect: _openEntry,
+                          ),
+                        ),
+                      ),
+                      Expanded(child: main),
+                    ],
+                  );
+                },
               );
             },
           ),

@@ -9,7 +9,7 @@ import 'package:fairyzero_gui/domain/game_controller.dart';
 import 'package:fairyzero_gui/engine/engine_service.dart';
 
 const _startPlacement =
-    'vrhbakberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBAKBERV';
+    'vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV';
 
 /// Engine giả: bàn cố định, lật lượt khi applyMove; ghi lại các lệnh.
 class FakeEngine implements EngineService {
@@ -81,8 +81,12 @@ void main() {
 
   test('BoardState.fromFen startpos dung o + luot + check', () {
     final b = BoardState.fromFen(kVariantStartposFen);
-    expect(b.at(0, 5)!.letter, 'K'); // f1 vua Trắng
-    expect(b.at(9, 5)!.letter, 'k'); // f10 vua Đen
+    expect(b.at(0, 5)!.letter, 'K'); // f1 Hoàng gia Trắng
+    expect(b.at(9, 5)!.letter, 'k'); // f10 Hoàng gia Đen
+    expect(b.at(0, 2)!.letter, 'C'); // c1 Pháo Trắng
+    expect(b.at(0, 7)!.letter, 'G'); // h1 Grasshopper Trắng
+    expect(b.at(9, 2)!.letter, 'c'); // c10 Pháo Đen
+    expect(b.at(9, 7)!.letter, 'g'); // h10 Grasshopper Đen
     expect(b.whiteToMove, true);
     expect(b.checksWhite, 7);
     expect(b.checksBlack, 7);
@@ -102,10 +106,10 @@ void main() {
     expect(m.to, const Sq(1, 4)); // b5
     expect(m.promo, isNull);
 
-    final p = UciMove.tryParse('f2f1h')!;
+    final p = UciMove.tryParse('f2f1g')!;
     expect(p.from, const Sq(5, 1));
     expect(p.to, const Sq(5, 0));
-    expect(p.promo, 'h');
+    expect(p.promo, 'g');
 
     final ten = UciMove.tryParse('e10i6')!;
     expect(ten.from, const Sq(4, 9)); // e10
@@ -150,7 +154,7 @@ void main() {
     // tốt Trắng ở b9, đi lên b10 (phong cấp 3 lựa chọn).
     final fake = FakeEngine(
       placement: '10/1P8/10/10/10/10/10/10/10/10',
-      legalList: const ['b9b10b', 'b9b10r', 'b9b10y'], // luật mới: có 'r', hết 'h'
+      legalList: const ['b9b10b', 'b9b10r', 'b9b10y'],
     );
     final c = GameController(engine: fake, humanIsWhite: true);
     await c.init();

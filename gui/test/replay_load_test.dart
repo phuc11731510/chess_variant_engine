@@ -25,8 +25,8 @@ class ReplayEngine implements EngineService {
     final k = played % 10;
     final left = k == 0 ? '' : '$k';
     final right = k == 9 ? '' : '${9 - k}';
-    return 'vrhbqkberv/msysnnsysm/yppppppppy/10/10/${left}P$right/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV '
-        '${played % 2 == 0 ? "w" : "b"} - - 8+8 0 1';
+    return 'vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/${left}P$right/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV '
+        '${played % 2 == 0 ? "w" : "b"} - - 7+7 0 1';
   }
 
   @override

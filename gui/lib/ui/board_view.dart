@@ -332,8 +332,8 @@ class HighlightPainter extends CustomPainter {
       !identical(old.board, board);
 }
 
-/// Một quân SVG căn giữa ô. Quân royal (vua) được dán [PieceAssets.royalSymbol]
-/// ở góc dưới-phải và (nếu có) số chiếu còn lại in trên mặt.
+/// Một quân SVG căn giữa ô. Quân royal (Hoàng gia) có ảnh riêng; nếu có số chiếu còn
+/// lại ([royalCheckLabel]) thì in số đó lên mặt quân.
 class PieceWidget extends StatelessWidget {
   final Piece piece;
   final double size;
@@ -354,41 +354,29 @@ class PieceWidget extends StatelessWidget {
       fit: BoxFit.contain,
     );
 
-    if (!PieceAssets.isRoyal(piece.letter)) {
+    if (!PieceAssets.isRoyal(piece.letter) || royalCheckLabel == null) {
       return Padding(padding: EdgeInsets.all(pad), child: svg);
     }
 
-    final symSize = size * 0.40;
     return Padding(
       padding: EdgeInsets.all(pad),
       child: Stack(
         children: [
           Positioned.fill(child: svg),
-          if (royalCheckLabel != null)
-            Align(
-              alignment: const Alignment(0.0, -0.10),
-              child: Text(
-                '$royalCheckLabel',
-                style: TextStyle(
-                  fontSize: size * 0.52,
-                  fontWeight: FontWeight.bold,
-                  height: 1.0,
-                  color:
-                      (piece.isWhite
-                              ? const Color(0xFF333333)
-                              : const Color(0xFFCCCCCC))
-                          .withValues(alpha: 0.80),
-                ),
+          Align(
+            alignment: const Alignment(0.0, 0.18),
+            child: Text(
+              '$royalCheckLabel',
+              style: TextStyle(
+                fontSize: size * 0.40,
+                fontWeight: FontWeight.bold,
+                height: 1.0,
+                color:
+                    (piece.isWhite
+                            ? const Color(0xFF1A1A1A)
+                            : const Color(0xFFF2F2F2))
+                        .withValues(alpha: 0.90),
               ),
-            ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            width: symSize,
-            height: symSize,
-            child: SvgPicture.asset(
-              PieceAssets.royalSymbol,
-              fit: BoxFit.contain,
             ),
           ),
         ],
