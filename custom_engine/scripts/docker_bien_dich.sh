@@ -44,7 +44,7 @@ OPTS="-Duse_cuda=true -Donnxruntime_dir=third_party/$ORT -Donnxruntime_dlopen=tr
 if [ ! -f build-linux/build.ninja ]; then
   meson setup build-linux --buildtype=release $OPTS
 else
-  meson configure build-linux $OPTS >/dev/null    # a build tree from before an option existed picks it up
+  meson setup --reconfigure build-linux --buildtype=release $OPTS >/dev/null   # a build tree from before an option existed picks it up
 fi
 ninja -C build-linux
 BIN=$ED/build-linux/custom_engine
