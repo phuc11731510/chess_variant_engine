@@ -1,31 +1,36 @@
-/// Ánh xạ ký tự quân (FEN) → đường dẫn asset SVG trong `fairyzero_piece_svg/`.
+/// Ánh xạ ký tự quân (FEN) → đường dẫn asset SVG trong `assets/pieces/`.
 ///
 /// Quy ước tên file: `<color>-<name>-<L>.svg` với color ∈ {white,black},
 /// L = ký tự HOA cho Trắng / thường cho Đen.
 ///
-/// Ghi chú đặc biệt: quân ROYAL (`k`/`K`) và centaur (`m`/`M`) DÙNG CHUNG art
-/// "general" (file `*-general-M/m.svg`). Quân royal được vẽ kèm [royalSymbol]
-/// dán ở góc dưới-phải để đánh dấu là "General royal".
+/// Bộ quân của biến thể hiện tại (khớp `src/app/variant_setup.cc` của engine):
+/// Tốt p, Mã n, Tượng b, Xe r, Hậu q, Hoàng gia k (quân royal, đếm chiếu), Centaur m,
+/// Wildebeest v, Alibaba y, Sergeant s, Pháo c, Grasshopper g. Không còn Archbishop,
+/// Chancellor, Amazon.
 class PieceAssets {
   static const _dir = 'assets/pieces';
 
+  /// Tên trong tên file ảnh. (Tên `grasshoper` viết thiếu một chữ p là tên tệp đã đặt,
+  /// giữ nguyên để khỏi đổi tên ảnh.)
   static const Map<String, String> _names = {
     'p': 'pawn',
     'n': 'knight',
-    'b': 'bishop',
+    'b': 'bishop', // customPiece1 (BmW)
     'r': 'rook',
-    'q': 'queen', // thế xuất phát hiện tại dùng Hậu (thay Amazon)
-    'a': 'amazon', // engine vẫn định nghĩa, không còn trong thế xuất phát
-    'e': 'chancellor',
-    'h': 'archbishop',
-    'y': 'alibaba', // customPiece2 (AD)
-    's': 'sergeant', // customPiece3
-    'v': 'wildebeest', // customPiece1 (CN)
-    'm': 'general', // centaur (non-royal)
-    'k': 'general', // royal: dùng art general + overlay royalSymbol
+    'q': 'queen',
+    'k': 'king', // Hoàng gia (royal)
+    'm': 'general', // Centaur (KnN)
+    'v': 'wildebeest', // customPiece3 (CN)
+    'y': 'alibaba', // customPiece4 (ADmW)
+    's': 'sergeant', // customPiece5
+    'c': 'cannon', // Pháo (mRcpRW); ảnh vector hoá từ PNG bằng tool/png_to_piece_svg.py
+    'g': 'grasshoper', // Grasshopper (gQK)
   };
 
-  /// Quân royal (vua) — cần overlay [royalSymbol].
+  /// Các loại quân có ảnh (chữ thường).
+  static Iterable<String> get pieceTypes => _names.keys;
+
+  /// Quân royal (Hoàng gia) — được in số chiếu còn lại lên mặt.
   static bool isRoyal(String letter) => letter.toLowerCase() == 'k';
 
   /// Đường dẫn SVG cho quân theo ký tự FEN.
@@ -34,12 +39,7 @@ class PieceAssets {
     final t = letter.toLowerCase();
     final name = _names[t] ?? 'pawn';
     final color = isWhite ? 'white' : 'black';
-    // Royal (`k`) dùng file art của general (`m`/`M`).
-    final base = (t == 'k') ? 'm' : t;
-    final fl = isWhite ? base.toUpperCase() : base;
+    final fl = isWhite ? t.toUpperCase() : t;
     return '$_dir/$color-$name-$fl.svg';
   }
-
-  /// Biểu tượng đánh dấu quân royal (dán góc dưới-phải).
-  static const String royalSymbol = '$_dir/royal_symbol.svg';
 }

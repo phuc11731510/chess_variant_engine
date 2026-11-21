@@ -24,8 +24,8 @@ class GatedEngine implements EngineService {
     final left = k == 0 ? '' : '$k';
     final right = k == 9 ? '' : '${9 - k}';
     final row = '${left}P$right';
-    return 'vrhbqkberv/msysnnsysm/yppppppppy/10/10/$row/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV '
-        '${played % 2 == 0 ? "w" : "b"} - - 8+8 0 1';
+    return 'vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/$row/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV '
+        '${played % 2 == 0 ? "w" : "b"} - - 7+7 0 1';
   }
 
   /// Thả nước tiếp theo cho vòng tự đấu.

@@ -15,6 +15,10 @@ class MoveStrip extends StatefulWidget {
   /// Đang xem trực tiếp (thế mới nhất, dải tự cuộn theo nước mới).
   final bool live;
 
+  /// Số lần chiếu mà mỗi nước tạo ra (cùng độ dài [moves]; null = không hiện). Hiện thành `+`, `++`, `+++`
+  /// cạnh nước đi: ván thắng bằng 7 lần chiếu thì thấy ngay nước nào chiếu.
+  final List<int>? checks;
+
   final ValueChanged<int> onSelect;
   final VoidCallback onFirst;
   final VoidCallback onPrev;
@@ -26,6 +30,7 @@ class MoveStrip extends StatefulWidget {
     required this.moves,
     required this.shownPly,
     required this.live,
+    this.checks,
     required this.onSelect,
     required this.onFirst,
     required this.onPrev,
@@ -134,9 +139,12 @@ class _MoveStripState extends State<MoveStrip> {
                     itemBuilder: (context, i) {
                       final white = i % 2 == 0;
                       final selected = i + 1 == p;
+                      final chk = (widget.checks != null && i < widget.checks!.length)
+                          ? '+' * widget.checks![i]
+                          : '';
                       final label = white
-                          ? '${i ~/ 2 + 1}. ${widget.moves[i]}'
-                          : widget.moves[i];
+                          ? '${i ~/ 2 + 1}. ${widget.moves[i]}$chk'
+                          : '${widget.moves[i]}$chk';
                       return InkWell(
                         canRequestFocus: false,
                         onTap: () => widget.onSelect(i + 1),
@@ -149,6 +157,8 @@ class _MoveStripState extends State<MoveStrip> {
                           decoration: BoxDecoration(
                             color: selected
                                 ? const Color(0xFF8A6D1F)
+                                : chk.isNotEmpty
+                                ? const Color(0xFF5B2B2B)
                                 : (white
                                       ? const Color(0xFF34322F)
                                       : const Color(0xFF2C2A27)),

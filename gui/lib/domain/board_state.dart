@@ -5,7 +5,7 @@ class Piece {
 
   bool get isWhite => letter == letter.toUpperCase();
 
-  /// Ký tự loại quân (luôn thường): p n b r q k m a e h y s v.
+  /// Ký tự loại quân (luôn thường): p n b r q k m v y s c g.
   String get type => letter.toLowerCase();
 }
 
@@ -40,6 +40,18 @@ class BoardState {
 
   Piece? at(int r, int f) =>
       (r >= 0 && r < 10 && f >= 0 && f < 10) ? cells[r][f] : null;
+
+  /// Số quân còn trên bàn: (Trắng, Đen).
+  (int, int) pieceCounts() {
+    int w = 0, b = 0;
+    for (final row in cells) {
+      for (final p in row) {
+        if (p == null) continue;
+        p.isWhite ? w++ : b++;
+      }
+    }
+    return (w, b);
+  }
 
   /// Parse FEN (đầy đủ hoặc chỉ trường bố trí quân). FEN liệt kê hàng 10 → hàng 1.
   /// Chuỗi rỗng/số: số ô trống (xử lý cả số hai chữ số "10").
@@ -100,6 +112,9 @@ class BoardState {
 }
 
 /// FEN xuất phát của biến thể (dùng làm fallback khi engine chưa sẵn sàng).
-/// Phải khớp ChessBoard::kStartposFen của engine (src/lczero_chess/chess/board.cc).
+/// Phải khớp ChessBoard::kStartposFen của engine (src/lczero_chess/chess/board.cc):
+/// thế TẠM, là thế cũ với Archbishop (cột c) và Chancellor (cột h) thay bằng Pháo `c` và
+/// Grasshopper `g`; không nhập thành, 7 lần chiếu mỗi bên. Chủ dự án chọn thế thật sau thì
+/// sửa cả hai nơi.
 const String kVariantStartposFen =
-    'vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1';
+    'vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV w - - 7+7 0 1';

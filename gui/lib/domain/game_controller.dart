@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../engine/engine_service.dart';
 import 'board_state.dart';
+import 'game_end.dart';
 import 'search_record.dart';
 import 'uci_move.dart';
 
@@ -108,6 +109,12 @@ class GameController extends ChangeNotifier {
   BoardState board = BoardState.fromFen(kVariantStartposFen);
   List<String> legal = [];
   GameResult result = GameResult.undecided;
+
+  /// Xem lại: vì sao ván kết thúc và còn bao nhiêu quân ở cuối (null nếu chưa nạp xong).
+  GameEnd? end;
+
+  /// Lần nạp ván xem lại hiện hành: nạp mới thì lần cũ (đang chờ engine) bỏ dở.
+  int _loadGen = 0;
 
   Sq? selected; // ô nguồn đang chọn
   Set<int> targets = {}; // flat các ô đích hợp lệ của ô đang chọn
@@ -273,8 +280,9 @@ class GameController extends ChangeNotifier {
 
   // --- nội bộ ---
 
-  // Đổi luật: bỏ Archbishop 'h', thêm Rook 'r'. Thứ tự hiển thị bảng chọn phong cấp.
-  static const _promoOrder = ['r', 'v', 'm', 'y', 'n', 'b'];
+  // Quân được phong (hàng 9 bắt buộc: n b r q m v y c g; hàng 8 tuỳ chọn: n b y c g),
+  // xếp từ mạnh đến yếu để hiển thị bảng chọn phong cấp.
+  static const _promoOrder = ['q', 'r', 'm', 'v', 'c', 'g', 'y', 'n', 'b'];
 
   List<String> _orderPromos(List<String> letters) {
     final ls = letters.where((s) => s.isNotEmpty).toSet().toList();
@@ -372,14 +380,36 @@ class GameController extends ChangeNotifier {
 
   /// Xem lại: nạp [replayMoves] (từ thế [startFen], null = thế đầu của biến thể) và dừng ở thế xuất phát.
   /// Mỗi nước được kiểm là hợp lệ; gặp nước sai thì dừng ở đó và báo ở [status].
-  Future<void> initReplay(List<String> replayMoves, {String? startFen}) async {
+  /// Gọi lại để nạp ván khác (trạng thái ván cũ bị xoá; chỉ lần gọi sau cùng có hiệu lực).
+  Future<void> initReplay(List<String> replayMoves,
+      {String? startFen, Map<int, SearchRecord>? replaySearches}) async {
+    final gen = ++_loadGen;
+    _stopAuto();
+    moves.clear();
+    fens.clear();
+    searches
+      ..clear()
+      ..addAll(replaySearches ?? const {});
+    lastMove = null;
+    viewPly = null;
+    _viewBoard = null;
+    _viewBoardPly = -1;
+    status = null;
+    result = GameResult.undecided;
+    end = null;
+    legal = [];
+    selected = null;
+    targets = {};
+    plyCutoff = false;
+    notifyListeners();
     try {
       await engine.start();
       await engine.newGame(fen: startFen);
+      if (_disposed || gen != _loadGen) return;
       fens.add(await engine.currentFen());
       for (final m in replayMoves) {
         final lg = await engine.legalMoves();
-        if (_disposed) return;
+        if (_disposed || gen != _loadGen) return;
         if (!lg.contains(m)) {
           status =
               'Nước thứ ${moves.length + 1} ($m) không hợp lệ trong thế này — chỉ xem được ${moves.length} nước đầu';
@@ -389,15 +419,45 @@ class GameController extends ChangeNotifier {
         _recordMove(m);
         fens.add(await engine.currentFen());
       }
+      if (_disposed || gen != _loadGen) return;
       board = BoardState.fromFen(fens.last);
       legal = [];
       result = await engine.gameResult();
+      final legalAtEnd = await engine.legalMoves();
+      if (_disposed || gen != _loadGen) return;
+      end = GameEnd.of(fens.last, result, legalAtEnd.length);
       goToPly(0);
     } catch (e) {
-      if (_disposed) return;
+      if (_disposed || gen != _loadGen) return;
       status = 'Loi engine: $e';
       notifyListeners();
     }
+  }
+
+  List<int> _checksCache = const [];
+  int _checksCacheFens = -1;
+
+  /// Số lần chiếu của mọi nước đã đi ([checksGivenAt] cho từng nước; tính lại khi có thế mới).
+  List<int> get checksGiven {
+    if (_checksCacheFens != fens.length) {
+      _checksCache = [for (int i = 0; i < moves.length; i++) checksGivenAt(i)];
+      _checksCacheFens = fens.length;
+    }
+    return _checksCache;
+  }
+
+  /// Số lần chiếu mà nước thứ [index] (0 = nước đầu) đã tạo ra, đọc từ trường số chiếu "A+B" của FEN
+  /// trước và sau nước đó (đếm chiếu: chiếu đôi = 2, chiếu ba = 3). 0 nếu không đọc được.
+  int checksGivenAt(int index) {
+    if (index < 0 || index + 1 >= fens.length) return 0;
+    final before = BoardState.fromFen(fens[index]);
+    final after = BoardState.fromFen(fens[index + 1]);
+    final whiteMoved = before.whiteToMove;
+    final b = whiteMoved ? before.checksWhite : before.checksBlack;
+    final a = whiteMoved ? after.checksWhite : after.checksBlack;
+    if (a == null || b == null) return 0;
+    final d = b - a;
+    return d > 0 ? d : 0;
   }
 
   /// Xem lại: bật/tắt tự chạy. Đang ở nước cuối thì chạy lại từ đầu.

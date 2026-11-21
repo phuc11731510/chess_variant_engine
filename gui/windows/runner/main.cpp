@@ -21,10 +21,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
-  // Tự đấu / xem lại: thêm chỗ bên phải bàn cho bảng tìm kiếm (lib/ui/search_panel.dart).
+  // Tự đấu / xem lại: thêm chỗ bên phải bàn cho bảng tìm kiếm (lib/ui/search_panel.dart);
+  // xem lại nhiều ván (--replay-dir): thêm cả chỗ bên trái cho bảng chọn ván (lib/ui/game_picker.dart).
   int extra_width = 0;
   for (const auto& a : command_line_arguments) {
     if (a == "--self-play" || a == "--replay") extra_width = 440;
+    if (a == "--replay-dir") extra_width = 440 + 330;
   }
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
