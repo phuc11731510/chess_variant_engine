@@ -4,6 +4,10 @@ E_, P_, N_, R_, Q_, K_, B_, M_, V_, Y_, S_, C_, G_ = range(13)
 CH = ".pnrqkbmvyscg"
 W, BL = 0, 1
 
+# N of the N-checks rule: the "N+N" field of every FEN to_fen() writes, hence of every self-play and arena start
+# position (the engine reads N from the FEN). 8 since 2026-11-22 (7 from 2026-11-16 to 2026-11-21, 8 before that).
+N_CHECKS = 8
+
 KNIGHT = [(1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1), (-1, 2)]
 CAMEL = [(1, 3), (3, 1), (3, -1), (1, -3), (-1, -3), (-3, -1), (-3, 1), (-1, 3)]
 KSTEP = [(0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1)]
@@ -313,7 +317,7 @@ def to_fen(b, stm="w"):
         if e:
             row += str(e)
         rows.append(row)
-    return "/".join(rows) + f" {stm} - - 7+7 0 1"
+    return "/".join(rows) + f" {stm} - - {N_CHECKS}+{N_CHECKS} 0 1"
 
 
 def from_fen(fen):

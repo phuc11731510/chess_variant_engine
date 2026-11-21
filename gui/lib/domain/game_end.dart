@@ -3,9 +3,10 @@ import 'board_state.dart';
 
 /// Vì sao một ván kết thúc. Cùng thứ tự kiểm với `PositionHistory::ComputeGameResult`
 /// (custom_engine/src/lczero_chess/chess/position.cc) và `ly_do()` của
-/// custom_engine/python/xem_du_lieu.py: 7 lần chiếu, luật 50 nước, lặp thế, hết nước đi.
+/// custom_engine/python/xem_du_lieu.py: đủ số lần chiếu, luật 50 nước, lặp thế, hết nước đi.
 enum EndReason {
-  /// Một bên đã chiếu đủ 7 lần (số chiếu còn lại về 0).
+  /// Một bên đã chiếu đủ số lần của luật (số chiếu còn lại về 0). N là 8 từ 2026-11-22, 7 ở các ván cũ hơn:
+  /// chữ hiện ra không ghi số để đúng với cả hai loại ván.
   checks,
 
   /// Bên tới lượt không còn nước đi hợp lệ: bên đó THUA (dù bị chiếu hay không).
@@ -63,7 +64,7 @@ class GameEnd {
     final loser = result == GameResult.white ? 'Đen' : 'Trắng';
     switch (reason) {
       case EndReason.checks:
-        return '$winner đủ 7 lần chiếu';
+        return '$winner đủ số lần chiếu';
       case EndReason.noMoves:
         return '$loser hết nước đi (thua)';
       case EndReason.rule50:

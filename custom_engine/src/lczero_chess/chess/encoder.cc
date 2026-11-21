@@ -166,7 +166,8 @@ void EncodePositionForNN(
     // Mẫu số 10 CỐ Ý không bằng N của luật: nó là trần Fairy-SF biểu diễn được
     // (CHECKS_NB = 11, và FEN ghi 1 chữ số nên N tối đa 9), nên mọi N khả thi
     // (0-9) đều cho giá trị ≤ 1.0. Nhờ vậy thang chuẩn hóa ĐỘC LẬP với luật:
-    // đổi N-checks không cần sửa encoder. Luật hiện tại là 7-checks.
+    // đổi N-checks không cần sửa encoder (7 → 8 ngày 2026-11-22 không đổi dạng đầu vào, chỉ đổi giá trị
+    // khởi đầu từ 0.7 lên 0.8). Luật hiện tại là 8-checks.
     (*output_planes)[kAuxPlaneBase + kAuxChecksUs].Fill(static_cast<float>(raw_pos.checks_remaining(us)) / 10.0f);
     (*output_planes)[kAuxPlaneBase + kAuxChecksThem].Fill(static_cast<float>(raw_pos.checks_remaining(them)) / 10.0f);
 }

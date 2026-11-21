@@ -114,7 +114,7 @@ class BoardState {
 /// FEN xuất phát của biến thể (dùng làm fallback khi engine chưa sẵn sàng).
 /// Phải khớp ChessBoard::kStartposFen của engine (src/lczero_chess/chess/board.cc):
 /// thế TẠM, là thế cũ với Archbishop (cột c) và Chancellor (cột h) thay bằng Pháo `c` và
-/// Grasshopper `g`; không nhập thành, 7 lần chiếu mỗi bên. Chủ dự án chọn thế thật sau thì
-/// sửa cả hai nơi.
+/// Grasshopper `g`; không nhập thành, 8 lần chiếu mỗi bên (7 từ 2026-11-16 đến 2026-11-21).
+/// Chủ dự án chọn thế thật sau thì sửa cả hai nơi.
 const String kVariantStartposFen =
-    'vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV w - - 7+7 0 1';
+    'vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV w - - 8+8 0 1';

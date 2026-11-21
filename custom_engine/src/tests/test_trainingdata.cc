@@ -226,7 +226,7 @@ void run_roundtrip_emit(const std::string& prefix, const std::string& weights_pa
         }
     };
 
-    // Case 0: startpos (white to move, castling BIbi, checks 7+7, no ep).
+    // Case 0: startpos (white to move, castling BIbi, checks 8+8, no ep).
     {
         auto board = std::make_unique<lczero::ChessBoard>();
         auto h = std::make_unique<lczero::PositionHistory>();

@@ -10,7 +10,9 @@ namespace lczero {
 
 // TEMPORARY start position (placeholder until the owner chooses one): the old arrangement with the removed
 // Archbishop (c-file) and Chancellor (h-file) replaced by the new Cannon and Grasshopper.
-const char* ChessBoard::kStartposFen = "vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV w - - 7+7 0 1";
+// The "8+8" is the N of the N-checks rule (8 since 2026-11-22; python/luat_py.py N_CHECKS writes the same N into every
+// self-play and arena start position). The engine reads N from the FEN, nothing else in the code holds it.
+const char* ChessBoard::kStartposFen = "vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV w - - 8+8 0 1";
 
 const Stockfish::Variant* ChessBoard::FindVariant() {
     auto it = Stockfish::variants.find("custom_10x10_variant");
@@ -67,7 +69,7 @@ void ChessBoard::SetFromFen(std::string_view fen, int* rule50_ply, int* moves) {
 void ChessBoard::Clear() {
     state_index = 0;
     Stockfish::Thread* th = nullptr;
-    pos.set(variant_def, "10/10/10/10/10/10/10/10/10/10 w - - 7+7 0 1", false, &states[state_index], th);
+    pos.set(variant_def, "10/10/10/10/10/10/10/10/10/10 w - - 8+8 0 1", false, &states[state_index], th);
 }
 
 MoveList ChessBoard::GenerateLegalMoves() const {
