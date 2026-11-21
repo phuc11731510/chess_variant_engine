@@ -13,6 +13,7 @@ import glob
 import hashlib
 import os
 import re
+import resource
 import subprocess
 import sys
 import time
@@ -93,7 +94,15 @@ cmd = (f"cd {C} && rm -rf sp_fz && bash {E}/run.sh --selfplay --games 48 --max-s
        f"--fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 --temperature 0.5 --start-fen {C}/book.txt --parallel 16 --provider fzcuda "
        f"--fixed-batch 64 --batch-aggregate --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 "
        f"--search-opt nn-cache-size=2000000 --weights {C}/gen{GEN}.fzw --out {C}/sp_fz")
+ru0 = resource.getrusage(resource.RUSAGE_CHILDREN)
+t_sp = time.time()
 rc, out = sh(cmd, timeout=420)
+ru1 = resource.getrusage(resource.RUSAGE_CHILDREN)
+cpu = (ru1.ru_utime - ru0.ru_utime) + (ru1.ru_stime - ru0.ru_stime)
+log(f"   CPU del engine: {cpu:.0f} s (user {ru1.ru_utime - ru0.ru_utime:.0f} + sys {ru1.ru_stime - ru0.ru_stime:.0f}) trong {time.time() - t_sp:.0f} s thuc = "
+    f"{cpu / (time.time() - t_sp):.2f} nhan CPU (may co {os.cpu_count()})")
+print("
+".join(out.splitlines()[-28:]), flush=True)
 nh = re.findall(r"\[nhip\] t=(\d+)s\s+(\d+) van dang chay\s+(\d+) nps\s+(\d+) eval/s", out)
 nps = [int(x[2]) for x in nh if int(x[0]) >= 60]
 games = glob.glob(f"{C}/sp_fz/**/*.xz", recursive=True)

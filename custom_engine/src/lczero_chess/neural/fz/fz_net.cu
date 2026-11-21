@@ -6,6 +6,7 @@
 #include <dlfcn.h>
 
 #include <algorithm>
+#include <chrono>
 #include <condition_variable>
 #include <cstdio>
 #include <iostream>
@@ -55,6 +56,11 @@ struct LtApi {
   decltype(&cublasLtMatmulPreferenceDestroy) PreferenceDestroy = nullptr;
   decltype(&cublasLtMatmulPreferenceSetAttribute) PreferenceSetAttribute = nullptr;
   decltype(&cublasLtMatmulAlgoGetHeuristic) AlgoGetHeuristic = nullptr;
+  decltype(&cublasLtMatmulAlgoGetIds) AlgoGetIds = nullptr;
+  decltype(&cublasLtMatmulAlgoInit) AlgoInit = nullptr;
+  decltype(&cublasLtMatmulAlgoCapGetAttribute) AlgoCapGetAttribute = nullptr;
+  decltype(&cublasLtMatmulAlgoConfigSetAttribute) AlgoConfigSetAttribute = nullptr;
+  decltype(&cublasLtMatmulAlgoCheck) AlgoCheck = nullptr;
   decltype(&cublasLtMatmul) Matmul = nullptr;
 
   static const LtApi& Get() {
@@ -92,6 +98,11 @@ struct LtApi {
     Sym(a.lib, "cublasLtMatmulPreferenceDestroy", &a.PreferenceDestroy);
     Sym(a.lib, "cublasLtMatmulPreferenceSetAttribute", &a.PreferenceSetAttribute);
     Sym(a.lib, "cublasLtMatmulAlgoGetHeuristic", &a.AlgoGetHeuristic);
+    Sym(a.lib, "cublasLtMatmulAlgoGetIds", &a.AlgoGetIds);
+    Sym(a.lib, "cublasLtMatmulAlgoInit", &a.AlgoInit);
+    Sym(a.lib, "cublasLtMatmulAlgoCapGetAttribute", &a.AlgoCapGetAttribute);
+    Sym(a.lib, "cublasLtMatmulAlgoConfigSetAttribute", &a.AlgoConfigSetAttribute);
+    Sym(a.lib, "cublasLtMatmulAlgoCheck", &a.AlgoCheck);
     Sym(a.lib, "cublasLtMatmul", &a.Matmul);
     return a;
   }
@@ -226,6 +237,8 @@ struct Net::Impl {
   Context* Acquire();
   void Release(Context* c);
   void Forward(Context& c, int batch, Observer* obs);
+  std::vector<cublasLtMatmulAlgo_t> AllAlgos(Context& c, const GemmShape& shape, cublasLtMatmulDesc_t desc, cublasLtMatrixLayout_t a,
+                                             cublasLtMatrixLayout_t b, cublasLtMatrixLayout_t cd);
   cublasLtMatmulAlgo_t ChooseAlgo(Context& c, const GemmShape& shape, int m, const void* bias, cublasLtMatmulDesc_t desc,
                                   cublasLtMatrixLayout_t a, cublasLtMatrixLayout_t b, cublasLtMatrixLayout_t cd,
                                   const void* w, const void* x, void* y);
@@ -292,6 +305,50 @@ class Net::Impl::Gemm {
   std::map<int, Plan> plans_;
 };
 
+// Every algorithm cuBLASLt has for this product that actually runs: each algorithm id with each of its tile shapes, pipeline
+// depths and CTA swizzles. The heuristic returns only a handful (3 for the product with the GELU epilogue), and on these small
+// matrices the best of the whole space is often well above the heuristic's pick.
+std::vector<cublasLtMatmulAlgo_t> Net::Impl::AllAlgos(Context& c, const GemmShape& shape, cublasLtMatmulDesc_t desc,
+                                                      cublasLtMatrixLayout_t a, cublasLtMatrixLayout_t b, cublasLtMatrixLayout_t cd) {
+  const cudaDataType_t out = shape.out_f32 ? CUDA_R_32F : CUDA_R_16F;
+  int ids[256], n_ids = 0;
+  if (lt->AlgoGetIds(c.lt, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, out, out, 256, ids, &n_ids) != CUBLAS_STATUS_SUCCESS)
+    return {};
+  auto caps = [&](const cublasLtMatmulAlgo_t& algo, cublasLtMatmulAlgoCapAttributes_t attr) {
+    size_t bytes = 0;
+    std::vector<uint32_t> v;
+    lt->AlgoCapGetAttribute(&algo, attr, nullptr, 0, &bytes);
+    v.resize(bytes / sizeof(uint32_t));
+    if (!v.empty()) lt->AlgoCapGetAttribute(&algo, attr, v.data(), bytes, &bytes);
+    return v;
+  };
+  std::vector<cublasLtMatmulAlgo_t> found;
+  for (int i = 0; i < n_ids; ++i) {
+    cublasLtMatmulAlgo_t base;
+    if (lt->AlgoInit(c.lt, CUBLAS_COMPUTE_32F, CUDA_R_32F, CUDA_R_16F, CUDA_R_16F, out, out, ids[i], &base) != CUBLAS_STATUS_SUCCESS) continue;
+    const auto tiles = caps(base, CUBLASLT_ALGO_CAP_TILE_IDS), stages = caps(base, CUBLASLT_ALGO_CAP_STAGES_IDS);
+    uint32_t swizzle_max = 0;
+    size_t written = 0;
+    lt->AlgoCapGetAttribute(&base, CUBLASLT_ALGO_CAP_CTA_SWIZZLING_SUPPORT, &swizzle_max, sizeof(swizzle_max), &written);
+    for (uint32_t tile : tiles) {
+      if (tile == CUBLASLT_MATMUL_TILE_UNDEFINED) continue;
+      for (uint32_t stage : stages) {
+        if (stage == CUBLASLT_MATMUL_STAGES_UNDEFINED) continue;
+        for (uint32_t swizzle = 0; swizzle <= std::min(swizzle_max, 1u); ++swizzle) {
+          cublasLtMatmulAlgo_t algo = base;
+          if (lt->AlgoConfigSetAttribute(&algo, CUBLASLT_ALGO_CONFIG_TILE_ID, &tile, sizeof(tile)) != CUBLAS_STATUS_SUCCESS) continue;
+          if (lt->AlgoConfigSetAttribute(&algo, CUBLASLT_ALGO_CONFIG_STAGES_ID, &stage, sizeof(stage)) != CUBLAS_STATUS_SUCCESS) continue;
+          if (lt->AlgoConfigSetAttribute(&algo, CUBLASLT_ALGO_CONFIG_CTA_SWIZZLING, &swizzle, sizeof(swizzle)) != CUBLAS_STATUS_SUCCESS) continue;
+          cublasLtMatmulHeuristicResult_t r{};
+          if (lt->AlgoCheck(c.lt, desc, a, b, cd, cd, &algo, &r) == CUBLAS_STATUS_SUCCESS && r.workspaceSize <= kWorkspaceBytes)
+            found.push_back(algo);
+        }
+      }
+    }
+  }
+  return found;
+}
+
 cublasLtMatmulAlgo_t Net::Impl::ChooseAlgo(Context& c, const GemmShape& shape, int m, const void* bias, cublasLtMatmulDesc_t desc,
                                            cublasLtMatrixLayout_t a, cublasLtMatrixLayout_t b, cublasLtMatrixLayout_t cd,
                                            const void* w, const void* x, void* y) {
@@ -309,7 +366,8 @@ cublasLtMatmulAlgo_t Net::Impl::ChooseAlgo(Context& c, const GemmShape& shape, i
                     CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_C_BYTES, CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_D_BYTES})
     FZ_LT(lt->PreferenceSetAttribute(pref, attr, &align, sizeof(align)));
 
-  const bool tune = options.autotune && m == kMaxBatch * kTokens;
+  // Only the batch sizes the search runs at in bulk are timed: the largest (a full batch) and its half.
+  const bool tune = options.autotune && (m == kMaxBatch * kTokens || m == kMaxBatch / 2 * kTokens);
   constexpr int kCandidates = 8;
   cublasLtMatmulHeuristicResult_t res[kCandidates];
   int returned = 0;
@@ -320,34 +378,43 @@ cublasLtMatmulAlgo_t Net::Impl::ChooseAlgo(Context& c, const GemmShape& shape, i
                     std::to_string(int(st)) + ")");
 
   cublasLtMatmulAlgo_t best = res[0].algo;
-  double best_ms = -1.0;
-  if (tune && returned > 1) {
+  if (tune) {
+    std::vector<cublasLtMatmulAlgo_t> candidates;
+    for (int i = 0; i < returned; ++i) candidates.push_back(res[i].algo);
+    const size_t from_heuristic = candidates.size();
+    for (const auto& algo : AllAlgos(c, shape, desc, a, b, cd)) candidates.push_back(algo);
+
     cudaEvent_t e0, e1;
     FZ_CUDA(cudaEventCreate(&e0));
     FZ_CUDA(cudaEventCreate(&e1));
     const float alpha = 1.0f, beta = 0.0f;
-    for (int i = 0; i < returned; ++i) {
+    double best_ms = -1.0, heuristic_ms = -1.0;
+    size_t ran = 0;
+    for (size_t i = 0; i < candidates.size(); ++i) {
       auto run = [&] {
-        return lt->Matmul(c.lt, desc, &alpha, w, a, x, b, &beta, y, cd, y, cd, &res[i].algo, c.workspace, kWorkspaceBytes, c.stream);
+        return lt->Matmul(c.lt, desc, &alpha, w, a, x, b, &beta, y, cd, y, cd, &candidates[i], c.workspace, kWorkspaceBytes, c.stream);
       };
-      if (run() != CUBLAS_STATUS_SUCCESS) continue;  // an algorithm the heuristic offers but that does not run here
+      if (run() != CUBLAS_STATUS_SUCCESS) continue;  // an algorithm cuBLASLt offers but that does not run here
       FZ_CUDA(cudaEventRecord(e0, c.stream));
-      constexpr int kReps = 5;
+      constexpr int kReps = 4;
       for (int r = 0; r < kReps; ++r) run();
       FZ_CUDA(cudaEventRecord(e1, c.stream));
       FZ_CUDA(cudaEventSynchronize(e1));
       float ms = 0;
       FZ_CUDA(cudaEventElapsedTime(&ms, e0, e1));
       ms /= kReps;
+      ++ran;
+      if (i < from_heuristic && (heuristic_ms < 0 || ms < heuristic_ms)) heuristic_ms = ms;
       if (best_ms < 0 || ms < best_ms) {
         best_ms = ms;
-        best = res[i].algo;
+        best = candidates[i];
       }
     }
     cudaEventDestroy(e0);
     cudaEventDestroy(e1);
     if (options.verbose && best_ms >= 0)
-      std::cout << "[fzcuda] " << shape.Name(m) << ": " << best_ms << " ms (best of " << returned << " algorithms)" << std::endl;
+      std::cout << "[fzcuda] " << shape.Name(m) << ": " << best_ms << " ms (best of " << ran << " algorithms; the heuristic's best "
+                << heuristic_ms << " ms)" << std::endl;
   }
   algo_cache.emplace(key, best);
   return best;
@@ -579,11 +646,14 @@ Net::~Net() = default;
 
 std::unique_ptr<Net> Net::Create(const std::string& fzw_path, const NetOptions& options) {
   static_assert(kMaxBatch == 64, "update the buffers and the cli limit together");
+  const auto t0 = std::chrono::steady_clock::now();
   auto impl = std::make_unique<Impl>();
   impl->options = options;
   impl->Init(fzw_path);
   std::unique_ptr<Net> net(new Net(std::move(impl)));
-  if (options.verbose) std::cout << "[fzcuda] " << net->Describe() << std::endl;
+  if (options.verbose)
+    std::cout << "[fzcuda] " << net->Describe() << "; ready in "
+              << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() << " s" << std::endl;
   return net;
 }
 
