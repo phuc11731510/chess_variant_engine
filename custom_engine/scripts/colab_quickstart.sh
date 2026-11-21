@@ -41,10 +41,21 @@ cd "$ENGINE_DIR"
 BIN="$ENGINE_DIR/build-linux/custom_engine"
 
 # --- 1. binary ---------------------------------------------------------------
-if [ ! -f "$BIN" ] && [ -n "${BIN_URL:-}" ]; then
-  echo "[quick] tai binary: $BIN_URL"
+# Tai binary CHI KHI CAN (2026-11-21, tiet kiem tai xuong): chua co, hoac Release da doi (kich thuoc / ETag cua
+# tep tren Release khac dau da luu canh binary). Khong hoi duoc Release (mang loi) ma da co binary thi dung binary dang co.
+if [ -n "${BIN_URL:-}" ]; then
   mkdir -p "$ENGINE_DIR/build-linux"
-  wget -q --timeout=30 --tries=4 --waitretry=15 --retry-on-http-error=429,500,502,503,504 "$BIN_URL" -O "$BIN" || { echo "[quick] FATAL: tai binary that bai" >&2; exit 1; }
+  remote=$(curl -sIL --max-time 30 "$BIN_URL" 2>/dev/null | tr -d '\r' |
+           awk 'tolower($1)=="content-length:"{l=$2} tolower($1)=="etag:"{e=$2} END{print l, e}' || true)
+  remote="${remote## }"
+  if [ -f "$BIN" ] && { [ -z "${remote// }" ] || [ "$remote" = "$(cat "$BIN.id" 2>/dev/null || true)" ]; }; then
+    echo "[quick] binary da co, khop Release (${remote:-khong hoi duoc Release}): khong tai lai"
+  else
+    echo "[quick] tai binary: $BIN_URL"
+    wget -q --timeout=30 --tries=4 --waitretry=15 --retry-on-http-error=429,500,502,503,504 "$BIN_URL" -O "$BIN.tmp" \
+      && mv -f "$BIN.tmp" "$BIN" || { rm -f "$BIN.tmp"; echo "[quick] FATAL: tai binary that bai" >&2; exit 1; }
+    [ -n "${remote// }" ] && echo "$remote" > "$BIN.id" || true
+  fi
 fi
 [ -f "$BIN" ] || {
   echo "[quick] FATAL: khong co binary o $BIN" >&2
