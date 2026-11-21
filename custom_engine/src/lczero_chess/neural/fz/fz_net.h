@@ -33,7 +33,7 @@ struct NetOptions {
   int contexts = 2;        // batches in flight at once (each has its own stream and workspace, ~70 MB of GPU memory)
   bool autotune = true;    // time the candidate cuBLASLt algorithms of every product at the largest batch, keep the fastest
   bool verbose = true;
-  int split = 1;           // see Net::SetSplit
+  bool graphs = true;      // run a batch as one CUDA graph launch (see Net::SetGraphs)
 };
 
 // Time per stage of one forward pass (Net::Profile).
@@ -75,11 +75,11 @@ class Net {
   int d_model() const;
   int layers() const;
 
-  // 1 or 2 parts. With 2, a batch of at least 2 * kMinSplitBatch positions is cut in two halves that run at the same time on two
-  // contexts: the memory-bound kernels of one half (LayerNorm, attention) overlap the matrix products of the other. Needs
-  // contexts >= 2. Takes effect from the next Run.
-  void SetSplit(int parts);
-  static constexpr int kMinSplitBatch = 8;
+  // On: the network of a batch size is recorded as a CUDA graph the second time that size comes up (the first run is eager: it
+  // creates the cuBLASLt plans) and every later run of that size is ONE launch instead of ~85. That takes the launches off the
+  // CPU (the search threads share two vCPUs with the thread that calls Run) and removes the gaps between kernels. Off: every
+  // kernel is launched separately (for comparing). Takes effect from the next Run.
+  void SetGraphs(bool on);
 
   struct Impl;
 

@@ -138,6 +138,8 @@ struct Context {
   __half *vtok = nullptr, *mtok = nullptr;
   float *head = nullptr, *logits = nullptr, *fc1v = nullptr, *fc1m = nullptr, *wdlm = nullptr;
   void* workspace = nullptr;
+  std::map<int, int> runs;                      // batch size -> times it ran eagerly or was captured (0 -> eager, 1 -> capture)
+  std::map<int, cudaGraphExec_t> graphs;        // batch size -> the recorded network
 };
 
 struct StageStorage {
@@ -220,7 +222,7 @@ struct Net::Impl {
   std::vector<std::unique_ptr<Gemm>> qkv, proj, ff1, ff2;
   std::unique_ptr<Gemm> embed, head, fc1v, fc1m;
 
-  std::atomic<int> split{1};
+  std::atomic<bool> use_graphs{true};
   std::vector<std::unique_ptr<Context>> contexts;
   std::vector<Context*> free_contexts;
   std::mutex pool_mu;
@@ -238,10 +240,10 @@ struct Net::Impl {
   void AllocContext(Context* c);
   Context* Acquire();
   void Release(Context* c);
-  // Two contexts at once (never one and then the other: two callers could then each hold one and wait for the second).
-  std::pair<Context*, Context*> AcquireTwo();
-  // Queues positions [first, first + count) of the stage on the context's stream: copies in, the network, copies out. No wait.
-  void Enqueue(Context& c, Stage* st, int first, int count);
+  // Queues the batch of the stage on the context's stream: copies in, the network, copies out. No wait.
+  void Enqueue(Context& c, Stage* st, int count);
+  // The network for `batch` positions, on c's stream: one graph launch when this size was seen before, else the kernels.
+  void RunForward(Context& c, int batch);
   void Forward(Context& c, int batch, Observer* obs);
   std::vector<cublasLtMatmulAlgo_t> AllAlgos(Context& c, const GemmShape& shape, cublasLtMatmulDesc_t desc, cublasLtMatrixLayout_t a,
                                              cublasLtMatrixLayout_t b, cublasLtMatrixLayout_t cd);
@@ -545,11 +547,13 @@ void Net::Impl::Init(const std::string& path) {
   // Warm-up at the largest batch: creates every cuBLASLt plan (and times the candidate algorithms) before the first real batch.
   Context& c0 = *contexts[0];
   Forward(c0, kMaxBatch, nullptr);
+  Forward(c0, kMaxBatch / 2, nullptr);
   FZ_CUDA(cudaStreamSynchronize(c0.stream));
 }
 
 Net::Impl::~Impl() {
   for (auto& c : contexts) {
+    for (auto& [batch, exec] : c->graphs) cudaGraphExecDestroy(exec);
     if (c->lt) lt->Destroy(c->lt);
     if (c->stream) cudaStreamDestroy(c->stream);
     if (c->mem) cudaFree(c->mem);
@@ -566,26 +570,48 @@ Net::Impl::~Impl() {
   for (auto& s : stages) cudaFreeHost(s->block);
 }
 
-std::pair<Context*, Context*> Net::Impl::AcquireTwo() {
-  std::unique_lock<std::mutex> lock(pool_mu);
-  pool_cv.wait(lock, [this] { return free_contexts.size() >= 2; });
-  Context* a = free_contexts.back();
-  free_contexts.pop_back();
-  Context* b = free_contexts.back();
-  free_contexts.pop_back();
-  return {a, b};
+void Net::Impl::Enqueue(Context& c, Stage* st, int count) {
+  cudaStream_t s = c.stream;
+  FZ_CUDA(cudaMemcpyAsync(c.planes, st->planes, size_t(count) * kPlanes * sizeof(PlaneGpu), cudaMemcpyHostToDevice, s));
+  FZ_CUDA(cudaMemcpyAsync(c.move_index, st->move_index, size_t(count) * kMaxLegal * 2, cudaMemcpyHostToDevice, s));
+  FZ_CUDA(cudaMemcpyAsync(c.move_count, st->move_count, size_t(count) * 2, cudaMemcpyHostToDevice, s));
+  RunForward(c, count);
+  FZ_CUDA(cudaMemcpyAsync(st->logits, c.logits, size_t(count) * kMaxLegal * 4, cudaMemcpyDeviceToHost, s));
+  FZ_CUDA(cudaMemcpyAsync(st->wdlm, c.wdlm, size_t(count) * 16, cudaMemcpyDeviceToHost, s));
 }
 
-void Net::Impl::Enqueue(Context& c, Stage* st, int first, int count) {
-  cudaStream_t s = c.stream;
-  FZ_CUDA(cudaMemcpyAsync(c.planes, static_cast<const PlaneGpu*>(st->planes) + size_t(first) * kPlanes,
-                          size_t(count) * kPlanes * sizeof(PlaneGpu), cudaMemcpyHostToDevice, s));
-  FZ_CUDA(cudaMemcpyAsync(c.move_index, st->move_index + size_t(first) * kMaxLegal, size_t(count) * kMaxLegal * 2,
-                          cudaMemcpyHostToDevice, s));
-  FZ_CUDA(cudaMemcpyAsync(c.move_count, st->move_count + first, size_t(count) * 2, cudaMemcpyHostToDevice, s));
-  Forward(c, count, nullptr);
-  FZ_CUDA(cudaMemcpyAsync(st->logits + size_t(first) * kMaxLegal, c.logits, size_t(count) * kMaxLegal * 4, cudaMemcpyDeviceToHost, s));
-  FZ_CUDA(cudaMemcpyAsync(st->wdlm + size_t(first) * 4, c.wdlm, size_t(count) * 16, cudaMemcpyDeviceToHost, s));
+void Net::Impl::RunForward(Context& c, int batch) {
+  if (!use_graphs.load(std::memory_order_relaxed)) {
+    Forward(c, batch, nullptr);
+    return;
+  }
+  auto graph = c.graphs.find(batch);
+  if (graph != c.graphs.end()) {
+    FZ_CUDA(cudaGraphLaunch(graph->second, c.stream));
+    return;
+  }
+  // The first run of a size is eager: it creates the cuBLASLt plans, and times the candidate algorithms where the size is one
+  // that is tuned -- work that must not be recorded into a graph. The second run records the network, then launches it.
+  if (c.runs[batch]++ == 0) {
+    Forward(c, batch, nullptr);
+    return;
+  }
+  cudaGraph_t recorded = nullptr;
+  FZ_CUDA(cudaStreamBeginCapture(c.stream, cudaStreamCaptureModeThreadLocal));
+  try {
+    Forward(c, batch, nullptr);
+  } catch (...) {
+    cudaStreamEndCapture(c.stream, &recorded);  // leave the capture state, whatever happened
+    if (recorded) cudaGraphDestroy(recorded);
+    throw;
+  }
+  FZ_CUDA(cudaStreamEndCapture(c.stream, &recorded));
+  cudaGraphExec_t exec = nullptr;
+  const cudaError_t e = cudaGraphInstantiateWithFlags(&exec, recorded, 0);
+  cudaGraphDestroy(recorded);
+  if (e != cudaSuccess) Fail(std::string("cudaGraphInstantiateWithFlags: ") + cudaGetErrorString(e), __FILE__, __LINE__);
+  c.graphs.emplace(batch, exec);
+  FZ_CUDA(cudaGraphLaunch(exec, c.stream));
 }
 
 Context* Net::Impl::Acquire() {
@@ -677,7 +703,7 @@ std::unique_ptr<Net> Net::Create(const std::string& fzw_path, const NetOptions& 
   const auto t0 = std::chrono::steady_clock::now();
   auto impl = std::make_unique<Impl>();
   impl->options = options;
-  impl->split.store(options.split);
+  impl->use_graphs.store(options.graphs);
   impl->Init(fzw_path);
   std::unique_ptr<Net> net(new Net(std::move(impl)));
   if (options.verbose)
@@ -737,34 +763,13 @@ struct Lease {
 };
 }  // namespace
 
-void Net::SetSplit(int parts) {
-  if (parts != 1 && parts != 2) throw Exception("fzcuda: split must be 1 or 2");
-  if (parts == 2 && impl_->contexts.size() < 2) throw Exception("fzcuda: split=2 needs contexts >= 2");
-  impl_->split.store(parts);
-}
+void Net::SetGraphs(bool on) { impl_->use_graphs.store(on); }
 
 void Net::Run(Stage* st, int batch) {
   if (batch < 1 || batch > kMaxBatch) throw Exception("fzcuda: batch size " + std::to_string(batch) + " is outside 1.." + std::to_string(kMaxBatch));
   FZ_CUDA(cudaSetDevice(0));
-  if (impl_->split.load() >= 2 && batch >= 2 * kMinSplitBatch) {
-    const auto [a, b] = impl_->AcquireTwo();
-    struct Back {
-      Impl* impl;
-      Context *a, *b;
-      ~Back() {
-        impl->Release(a);
-        impl->Release(b);
-      }
-    } back{impl_.get(), a, b};
-    const int first = (batch + 1) / 2;  // the second half is the smaller one: it is queued last
-    impl_->Enqueue(*a, st, 0, first);
-    impl_->Enqueue(*b, st, first, batch - first);
-    FZ_CUDA(cudaStreamSynchronize(a->stream));
-    FZ_CUDA(cudaStreamSynchronize(b->stream));
-    return;
-  }
   Lease lease(impl_.get());
-  impl_->Enqueue(*lease.c, st, 0, batch);
+  impl_->Enqueue(*lease.c, st, batch);
   FZ_CUDA(cudaStreamSynchronize(lease.c->stream));
 }
 

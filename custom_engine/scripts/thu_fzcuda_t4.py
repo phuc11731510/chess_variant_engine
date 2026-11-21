@@ -7,7 +7,7 @@ Binary dich bang bien_dich_linux_cuda.bat (ban_linux/custom_engine_fzcuda) duoc 
   2. python/fzw.py convert gen.pt -> gen.fzw;  3. `--fzcuda-dump`: cac the co that (bo ma hoa that cua engine) + tham chieu PyTorch FP32;
   4. `--test-fzcuda`: nhan tung cai vs CPU, ca mang vs PyTorch (lo 1..64), backend, tat dinh, 4 luong, toc do tung lo / tung buoc;
   5. python/fzw.py taps: neu lech thi chi ra buoc dau tien lech;
-  6. tu dau 90 s bang fzcuda (cung co nhu o 04), mot lan split=1 va mot lan split=2, de so nps voi ORT (6.588 nps o cung dieu kien),
+  6. tu dau 90 s bang fzcuda (cung co nhu o 04), mot lan graph=1 va mot lan graph=0, de so nps voi ORT (6.588 nps o cung dieu kien),
      kem CPU dung va thong ke lo; giai ma van.
 """
 import glob
@@ -114,14 +114,14 @@ def tu_dau(tag, extra=""):
         print(out[-2000:], flush=True)
     if nps:
         ket(f"nps tu dau {tag} (ORT cung dieu kien: 6.588)", True, f"{sum(nps) / len(nps):.0f}")
-    if games and tag == "split=1":
+    if games and tag == "graph=1":
         rc, out = sh(f"cd {C} && python3 {E}/python/xem_du_lieu.py {C}/sp_fz --liet-ke --kiem 2>&1 | tail -n 3", timeout=300)
         print(out, flush=True)
         ket("xem_du_lieu --kiem giai ma van fzcuda", rc == 0)
 
 
-tu_dau("split=1")
-tu_dau("split=2", "--fz-opt split=2")
+tu_dau("graph=1")
+tu_dau("graph=0", "--fz-opt graph=0")
 
 log("=== TOM TAT ===")
 for ten, ok, note in KQ:
