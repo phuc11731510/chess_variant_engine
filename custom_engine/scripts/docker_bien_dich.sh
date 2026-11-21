@@ -8,8 +8,13 @@
 #
 # Ma nguon dat o /content/chess_variant_engine/custom_engine nhu tren Colab, nen RUNPATH ghi trong binary
 # giong het ban dich tren Colab. Ket qua: /src/ban_linux/custom_engine (+ thong tin kiem tra).
+#
+# FZ_CUDA=1 (bien_dich_linux_cuda.bat, image fz-build-cuda:24.04 co nvcc): dich them bo chay mang CUDA rieng (-Duse_fzcuda=true,
+# `--provider fzcuda`); ket qua /src/ban_linux/custom_engine_fzcuda (khong de len ban thuong).
 set -euo pipefail
 ORT=onnxruntime-linux-x64-gpu-1.20.1
+FZ_CUDA="${FZ_CUDA:-}"
+OUT_NAME=custom_engine${FZ_CUDA:+_fzcuda}
 ED=/content/chess_variant_engine/custom_engine
 OUT=/src/ban_linux
 
@@ -34,7 +39,7 @@ fi
 
 cd "$ED"
 if [ ! -f build-linux/build.ninja ]; then
-  meson setup build-linux --buildtype=release -Duse_cuda=true -Donnxruntime_dir="third_party/$ORT"
+  meson setup build-linux --buildtype=release -Duse_cuda=true -Donnxruntime_dir="third_party/$ORT" ${FZ_CUDA:+-Duse_fzcuda=true}
 fi
 ninja -C build-linux
 BIN=$ED/build-linux/custom_engine
@@ -52,9 +57,16 @@ export LD_LIBRARY_PATH="$ED/third_party/$ORT/lib"
 "$BIN" --test-uci 2>&1 | grep -q '\[PASS\]' || { echo "[linux] LOI: --test-uci khong PASS"; exit 1; }
 "$BIN" --test-adapter 2>&1 | tail -2
 
+if [ -n "$FZ_CUDA" ]; then
+  # Khong co GPU o day: chi kiem cac thu khong can GPU (bai thu that tren T4: scripts/thu_fzcuda_t4.py).
+  "$BIN" --test-fzcuda 2>&1 | tail -n 2 || true
+  # Binary khong duoc lien ket dong voi thu vien CUDA (cudart tinh, cublasLt nap bang dlopen): may khong co chung van chay ONNX.
+  if ldd "$BIN" | grep -i -E "cudart|cublas|libcuda"; then echo "[linux] LOI: binary lien ket dong voi thu vien CUDA"; exit 1; fi
+  echo "[linux] binary khong lien ket dong voi thu vien CUDA nao: dung"
+fi
 mkdir -p "$OUT"
-cp -f "$BIN" "$OUT/custom_engine"
+cp -f "$BIN" "$OUT/$OUT_NAME"
 { echo "commit=$REV"; echo "built=$(date '+%Y-%m-%d %H:%M:%S')"; echo "gcc=$(gcc -dumpfullversion)";
   echo "glibc_max=$gmax"; echo "glibcxx_max=$cmax"; echo "sha256=$(sha256sum "$BIN" | cut -d' ' -f1)"; } > "$OUT/thong_tin.txt"
 cat "$OUT/thong_tin.txt"
-echo "[linux] XONG: ban_linux\\custom_engine"
+echo "[linux] XONG: ban_linux\\$OUT_NAME"

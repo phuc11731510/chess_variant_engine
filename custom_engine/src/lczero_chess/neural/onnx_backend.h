@@ -7,6 +7,7 @@
 #include <vector>
 #include "chess/nn_layout.h"
 #include "neural/backend.h"
+#include "neural/network_output.h"  // SoftmaxLegal, IsWdlDistribution (exposed for --test-neural)
 #include "utils/optionsdict.h"
 #include "onnxruntime_cxx_api.h"
 
@@ -45,19 +46,10 @@ struct OnnxEvalCounters {
 };
 OnnxEvalCounters OnnxGetEvalCounters();
 void OnnxResetEvalCounters();
-
-// Output post-processing, exposed for --test-neural.
-//
-// SoftmaxLegal: out_p[i] = exp((logits[i] - max_logit) / temp) / sum, for
-// i < n (n <= 384). `logits` is scratch (overwritten) and must be 32-byte
-// aligned with room for n rounded up to 8. `max_logit` is max(logits[0..n)).
-// Returns the sum of the exponentials (>= 1 for finite input; not finite when
-// the net produced NaN/inf). Accurate to a few float ulps on x86 (AVX2) and ARM.
-float SoftmaxLegal(float* logits, size_t n, float temp, float max_logit, float* out_p,
-                   size_t max_out);
-// True when a value-head row is a WDL distribution (finite, each in [0,1], sum
-// 1 within 1e-3), i.e. the net ends with a softmax like python/train.py exports.
-bool IsWdlDistribution(const float* wdl);
+// For the other network backends (the CUDA runner): add to the same counters, so the batch-size / GPU-busy lines of the
+// self-play and arena summaries mean the same whatever runs the net.
+void OnnxCountRun(uint64_t real, uint64_t padded, uint64_t run_ns);
+void OnnxCountCompute(uint64_t compute_ns);
 
 // Buffer slots an OnnxComputation needs: MaxBatchSize inputs, rounded up to a
 // multiple of the fixed batch so the last, zero-padded Run() stays inside.

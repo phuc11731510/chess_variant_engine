@@ -118,7 +118,7 @@ int run_arena(const EngineOptions& o) {
     // -Duse_dml): the explicit provider= key is REQUIRED or onnxruntime silently
     // runs on CPU. CPU: just intra-op threads.
     std::string bopts;
-    if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt") {
+    if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt" || o.sp_provider == "fzcuda") {
         bopts = "provider=" + o.sp_provider + ",fixed_batch=" + std::to_string(o.sp_fixed_batch);
         for (const auto& kv : o.sp_cuda_opts) bopts += ",cuda." + kv;
         for (const auto& kv : o.sp_trt_opts) bopts += ",trt." + kv;
@@ -173,10 +173,8 @@ int run_arena(const EngineOptions& o) {
     lczero::BatchingBackend* agg_b = nullptr;
     auto make_backend = [&](const lczero::OptionsDict& opts, lczero::BatchingBackend** agg) {
         if (!o.sp_batch_aggregate) return arena_make_backend(opts);
-        auto raw = std::make_unique<lczero::OnnxBackend>();
-        raw->UpdateConfiguration(opts);
         auto batching = std::make_unique<lczero::BatchingBackend>(
-            std::move(raw), /*expected_producers=dynamic*/ 0, o.sp_batch_timeout_us);
+            make_network_backend(opts), /*expected_producers=dynamic*/ 0, o.sp_batch_timeout_us);
         *agg = batching.get();
         return std::unique_ptr<lczero::Backend>(
             lczero::CreateMemCache(std::move(batching), opts));

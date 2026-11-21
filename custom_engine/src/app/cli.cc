@@ -95,6 +95,9 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         else if (a == "--test-history")       o.test_history_mode = true;
         else if (a == "--test-neural")        o.test_neural_mode = true;
         else if (a == "--test-cli")           o.test_cli_mode = true;
+        else if (a == "--test-fzcuda")        o.test_fzcuda_mode = true;
+        else if (a == "--bench-fzcuda")       o.bench_fzcuda_mode = true;
+        else if (a == "--fzcuda-dump")        { o.fzcuda_dump_mode = true; string_value(&o.fz_dump); }
         else if (a == "--test-mcts") {         // optional value: the weights file
             o.test_mcts_mode = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') o.weights_file = argv[++i];
@@ -132,6 +135,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         else if (a == "--stop-file")          string_value(&o.sp_stop_file);
         else if (a == "--ort-profile")        string_value(&o.ort_profile);
         else if (a == "--start-fen")          string_value(&o.sp_start_fen);
+        else if (a == "--fz-positions")       string_value(&o.fz_positions);
         else if (a == "--weights")            { string_value(&o.weights_file); o.weights_given = true; }
         else if (a == "--model-a")            string_value(&o.arena_a);
         else if (a == "--model-b")            string_value(&o.arena_b);

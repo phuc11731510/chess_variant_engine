@@ -44,6 +44,7 @@
 #include "neural/backend.h"
 #include "neural/shared_params.h"
 #include "neural/onnx_backend.h"
+#include "app/backend_factory.h"
 #include "neural/zero_heap_cache.h"
 #include "neural/batching_backend.h"
 #include "utils/random.h"
@@ -127,7 +128,7 @@ int run_selfplay(const EngineOptions& o) {
         // Backend options. CPU: game-level parallelism + low intra-op threads.
         // CUDA (Colab GPU, needs a -Duse_cuda build): provider=cuda + fixed_batch.
         std::string sp_backend_opts;
-        if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt") {
+        if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt" || o.sp_provider == "fzcuda") {
             sp_backend_opts = "provider=" + o.sp_provider + ",fixed_batch=" + std::to_string(o.sp_fixed_batch);
             for (const auto& kv : o.sp_cuda_opts) sp_backend_opts += ",cuda." + kv;
             for (const auto& kv : o.sp_trt_opts) sp_backend_opts += ",trt." + kv;
@@ -156,9 +157,7 @@ int run_selfplay(const EngineOptions& o) {
         std::unique_ptr<lczero::Backend> backend;
         lczero::BatchingBackend* batcher = nullptr;  // owned by `backend`
         try {
-            auto raw_backend = std::make_unique<lczero::OnnxBackend>();
-            raw_backend->UpdateConfiguration(sp_options);
-            std::unique_ptr<lczero::Backend> inner = std::move(raw_backend);
+            std::unique_ptr<lczero::Backend> inner = make_network_backend(sp_options);
             // A4: gom batch NN xuyên nhiều ván -> 1 inference đầy hơn (tốt cho GPU).
             // Chèn GIỮA cache và Onnx: ZeroHeapCache -> BatchingBackend -> OnnxBackend.
             if (o.sp_batch_aggregate) {

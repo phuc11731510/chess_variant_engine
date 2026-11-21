@@ -68,6 +68,17 @@ if get_option('use_cuda')
   message('CUDA Execution Provider ENABLED (-DUSE_CUDA)')
 endif
 
+# CUDA network runner (-Duse_fzcuda=true): the language and the macro are declared here, before any target (meson refuses project
+# arguments after one); the library itself is declared just before the executable.
+if get_option('use_fzcuda')
+  if host_machine.system() != 'linux'
+    error('use_fzcuda needs Linux (the CUDA runner is the Colab / T4 path)')
+  endif
+  add_languages('cuda', native: false)
+  add_project_arguments('-DUSE_FZCUDA', language: 'cpp')
+  message('CUDA network runner ENABLED (-DUSE_FZCUDA)')
+endif
+
 # ONNX Runtime root: platform-specific. Windows uses the bundled CPU package;
 # non-Windows (Linux/Colab) uses the GPU package pointed to by -Donnxruntime_dir=.
 if host_machine.system() == 'windows'
@@ -141,6 +152,7 @@ search_sources = files(
 
 # Phase 4 neural backend source files
 neural_sources = files(
+  'src/lczero_chess/neural/network_output.cc',
   'src/lczero_chess/neural/onnx_backend.cc',
   'src/lczero_chess/neural/zero_heap_cache.cc',
   'src/lczero_chess/neural/batching_backend.cc'
@@ -180,6 +192,7 @@ engine_sources = files(
   'src/tests/test_history.cc',
   'src/tests/test_rules_oracle.cc',
   'src/tests/test_neural.cc',
+  'src/tests/test_fzcuda.cc',
   'src/tests/test_app.cc'
 )
 
@@ -230,8 +243,31 @@ else
   message('liblzma and zlib NOT found: training data will be uncompressed (.bin)')
 endif
 
+# CUDA network runner: the .cu kernels and the plain C++ around them go into one static library that the executable (and the FFI
+# library) link. The CUDA runtime is linked statically (nvcc's default); cuBLASLt is loaded with dlopen by the runner itself,
+# so the binary has no run-time link dependency on any CUDA library.
+fz_dep = []
+if get_option('use_fzcuda')
+  fz_lib = static_library('fzcuda',
+    files(
+      'src/lczero_chess/neural/fz/fz_kernels.cu',
+      'src/lczero_chess/neural/fz/fz_net.cu',
+      'src/lczero_chess/neural/fz/fz_selftest.cu',
+      'src/lczero_chess/neural/fz/fzw_file.cc',
+      'src/lczero_chess/neural/fz/fzcuda_backend.cc'
+    ),
+    include_directories: inc_dirs,
+    # Turing (T4, sm_75): SASS for it, and PTX so a newer GPU still runs it.
+    cuda_args: ['-gencode=arch=compute_75,code=sm_75', '-gencode=arch=compute_75,code=compute_75', '-lineinfo'],
+    override_options: ['cuda_std=c++17'],
+    pic: true)
+  fz_dep = declare_dependency(
+    link_with: fz_lib,
+    link_args: ['-L' + get_option('fzcuda_toolkit') / 'lib64', '-lcudart_static', '-ldl', '-lrt'])
+endif
+
 # Allocator options linking
-deps = [thread_dep, onnx_dep]
+deps = [thread_dep, onnx_dep, fz_dep]
 if zlib_dep.found()
   deps += zlib_dep
 endif

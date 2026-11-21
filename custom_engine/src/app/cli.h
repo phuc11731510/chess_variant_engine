@@ -13,7 +13,8 @@ struct EngineOptions {
          uci_nn_mode=false, test_uci_mode=false, test_encoder_mode=false, play_mode=false,
          arena_mode=false, audit_generation_mode=false, bench_nn_mode=false, bench_cpu_mode=false,
          test_search_logic_mode=false, test_history_mode=false, audit_rules_mode=false,
-         test_neural_mode=false, test_cli_mode=false;
+         test_neural_mode=false, test_cli_mode=false,
+         test_fzcuda_mode=false, bench_fzcuda_mode=false, fzcuda_dump_mode=false;  // the CUDA runner (neural/fz/)
     // Command-line errors (unknown flag, missing value, bad number): main() prints
     // them and exits 2 instead of running with a default the user did not ask for.
     std::vector<std::string> errors;
@@ -40,6 +41,8 @@ struct EngineOptions {
     float sp_temperature=0.5f;
     bool sp_temp_cutoff_given=false;  // --temp-cutoff (the arena's old opening length) is now an error everywhere
     std::string sp_start_fen;
+    std::string fz_dump;       // --fzcuda-dump FILE: positions file for python/fzw.py ref
+    std::string fz_positions;  // --fz-positions FILE: that file, read back by --test-fzcuda / --bench-fzcuda
     float sp_resign_threshold=-2.0f, sp_no_resign_frac=0.10f;
     int sp_resign_consecutive=3, sp_resign_earliest=0;
     std::vector<std::pair<std::string,std::string>> sp_search_opts;

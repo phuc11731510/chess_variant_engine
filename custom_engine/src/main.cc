@@ -134,6 +134,8 @@ int main(int argc, char* argv[]) {
         run_neural_tests(o.weights_file);
     } else if (o.test_cli_mode) {
         run_cli_tests();
+    } else if (o.test_fzcuda_mode || o.bench_fzcuda_mode || o.fzcuda_dump_mode) {
+        rc = run_fzcuda(o);
     } else if (o.uci_nn_mode) {
         run_uci_nn(o.weights_file, o.sp_provider, o.sp_fixed_batch);
     } else if (o.play_mode) {
@@ -172,6 +174,7 @@ int main(int argc, char* argv[]) {
                "                 --test-perft --test-policy --test-rules --test-selfplay\n"
                "                 --test-trainingdata --test-uci --test-history --test-cli\n"
                "                 --test-neural [--weights <net.onnx>]\n"
+               "                 --test-fzcuda --weights <net.fzw> [--fz-positions <file>]   (CUDA runner, needs a GPU)\n"
                "                 --test-search-logic [--weights <net.onnx>]\n"
                "                   (see src/tests/README.md)\n\n"
                "See custom_engine/HUONG_DAN.md for the full flag reference.\n";
