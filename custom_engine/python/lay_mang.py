@@ -7,13 +7,17 @@ Release NN_Model CHỈ giữ .pt của mọi đời, không giữ .onnx (từ 20
 
     python lay_mang.py pt   /content/gen90.pt   --rel <URL thư mục Release>
     python lay_mang.py onnx /content/gen90.onnx --rel <URL thư mục Release> [--tu-pt] [--thu-release]
+    python lay_mang.py fzw  /content/gen90.fzw  --rel <URL thư mục Release> [--tu-pt]
 
   pt    tệp đã có (khác rỗng) thì thôi; chưa có thì tải gen<N>.pt từ Release.
   onnx  tệp đã có thì thôi; chưa có: lấy gen<N>.pt (đã có trên máy, hoặc tải từ Release) rồi chuyển sang
         .onnx (~10 giây xuất + kiểm, chưa kể nạp torch). --tu-pt: chuyển lại dù .onnx đã có (để kiểm).
         --thu-release: thử tải gen<N>.onnx từ Release trước (Release không còn giữ .onnx, nên mặc định bỏ
         qua, đỡ một lần gọi mạng vô ích).
-  Kiến trúc mạng (d_model, số tầng, số đầu chú ý) suy ra từ chính tệp .pt, nên mạng đời nào cũng chuyển được.
+    fzw   như onnx nhưng ra tệp .fzw cho bộ chạy mạng CUDA riêng của engine (--provider fzcuda, ~10 MB; xem python/fzw.py): chỉ cần torch
+        và numpy, KHÔNG cần pip onnx / onnxscript / onnxruntime-gpu (~250 MB mỗi máy mới). Kiểm trước khi ghi: mô hình CPU của bộ chạy
+        (fzw.simulate) phải ra gần như số FP32 của mạng (cùng ngưỡng FP16 của train.py); lệch hay lỗi thì không ghi tệp, thoát 1.
+Kiến trúc mạng (d_model, số tầng, số đầu chú ý) suy ra từ chính tệp .pt, nên mạng đời nào cũng chuyển được.
 
 Mã thoát: 0 = có tệp (in "FZ_MANG_CO <tệp>"); 10 = Release không có (HTTP 404) và máy cũng không có
 .pt để chuyển; 1 = lỗi khác (mạng, chuyển lỗi) -- thử lại được.
@@ -136,6 +140,34 @@ def chuyen(pt, onnx, fp16=False):
             os.remove(tam)
 
 
+def chuyen_fzw(pt, fzw_path):
+    """pt (state_dict của FairyNet) -> fzw_path (python/fzw.py), sau khi kiểm mô hình CPU của bộ chạy CUDA so với mạng FP32."""
+    import numpy as np
+    import torch
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import fzw
+    sd = torch.load(pt, map_location="cpu")
+    d_model, tang, dau = suy_kien_truc(sd)
+    print(f"[lay_mang] {os.path.basename(pt)}: d_model {d_model}, {tang} tầng, {dau} đầu chú ý -> .fzw")
+    tam = fzw_path + ".dang_chuyen"
+    try:
+        fzw.write_fzw(tam, sd)
+        _, w = fzw.read_fzw(tam)                       # đọc lại: kiểm cả CRC và bố cục tệp vừa ghi
+        _, net = fzw.load_net(pt)
+        x = fzw.check_inputs()
+        ref, out = fzw.run_fp32(net, x), fzw.simulate(w, x)
+        if not all(np.isfinite(a).all() for a in out):
+            raise ValueError("mô hình bộ chạy cho NaN / vô cực")
+        diff = fzw.differences(ref, out)
+        if any(v > t for v, t in zip(diff[:3], fzw.FP16_TOLERANCE)):
+            raise ValueError(f"bộ chạy FP16 lệch mạng FP32 quá ngưỡng: {diff[:3]} > {fzw.FP16_TOLERANCE}")
+        print(f"[lay_mang] kiểm: TV chính sách {diff[0]:.5f}, |WDL| {diff[1]:.5f}, |mlh| {diff[2]:.4f} (ngưỡng {fzw.FP16_TOLERANCE})")
+        os.replace(tam, fzw_path)
+    finally:
+        if os.path.exists(tam):
+            os.remove(tam)
+
+
 def lay_pt(dich, rel):
     if co_tep(dich):
         return 0
@@ -170,10 +202,25 @@ def lay_onnx(dich, rel, tu_pt, thu_release=False, fp16=False):
     return 0
 
 
+def lay_fzw(dich, rel, tu_pt):
+    if co_tep(dich) and not tu_pt:
+        return 0
+    pt = dich[:-len(".fzw")] + ".pt"
+    rc = lay_pt(pt, rel)
+    if rc != 0:
+        return rc
+    try:
+        chuyen_fzw(pt, dich)
+    except Exception as e:   # noqa: BLE001 -- mọi lỗi chuyển đều là "thử lại / xem log"
+        print(f"[lay_mang] chuyển {os.path.basename(pt)} -> fzw lỗi: {type(e).__name__}: {e}")
+        return 1
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("loai", choices=("pt", "onnx"))
-    ap.add_argument("tep", help="đường dẫn đích, dạng .../gen<N>.pt | .../gen<N>.onnx")
+    ap.add_argument("loai", choices=("pt", "onnx", "fzw"))
+    ap.add_argument("tep", help="đường dẫn đích, dạng .../gen<N>.pt | .../gen<N>.onnx | .../gen<N>.fzw")
     ap.add_argument("--rel", default="", help="URL thư mục Release (…/releases/download/NN_Model)")
     ap.add_argument("--tu-pt", action="store_true", help="onnx: chuyển lại từ .pt dù .onnx đã có")
     ap.add_argument("--thu-release", action="store_true",
@@ -182,8 +229,12 @@ def main():
                     help="onnx: .onnx FP16 cho engine trên GPU (đã kiểm trên GPU so với FP32; lệch / lỗi / không có GPU thì giữ FP32). "
                          "FZ_ONNX_FP16=0 trong môi trường thì tắt")
     a = ap.parse_args()
-    rc = (lay_pt(a.tep, a.rel) if a.loai == "pt"
-          else lay_onnx(a.tep, a.rel.rstrip("/"), a.tu_pt, a.thu_release, a.fp16))
+    if a.loai == "pt":
+        rc = lay_pt(a.tep, a.rel)
+    elif a.loai == "fzw":
+        rc = lay_fzw(a.tep, a.rel.rstrip("/"), a.tu_pt)
+    else:
+        rc = lay_onnx(a.tep, a.rel.rstrip("/"), a.tu_pt, a.thu_release, a.fp16)
     if rc == 0:
         print(f"FZ_MANG_CO {a.tep}")
     sys.exit(rc)

@@ -54,6 +54,8 @@ HIDDEN = 128
 REL = 19 * 19                  # the relative-offset table of one head
 LN_EPS = 1e-5
 F16, F32 = 0, 1
+FP16_TOLERANCE = (0.01, 0.01, 1.0)   # total variation of softmax(policy), |WDL|, |moves left| in plies: train.FP16_TOLERANCE (test_fzw.py checks)
+CHECK_POSITIONS = 32
 
 assert NUM_PLANES == 204 and PLANES_PADDED % 8 == 0
 assert MOVE_TYPES + VALUE_TOKENS + MLH_TOKENS <= HEAD_COLS
@@ -265,6 +267,14 @@ def simulate(w, planes, tanh_ff1=False, taps=None):
 # comparison with the FP32 net, positions the engine dumped, command line
 # ---------------------------------------------------------------------------------------------------------------------
 
+def check_inputs(n=CHECK_POSITIONS, seed=0):
+    """n synthetic input positions shaped like real ones (sparse 0/1 piece planes, scalar auxiliary planes): train.check_inputs."""
+    rng = np.random.default_rng(seed)
+    x = (rng.random((n, NUM_PLANES, 10, 10)) < 0.08).astype(np.float32)
+    x[:, AUX_BASE:] = rng.random((n, NUM_PLANES - AUX_BASE, 1, 1)).astype(np.float32)
+    return x
+
+
 def load_net(pt):
     from model import FairyNet
     sd = torch.load(pt, map_location="cpu")
@@ -309,7 +319,6 @@ def decode_planes(raw, n):
 
 
 def cmd_check(a):
-    import train
     sd, net = load_net(a.pt)
     meta, w = read_fzw(a.fzw) if a.fzw else (None, None)
     if w is None:
@@ -317,13 +326,13 @@ def cmd_check(a):
         write_fzw(tmp, sd)
         meta, w = read_fzw(tmp)
         os.remove(tmp)
-    x = train.check_inputs(a.n, seed=1)
+    x = check_inputs(a.n, seed=1)
     ref = run_fp32(net, x)
     for tanh in ((False, True) if a.tanh else (False,)):
         out = simulate(w, x, tanh_ff1=tanh)
         tv, wdl, mlh, lg = differences(ref, out)
         print(f"ff1 GELU {'tanh' if tanh else 'erf '}: TV policy {tv:.5f} | |WDL| {wdl:.5f} | |mlh| {mlh:.4f} plies | |logit| {lg:.4f}"
-              f"   (limits {train.FP16_TOLERANCE})")
+              f"   (limits {FP16_TOLERANCE})")
 
 
 def cmd_ref(a):

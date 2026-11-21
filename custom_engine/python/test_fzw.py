@@ -15,6 +15,7 @@ import torch
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import fzw  # noqa: E402
+import lay_mang  # noqa: E402
 from model import FairyNet  # noqa: E402
 import train  # noqa: E402
 
@@ -130,6 +131,28 @@ def test_model_vs_fp32():
     check(np.allclose(one[0][0], out[0][5], atol=1e-5), "a position gives the same logits alone and in a batch")
 
 
+def test_lay_mang_fzw():
+    print("lay_mang.py fzw: .pt -> .fzw with the safety check")
+    check(fzw.FP16_TOLERANCE == train.FP16_TOLERANCE, "same FP16 limits as train.py")
+    check(np.array_equal(fzw.check_inputs(8, seed=2), train.check_inputs(8, seed=2)), "same check positions as train.py")
+    net = small_net(seed=5)
+    with tempfile.TemporaryDirectory() as tmp:
+        pt, out = os.path.join(tmp, "gen3.pt"), os.path.join(tmp, "gen3.fzw")
+        torch.save(net.state_dict(), pt)
+        check(lay_mang.lay_fzw(out, "", False) == 0 and os.path.getsize(out) > 0, "converts a good net (exit code 0)")
+        meta, _ = fzw.read_fzw(out)
+        check(meta["d"] == 64 and meta["layers"] == 2, "the file is a readable .fzw of that net")
+        mtime = os.path.getmtime(out)
+        check(lay_mang.lay_fzw(out, "", False) == 0 and os.path.getmtime(out) == mtime, "an existing .fzw is left alone")
+        # a net with a NaN weight must not give a file: the runner would feed NaN into the search
+        bad = {k: v.clone() for k, v in net.state_dict().items()}
+        bad["blocks.0.ff1.weight"][0, 0] = float("nan")
+        bad_pt, bad_out = os.path.join(tmp, "gen4.pt"), os.path.join(tmp, "gen4.fzw")
+        torch.save(bad, bad_pt)
+        check(lay_mang.lay_fzw(bad_out, "", False) == 1 and not os.path.exists(bad_out) and not os.path.exists(bad_out + ".dang_chuyen"),
+              "a net with a NaN weight: exit code 1, no file, no leftover")
+
+
 def test_decode_planes():
     print("decoding the engine's positions file")
     # one position: plane 0 = squares a1 and b1 (Stockfish squares 0 and 1) with value 1; plane 200 = all squares, value 0.5
@@ -155,6 +178,7 @@ if __name__ == "__main__":
     test_header_matches_cpp()
     test_roundtrip_and_damage()
     test_model_vs_fp32()
+    test_lay_mang_fzw()
     test_decode_planes()
     print("=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")

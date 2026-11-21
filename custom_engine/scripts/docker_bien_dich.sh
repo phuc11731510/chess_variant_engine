@@ -29,7 +29,7 @@ fi
 # va mang mtime moi, nen ninja chi bien dich lai nhung tep do.
 rm -rf /tmp/moi && mkdir -p /tmp/moi "$ED"
 git -C /src archive HEAD custom_engine | tar -x -C /tmp/moi
-rsync -rlc --delete --exclude /build-linux/ --exclude "/third_party/$ORT/" /tmp/moi/custom_engine/ "$ED/"
+rsync -rlc --delete --exclude /build-linux/ --exclude /third_party/ /tmp/moi/custom_engine/ "$ED/"
 
 if [ ! -f "$ED/third_party/$ORT/include/onnxruntime_cxx_api.h" ]; then
   echo "[linux] giai nen ONNX Runtime ($ORT) ..."
