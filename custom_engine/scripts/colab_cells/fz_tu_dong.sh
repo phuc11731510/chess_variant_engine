@@ -812,13 +812,27 @@ td_ar_mang() {
 }
 # Giai doan 0 tren may cua cua so nay: o 08 (so van con thieu, tran theo han muc) -> ghi ket qua.
 td_arena() {
-  local g=$1 a rc secs par duoi so f o08 muc tong
+  local g=$1 a rc secs par duoi so f o08 muc tong kb nth
   a=$(td_ar_doi_thu "$g")
   td_chuan_bi "$g"; rc=$?
   case $rc in 0) TD_CB_LOI=0 ;; 2) TD_LOI=1; return ;; 3) td_mat_may; return ;; 4) return ;; *) td_chuan_bi_loi; return ;; esac
   td_dung_ca && return
   # Binary / o 08 cu: DUNG vong lap (khong ghi BO_QUA -- cap nhat xong mo lai thi arena van con).
-  if ! grep -q '^BINA_[1-9]' <<<"$(td_kiem_may_cl "$g")"; then
+  # CHI ket luan "binary cu" khi may tra loi ro rang (co dong BINA_ ma so la 0). ssh_colab nuot loi (2>/dev/null) nen
+  # ssh loi tam thoi (429 / dut ket noi) cho ra dau ra RONG; truoc day bi coi la binary cu va DUNG ca cua so
+  # (2026-11-21 09:13, cua so pubgmobile147258: binary Release dung ban co FZ_ARENA, sha256 khop, may khac van chay arena).
+  kb=""
+  for nth in 1 2 3; do
+    kb=$(td_kiem_may_cl "$g")
+    grep -q '^BINA_' <<<"$kb" && break
+    sleep 10
+  done
+  if ! grep -q '^BINA_' <<<"$kb"; then
+    td_in "${M_VANG}[!] không đọc được binary trên máy (ssh lỗi tạm?) -- thử lại sau 1 phút${M_HET}"
+    td_con_may || { td_mat_may; return; }
+    td_ngu 60; return
+  fi
+  if ! grep -q '^BINA_[1-9]' <<<"$kb"; then
     td_in "${M_DO}[!] binary trên Release chưa có arena dừng mềm (cần bản từ 2026-09-30)${M_HET}"
     td_in "    đưa binary mới lên Release rồi mở lại vòng lặp (hoặc tắt arena: dãy đời = -)"
     TD_LOI=1; return
