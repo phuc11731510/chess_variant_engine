@@ -175,7 +175,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
                     i = j + 1;
                 }
             }
-        } else if (a == "--cuda-opt" || a == "--trt-opt") {  // "key=value", ORT CUDA / TensorRT EP option
+        } else if (a == "--cuda-opt" || a == "--trt-opt" || a == "--fz-opt") {  // "key=value", ORT CUDA / TensorRT EP option; CUDA runner option
             std::string kv;
             const size_t errors_before = o.errors.size();
             string_value(&kv);
@@ -189,7 +189,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
                        kv.find_first_of(",=", eq + 1) != std::string::npos) {
                 error(a + " '" + kv + "': expected key=value (key: letters, digits, _)");
             } else {
-                (a == "--cuda-opt" ? o.sp_cuda_opts : o.sp_trt_opts).push_back(kv);
+                (a == "--cuda-opt" ? o.sp_cuda_opts : a == "--fz-opt" ? o.sp_fz_opts : o.sp_trt_opts).push_back(kv);
             }
         } else {
             error(a.rfind("-", 0) == 0 ? "unknown flag " + a : "unexpected argument " + a);

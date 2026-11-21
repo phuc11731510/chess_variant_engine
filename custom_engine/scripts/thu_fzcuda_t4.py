@@ -7,7 +7,8 @@ Binary dich bang bien_dich_linux_cuda.bat (ban_linux/custom_engine_fzcuda) duoc 
   2. python/fzw.py convert gen.pt -> gen.fzw;  3. `--fzcuda-dump`: cac the co that (bo ma hoa that cua engine) + tham chieu PyTorch FP32;
   4. `--test-fzcuda`: nhan tung cai vs CPU, ca mang vs PyTorch (lo 1..64), backend, tat dinh, 4 luong, toc do tung lo / tung buoc;
   5. python/fzw.py taps: neu lech thi chi ra buoc dau tien lech;
-  6. tu dau 90 s bang fzcuda (cung co nhu o 04) de so nps voi ORT (6.588 nps o cung dieu kien) va giai ma van.
+  6. tu dau 90 s bang fzcuda (cung co nhu o 04), mot lan split=1 va mot lan split=2, de so nps voi ORT (6.588 nps o cung dieu kien),
+     kem CPU dung va thong ke lo; giai ma van.
 """
 import glob
 import hashlib
@@ -89,34 +90,38 @@ rc, out = sh(f"cd {E}/python && python3 fzw.py taps {C}/gen{GEN}.pt {P} 2>&1", t
 print(out, flush=True)
 ket("taps khop mo hinh CPU", "all stages agree" in out)
 
-log("5. tu dau 90 s bang fzcuda")
-cmd = (f"cd {C} && rm -rf sp_fz && bash {E}/run.sh --selfplay --games 48 --max-seconds 90 --visits 800 --max-moves 400 --fast-visits 200 "
-       f"--fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 --temperature 0.5 --start-fen {C}/book.txt --parallel 16 --provider fzcuda "
-       f"--fixed-batch 64 --batch-aggregate --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 "
-       f"--search-opt nn-cache-size=2000000 --weights {C}/gen{GEN}.fzw --out {C}/sp_fz")
-ru0 = resource.getrusage(resource.RUSAGE_CHILDREN)
-t_sp = time.time()
-rc, out = sh(cmd, timeout=420)
-ru1 = resource.getrusage(resource.RUSAGE_CHILDREN)
-cpu = (ru1.ru_utime - ru0.ru_utime) + (ru1.ru_stime - ru0.ru_stime)
-log(f"   CPU del engine: {cpu:.0f} s (user {ru1.ru_utime - ru0.ru_utime:.0f} + sys {ru1.ru_stime - ru0.ru_stime:.0f}) trong {time.time() - t_sp:.0f} s thuc = "
-    f"{cpu / (time.time() - t_sp):.2f} nhan CPU (may co {os.cpu_count()})")
-print("
-".join(out.splitlines()[-28:]), flush=True)
-nh = re.findall(r"\[nhip\] t=(\d+)s\s+(\d+) van dang chay\s+(\d+) nps\s+(\d+) eval/s", out)
-nps = [int(x[2]) for x in nh if int(x[0]) >= 60]
-games = glob.glob(f"{C}/sp_fz/**/*.xz", recursive=True)
-ev = re.search(r"NN eval/playout\s*:\s*([\d.]+)", out)
-ket("tu dau chay xong, khong Abort", rc == 0 and "terminate called" not in out and "Exception" not in out,
-    f"ma thoat {rc}; nhip={len(nh)}; nps (t>=60s) {nps}; ven choi xong {len(games)}; eval/playout {ev.group(1) if ev else '?'}")
-if rc != 0 or not nh:
-    print(out[-2000:], flush=True)
-if nps:
-    ket("nps tu dau (ORT cung dieu kien: 6.588)", True, f"{sum(nps) / len(nps):.0f}")
-if games:
-    rc, out = sh(f"cd {C} && python3 {E}/python/xem_du_lieu.py {C}/sp_fz --liet-ke --kiem 2>&1 | tail -n 3", timeout=300)
-    print(out, flush=True)
-    ket("xem_du_lieu --kiem giai ma van fzcuda", rc == 0)
+def tu_dau(tag, extra=""):
+    log(f"5. tu dau 90 s bang fzcuda ({tag})")
+    cmd = (f"cd {C} && rm -rf sp_fz && bash {E}/run.sh --selfplay --games 48 --max-seconds 90 --visits 800 --max-moves 400 --fast-visits 200 "
+           f"--fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 --temperature 0.5 --start-fen {C}/book.txt --parallel 16 --provider fzcuda "
+           f"--fixed-batch 64 --batch-aggregate --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 "
+           f"--search-opt nn-cache-size=2000000 --weights {C}/gen{GEN}.fzw --out {C}/sp_fz {extra}")
+    ru0 = resource.getrusage(resource.RUSAGE_CHILDREN)
+    t_sp = time.time()
+    rc, out = sh(cmd, timeout=420)
+    ru1 = resource.getrusage(resource.RUSAGE_CHILDREN)
+    cpu = (ru1.ru_utime - ru0.ru_utime) + (ru1.ru_stime - ru0.ru_stime)
+    log(f"   CPU del engine: {cpu:.0f} s (user {ru1.ru_utime - ru0.ru_utime:.0f} + sys {ru1.ru_stime - ru0.ru_stime:.0f}) trong {time.time() - t_sp:.0f} s thuc = "
+        f"{cpu / (time.time() - t_sp):.2f} nhan CPU (may co {os.cpu_count()})")
+    print(chr(10).join(out.splitlines()[-28:]), flush=True)
+    nh = re.findall(r"\[nhip\] t=(\d+)s\s+(\d+) van dang chay\s+(\d+) nps\s+(\d+) eval/s", out)
+    nps = [int(x[2]) for x in nh if int(x[0]) >= 60]
+    games = glob.glob(f"{C}/sp_fz/**/*.xz", recursive=True)
+    ev = re.search(r"NN eval/playout\s*:\s*([\d.]+)", out)
+    ket(f"tu dau {tag}: chay xong, khong Abort", rc == 0 and "terminate called" not in out and "Exception" not in out,
+        f"ma thoat {rc}; nhip={len(nh)}; nps (t>=60s) {nps}; van xong {len(games)}; eval/playout {ev.group(1) if ev else '?'}")
+    if rc != 0 or not nh:
+        print(out[-2000:], flush=True)
+    if nps:
+        ket(f"nps tu dau {tag} (ORT cung dieu kien: 6.588)", True, f"{sum(nps) / len(nps):.0f}")
+    if games and tag == "split=1":
+        rc, out = sh(f"cd {C} && python3 {E}/python/xem_du_lieu.py {C}/sp_fz --liet-ke --kiem 2>&1 | tail -n 3", timeout=300)
+        print(out, flush=True)
+        ket("xem_du_lieu --kiem giai ma van fzcuda", rc == 0)
+
+
+tu_dau("split=1")
+tu_dau("split=2", "--fz-opt split=2")
 
 log("=== TOM TAT ===")
 for ten, ok, note in KQ:

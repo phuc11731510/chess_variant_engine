@@ -128,7 +128,10 @@ int run_selfplay(const EngineOptions& o) {
         // Backend options. CPU: game-level parallelism + low intra-op threads.
         // CUDA (Colab GPU, needs a -Duse_cuda build): provider=cuda + fixed_batch.
         std::string sp_backend_opts;
-        if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt" || o.sp_provider == "fzcuda") {
+        if (o.sp_provider == "fzcuda") {
+            sp_backend_opts = "provider=fzcuda,fixed_batch=" + std::to_string(o.sp_fixed_batch);
+            for (const auto& kv : o.sp_fz_opts) sp_backend_opts += "," + kv;
+        } else if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt") {
             sp_backend_opts = "provider=" + o.sp_provider + ",fixed_batch=" + std::to_string(o.sp_fixed_batch);
             for (const auto& kv : o.sp_cuda_opts) sp_backend_opts += ",cuda." + kv;
             for (const auto& kv : o.sp_trt_opts) sp_backend_opts += ",trt." + kv;
