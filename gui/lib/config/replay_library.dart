@@ -53,7 +53,7 @@ class ReplayEntry {
 
   /// Mã lý do (`ly_do` trong chi_muc.tsv, do xem_du_lieu.py ghi) -> chữ hiện trong bảng.
   static const Map<String, String> reasonLabels = {
-    'checks': 'đủ 7 lần chiếu',
+    'checks': 'đủ số lần chiếu',
     'no_moves': 'hết nước đi (thua)',
     'rule50': 'luật 50 nước',
     'repetition': 'lặp thế 3 lần',

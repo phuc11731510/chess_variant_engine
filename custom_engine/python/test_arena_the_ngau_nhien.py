@@ -18,7 +18,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 PASS = FAIL = 0
-PLACEHOLDER = "vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV w - - 7+7 0 1"
+PLACEHOLDER = "vrcbqkbgrv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRCBQKBGRV w - - 8+8 0 1"
 
 
 def check(cond, msg):

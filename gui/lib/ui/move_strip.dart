@@ -16,7 +16,7 @@ class MoveStrip extends StatefulWidget {
   final bool live;
 
   /// Số lần chiếu mà mỗi nước tạo ra (cùng độ dài [moves]; null = không hiện). Hiện thành `+`, `++`, `+++`
-  /// cạnh nước đi: ván thắng bằng 7 lần chiếu thì thấy ngay nước nào chiếu.
+  /// cạnh nước đi: ván thắng bằng số lần chiếu thì thấy ngay nước nào chiếu.
   final List<int>? checks;
 
   final ValueChanged<int> onSelect;

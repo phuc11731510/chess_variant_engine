@@ -109,7 +109,7 @@ Cả thư mục `Release\` (hoặc `Debug\`) là **tự đủ để chạy** (đ
   tại cột ô đích (Hậu, Xe, Centaur, Wildebeest, Pháo, Grasshopper, Alibaba, Mã, Tượng) — chạm chọn
   (chạm nền tối = huỷ).
 - **Số trên quân Hoàng gia:** số lần Hoàng gia bên đó **còn có thể bị chiếu trước khi thua** (luật
-  7 lần chiếu). Bắt đầu là `7`, giảm dần mỗi lần bị chiếu.
+  8 lần chiếu). Bắt đầu là `8`, giảm dần mỗi lần bị chiếu. Ván của các đời trước 2026-11-22 bắt đầu từ `7`.
 - **Lật bàn:** thêm `--black` để cầm Đen (quân bạn ở đáy).
 - **Cửa sổ:** vuông, **khoá tỉ lệ** — kéo giãn vẫn giữ bàn cờ vuông, vừa khít.
 - Máy đi xong nước của bạn sẽ hiện **"Máy đang nghĩ…"**; hết ván hiện **kết quả** (Trắng/Đen thắng / Hoà).
@@ -126,7 +126,7 @@ Cả thư mục `Release\` (hoặc `Debug\`) là **tự đủ để chạy** (đ
   - `xem_lai.bat tu_dau_log\tu_dau_XXXX.txt`: một nhật ký cụ thể;
   - **`xem_lai.bat "Dữ liệu huấn luyện\games_gen1" [số]`**: xem các ván tự đấu nằm trong **dữ liệu huấn luyện** (thư mục, gói `.zip` của vòng lặp hoặc một tệp `.xz`; kéo thả lên tệp `.bat` cũng được). Lần đầu `custom_engine\python\xem_du_lieu.py` đổi cả nguồn sang nhật ký + bảng chỉ mục trong `tu_dau_log\xem_<tên>` (463 ván ≈ 11 giây, ≈ 62 MB; engine được hỏi thế cuối để biết lý do kết thúc), các lần sau mở ngay. Thư mục đã đổi sẵn (có `chi_muc.tsv`) mở thẳng.
 - **Bảng chọn ván** (xem lại nhiều ván, bên trái cửa sổ): lọc theo kết quả (Trắng thắng / Đen thắng / Hoà), theo lý do kết thúc (đủ 7 lần chiếu, hết nước đi, luật 50 nước, lặp thế, bị cắt) và theo **số quân còn lại ở cuối ván**; sắp xếp theo số nửa nước hoặc số quân; bấm một dòng để xem ván đó; **[** và **]** = ván trước / sau trong danh sách đang lọc; **G** = ẩn / hiện bảng. Tìm các ván "thắng thua mà còn gần đủ 60 quân": chọn Trắng thắng hoặc Đen thắng, kéo thanh "còn ít nhất N quân" lên cao, sắp xếp "Ít nửa nước nhất".
-- Để hiểu vì sao ván kết thúc: dòng trên cùng ghi **lý do** ("Đen hết nước đi (thua)", "Trắng đủ 7 lần chiếu"...) và số quân hai bên ở thế đang xem; thanh nước đi đánh dấu nước **chiếu** (`+` chiếu, `++` chiếu đôi, tô đỏ), số trên quân Hoàng gia là số lần chiếu còn lại.
+- Để hiểu vì sao ván kết thúc: dòng trên cùng ghi **lý do** ("Đen hết nước đi (thua)", "Trắng đủ số lần chiếu"...) và số quân hai bên ở thế đang xem; thanh nước đi đánh dấu nước **chiếu** (`+` chiếu, `++` chiếu đôi, tô đỏ), số trên quân Hoàng gia là số lần chiếu còn lại.
 - **Xem xác suất chọn nước khi áp nhiệt độ:** cột **%N** của bảng tìm kiếm là tỉ lệ lượt thăm (N / tổng). **Rê chuột vào tiêu đề %N** thì hiện menu: %N^2 (T = 0,5, như sinh dữ liệu và arena), %N^4 (T = 0,25), %N^10 (T = 0,1), %N^0.5 (T = 2). Chọn một mức thì thêm một cột %N^e cạnh %N = N^e / ΣN^e: đúng xác suất engine chọn từng nước ở thế đó (engine chọn theo (N / N_max)^(1/T), `MoveChoiceProbabilities` trong selfplay_game.cc). Mức đã chọn giữ nguyên khi đổi nước; chọn lại %N (T = 1) để bỏ cột phụ. Số tính trên các nước đang liệt kê (dữ liệu huấn luyện: 8 nước nhiều lượt nhất).
 - Nhật ký dựng từ dữ liệu huấn luyện: bảng tìm kiếm (phím L) cho **N** = số lượt thăm của 8 nước nhiều nhất, **Q** chỉ có ở nước đã đi và nước tốt nhất, không có P / Pnet (dữ liệu huấn luyện không lưu).
 - Phím: **Space** = tạm dừng / tiếp (tự đấu) hoặc tự chạy 1 giây/nước (xem lại); **← →**, lăn chuột hoặc bấm nước ở

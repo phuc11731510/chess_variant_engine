@@ -39,13 +39,16 @@ Mã, Tượng, Xe, Hậu, Centaur, wildebeest, Alibaba, Pháo, Grasshopper.
   - **Hàng 9:** bắt buộc, thành một trong 9 quân (`n b r q m v y c g`). Không bao giờ tới hàng 10.
   - Mọi cách tới ô đó đều áp dụng: đi thẳng, ăn chéo, bước đôi, ăn ep.
 - **Đếm chiếu:** mỗi quân đang chiếu Hoàng gia đối phương sau một nước tính 1 lần chiếu, nên **chiếu đôi = 2, chiếu ba = 3** (có
-  thể xảy ra, ví dụ Centaur nhảy kề Hoàng gia + Xe lộ ra + Pháo có Centaur làm ngòi). Đủ **7** thì thắng ngay.
+  thể xảy ra, ví dụ Centaur nhảy kề Hoàng gia + Xe lộ ra + Pháo có Centaur làm ngòi). Đủ **8** thì thắng ngay
+  (N = 8 từ 2026-11-22; từ 2026-11-16 đến 2026-11-21 là 7, nên dữ liệu và ván của các đời đó có ván thắng bằng 7 lần chiếu. Engine không giữ
+  N ở đâu cả: N là hai số "N+N" của chính FEN xuất phát; `kStartposFen`, `python/luat_py.py` `N_CHECKS` (mọi thế khởi đầu của vòng lặp)
+  viết cùng N).
   Chỉ nước **ăn** được mới chiếu: Hoàng gia chỉ chiếu viền 3×3; Wazir chỉ-đi của Tượng/Alibaba không chiếu; Pháo chiếu qua đúng một
   ngòi; Grasshopper chiếu bằng nước nhảy của nó. Ngòi xuất hiện hay biến mất (quân khác nhảy vào / rời đi) đều có thể tạo hay mất chiếu.
 - **Hết nước đi = thua** (dù bị chiếu hay không).
 - **Luật 50 nước:** 100 ply không ăn quân, không đi Tốt/Sergeant, không phong cấp → hoà (trừ khi bên tới lượt bị chiếu hết).
 - **Lặp 3 lần → hoà.** "Cùng thế" gồm: vị trí quân, bên tới lượt, ô ep, và số chiếu còn lại của hai bên.
-- **Thứ tự kết thúc ván:** (a) đủ 7 lần chiếu → thắng; (b) 100 ply → hoà, **trừ khi** bên tới lượt bị chiếu hết (vẫn thua); (c) lặp 3 lần → hoà;
+- **Thứ tự kết thúc ván:** (a) đủ 8 lần chiếu → thắng; (b) 100 ply → hoà, **trừ khi** bên tới lượt bị chiếu hết (vẫn thua); (c) lặp 3 lần → hoà;
   (d) hết nước đi → thua.
 - **Không có luật hoà do thiếu quân.**
 
@@ -99,7 +102,7 @@ Toàn bộ con số nằm ở `src/lczero_chess/chess/nn_layout.h` (nguồn chí
 ## Trạng thái cài đặt (2026-11-16, nhánh `luat-moi`)
 
 Đã làm và có test (`custom_engine --test-*`, `--audit-rules`, `--audit-generation`, `fz_test` đều qua): luật và mọi quân ở trên, phong cấp hai tầng,
-đếm chiếu (7, chiếu ba), không nhập thành, ký hiệu nước đi, bộ mã hoá (204 plane, 11500 policy), bản ghi huấn luyện version 7.
+đếm chiếu (N = 8 từ 2026-11-22, chiếu ba), không nhập thành, ký hiệu nước đi, bộ mã hoá (204 plane, 11500 policy), bản ghi huấn luyện version 7.
 Chưa làm: thế cờ đầu thật (chủ dự án chọn), GUI, mạng mới (cần huấn luyện từ đầu; `--test-selfplay` / `--test-mcts` cần một tệp
 `.onnx` đúng cỡ vào/ra mới), và các tài liệu khác (`HUONG_DAN*.md`) còn nói tới luật cũ.
 
@@ -130,7 +133,7 @@ biên dịch và chạy `--test-*`, `--audit-rules`, `--audit-generation`, `fz_t
    huống này vì Tốt bắt đầu hàng 3/8.)
 3. **Đếm chiếu theo số quân chiếu** (`position.cpp`, `do_move`): chiếu đôi = 2. FSF gốc tính 1 cho mỗi
    nước chiếu; dự án tính ở cuối `do_move` khi đã biết `checkersBB`, số còn lại không âm, về 0 là thắng
-   (trường hợp biên 7). `check_counting` bật bằng `checkCounting = true` trong INI.
+   (trường hợp biên: chiếu ba khi chỉ còn 1 hoặc 2 lần). `check_counting` bật bằng `checkCounting = true` trong INI.
 4. ~~Nhập thành trên hàng bất kỳ~~ (`castlingAnyRank`): **đã gỡ 2026-11-16**, trở về FSF gốc (nhập thành chỉ trên `castlingRank`, hàng 1/10).
 5. **Hết nước đi = thua, không hoà do thiếu quân**: cấu hình bằng INI (`stalemateValue = loss`), không
    sửa mã FSF. Ghi ở đây để biết luật này không nằm trong `src/chess/`.

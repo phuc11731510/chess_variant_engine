@@ -62,7 +62,7 @@ void main() {
     expect(lib.entries[1].plies, 120);
     expect(lib.entries[1].resultText, 'Đen thắng');
     expect(lib.entries[1].pieces, 27);
-    expect(lib.entries[1].reasonText, 'đủ 7 lần chiếu');
+    expect(lib.entries[1].reasonText, 'đủ số lần chiếu');
     expect(lib.entries[4].note, isNotEmpty);
     expect(lib.maxPieces, 60);
     expect(lib.pathOf(lib.entries[0]).endsWith('van_0000.txt'), true);
@@ -75,7 +75,7 @@ void main() {
     // Trắng đã chiếu đủ 7 lần (còn 0 lần cho Trắng).
     var g = e('$_p b - - 0+3 5 40', GameResult.white, 12);
     expect(g.reason, EndReason.checks);
-    expect(g.reasonText, 'Trắng đủ 7 lần chiếu');
+    expect(g.reasonText, 'Trắng đủ số lần chiếu');
     // Hết nước đi: Đen tới lượt, không còn nước, Trắng thắng.
     g = e('$_p b - - 3+3 5 40', GameResult.white, 0);
     expect(g.reason, EndReason.noMoves);

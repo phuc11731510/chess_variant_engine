@@ -43,10 +43,10 @@ from nn_layout import PIECE_KINDS
 # 64-bit words of the piece planes of one board (ours + theirs, lo and hi word each); the repetition flag follows
 BOARD_WORDS = 2 * 2 * PIECE_KINDS
 
-# N of the N-checks win rule = the value the starting FEN carries in its "N+N"
-# field. 7 under the new rules (2026-11-16; it was 8 from 2026-09-21). Must match the startFen in
-# src/app/variant_setup.cc / src/lczero_chess/chess/board.cc.
-MAX_CHECKS = 7
+# N of the N-checks win rule = the value the starting FEN carries in its "N+N" field: 8 since 2026-11-22 (7 from
+# 2026-11-16 to 2026-11-21, so older games only reach 7, which is within the bound). Same constant as the one the
+# start-position generator writes; src/lczero_chess/chess/board.cc carries the same N in kStartposFen.
+from luat_py import N_CHECKS as MAX_CHECKS  # noqa: E402
 
 
 def _records(path):
@@ -168,7 +168,7 @@ def main():
             err["plane_empty"] += 1
         if r["side_to_move"] not in (0, 1):
             err["stm"] += 1
-        # Upper bound = N of the N-checks rule (8 since 2026-09-21; was 7 before).
+        # Upper bound = N of the N-checks rule (8 since 2026-11-22; games from before only reach 7).
         # Bump this together with the starting FEN's "N+N" field, or every fresh
         # position in a new generation is flagged as corrupt.
         if not (0 <= r["checks_remaining_us"] <= MAX_CHECKS

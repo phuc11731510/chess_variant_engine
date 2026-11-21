@@ -65,7 +65,7 @@ int run_selfplay(const EngineOptions& o) {
         std::vector<std::string> start_fens;
         if (!o.sp_start_fen.empty()) {
             // Every start position is checked before the first game (CheckStartFen:
-            // Fairy-Stockfish itself accepts a FEN without "7+7" as 1+1, etc.).
+            // Fairy-Stockfish itself accepts a FEN without "8+8" as 1+1, etc.).
             // The same reader serves --arena (variant_setup.cc).
             const std::string why = LoadStartFens(o.sp_start_fen, &start_fens, &start_fen);
             if (!why.empty()) {

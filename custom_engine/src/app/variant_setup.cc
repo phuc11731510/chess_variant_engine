@@ -169,7 +169,7 @@ std::string CheckStartFen(const std::string& fen) {
     const std::string& checks = field[4];
     if (!(checks.size() == 3 && checks[1] == '+' && checks[0] >= '1' && checks[0] <= '9' &&
           checks[2] >= '1' && checks[2] <= '9'))
-        return "the 5th field must be the checks still needed, like 7+7 (got '" + checks +
+        return "the 5th field must be the checks still needed, like 8+8 (got '" + checks +
                "'); without it Fairy-Stockfish plays 1+1";
     if (field[1] != "w" && field[1] != "b") return "side to move must be w or b";
     // The board syntax first: Fairy-Stockfish skips, without a word, the pieces

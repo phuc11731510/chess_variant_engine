@@ -155,6 +155,10 @@ Tham số khác:
 > FEN bắt đầu mới:
 > `vrhbqkberv/msysnnsysm/yppppppppy/10/10/10/10/YPPPPPPPPY/MSYSNNSYSM/VRHBQKBERV w BIbi - 8+8 0 1`
 
+> **Số lần chiếu (N-checks) đã đổi nhiều lần:** 8 (2026-09-21) → 7 (2026-11-16, luật mới) → **8 từ 2026-11-22**. N chỉ nằm ở trường
+> `N+N` của FEN xuất phát (engine đọc N từ FEN): `ChessBoard::kStartposFen` và `python/luat_py.py` `N_CHECKS` (thế khởi đầu của
+> vòng lặp tự động) viết cùng N. Đổi N không đổi dạng đầu vào của mạng (số chiếu còn lại chia 10, không chia N).
+
 ---
 
 ## A. CHƠI VỚI AI
