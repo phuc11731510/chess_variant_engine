@@ -33,6 +33,8 @@ T0 = time.time()
 # True: chi dung engine TensorRT + tu dau (bo S5 / S6 / tu dau CUDA): lan 3 da do xong S5 (TensorRT 8,31 ms so voi CUDA 12,85 ms
 # o lo 64) va S6 (khop), con tu dau TensorRT bi hong ngay khi khoi dong.
 ONLY_SP = True
+BUILD_ENGINE = True      # dung binary tren VM tu `main` (can khi engine co sua chua phat hanh len Release)
+DO_CUDA_SP = True        # tu dau CUDA lam doi chung, cung binary
 
 
 def log(*a):
@@ -95,7 +97,24 @@ sh(f"set -e; mkdir -p {ORT}/lib; cd {C}; wget -q --tries=3 --waitretry=10 -O ort
    f"rm -rf ort_nupkg; unzip -q -o ort.nupkg 'runtimes/linux-x64/native/*' -d ort_nupkg; "
    f"cp -a ort_nupkg/runtimes/linux-x64/native/*.so* {ORT}/lib/; cd {ORT}/lib; "
    f"[ -e libonnxruntime.so.1 ] || ln -s \"$(ls libonnxruntime.so* | head -n 1)\" libonnxruntime.so.1; ls", timeout=400)
-rc, out = sh(f"BIN_URL={REL}/custom_engine bash {E}/scripts/colab_quickstart.sh", timeout=700, show=False, tail=4)
+built = False
+if BUILD_ENGINE:
+    # Binary DUNG TREN VM tu ma `main` (co sua kiem WDL 5e-3, 2026-11-21): can header ORT (goi NuGet co the khong co header
+    # -> thu them hai goi nho hon cung ban 1.20.1).
+    sh(f"cd {C}; mkdir -p {ORT}/include; for pkg in microsoft.ml.onnxruntime.gpu.linux microsoft.ml.onnxruntime.gpu "
+       f"microsoft.ml.onnxruntime; do [ -e {ORT}/include/onnxruntime_cxx_api.h ] && break; "
+       f"if [ $pkg = microsoft.ml.onnxruntime.gpu.linux ]; then cp ort.nupkg h.nupkg; else "
+       f"wget -q -O h.nupkg https://api.nuget.org/v3-flatcontainer/$pkg/1.20.1/$pkg.1.20.1.nupkg; fi; "
+       f"unzip -o -j -q h.nupkg '*include/*' -d {ORT}/include 2>/dev/null || true; done; ls {ORT}/include | head -n 6", timeout=300)
+    t0 = time.time()
+    rc, out = sh(f"set -e; pip install -q meson ninja; [ -f /usr/include/lzma.h ] || {{ apt-get -qq update >/dev/null 2>&1; "
+                 f"apt-get -qq install -y liblzma-dev >/dev/null 2>&1; }}; cd {E}; find . -exec touch {{}} + 2>/dev/null; "
+                 f"rm -rf build-linux; meson setup build-linux --buildtype=release -Duse_cuda=true "
+                 f"-Donnxruntime_dir=third_party/onnxruntime-linux-x64-gpu-1.20.1 > {C}/meson.log 2>&1 || {{ tail -n 30 {C}/meson.log; exit 1; }}; "
+                 f"ninja -C build-linux custom_engine 2>&1 | tail -n 4", timeout=2400, show=False, tail=12)
+    built = os.path.exists(f"{E}/build-linux/custom_engine")
+    stage("S2b dung binary tren VM", built, f"{time.time() - t0:.0f}s")
+rc, out = sh(f"{'' if built else f'BIN_URL={REL}/custom_engine '}bash {E}/scripts/colab_quickstart.sh", timeout=700, show=False, tail=4)
 ok2 = "[quick] OK" in out and os.path.exists(f"{ORT}/lib/libonnxruntime_providers_tensorrt.so")
 stage("S2 quickstart + provider TensorRT", ok2)
 
@@ -262,7 +281,7 @@ def selfplay(weights, provider, extra=""):
 
 log("S7 tu dau so sanh")
 res = {}
-if ok2 and ok3 and not ONLY_SP:
+if ok2 and ok3 and DO_CUDA_SP:
     res["cuda (mang vong lap)"] = selfplay(NET, "cuda")
 if ok2 and ok3b and ok4 and best_ms is not None:
     res["tensorrt (do thi chuan, FP16)"] = selfplay(PLAIN, "tensorrt", trt_opts(f"{C}/trt_cache1"))
