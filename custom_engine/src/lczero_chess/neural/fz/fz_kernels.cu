@@ -167,13 +167,16 @@ __global__ void __launch_bounds__(kAttnThreads)
     qa1[kk] = qi1 < kTokens ? *reinterpret_cast<const uint32_t*>(base + static_cast<size_t>(qi1) * ld + 8 * kk + 2 * t) : 0u;
   }
 
-  // S = q k^T, in 14 tiles of 8 keys.
+  // S = q k^T, in 14 tiles of 8 keys. The step along the head width is the OUTER loop: the 14 products of one step are
+  // independent of each other, so they issue back to back; with the step inside, each tile waited for its own previous step
+  // (the asm is volatile, so the compiler keeps the order written here).
   float s[kKeyTiles][4];
   #pragma unroll
-  for (int j = 0; j < kKeyTiles; ++j) {
-    s[j][0] = s[j][1] = s[j][2] = s[j][3] = 0.0f;
+  for (int j = 0; j < kKeyTiles; ++j) s[j][0] = s[j][1] = s[j][2] = s[j][3] = 0.0f;
+  #pragma unroll
+  for (int kk = 0; kk < 4; ++kk) {
     #pragma unroll
-    for (int kk = 0; kk < 4; ++kk) {
+    for (int j = 0; j < kKeyTiles; ++j) {
       const uint32_t b0 = *reinterpret_cast<const uint32_t*>(ks + (8 * j + g) * kLdK + 8 * kk + 2 * t);
       Mma8(s[j], qa0[kk], qa1[kk], b0);
     }
@@ -224,13 +227,14 @@ __global__ void __launch_bounds__(kAttnThreads)
   l1 += __shfl_xor_sync(kFullMask, l1, 1);
   l1 += __shfl_xor_sync(kFullMask, l1, 2);
 
-  // O = P v: 4 tiles of 8 along the head width, 14 steps of 8 keys.
+  // O = P v: 4 tiles of 8 along the head width, 14 steps of 8 keys (the 4 tiles of a step are the independent products).
   float o[4][4];
   #pragma unroll
-  for (int nt = 0; nt < 4; ++nt) {
-    o[nt][0] = o[nt][1] = o[nt][2] = o[nt][3] = 0.0f;
+  for (int nt = 0; nt < 4; ++nt) o[nt][0] = o[nt][1] = o[nt][2] = o[nt][3] = 0.0f;
+  #pragma unroll
+  for (int j = 0; j < kKeyTiles; ++j) {
     #pragma unroll
-    for (int j = 0; j < kKeyTiles; ++j) {
+    for (int nt = 0; nt < 4; ++nt) {
       const uint32_t b0 = *reinterpret_cast<const uint32_t*>(vt + (8 * nt + g) * kLdV + 8 * j + 2 * t);
       Mma8(o[nt], pa0[j], pa1[j], b0);
     }

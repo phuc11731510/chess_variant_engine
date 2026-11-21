@@ -196,8 +196,8 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         }
     }
     if (o.sp_provider != "cpu" && o.sp_provider != "cuda" && o.sp_provider != "dml" &&
-        o.sp_provider != "tensorrt")
-        error("--provider " + o.sp_provider + ": expected cpu, cuda, tensorrt or dml");
+        o.sp_provider != "tensorrt" && o.sp_provider != "fzcuda")
+        error("--provider " + o.sp_provider + ": expected cpu, cuda, tensorrt, fzcuda or dml");
     // Neither self-play nor the arena has an opening phase any more: every move of the game is drawn
     // with --temperature (2026-11-20). A stale --temp-cutoff would otherwise be accepted and silently do
     // nothing (the arena used to read it as the length of its sampled opening).
