@@ -135,6 +135,8 @@ void FzCudaBackend::UpdateConfiguration(const OptionsDict& opts) {
         net_options.contexts = std::clamp(std::stoi(kv[1]), 1, 8);
       } else if (kv[0] == "autotune") {
         net_options.autotune = kv[1] != "0";
+      } else if (kv[0] == "split") {
+        net_options.split = std::clamp(std::stoi(kv[1]), 1, 2);
       } else if (kv[0] != "provider") {
         std::cerr << "[FzCuda Backend] Warning: backend option '" << kv[0] << "' is not used by provider fzcuda" << std::endl;
       }

@@ -6,6 +6,7 @@
 #include <dlfcn.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
@@ -219,6 +220,7 @@ struct Net::Impl {
   std::vector<std::unique_ptr<Gemm>> qkv, proj, ff1, ff2;
   std::unique_ptr<Gemm> embed, head, fc1v, fc1m;
 
+  std::atomic<int> split{1};
   std::vector<std::unique_ptr<Context>> contexts;
   std::vector<Context*> free_contexts;
   std::mutex pool_mu;
@@ -236,6 +238,10 @@ struct Net::Impl {
   void AllocContext(Context* c);
   Context* Acquire();
   void Release(Context* c);
+  // Two contexts at once (never one and then the other: two callers could then each hold one and wait for the second).
+  std::pair<Context*, Context*> AcquireTwo();
+  // Queues positions [first, first + count) of the stage on the context's stream: copies in, the network, copies out. No wait.
+  void Enqueue(Context& c, Stage* st, int first, int count);
   void Forward(Context& c, int batch, Observer* obs);
   std::vector<cublasLtMatmulAlgo_t> AllAlgos(Context& c, const GemmShape& shape, cublasLtMatmulDesc_t desc, cublasLtMatrixLayout_t a,
                                              cublasLtMatrixLayout_t b, cublasLtMatrixLayout_t cd);
@@ -560,6 +566,28 @@ Net::Impl::~Impl() {
   for (auto& s : stages) cudaFreeHost(s->block);
 }
 
+std::pair<Context*, Context*> Net::Impl::AcquireTwo() {
+  std::unique_lock<std::mutex> lock(pool_mu);
+  pool_cv.wait(lock, [this] { return free_contexts.size() >= 2; });
+  Context* a = free_contexts.back();
+  free_contexts.pop_back();
+  Context* b = free_contexts.back();
+  free_contexts.pop_back();
+  return {a, b};
+}
+
+void Net::Impl::Enqueue(Context& c, Stage* st, int first, int count) {
+  cudaStream_t s = c.stream;
+  FZ_CUDA(cudaMemcpyAsync(c.planes, static_cast<const PlaneGpu*>(st->planes) + size_t(first) * kPlanes,
+                          size_t(count) * kPlanes * sizeof(PlaneGpu), cudaMemcpyHostToDevice, s));
+  FZ_CUDA(cudaMemcpyAsync(c.move_index, st->move_index + size_t(first) * kMaxLegal, size_t(count) * kMaxLegal * 2,
+                          cudaMemcpyHostToDevice, s));
+  FZ_CUDA(cudaMemcpyAsync(c.move_count, st->move_count + first, size_t(count) * 2, cudaMemcpyHostToDevice, s));
+  Forward(c, count, nullptr);
+  FZ_CUDA(cudaMemcpyAsync(st->logits + size_t(first) * kMaxLegal, c.logits, size_t(count) * kMaxLegal * 4, cudaMemcpyDeviceToHost, s));
+  FZ_CUDA(cudaMemcpyAsync(st->wdlm + size_t(first) * 4, c.wdlm, size_t(count) * 16, cudaMemcpyDeviceToHost, s));
+}
+
 Context* Net::Impl::Acquire() {
   std::unique_lock<std::mutex> lock(pool_mu);
   pool_cv.wait(lock, [this] { return !free_contexts.empty(); });
@@ -649,6 +677,7 @@ std::unique_ptr<Net> Net::Create(const std::string& fzw_path, const NetOptions& 
   const auto t0 = std::chrono::steady_clock::now();
   auto impl = std::make_unique<Impl>();
   impl->options = options;
+  impl->split.store(options.split);
   impl->Init(fzw_path);
   std::unique_ptr<Net> net(new Net(std::move(impl)));
   if (options.verbose)
@@ -708,19 +737,35 @@ struct Lease {
 };
 }  // namespace
 
+void Net::SetSplit(int parts) {
+  if (parts != 1 && parts != 2) throw Exception("fzcuda: split must be 1 or 2");
+  if (parts == 2 && impl_->contexts.size() < 2) throw Exception("fzcuda: split=2 needs contexts >= 2");
+  impl_->split.store(parts);
+}
+
 void Net::Run(Stage* st, int batch) {
   if (batch < 1 || batch > kMaxBatch) throw Exception("fzcuda: batch size " + std::to_string(batch) + " is outside 1.." + std::to_string(kMaxBatch));
   FZ_CUDA(cudaSetDevice(0));
+  if (impl_->split.load() >= 2 && batch >= 2 * kMinSplitBatch) {
+    const auto [a, b] = impl_->AcquireTwo();
+    struct Back {
+      Impl* impl;
+      Context *a, *b;
+      ~Back() {
+        impl->Release(a);
+        impl->Release(b);
+      }
+    } back{impl_.get(), a, b};
+    const int first = (batch + 1) / 2;  // the second half is the smaller one: it is queued last
+    impl_->Enqueue(*a, st, 0, first);
+    impl_->Enqueue(*b, st, first, batch - first);
+    FZ_CUDA(cudaStreamSynchronize(a->stream));
+    FZ_CUDA(cudaStreamSynchronize(b->stream));
+    return;
+  }
   Lease lease(impl_.get());
-  Context& c = *lease.c;
-  cudaStream_t s = c.stream;
-  FZ_CUDA(cudaMemcpyAsync(c.planes, st->planes, size_t(batch) * kPlanes * sizeof(PlaneGpu), cudaMemcpyHostToDevice, s));
-  FZ_CUDA(cudaMemcpyAsync(c.move_index, st->move_index, size_t(batch) * kMaxLegal * 2, cudaMemcpyHostToDevice, s));
-  FZ_CUDA(cudaMemcpyAsync(c.move_count, st->move_count, size_t(batch) * 2, cudaMemcpyHostToDevice, s));
-  impl_->Forward(c, batch, nullptr);
-  FZ_CUDA(cudaMemcpyAsync(st->logits, c.logits, size_t(batch) * kMaxLegal * 4, cudaMemcpyDeviceToHost, s));
-  FZ_CUDA(cudaMemcpyAsync(st->wdlm, c.wdlm, size_t(batch) * 16, cudaMemcpyDeviceToHost, s));
-  FZ_CUDA(cudaStreamSynchronize(s));
+  impl_->Enqueue(*lease.c, st, 0, batch);
+  FZ_CUDA(cudaStreamSynchronize(lease.c->stream));
 }
 
 std::vector<Tap> Net::Taps(Stage* st, int batch) {

@@ -303,15 +303,20 @@ void TimeBatches(lczero::fz::Net* net, const std::vector<uint8_t>* raw) {
     std::memset(st->planes, 0, size_t(lczero::fz::kMaxBatch) * kPlanesBytes);
     std::memset(st->move_count, 0, lczero::fz::kMaxBatch * 2);
   }
-  for (int batch : {64, 48, 32, 16, 8, 1}) {
-    for (int i = 0; i < 5; ++i) net->Run(st, batch);
-    const int reps = 100;
-    const auto t = Clock::now();
-    for (int i = 0; i < reps; ++i) net->Run(st, batch);
-    const double ms = MsSince(t) / reps;
-    std::cout << "  batch " << batch << ": " << ms << " ms per batch, " << ms * 1000.0 / batch << " us per position, "
-              << 1000.0 * batch / ms << " positions/s" << std::endl;
+  for (int split : {1, 2}) {
+    net->SetSplit(split);
+    std::cout << "  split " << split << (split == 2 ? " (two halves at once on two contexts)" : " (one context)") << std::endl;
+    for (int batch : {64, 48, 32, 16, 8, 1}) {
+      for (int i = 0; i < 5; ++i) net->Run(st, batch);
+      const int reps = 100;
+      const auto t = Clock::now();
+      for (int i = 0; i < reps; ++i) net->Run(st, batch);
+      const double ms = MsSince(t) / reps;
+      std::cout << "    batch " << batch << ": " << ms << " ms per batch, " << ms * 1000.0 / batch << " us per position, "
+                << 1000.0 * batch / ms << " positions/s" << std::endl;
+    }
   }
+  net->SetSplit(1);
   net->ReleaseStage(st);
   std::cout << "--- time per stage on the GPU, batch 64 (CUDA events) ---" << std::endl;
   std::vector<lczero::fz::StageTime> times = net->Profile(64, 20);

@@ -18,7 +18,8 @@ namespace lczero {
 //   fixed_batch  the batch size the search aims for (and the most it may queue), 1..64; default 64. The runner itself takes any
 //                batch from 1 to 64 without padding, so this is only the size the search is told about.
 //   contexts     batches in flight at once (each keeps ~70 MB on the GPU); default 2.
-//   autotune     0 to skip timing the cuBLASLt algorithms at start-up (saves ~1 s); default 1.
+//   autotune     0 to skip timing the cuBLASLt algorithms at start-up (a few seconds); default 1.
+//   split        2 to cut every batch of 16 or more in two halves run at once on two contexts (needs contexts >= 2); default 1.
 class FzCudaBackend : public Backend {
  public:
   FzCudaBackend() = default;
