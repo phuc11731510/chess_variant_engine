@@ -1166,7 +1166,7 @@ Ngân sách mỗi đời đang chia theo luật cố định: ván rẽ ở các
 
 ### 16.3 Khung chặt chẽ cho nhãn value và nhãn policy (18/11)
 
-Chi tiết ở `SUY_RA_CONG_THUC.md` mục 11, chưa thử. **Cập nhật 19/11:** chủ dự án chọn nâng cấp chính cách cây đang chạy thay vì dùng khung này. Bản nâng cấp ở mục 12 của `SUY_RA_CONG_THUC.md`. Nó giữ nguyên mục 8 và temperature 0, và sửa ba chỗ mà số đo thật của lần chạy 5 cho thấy suy diễn lệch: $G$ ở node rẽ, cách chia sai số của $w_q$, và $\hat Q$ của nước không phải nước tốt nhất.
+Chi tiết từng ở `SUY_RA_CONG_THUC.md` mục 11, chưa thử; ngày 21/11 chủ dự án bỏ khung này, toàn văn còn trong lịch sử git (commit 34dd575). **Cập nhật 19/11:** chủ dự án chọn nâng cấp chính cách cây đang chạy thay vì dùng khung này. Bản nâng cấp ở mục 12 của `SUY_RA_CONG_THUC.md`. Nó giữ nguyên mục 8 và temperature 0, và sửa ba chỗ mà số đo thật của lần chạy 5 cho thấy suy diễn lệch: $G$ ở node rẽ, cách chia sai số của $w_q$, và $\hat Q$ của nước không phải nước tốt nhất. **Cập nhật 21/11:** chủ dự án cho nới các quy tắc search lại, giữ trần 20%. Mục 12 thêm ván lặp (search lại chơi tiếp thành ván) để đo phần may rủi ngay trong vòng lặp, gộp nhãn value trong một phép Gauss–Markov, và lập mọi nhóm theo thông tin biết được ngay tại node.
 
 - **Định nghĩa.** Giá trị thật là $V^\mu$ của một chính sách $\mu$ xác định ở mọi thế cờ. Trong cây, $\mu$ là $\pi$ đã lưu (có thể kèm temperature). Ngoài cây, $\mu$ là search của mạng đời hiện tại.
 - **Nhãn value.** Nhãn là phép tree backup: trộn theo đúng $\mu$, nước đã chơi dùng cây, nước chưa chơi dùng $\hat Q$. Sai số của nhãn bằng đúng tổng có trọng số các sai số của $\hat Q$ ở các lối ra của cây. Vì vậy nó bị chặn bởi $\varepsilon P_{\text{ra}}$ mà không cần G1, G2.
