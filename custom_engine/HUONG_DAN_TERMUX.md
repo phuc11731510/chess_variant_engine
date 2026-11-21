@@ -352,7 +352,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 |---|---|---|---|
 | 00 | `00_cau_hinh.py` | Cấu hình | `GEN_CURRENT` và mọi đường dẫn — **tự ghép vào đầu mọi ô** |
 | 01 | `01_kiem_gpu.py` | 0 | `nvidia-smi` |
-| 02 | `02_khoi_dong.py` | 1 | clone mã, binary + ONNX Runtime từ Release `v3.0.0`, `gen<N>.onnx` từ Release `NN_Model` (đời cũ: chuyển từ `.pt`) |
+| 02 | `02_khoi_dong.py` | 1 | mã (lần đầu clone **thưa** chỉ `custom_engine` ~1 MB; các đời sau chỉ `git fetch` + `reset`, **không** xoá thư mục), binary + ONNX Runtime từ Release `v3.0.0` (chỉ tải lại khi chưa có hoặc Release đổi), `gen<N>.onnx` từ Release `NN_Model` (đời cũ: chuyển từ `.pt`). **Dung lượng tải đo trên T4: máy mới ~351 MiB (phần lớn là pip `onnxruntime-gpu`), mỗi đời kế trên cùng máy ~19,5 MiB** (chỉ `gen<N>.pt`) |
 | 02c | `02c_chuan_bi_huan_luyen.py` | 5a | chỉ máy sắp huấn luyện: `gen<N>.pt` từ Release `NN_Model` + `pip install onnx…` (chạy trước 07) |
 | 02b | `02b_bien_dich.py` | 1b | biên dịch lại (chỉ khi cần) |
 | 03 | `03_tao_gen0.py` | 2 | tạo mạng đời 0 mới (ghi đè gen0) |
