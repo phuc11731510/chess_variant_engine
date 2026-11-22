@@ -1,6 +1,6 @@
 # Các công thức của cách cây trò chơi được suy ra thế nào
 
-Viết ngày 15/11/2026, bổ sung 18/11, 19/11 và 21/11. Tài liệu được đối chiếu với mã đang chạy trong `co_vua/scripts/cv/cay.py` (lần chạy 5). Lịch sử các quyết định nằm ở tài liệu thiết kế `THIET_KE_CO_VUA.md`. Tài liệu này làm hai việc:
+Viết ngày 15/11/2026, bổ sung 18/11, 19/11, 21/11 và 22/11. Tài liệu được đối chiếu với mã đang chạy trong `co_vua/scripts/cv/cay.py` (lần chạy 5). Lịch sử các quyết định nằm ở tài liệu thiết kế `THIET_KE_CO_VUA.md`. Tài liệu này làm hai việc:
 
 1. Với mỗi công thức hay quy tắc đang chạy, nói rõ mã làm gì từng bước, công thức được **suy ra** từ đâu hay được **ước lượng** từ dữ liệu hay chỉ được **đặt tay**, và nó dựa vào loại giả định nào (mục 1.1).
 2. Ghi bản nâng cấp của chính cách cây đang chạy (mục 12). Bản này đối chiếu phần suy diễn thống kê với số đo thật của lần chạy 5, chỉ ra ba chỗ không khớp, và đề xuất cách sửa, giữ temperature 0 và mục 8 trừ các quy tắc search lại. Đề xuất ngày 19/11, sửa ngày 21/11, chưa viết mã.
@@ -602,7 +602,7 @@ Mục này từng ghi một khung định lý theo kiểu Gumbel AlphaZero (đ�
 
 ---
 
-## 12. Nâng cấp cách cây đang chạy theo số đo thật (19/11, sửa 21/11, chưa viết mã)
+## 12. Nâng cấp cách cây đang chạy theo số đo thật (19/11, sửa 21/11, đo 22/11, chưa viết mã)
 
 Mục này đối chiếu phần suy diễn thống kê của cách cây đang chạy (mục 3 đến 7 và 9) với dữ liệu thật của lần chạy 5, chỉ ra chỗ nào không khớp, rồi đề xuất cách nâng cấp. Mọi con số ở đây đo trên dữ liệu thật trong điện thoại ngày 19/11. Chưa có dòng mã nào được sửa.
 
@@ -829,7 +829,7 @@ $N(s)$ là số ván hiệu dụng (số ván hiệu dụng này là số ván c
 $$x_a=G(c_a)+\big(q(s)-\hat Q(s,a)\big)-o(g),$$
 với $G(c_a)$ tính ở bước 4 và
 $$o(g)=\text{trung bình}\Big[\big(z_a-\hat Q(s,a)\big)-\big(z_\beta-q(s)\big)\Big],$$
-lấy trên các node rẽ thuộc nhóm $g$ có đúng một ván thuần (kết quả $z_\beta$) và có nhánh rẽ chỉ một ván (kết quả $z_a$). Theo bổ đề thiết kế, hai kết quả là mẫu không lệch của $V^+(s)$ (12.3) và của $Q^\beta(s,a)$, nên $o(g)$ ước không lệch độ lệch trung bình của khoảng chênh mà search ước. Với số đo theo khoảng cách hiện có, $o$ vào khoảng $-0{,}02$ tới $-0{,}035$.
+lấy trên các node rẽ thuộc nhóm $g$ có đúng một ván thuần (kết quả $z_\beta$) và có nhánh rẽ chỉ một ván (kết quả $z_a$). Theo bổ đề thiết kế, hai kết quả là mẫu không lệch của $V^+(s)$ (12.3) và của $Q^\beta(s,a)$, nên $o(g)$ ước không lệch độ lệch trung bình của khoảng chênh mà search ước. Đo ngày 22/11 trên cây đời 20 (12.14) cho $o=+0{,}011$ chung và $+0{,}057$ ở nhóm $p$ cao. Ước tính cũ "$-0{,}02$ tới $-0{,}035$" sai dấu, vì nó lấy độ lệch của $z_\beta-q$ bằng trung bình mọi vị trí, trong khi ở các node có nhánh rẽ độ lệch này khác nhiều.
 
 Ván rẽ không phải ván thuần từ $s$ (nước tại $s$ bị ép), nên nó không nằm trong $P(s)$. Vì vậy không kết quả nào bị đếm hai lần.
 
@@ -867,7 +867,7 @@ $$w=\frac{B/N}{A+B/N}.$$
 Khi $N=1$ thì $w=B/S$, đúng bằng tỉ lệ ở công cụ 2.
 - **Khi $\kappa=0$, nhánh rẽ nhận trọng số 0.** Lý do: khi đó $x_a-q=n_a+g_a-u=n_a-w_a-o$, và hiệu này không tương quan với $V^\beta-q=-u$, tức là $x_a$ chỉ là $q$ cộng một nhiễu riêng. Viết nhãn là $\alpha\,q+b\,x_P+\sum_a c_ax_a$ với tổng hệ số bằng 1. Sai số của nó là $\big(\alpha+\sum_a c_a\big)u+b\,e_P+\sum_a c_a\,(n_a-w_a-o)$. Giữ cố định $\alpha+\sum_a c_a$ thì phương sai nhỏ nhất khi mọi $c_a=0$.
 
-Như vậy nhánh rẽ chỉ giúp được $s$ khi $\kappa\ne0$, tức là khi sai số của search tại $s$ và sai số trên nước rẽ có tương quan. Thực tế $\kappa$ có lẽ dương: mạng đánh giá cao một thế cờ thì thường cũng đánh giá cao mọi nước đi từ thế đó. Chính lý do "search ước khoảng chênh tốt hơn ước từng giá trị", lý do để dùng khoảng chênh, cần $\kappa>0$.
+Như vậy nhánh rẽ chỉ giúp được $s$ khi $\kappa\ne0$, tức là khi sai số của search tại $s$ và sai số trên nước rẽ có tương quan. Thực tế $\kappa$ có lẽ dương: mạng đánh giá cao một thế cờ thì thường cũng đánh giá cao mọi nước đi từ thế đó. Chính lý do "search ước khoảng chênh tốt hơn ước từng giá trị", lý do để dùng khoảng chênh, cần $\kappa>0$. Đo ngày 22/11 (12.14): $\kappa$ dương ở các nhóm có sai số lớn, nhưng chỉ bằng khoảng 0,13 lần $S$, nên nhánh rẽ nhận trọng số 2,5% tới 10%, không phải 0 và cũng không phải 12,1% như ví dụ dưới đây.
 
 **Sửa 21/11: vì sao bỏ cách gộp hai tầng.** Bản 19/11 tính $G(s)$ từ nhánh $\beta$ và nhánh rẽ, rồi trộn $w\,q+(1-w)\,G$ với $w=(E-\rho_RA)/(E+A-2\rho_RA)$. Theo chính mô hình của nó ($\kappa=0$), cách đó đặt trọng số $(1-w)\rho_R>0$ lên nhánh rẽ, trong khi trọng số tốt nhất là 0. Ở ví dụ bên dưới, cách gộp hai tầng có sai số bình phương 0,0168, còn gộp một lần cho 0,0156.
 
@@ -884,7 +884,7 @@ Node cha **không** dùng $G$ của nhánh $\beta$. Mọi ván thuần từ node
 - $S(g)$: trung bình $(z-q)^2$ trên các ván thuần, với $q$ lúc chơi (công cụ 2). Đo lại mỗi đời.
 - $\hat B(g)$: đo từ cặp ván lặp (12.9). Khi đó $A(g)=S(g)-\hat B(g)$.
 - $o(g)$: như bước 1.
-- $\kappa(g)$: hiệp phương sai mẫu của $\big(z_\beta-q(s)\big)$ và $\big(z_a-\hat Q(s,a)\big)$, trên các node rẽ có một ván thuần và nhánh rẽ một ván. Lý do: $z_\beta-q=e_P-u$ và $z_a-\hat Q=n_a-w_a$, và trong bốn tích chéo chỉ còn $\mathrm{Cov}(u,w_a)$. Phép đo này làm được ngay trên cây đời 20, không cần chạy thêm.
+- $\kappa(g)$: hiệp phương sai mẫu của $\big(z_\beta-q(s)\big)$ và $\big(z_a-\hat Q(s,a)\big)$, trên các node rẽ có một ván thuần và nhánh rẽ một ván. Lý do: $z_\beta-q=e_P-u$ và $z_a-\hat Q=n_a-w_a$, và trong bốn tích chéo chỉ còn $\mathrm{Cov}(u,w_a)$. Phép đo này làm được ngay trên cây đời 20, không cần chạy thêm. Đã đo ngày 22/11: $\hat\kappa$ dương, bằng khoảng 0,13 lần $S$ (12.14).
 - $\Gamma(g)$: trên cùng các node đó, $\mathbb E\big[(x_a-z_\beta)^2\big]=E(c_a)+\Gamma+B$, nên $\Gamma=\text{trung bình}\big[(x_a-z_\beta)^2\big]-E(c_a)-\hat B(g)$.
 - $\eta(g)$: trên các node có một ván thuần và hai nhánh rẽ một ván, $\mathbb E\big[(x_a-z_\beta)(x_b-z_\beta)\big]=\eta+B$. Nếu nhóm có quá ít node như vậy, đặt $\eta=A-2\kappa$. Cách đặt này giả định sai số của search trên hai nước khác nhau không tương quan.
 
@@ -1008,7 +1008,7 @@ Nếu muốn có $\hat B$ trước khi đổi vòng lặp, vẫn có thể chạ
 
 ### 12.10 Thứ tự làm và cách kiểm
 
-1. **Đo ngay trên dữ liệu đang có, không chạy thêm:**
+1. **Đo ngay trên dữ liệu đang có, không chạy thêm** (đã làm một phần ngày 22/11, kết quả ở 12.14):
    - làm lại bảng 1 đến 4 theo nhóm $g(s)$ thay cho khoảng cách;
    - đo phần lệch do chia theo khoảng cách ở cách đang chạy: hiệp phương sai giữa $w_q$ và $z$ trong mỗi nhóm $g$, và trung bình của nhãn cũ so với trung bình $z$ theo nhóm $g$;
    - đo $\kappa(g)$, $o(g)$, $\eta(g)$ và $\Gamma(g)$ (với $B$ tạm) trên cây đời 20. $\kappa$ quyết định nhánh rẽ có vào nhãn value hay không.
@@ -1062,7 +1062,82 @@ $$\mathbb E\big[(f-z)^2\big]=\mathbb E\big[(f-V^\beta)^2\big]+\mathrm{Var}(z\,|\
 5. **Cách chia nhóm $g(s)$** (số khoảng của $p$, có chia thêm theo số nửa nước hay không) là lựa chọn tay. Nó ảnh hưởng tới độ nhiễu, không gây lệch.
 6. **Giá trị search dọc ván thuần chưa dùng.** Các lần search lúc chơi ở những node sau $s$ trên ván thuần cũng là bằng chứng về $V^\beta(s)$, nhưng mục 12 chưa đưa chúng vào nhãn.
 7. **Chưa kiểm gì.** Mọi số liệu đều từ lần chạy 5 của cách cũ. Định lý 9 chỉ là chặn trên, và không định lý nào trong mục này chứng minh arena sẽ hơn mốc 78,2%.
+8. **Tuổi của mạng đã cho $q$.** Ở node gần gốc tạo ở đời 0, $q$ đến từ mạng đời 0 với WDL gần đều ($p$ quanh 0,667), còn node tạo ở các đời sau có $q$ của mạng tốt hơn. Cùng một nhóm theo $p$ có thể lẫn hai loại sai số $A$ rất khác nhau (12.14). Nhóm $g(s)$ nên tính tới đời của mạng cho $q$, hoặc tách riêng node đời 0.
+9. **Node rẽ không phải mẫu ngẫu nhiên.** Ở node cha có nhánh rẽ, $\mathbb E[z_\beta-q]$ là $-0{,}020$ chung và $-0{,}099$ ở nhóm $p$ cao, so với $-0{,}005$ của mọi vị trí (12.14). Vì vậy $\kappa$ và $o$ đo ở đó đúng cho tập node do luật chọn điểm rẽ hiện tại tạo ra. Nếu luật đổi thì phải đo lại.
 
 ### 12.13 Phương án temperature 1 đã cân nhắc và không chọn
 
 Sáng 19/11, mục này từng ghi một phương án khác: ván rẽ bốc nước theo tỉ lệ lượt thăm (temperature 1), kèm nhãn value dùng mạng làm biến kiểm soát và nhãn policy nghiêng bậc nhất với hệ số $\tfrac12$. Các định lý của phương án đó đúng khi ván được bốc theo một phân phối biết trước. Chủ dự án không chọn nó, vì temperature 0 dùng lại được cây search và chơi được nhiều node hơn với cùng ngân sách. Toàn văn còn trong lịch sử git (commit 6dd126a), để tra lại nếu sau này đổi cách chơi.
+
+### 12.14 Kết quả đo ngày 22/11 trên dữ liệu có sẵn (một phần của bước 1 ở 12.10)
+
+Mục này ghi các số đo làm ngày 22/11. Chỉ đọc dữ liệu: không đổi mã, không chạy thêm ván nào, không ghi gì lên điện thoại. Các tập lệnh đo (đọc bản ghi, khớp vào cây, tính bảng) nằm tạm ở thư mục làm việc của phiên, chưa đưa vào kho.
+
+**Dữ liệu và cách kiểm.** Bản ghi 114 436 ván của các đời 0 đến 20 (8,86 triệu vị trí), khớp từng ván vào cây đời 20 theo đường đi từ gốc. Cây có 40 468 node cha có ván rẽ, với 74 435 ván rẽ. Làm lại bảng 1 của 12.4 từ bản ghi thô cho ra đúng các số đã ghi ở cả ba đời 10, 15 và 20 (độ lệch và RMS, tới chữ số thập phân thứ ba). Vì vậy cách đọc dữ liệu là đúng.
+
+**Kết quả 1: bảng theo nhóm $p(s)$.** Dùng 1,2 triệu vị trí của các đời 18 đến 20, chia 8 nhóm có số vị trí bằng nhau (150 215 vị trí mỗi nhóm), $p=1-d-q^2$ của lần search lúc chơi. Cột cuối là trung bình của (nhãn cũ trừ $z$), với nhãn cũ $=w\,q+(1-w)\,z$ và $w$ là $w_q$ trung bình theo khoảng cách ở bảng 4. Đây là nhãn của node một nhánh, và $w$ lấy xấp xỉ.
+
+| Nhóm | $p$ trung bình | Lệch $z-q$ | $S$ | $\mathbb E[p]/S$ | Nhãn cũ trừ $z$ |
+|---|---|---|---|---|---|
+| 0 | 0,000 | −0,0016 | 0,0102 | 0,01 | +0,0004 |
+| 1 | 0,000 | −0,0022 | 0,0156 | 0,02 | +0,0005 |
+| 2 | 0,001 | −0,0031 | 0,0194 | 0,04 | +0,0007 |
+| 3 | 0,002 | −0,0029 | 0,0224 | 0,08 | +0,0006 |
+| 4 | 0,004 | +0,0008 | 0,0249 | 0,17 | −0,0003 |
+| 5 | 0,011 | +0,0018 | 0,0298 | 0,37 | −0,0005 |
+| 6 | 0,070 | −0,0062 | 0,0789 | 0,89 | +0,0012 |
+| 7 | 0,627 | −0,0259 | 0,5738 | 1,09 | +0,0058 |
+| Chung | 0,104 | −0,0049 | 0,0969 | 0,92 | +0,0011 |
+
+Đọc bảng:
+
+- Khoảng 74% sai số tổng $S$ nằm ở nhóm 7, tức một phần tám số vị trí. Chia nhóm đều theo số vị trí là chia quá thô ở phần đuôi trên của $p$, và quá mịn ở phần đuôi dưới.
+- Lệch do chia theo khoảng cách (12.3, sửa 21/11) có thật nhưng nhỏ: trung bình của (nhãn cũ trừ $z$) là +0,0011 chung và lớn nhất +0,0058 ở nhóm 7. Nó nhỏ hơn nhiều so với các lệch của $G$ ở node rẽ (0,01 tới 0,07).
+- $\mathbb E[p]/S$ chỉ từ 0,01 tới 0,37 ở sáu nhóm đầu, tức kết quả thật sai nhiều hơn WDL của mạng tin. Một phần chênh này là hiệu ứng chọn nhóm theo chính $p$ nhỏ, và chưa tách được. Ở hai nhóm cuối tỉ số là 0,89 và 1,09, chung toàn bộ là 0,92.
+
+**Kết quả 2: $\kappa$, $o$ và các phương sai trên nhánh rẽ.** Với mỗi cặp (node cha $s$, nhánh rẽ $a$) ta lấy $Y_1=z_\beta-q(s)$ và $Y_2=z_a-\hat Q(s,a)$. Ở đây $z_\beta$ là kết quả của ván tạo ra $s$ (nhìn từ bên đi tại $s$), $q(s)$ và $\hat Q(s,a)$ lấy từ lần search lúc chơi của chính ván đó (bước 6 của 12.7), và $z_a$ là kết quả ván rẽ, cũng nhìn từ bên đi tại $s$. Khi đó $\kappa=\mathrm{Cov}(Y_1,Y_2)$ và $o=\mathbb E[Y_2-Y_1]$ theo bước 5 của 12.7. Đã kiểm $\hat Q$ cùng góc nhìn với $q$: với nước nhiều lượt thăm nhất, giá trị của nước trong bản ghi khác $q$ trung bình 0,0001.
+
+Có 74 433 cặp dùng được (một cặp có nước ép trùng nước đã chơi, một cặp thiếu $\hat Q$). Trong đó 47 688 cặp, tức 64%, có node cha **tạo ở đời 0**. Đó là các node gần gốc của những ván đầu tiên: mạng đời 0 cho WDL gần đều ($q$ quanh 0 và $d$ quanh một phần ba, nên $p$ quanh 0,667), và mỗi node có rất nhiều ván thuần vì mọi ván đời 0 đều đi từ gốc. Chúng không theo giả thiết "mỗi node một ván thuần" của 12.2, nên bị loại khỏi phép đo. Trên tập bị loại, $\hat\kappa=+0{,}084\pm0{,}004$ nhưng không đại diện cho node thường. Phần còn lại là 26 745 cặp từ 22 162 node cha (đời tạo từ 1 đến 20), chia 6 nhóm có số cặp bằng nhau theo $p$. Sai số chuẩn lấy bằng bootstrap theo node cha.
+
+| Nhóm | $p$ tb | Cặp | Var $Y_1$ | Var $Y_2$ | Tương quan | $\hat\kappa$ ± SE | $o$ |
+|---|---|---|---|---|---|---|---|
+| 0 | 0,000 | 4 458 | 0,0038 | 0,0086 | +0,04 | +0,0002 ± 0,0002 | −0,0009 |
+| 1 | 0,001 | 4 457 | 0,0090 | 0,0108 | +0,02 | +0,0002 ± 0,0002 | +0,0046 |
+| 2 | 0,002 | 4 458 | 0,0176 | 0,0166 | +0,03 | +0,0006 ± 0,0004 | +0,0012 |
+| 3 | 0,008 | 4 457 | 0,0235 | 0,0092 | +0,03 | +0,0005 ± 0,0004 | −0,0021 |
+| 4 | 0,052 | 4 457 | 0,0335 | 0,0410 | +0,17 | +0,0061 ± 0,0013 | +0,0039 |
+| 5 | 0,562 | 4 458 | 0,5069 | 0,5241 | +0,13 | +0,0649 ± 0,0102 | +0,0573 |
+| Chung | 0,104 | 26 745 | 0,1003 | 0,1019 | +0,13 | +0,0126 ± 0,0017 | +0,0106 |
+
+Đọc bảng:
+
+- $\kappa$ dương, và khác 0 rõ ở hai nhóm cuối, nơi phương sai lớn. Ở bốn nhóm đầu nó bằng 0 trong sai số, nhưng ở đó phương sai chỉ 0,004 tới 0,024 nên cũng không quan trọng. Vậy trường hợp $\kappa=0$, nơi nhánh rẽ có trọng số 0 (bước 3 của 12.7), không xảy ra ở chỗ có sai số lớn.
+- Tỉ số $\hat\kappa/\mathrm{Var}(Y_1)$ là 0,18 ở nhóm 4, 0,13 ở nhóm 5 và 0,13 chung. Nó ổn định hơn bản thân $\kappa$, và đó là hệ số hồi quy của $Y_2$ theo $Y_1$.
+- Chia thêm theo số đời giữa ván tạo node cha và ván rẽ, trong ba nhóm theo $p$ và lấy nhóm trên cùng: $+0{,}029\pm0{,}007$ khi cách 0 hoặc 1 đời, $+0{,}032\pm0{,}011$ khi cách 2 tới 5 đời, $+0{,}045\pm0{,}009$ khi cách 6 đời trở lên. $\kappa$ tăng nhẹ theo số đời, chưa tách được khỏi việc mạng đổi giữa hai ván (12.12, chỗ 1).
+- $o=+0{,}011$ chung và $+0{,}057$ ở nhóm cao nhất. Ước tính "$-0{,}02$ tới $-0{,}035$" ở bước 1 của 12.7 sai dấu. Nó lấy độ lệch của $z_\beta-q$ bằng $-0{,}005$ như trung bình mọi vị trí. Thật ra ở các node cha có nhánh rẽ, $\mathbb E[Y_1]$ là $-0{,}020$ chung và $-0{,}099\pm0{,}011$ ở nhóm cao nhất: $q$ của ván tạo node lạc quan hơn nhiều so với mức trung bình của mọi vị trí. Chưa giải thích được. Luật chọn điểm rẽ (6.3) và việc node nào còn sống sau các lần cắt đều có thể liên quan tới kết quả của ván tạo node. Vì vậy $\kappa$ và $o$ trên đây đúng cho tập node cha được chọn theo luật hiện tại, không phải cho mọi node.
+
+**Kết quả 3: nhánh rẽ nhận bao nhiêu trọng số nếu $\kappa$ như đã đo.** Đây chỉ là tính toán với một giả định chưa đo: tỉ lệ $B/S$, phần may rủi trong sai số tổng. Lấy nhóm 5 ($S=0{,}507$, Var $Y_2=0{,}524$, $\hat\kappa=0{,}065$). Một nhánh rẽ, $N=1$, $B_a=B$, $\sigma_w^2=\mathrm{Var}(Y_2)-B$ và $\Gamma=A+\sigma_w^2-2\kappa$, rồi tính Gauss–Markov của 12.7:
+
+| $B/S$ giả định | $A$ | $B$ | Trọng số $q$ | Trọng số ván thuần | Trọng số nhánh rẽ | Sai số bình phương của nhãn, có và không dùng nhánh rẽ |
+|---|---|---|---|---|---|---|
+| 0,2 | 0,406 | 0,101 | 0,178 | 0,797 | 0,025 | 0,0808 và 0,0811 |
+| 0,4 | 0,304 | 0,203 | 0,356 | 0,594 | 0,050 | 0,1203 và 0,1217 |
+| 0,6 | 0,203 | 0,304 | 0,534 | 0,390 | 0,075 | 0,1187 và 0,1217 |
+| 0,8 | 0,101 | 0,406 | 0,712 | 0,187 | 0,101 | 0,0759 và 0,0811 |
+
+Đọc bảng:
+
+- Nhánh rẽ nhận 2,5% tới 10% trọng số, và chỉ hạ sai số bình phương của nhãn 0,4% tới 6,4%. Thấp hơn nhiều so với 12,1% ở ví dụ giả định của 12.7, và so với 32 tới 66% khối lượng mà $\rho$ của G2 đặt lên nước rẽ ở cách đang chạy. Với $\kappa/S$ cỡ 0,13, nhánh rẽ chỉ là phần phụ của nhãn $V^\beta$ tại node cha.
+- Trọng số của $q$ gần bằng $B/S$ và chạy từ 0,18 tới 0,71. Vậy $B/S$ là con số quyết định chất lượng nhãn. Mã đang chạy tin $B/S$ trong khoảng 0,12 tới 0,36 (bảng 4, $E/(E+\tau_q^2)$) mà chưa từng kiểm. Nếu giá trị thật là 0,8 thì nhãn đang quá thiên về $z$; nếu là 0,2 thì mã gần đúng. Theo công cụ 3 của 12.3, dữ liệu hiện có không tách được $A$ khỏi $B$. Chỉ cặp ván lặp (12.9) tách được.
+
+**Điều đo này chưa làm được.**
+
+- $B$, và vì vậy $A$, $\Gamma$ và $\eta$ ở các nhóm đại diện. Một thử $\eta+B$ ở node có hai nhánh rẽ cho kết quả lẫn với tập node đời 0 nên chưa dùng được.
+- Bảng 2 và bảng 3 của 12.4 chia lại theo nhóm $p$.
+- Tách ảnh hưởng của việc mạng đổi giữa hai ván khỏi $\kappa$.
+
+**Hệ quả cho thiết kế.**
+
+- Cấu trúc của 12.7 giữ nguyên. Mặc định không đặt $\kappa=0$ mà dùng $\hat\kappa$ đo được theo nhóm, như bước 5 đã ghi. Nhánh rẽ chỉ là phần phụ của nhãn.
+- Việc đầu tiên bây giờ là đo $B/S$ bằng cặp ván lặp (bước 2 của 12.10), vì nó quyết định trọng số của $q$ so với $z$ trong nhãn của mọi node.
+- Nhóm lập theo $p$ chưa đủ: khối node đời 0 dồn ở một giá trị $p$ duy nhất (0,667), và $q$ của chúng đến từ mạng đời 0. Nhóm phải tính tới tuổi của mạng đã cho $q$ (12.12, chỗ 8).

@@ -16,6 +16,7 @@ Cập nhật ngày 2026-11-15. Phần chung của cả hai cách đã xong và �
   - Giữ nhãn policy trung bình $\pi$ (có cơ sở theo Grill). Phần sửa $\hat Q$ bằng kết quả ván là tuỳ chọn.
 - Có thêm một định lý về lâu dài: nếu nhãn lệch có hệ thống một lượng $b$, chặn trên của khoảng cách tới minimax không xuống dưới $2hb$ dù chạy bao lâu, tức là vòng lặp mất bảo đảm tiến tới minimax. Định lý không nói khoảng cách thật lớn cỡ đó.
 - Ngày 21/11 mục 11 (khung kiểu Gumbel AlphaZero) bị bỏ; chủ dự án chọn làm chặt chính cách cây đang chạy.
+- Ngày 22/11 đo một phần trên dữ liệu có sẵn của đời 20 (mục 12.14, chỉ đọc, chưa đổi mã): $\kappa$ dương, bằng khoảng 0,13 lần $S$, nên nhánh rẽ chỉ nhận 2,5% tới 10% trọng số của nhãn value. Lệch do chia theo khoảng cách có thật nhưng nhỏ (nhãn cũ lệch +0,001 chung, +0,006 ở nhóm $p$ cao nhất). Con số quyết định chất lượng nhãn là $B/S$; dữ liệu hiện có không tách được, chỉ cặp ván lặp tách được.
 
 Phương pháp này chưa viết mã. Mình (Claude) đang theo dõi qua SSH khi máy tính bật. Còn lại: theo dõi lần chạy thật, chạy xen hai cách. Theo cách làm đã thống nhất hôm nay, mỗi lần chỉ làm một việc nhỏ, và việc nào cũng được nói trước và báo lại bằng lời thường.
 
