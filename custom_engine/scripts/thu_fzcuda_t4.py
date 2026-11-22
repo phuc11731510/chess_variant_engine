@@ -123,6 +123,28 @@ def tu_dau(tag, extra=""):
 tu_dau("graph=1")
 tu_dau("graph=0", "--fz-opt graph=0")
 
+# 6. ONNX Runtime nap luc can (-Donnxruntime_dlopen=true): binary khong lien ket libonnxruntime. Phai (a) chay khi KHONG co no tren duong
+#    dan, (b) van dung duoc ONNX Runtime (CPU va CUDA EP) khi co: nhu vay binary nay thay duoc binary cu cho cac o lenh cu.
+log("6. ONNX Runtime nap luc can")
+rc, out = sh(f"ldd {E}/build-linux/custom_engine | grep -c libonnxruntime", timeout=30)
+ket("binary khong lien ket dong voi libonnxruntime", out.strip().splitlines()[-1] == "0", out.strip()[-40:])
+rc, out = sh(f"env -u LD_LIBRARY_PATH {E}/build-linux/custom_engine --test-uci 2>&1 | grep -c PASS", timeout=60)
+ket("--test-uci khi KHONG co ONNX Runtime tren duong dan", out.strip().splitlines()[-1] == "1", out.strip()[-40:])
+if os.path.exists(f"{C}/seed.onnx"):
+    rc, out = sh(f"env -u LD_LIBRARY_PATH {E}/build-linux/custom_engine --test-neural --weights {C}/seed.onnx 2>&1 | tail -n 3", timeout=300)
+    print(out, flush=True)
+    ket("--test-neural --weights seed.onnx khi thieu ONNX Runtime: bao loi ro rang, khong sap", "ONNX Runtime" in out or "PASS" in out, out.strip()[-120:])
+    rc, out = sh(f"bash {E}/run.sh --test-neural --weights {C}/seed.onnx 2>&1 | tail -n 3", timeout=600)
+    print(out, flush=True)
+    ket("--test-neural --weights seed.onnx (ONNX Runtime nap luc can, CPU)", rc == 0 and "[PASS] --test-neural" in out)
+    cmd = (f"cd {C} && rm -rf sp_ort && bash {E}/run.sh --selfplay --games 8 --max-seconds 40 --visits 100 --max-moves 100 --temperature 0.5 "
+           f"--parallel 4 --provider cuda --fixed-batch 16 --batch-aggregate --weights {C}/seed.onnx --out {C}/sp_ort 2>&1 | tail -n 6")
+    rc, out = sh(cmd, timeout=300)
+    print(out, flush=True)
+    ket("tu dau --provider cuda (ONNX Runtime nap luc can, CUDA EP)", rc == 0 and glob.glob(f"{C}/sp_ort/**/*.xz", recursive=True) != [])
+else:
+    log("   (khong co /content/seed.onnx: bo qua kiem ONNX Runtime nap luc can; dua len bang --tep)")
+
 log("=== TOM TAT ===")
 for ten, ok, note in KQ:
     print(f"  {'PASS' if ok else 'FAIL'}  {ten}  {note}")
