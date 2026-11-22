@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.fairyzero_gui"
+    namespace = "vn.fairyzero.xem"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,8 +15,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.fairyzero_gui"
+        // Xem ván của dữ liệu huấn luyện FairyZero trên Android.
+        applicationId = "vn.fairyzero.xem"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         // minSdk 24: engine .so cross-compile voi aarch64-linux-android24-clang;

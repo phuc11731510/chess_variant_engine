@@ -1,0 +1,57 @@
+# dữ liệu huấn luyện · 261_game_80.xz · ván 519/1016 · 5 nửa nước · Trắng thắng (mỗi nước: số lượt thăm N của 8 nước nhiều nhất; Q chỉ có cho nước đã đi và nước tốt nhất)
+--- nửa nước 1 (trắng đi) → g3g4
+position fen vqvnggbccb/msrsmysrsk/nppppppppy/10/10/10/10/NPPPPPPPPY/YSMSRBSNSK/GCBQCVRGVM w - - 8+8 0 1
+  depth 1 seldepth 1 multipv 1 wdl 974 0 26 nodes 228 nps 0 time 0 pv i1j4
+    i1j4 N 32 Q 0.9728
+    i1h4 N 24
+    j3h5 N 17
+    h2g4 N 16
+    f1g4 N 14
+    h2i4 N 14
+    b3b4 N 12
+    j3j5 N 10
+    g3g4 N 9 Q 0.9638
+--- nửa nước 2 (đen đi) → c10d7
+position fen vqvnggbccb/msrsmysrsk/nppppppppy/10/10/10/10/NPPPPPPPPY/YSMSRBSNSK/GCBQCVRGVM w - - 8+8 0 1 moves g3g4
+  depth 1 seldepth 1 multipv 1 wdl 31 0 969 nodes 229 nps 0 time 0 pv j8h6
+    j8h6 N 32 Q -0.9457
+    j8j6 N 25
+    h8h6 N 16
+    f8f7 N 15
+    f9h7 N 15
+    h8h7 N 13
+    a10b7 N 11
+    c10d7 N 11 Q -0.9459
+--- nửa nước 3 (trắng đi) → i1h4
+position fen vqvnggbccb/msrsmysrsk/nppppppppy/10/10/10/10/NPPPPPPPPY/YSMSRBSNSK/GCBQCVRGVM w - - 8+8 0 1 moves g3g4 c10d7
+  depth 1 seldepth 1 multipv 1 wdl 974 0 26 nodes 809 nps 0 time 0 pv i1h4
+    i1h4 N 123 Q 0.9484
+    i1j4 N 97
+    h3h5 N 69
+    j3h5 N 52
+    h2i4 N 48
+    j3j5 N 40
+    i3i4 N 37
+    f3f4 N 34
+--- nửa nước 4 (đen đi) → h8h7
+position fen vqvnggbccb/msrsmysrsk/nppppppppy/10/10/10/10/NPPPPPPPPY/YSMSRBSNSK/GCBQCVRGVM w - - 8+8 0 1 moves g3g4 c10d7 i1h4
+  depth 1 seldepth 1 multipv 1 wdl 31 0 969 nodes 226 nps 0 time 0 pv h8h7
+    h8h7 N 44 Q -0.9120
+    j8j6 N 35
+    b10c10 N 26
+    j8h6 N 25
+    i8i7 N 21
+    c9c10 N 13
+    i8i6 N 8
+    e8e6 N 6
+--- nửa nước 5 (trắng đi) → h4i7
+position fen vqvnggbccb/msrsmysrsk/nppppppppy/10/10/10/10/NPPPPPPPPY/YSMSRBSNSK/GCBQCVRGVM w - - 8+8 0 1 moves g3g4 c10d7 i1h4 h8h7
+  depth 1 seldepth 1 multipv 1 wdl 986 0 14 nodes 820 nps 0 time 0 pv h4i7
+    h4i7 N 545 Q 1.0000
+    j2i1 N 75
+    h4i6 N 27
+    j1i1 N 20
+    f1g3 N 15
+    j3h5 N 14
+    h2i4 N 13
+    f3f5 N 11

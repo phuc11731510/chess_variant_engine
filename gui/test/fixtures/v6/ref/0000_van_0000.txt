@@ -1,0 +1,1043 @@
+# dữ liệu huấn luyện · 1016_game_0.xz · ván 0/1016 · 98 nửa nước · Đen thắng (mỗi nước: số lượt thăm N của 8 nước nhiều nhất; Q chỉ có cho nước đã đi và nước tốt nhất)
+--- nửa nước 1 (trắng đi) → j3j4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1
+  depth 1 seldepth 1 multipv 1 wdl 420 0 580 nodes 212 nps 0 time 0 pv j3j4
+    j3j4 N 137 Q -0.0865
+    j3h5 N 34
+    a1b4 N 5
+    j1i4 N 5
+    a3b4 N 3
+    c2d4 N 3
+    j3j5 N 3
+    c2b4 N 2
+--- nửa nước 2 (đen đi) → j9i7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4
+  depth 1 seldepth 1 multipv 1 wdl 573 0 427 nodes 817 nps 0 time 0 pv j9i7
+    j9i7 N 661 Q 0.1974
+    i8i7 N 69
+    g10h7 N 12
+    i8i6 N 8
+    a8c7 N 7
+    g10f7 N 4
+    a8b6 N 3
+    a9c7 N 3
+--- nửa nước 3 (trắng đi) → j4j6
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7
+  depth 1 seldepth 1 multipv 1 wdl 417 0 583 nodes 200 nps 0 time 0 pv j4j6
+    j4j6 N 114 Q -0.0761
+    j4h6 N 58
+    j2i4 N 5
+    b3b5 N 3
+    i1j3 N 3
+    a1b4 N 1
+    a3b4 N 1
+    a3b5 N 1
+--- nửa nước 4 (đen đi) → j8j9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6
+  depth 1 seldepth 1 multipv 1 wdl 575 0 425 nodes 258 nps 0 time 0 pv j8j9
+    j8j9 N 255 Q 0.1591
+    j8i6 N 1
+    j8j7 N 1
+--- nửa nước 5 (trắng đi) → j6j7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9
+  depth 1 seldepth 1 multipv 1 wdl 421 0 579 nodes 220 nps 0 time 0 pv j6j7
+    j6j7 N 140 Q -0.0856
+    j1i4 N 20
+    j2i4 N 13
+    a1b4 N 10
+    i1j3 N 9
+    h1j3 N 4
+    a3b5 N 2
+    a3b4 N 1
+--- nửa nước 6 (đen đi) → i8j7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7
+  depth 1 seldepth 1 multipv 1 wdl 557 0 443 nodes 231 nps 0 time 0 pv i8j7
+    i8j7 N 229 Q 0.1199
+    j9j8 N 1
+--- nửa nước 7 (trắng đi) → j2i4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7
+  depth 1 seldepth 1 multipv 1 wdl 466 0 534 nodes 209 nps 0 time 0 pv j2i4
+    j2i4 N 117 Q 0.0208
+    j1i4 N 29
+    a1b4 N 13
+    a3b5 N 13
+    h1j3 N 9
+    i1j3 N 6
+    a3b4 N 1
+    b3b4 N 1
+--- nửa nước 8 (đen đi) → i9i8
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4
+  depth 1 seldepth 1 multipv 1 wdl 481 0 519 nodes 229 nps 0 time 0 pv i9i8
+    i9i8 N 116 Q 0.0363
+    a8c7 N 67
+    g10f7 N 15
+    a9c7 N 2
+    a8b6 N 1
+    a9a7 N 1
+    b8b6 N 1
+    b8b7 N 1
+--- nửa nước 9 (trắng đi) → h1j3
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8
+  depth 1 seldepth 1 multipv 1 wdl 434 0 566 nodes 206 nps 0 time 0 pv h1j3
+    h1j3 N 98 Q -0.0546
+    f3f4 N 33
+    i4j5 N 24
+    a1b4 N 14
+    i1j3 N 9
+    a3a4 N 1
+    a3b4 N 1
+    a3b5 N 1
+--- nửa nước 10 (đen đi) → a8c7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3
+  depth 1 seldepth 1 multipv 1 wdl 539 0 461 nodes 829 nps 0 time 0 pv a8c7
+    a8c7 N 332 Q 0.1235
+    g10f7 N 131
+    a9c7 N 75
+    f10g7 N 75
+    i10i9 N 38
+    d8d6 N 30
+    j10i9 N 21
+    a8b6 N 18
+--- nửa nước 11 (trắng đi) → j3j8
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7
+  depth 1 seldepth 1 multipv 1 wdl 427 0 573 nodes 837 nps 0 time 0 pv j3j8
+    j3j8 N 653 Q -0.0996
+    i4g5 N 61
+    i4j5 N 45
+    a1b4 N 10
+    f3f4 N 9
+    i4h4 N 9
+    j3h5 N 8
+    c3c5 N 7
+--- nửa nước 12 (đen đi) → h10j8
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8
+  depth 1 seldepth 1 multipv 1 wdl 542 0 458 nodes 205 nps 0 time 0 pv h10j8
+    h10j8 N 195 Q 0.0990
+    j9j8 N 9
+--- nửa nước 13 (trắng đi) → i4j5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8
+  depth 1 seldepth 1 multipv 1 wdl 449 0 551 nodes 208 nps 0 time 0 pv i4j5
+    i4j5 N 142 Q -0.0250
+    a1b4 N 17
+    i1j3 N 10
+    g1h1 N 6
+    d3d5 N 3
+    a3a4 N 1
+    a3b4 N 1
+    a3b5 N 1
+--- nửa nước 14 (đen đi) → c10a8
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5
+  depth 1 seldepth 1 multipv 1 wdl 589 0 411 nodes 820 nps 0 time 0 pv c10a8
+    c10a8 N 683 Q 0.2430
+    j9h10 N 33
+    c7e6 N 24
+    i10h10 N 14
+    g10f7 N 11
+    d8d6 N 7
+    j9i9 N 7
+    i7j5 N 4
+--- nửa nước 15 (trắng đi) → a3a4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8
+  depth 1 seldepth 1 multipv 1 wdl 373 0 627 nodes 810 nps 0 time 0 pv a3b4
+    a3b4 N 328 Q -0.2415
+    a3a4 N 327 Q -0.2642
+    a3b5 N 154
+--- nửa nước 16 (đen đi) → j9h10
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4
+  depth 1 seldepth 1 multipv 1 wdl 640 0 360 nodes 210 nps 0 time 0 pv j9h10
+    j9h10 N 142 Q 0.3652
+    i10h10 N 18
+    g10f7 N 15
+    a8a3 N 4
+    a8a7 N 1
+    a8b7 N 1
+    a8g2 N 1
+    a9a7 N 1
+--- nửa nước 17 (trắng đi) → a1b4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10
+  depth 1 seldepth 1 multipv 1 wdl 328 0 672 nodes 230 nps 0 time 0 pv a1b4
+    a1b4 N 98 Q -0.2348
+    j1i4 N 33
+    i2j3 N 28
+    g1h1 N 12
+    h3h5 N 12
+    j5i7 N 11
+    i1j3 N 2
+    a4a5 N 1
+--- nửa nước 18 (đen đi) → g10f7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4
+  depth 1 seldepth 1 multipv 1 wdl 688 0 312 nodes 815 nps 0 time 0 pv g10f7
+    g10f7 N 479 Q 0.4232
+    c7e6 N 109
+    i7j5 N 70
+    j10j9 N 41
+    b10c10 N 26
+    i10j9 N 21
+    d10c10 N 15
+    a8a3 N 9
+--- nửa nước 19 (trắng đi) → j5i6
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7
+  depth 1 seldepth 1 multipv 1 wdl 304 0 696 nodes 869 nps 0 time 0 pv j5i6
+    j5i6 N 264 Q -0.3412
+    j5i7 N 114
+    g3g4 N 105
+    d3d5 N 74
+    a2a1 N 65
+    j1i4 N 58
+    b1a1 N 48
+    h3h5 N 40
+--- nửa nước 20 (đen đi) → b8b6
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6
+  depth 1 seldepth 1 multipv 1 wdl 700 0 300 nodes 205 nps 0 time 0 pv b8b6
+    b8b6 N 139 Q 0.5077
+    a8a3 N 19
+    j7i6 N 14
+    a8a7 N 1
+    a8b7 N 1
+    a8g2 N 1
+    a9a7 N 1
+    b10c10 N 1
+--- nửa nước 21 (trắng đi) → i6i7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6
+  depth 1 seldepth 1 multipv 1 wdl 227 0 773 nodes 219 nps 0 time 0 pv i6i7
+    i6i7 N 104 Q -0.4625
+    b1a1 N 51
+    a2a1 N 25
+    j1i4 N 2
+    a4a5 N 1
+    a4b5 N 1
+    a4b6 N 1
+    b2a3 N 1
+--- nửa nước 22 (đen đi) → i8i7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7
+  depth 1 seldepth 1 multipv 1 wdl 758 0 242 nodes 804 nps 0 time 0 pv i8i7
+    i8i7 N 631 Q 0.5822
+    j8i7 N 62
+    h8i7 N 30
+    j8i9 N 17
+    b9b8 N 5
+    f10g7 N 5
+    g8g6 N 5
+    f9h7 N 3
+--- nửa nước 23 (trắng đi) → c2a1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7
+  depth 1 seldepth 1 multipv 1 wdl 213 0 787 nodes 802 nps 0 time 0 pv c2a1
+    c2a1 N 122 Q -0.5471
+    a2a1 N 112
+    b1a1 N 93
+    f1h1 N 54
+    d3d4 N 39
+    g1h1 N 38
+    c2a3 N 37
+    e3e4 N 37
+--- nửa nước 24 (đen đi) → b10c10
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1
+  depth 1 seldepth 1 multipv 1 wdl 786 0 214 nodes 201 nps 0 time 0 pv b10c10
+    b10c10 N 112 Q 0.6502
+    b9b8 N 24
+    d10c10 N 14
+    b9b7 N 2
+    f10g7 N 2
+    f9d7 N 2
+    g8g6 N 2
+    h10g10 N 2
+--- nửa nước 25 (trắng đi) → c1c2
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10
+  depth 1 seldepth 1 multipv 1 wdl 187 0 813 nodes 217 nps 0 time 0 pv c1c2
+    c1c2 N 47 Q -0.5854
+    j1i4 N 29
+    e3e4 N 28
+    a4b6 N 18
+    f1h1 N 13
+    g1h1 N 12
+    h3h5 N 12
+    c3c4 N 10
+--- nửa nước 26 (đen đi) → f7h6
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2
+  depth 1 seldepth 1 multipv 1 wdl 825 0 175 nodes 205 nps 0 time 0 pv f10g7
+    f10g7 N 45 Q 0.7310
+    a8a3 N 24
+    f7h6 N 24 Q 0.6796
+    f10e7 N 20
+    i10j9 N 8
+    a9a7 N 6
+    f9d7 N 6
+    a10b10 N 4
+--- nửa nước 27 (trắng đi) → b1c1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6
+  depth 1 seldepth 1 multipv 1 wdl 304 0 696 nodes 829 nps 0 time 0 pv b1c1
+    b1c1 N 745 Q -0.3526
+    j1i4 N 21
+    g3g5 N 15
+    g1h1 N 8
+    d1c1 N 5
+    c3c5 N 3
+    e3e4 N 2
+    h2h1 N 2
+--- nửa nước 28 (đen đi) → a8a3
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1
+  depth 1 seldepth 1 multipv 1 wdl 704 0 296 nodes 239 nps 0 time 0 pv a8a3
+    a8a3 N 94 Q 0.5227
+    a8g2 N 13
+    a9a7 N 6
+    f9d7 N 6
+    i10j9 N 6
+    b9b7 N 5
+    f9f7 N 5
+    j8i8 N 5
+--- nửa nước 29 (trắng đi) → c1a3
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3
+  depth 1 seldepth 1 multipv 1 wdl 288 0 712 nodes 801 nps 0 time 0 pv c1a3
+    c1a3 N 692 Q -0.3923
+    b2a3 N 49
+    a2a3 N 25
+    a4a3 N 25
+    a2b1 N 9
+--- nửa nước 30 (đen đi) → f9d7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3
+  depth 1 seldepth 1 multipv 1 wdl 696 0 304 nodes 841 nps 0 time 0 pv f9d7
+    f9d7 N 134 Q 0.4485
+    f10g7 N 129
+    f9f7 N 110
+    h6e5 N 29
+    h9j9 N 24
+    c7b5 N 23
+    e8e7 N 22
+    i10j9 N 19
+--- nửa nước 31 (trắng đi) → a2b1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7
+  depth 1 seldepth 1 multipv 1 wdl 286 0 714 nodes 206 nps 0 time 0 pv a2b1
+    a2b1 N 162 Q -0.3578
+    d1b1 N 3
+    g1h1 N 3
+    a3a5 N 2
+    a3c1 N 2
+    d1c1 N 2
+    j1i4 N 2
+    a3c5 N 1
+--- nửa nước 32 (đen đi) → e10h7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1
+  depth 1 seldepth 1 multipv 1 wdl 677 0 323 nodes 210 nps 0 time 0 pv e10h7
+    e10h7 N 56 Q 0.4364
+    e10f9 N 8
+    c10b10 N 7
+    h9j9 N 6
+    b9b7 N 5
+    b9b8 N 5
+    e9f9 N 5
+    j8i9 N 5
+--- nửa nước 33 (trắng đi) → e3e4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7
+  depth 1 seldepth 1 multipv 1 wdl 303 0 697 nodes 215 nps 0 time 0 pv e3e4
+    e3e4 N 90 Q -0.3130
+    g1h1 N 14
+    h3h4 N 11
+    f3f5 N 9
+    a3c1 N 8
+    h3h5 N 7
+    j1i4 N 7
+    a3a5 N 4
+--- nửa nước 34 (đen đi) → h9j9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4
+  depth 1 seldepth 1 multipv 1 wdl 660 0 340 nodes 816 nps 0 time 0 pv h9j9
+    h9j9 N 320 Q 0.3819
+    f10g7 N 79
+    h7d3 N 19
+    h7f9 N 19
+    a10b10 N 18
+    f8f6 N 18
+    f10i9 N 17
+    c10b10 N 16
+--- nửa nước 35 (trắng đi) → i3i5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9
+  depth 1 seldepth 1 multipv 1 wdl 317 0 683 nodes 810 nps 0 time 0 pv a4b6
+    a4b6 N 181 Q -0.3283
+    h3h5 N 97
+    g1h1 N 73
+    b1c1 N 62
+    j1i4 N 56
+    a3a2 N 49
+    b4e3 N 35
+    i3i5 N 29 Q -0.3450
+--- nửa nước 36 (đen đi) → d7f5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5
+  depth 1 seldepth 1 multipv 1 wdl 615 0 385 nodes 823 nps 0 time 0 pv h6f7
+    h6f7 N 113 Q 0.2565
+    c7b5 N 72
+    f10e7 N 70
+    d7b5 N 64
+    h6i9 N 51
+    d7f5 N 34 Q 0.2783
+    h6e7 N 30
+    h6i8 N 28
+--- nửa nước 37 (trắng đi) → i5h6
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5
+  depth 1 seldepth 1 multipv 1 wdl 439 0 561 nodes 806 nps 0 time 0 pv b1c1
+    b1c1 N 365 Q -0.0345
+    i5h6 N 288 Q -0.1243
+    e4f5 N 79
+    b4e5 N 9
+    g3g5 N 9
+    i2i4 N 6
+    g1h1 N 5
+    c3c5 N 4
+--- nửa nước 38 (đen đi) → f5d3
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6
+  depth 1 seldepth 1 multipv 1 wdl 539 0 461 nodes 822 nps 0 time 0 pv f5d3
+    f5d3 N 285 Q 0.1256
+    h7h6 N 147
+    f10g7 N 36
+    h7e4 N 20
+    c7b5 N 19
+    j8i9 N 18
+    h10f9 N 17
+    f10e7 N 14
+--- nửa nước 39 (trắng đi) → c2d3
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3
+  depth 1 seldepth 1 multipv 1 wdl 417 0 583 nodes 233 nps 0 time 0 pv c2d3
+    c2d3 N 160 Q -0.1199
+    d2d3 N 39
+    d1d3 N 12
+    f1d3 N 12
+    e2d3 N 6
+    b1a2 N 1
+    b1c1 N 1
+    b4d3 N 1
+--- nửa nước 40 (đen đi) → h7h6
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3
+  depth 1 seldepth 1 multipv 1 wdl 560 0 440 nodes 806 nps 0 time 0 pv h7h6
+    h7h6 N 337 Q 0.1687
+    e8e7 N 59
+    h7d3 N 59
+    a9a7 N 26
+    c7d5 N 26
+    j7j6 N 22
+    c10b10 N 20
+    f10e7 N 20
+--- nửa nước 41 (trắng đi) → j1i4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6
+  depth 1 seldepth 1 multipv 1 wdl 415 0 585 nodes 824 nps 0 time 0 pv j1i4
+    j1i4 N 279 Q -0.1104
+    i1j3 N 235
+    g1h1 N 79
+    h3h5 N 50
+    i2j3 N 22
+    a3c5 N 20
+    f1h1 N 15
+    g3g4 N 14
+--- nửa nước 42 (đen đi) → h6c1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4
+  depth 1 seldepth 1 multipv 1 wdl 583 0 417 nodes 805 nps 0 time 0 pv h6c1
+    h6c1 N 548 Q 0.2132
+    f10e7 N 70
+    h6g7 N 19
+    h6h7 N 19
+    c10b10 N 18
+    f10h9 N 17
+    h6a6 N 10
+    e9f9 N 9
+--- nửa nước 43 (trắng đi) → b1c1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1
+  depth 1 seldepth 1 multipv 1 wdl 398 0 602 nodes 232 nps 0 time 0 pv b1c1
+    b1c1 N 97 Q -0.1876
+    d1c1 N 76
+    a3c1 N 56
+    b1a2 N 1
+    b4c1 N 1
+--- nửa nước 44 (đen đi) → f8f6
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1
+  depth 1 seldepth 1 multipv 1 wdl 636 0 364 nodes 813 nps 0 time 0 pv b9b7
+    b9b7 N 247 Q 0.3971
+    a9a7 N 130
+    f10e7 N 47
+    i10i9 N 44
+    f10g7 N 38
+    h10g10 N 38
+    d8d7 N 36
+    f8f6 N 33 Q 0.2195
+--- nửa nước 45 (trắng đi) → c1b1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6
+  depth 1 seldepth 1 multipv 1 wdl 400 0 600 nodes 204 nps 0 time 0 pv c1b1
+    c1b1 N 68 Q -0.1437
+    g1h1 N 34
+    a4b6 N 32
+    d3c4 N 12
+    b4c7 N 9
+    a1c2 N 6
+    a3a5 N 2
+    a4a5 N 2
+--- nửa nước 46 (đen đi) → f10e7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1
+  depth 1 seldepth 1 multipv 1 wdl 604 0 396 nodes 812 nps 0 time 0 pv f10e7
+    f10e7 N 192 Q 0.2426
+    b9b7 N 93
+    a9a7 N 82
+    e8e7 N 74
+    f10g7 N 37
+    c10b10 N 35
+    i10h9 N 26
+    h8h6 N 21
+--- nửa nước 47 (trắng đi) → i1j3
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7
+  depth 1 seldepth 1 multipv 1 wdl 459 0 541 nodes 803 nps 0 time 0 pv i1j3
+    i1j3 N 272 Q -0.0566
+    d3d4 N 185
+    h3h5 N 143
+    c3c4 N 32
+    d1c1 N 31
+    g1h1 N 27
+    f3f4 N 26
+    c3c5 N 11
+--- nửa nước 48 (đen đi) → b6b5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3
+  depth 1 seldepth 1 multipv 1 wdl 523 0 477 nodes 812 nps 0 time 0 pv b9b8
+    b9b8 N 147 Q 0.2639
+    b6b5 N 92 Q 0.0712
+    c9b8 N 75
+    a9a7 N 71
+    h8h7 N 35
+    j8i8 N 28
+    c9b10 N 20
+    e9e10 N 20
+--- nửa nước 49 (trắng đi) → a4b5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5
+  depth 1 seldepth 1 multipv 1 wdl 454 0 546 nodes 810 nps 0 time 0 pv a4b5
+    a4b5 N 630 Q -0.0478
+    g1j1 N 34
+    d3d6 N 15
+    g1i1 N 13
+    a4a5 N 9
+    d3c2 N 7
+    a3a5 N 5
+    a4b6 N 5
+--- nửa nước 50 (đen đi) → c7b5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5
+  depth 1 seldepth 1 multipv 1 wdl 519 0 481 nodes 257 nps 0 time 0 pv c7b5
+    c7b5 N 139 Q 0.0728
+    c10b10 N 40
+    c7d5 N 24
+    c9b8 N 3
+    d8d7 N 3
+    e7b6 N 3
+    a9a7 N 2
+    j10i9 N 2
+--- nửa nước 51 (trắng đi) → d3b5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5
+  depth 1 seldepth 1 multipv 1 wdl 502 0 498 nodes 814 nps 0 time 0 pv d3b5
+    d3b5 N 730 Q 0.0535
+    g1j1 N 8
+    d3d5 N 6
+    b1c1 N 4
+    g1i1 N 4
+    b4a6 N 2
+    b4c7 N 2
+    d3d4 N 2
+--- nửa nước 52 (đen đi) → c10b10
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5
+  depth 1 seldepth 1 multipv 1 wdl 481 0 519 nodes 835 nps 0 time 0 pv c10b10
+    c10b10 N 495 Q 0.0182
+    c9b8 N 68
+    e7g6 N 27
+    a9c7 N 19
+    b9b8 N 13
+    e9f10 N 12
+    b9a8 N 10
+    c9b10 N 10
+--- nửa nước 53 (trắng đi) → b5a5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10
+  depth 1 seldepth 1 multipv 1 wdl 500 0 500 nodes 814 nps 0 time 0 pv b5a5
+    b5a5 N 470 Q 0.0581
+    b5c4 N 88
+    g1j1 N 32
+    b5a4 N 31
+    b5d3 N 12
+    g1i1 N 12
+    b5e5 N 7
+    b5i5 N 6
+--- nửa nước 54 (đen đi) → b9a8
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5
+  depth 1 seldepth 1 multipv 1 wdl 455 0 545 nodes 219 nps 0 time 0 pv b9a8
+    b9a8 N 89 Q -0.0210
+    b10b4 N 33
+    e7b6 N 12
+    b9b8 N 9
+    b9b7 N 7
+    a9c7 N 6
+    h10g10 N 4
+    a9a7 N 3
+--- nửa nước 55 (trắng đi) → b1c1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8
+  depth 1 seldepth 1 multipv 1 wdl 518 0 482 nodes 203 nps 0 time 0 pv b1c1
+    b1c1 N 97 Q 0.1947
+    g1j1 N 30
+    g1i1 N 4
+    a5d5 N 3
+    a5e5 N 3
+    i4h7 N 3
+    i4j6 N 3
+    a1c2 N 2
+--- nửa nước 56 (đen đi) → e7d4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1
+  depth 1 seldepth 1 multipv 1 wdl 410 0 590 nodes 212 nps 0 time 0 pv e7d4
+    e7d4 N 102 Q -0.0538
+    b10b3 N 15
+    a8a6 N 7
+    d10c10 N 7
+    b10b6 N 5
+    a8c6 N 4
+    a9a7 N 4
+    b10b5 N 4
+--- nửa nước 57 (trắng đi) → d1d4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4
+  depth 1 seldepth 1 multipv 1 wdl 500 0 500 nodes 211 nps 0 time 0 pv d1d4
+    d1d4 N 142 Q 0.0081
+    c3d4 N 66
+    c1a2 N 1
+    c1b1 N 1
+    c1d3 N 0
+--- nửa nước 58 (đen đi) → h10f10
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4
+  depth 1 seldepth 1 multipv 1 wdl 453 0 547 nodes 212 nps 0 time 0 pv h10f10
+    h10f10 N 38 Q -0.0063
+    b10c10 N 27
+    a8c6 N 20
+    b10b3 N 16
+    a9c7 N 14
+    d10c10 N 9
+    a8a6 N 5
+    a9a7 N 5
+--- nửa nước 59 (trắng đi) → j3h4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10
+  depth 1 seldepth 1 multipv 1 wdl 545 0 455 nodes 806 nps 0 time 0 pv j3h4
+    j3h4 N 529 Q 0.1804
+    g1i1 N 14
+    g1j1 N 13
+    h3h5 N 11
+    a5f5 N 10
+    a5h5 N 10
+    f1d1 N 10
+    f1d3 N 10
+--- nửa nước 60 (đen đi) → a9a7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4
+  depth 1 seldepth 1 multipv 1 wdl 402 0 598 nodes 206 nps 0 time 0 pv a9a7
+    a9a7 N 36 Q -0.1587
+    a8c6 N 23
+    f10e10 N 13
+    a9c7 N 9
+    b10c10 N 9
+    b10b3 N 8
+    d10c10 N 7
+    f10g10 N 7
+--- nửa nước 61 (trắng đi) → b4a7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7
+  depth 1 seldepth 1 multipv 1 wdl 549 0 451 nodes 824 nps 0 time 0 pv b4a7
+    b4a7 N 323 Q 0.1380
+    a5h5 N 199
+    a5a7 N 49
+    f1h1 N 26
+    g1j1 N 16
+    e2a6 N 12
+    d4d9 N 9
+    f1d3 N 9
+--- nửa nước 62 (đen đi) → b10b2
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7
+  depth 1 seldepth 1 multipv 1 wdl 425 0 575 nodes 201 nps 0 time 0 pv b10b2
+    b10b2 N 97 Q -0.0264
+    a8a7 N 28
+    b10c10 N 6
+    i10h9 N 6
+    b10b9 N 5
+    d10c10 N 4
+    j8i8 N 4
+    d8d7 N 3
+--- nửa nước 63 (trắng đi) → d4d9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2
+  depth 1 seldepth 1 multipv 1 wdl 469 0 531 nodes 828 nps 0 time 0 pv c1d1
+    c1d1 N 112 Q 0.0069
+    f1d3 N 78
+    a7b5 N 64
+    a7b4 N 57
+    c1b2 N 43
+    d4d9 N 41 Q -0.0592
+    a5b5 N 25
+    e2a6 N 24
+--- nửa nước 64 (đen đi) → b2b1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9
+  depth 1 seldepth 1 multipv 1 wdl 687 0 313 nodes 206 nps 0 time 0 pv b2b1
+    b2b1 N 177 Q 0.4479
+    a8a7 N 2
+    b2a2 N 2
+    b2b3 N 2
+    b2c2 N 2
+    b2e2 N 2
+    c9c10 N 2
+    c9d9 N 2
+--- nửa nước 65 (trắng đi) → c1b1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1
+  depth 1 seldepth 1 multipv 1 wdl 275 0 725 nodes 200 nps 0 time 0 pv c1b1
+    c1b1 N 187 Q -0.4395
+    c1d1 N 7
+    c1c2 N 3
+    c1d3 N 2
+--- nửa nước 66 (đen đi) → d10b10
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1
+  depth 1 seldepth 1 multipv 1 wdl 725 0 275 nodes 810 nps 0 time 0 pv d10b10
+    d10b10 N 544 Q 0.5469
+    c9d9 N 102
+    e9d9 N 39
+    d10d9 N 19
+    a8a7 N 11
+    d8d6 N 6
+    c9b10 N 5
+    a10a9 N 2
+--- nửa nước 67 (trắng đi) → a5b5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10
+  depth 1 seldepth 1 multipv 1 wdl 211 0 789 nodes 249 nps 0 time 0 pv a5b5
+    a5b5 N 68 Q -0.4413
+    a7b5 N 48
+    a5b6 N 40
+    a7b10 N 33
+    a7b4 N 23
+    b1c1 N 11
+    a5b4 N 5
+    b1d1 N 5
+--- nửa nước 68 (đen đi) → a8c6
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5
+  depth 1 seldepth 1 multipv 1 wdl 751 0 249 nodes 252 nps 0 time 0 pv a8c6
+    a8c6 N 76 Q 0.6968
+    b10b3 N 61
+    b10b6 N 41
+    a8a7 N 27
+    b10c10 N 7
+    f10e10 N 5
+    f10h10 N 5
+    b10b7 N 4
+--- nửa nước 69 (trắng đi) → b5b10
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6
+  depth 1 seldepth 1 multipv 1 wdl 136 0 864 nodes 800 nps 0 time 0 pv a7c6
+    a7c6 N 140 Q -0.6747
+    b5b10 N 119 Q -0.6110
+    d9d10 N 58
+    d9g9 N 45
+    d9e9 N 40
+    a1c2 N 23
+    g1j1 N 22
+    f3f5 N 20
+--- nửa nước 70 (đen đi) → a10b10
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10
+  depth 1 seldepth 1 multipv 1 wdl 819 0 181 nodes 229 nps 0 time 0 pv a10b10
+    a10b10 N 204 Q 0.6729
+    c9b10 N 12
+    c9d10 N 6
+    c9c10 N 3
+    f10h9 N 2
+    e9d10 N 1
+    e9e10 N 0
+    f10f8 N 0
+--- nửa nước 71 (trắng đi) → a7b10
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10
+  depth 1 seldepth 1 multipv 1 wdl 131 0 869 nodes 209 nps 0 time 0 pv a7b10
+    a7b10 N 123 Q -0.6895
+    d9d10 N 5
+    b3b4 N 4
+    d9g9 N 4
+    a7b5 N 3
+    a7d6 N 3
+    b1d1 N 3
+    c3c4 N 3
+--- nửa nước 72 (đen đi) → c9a8
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10
+  depth 1 seldepth 1 multipv 1 wdl 853 0 147 nodes 829 nps 0 time 0 pv c9a8
+    c9a8 N 383 Q 0.8193
+    c9b10 N 130
+    c9d10 N 58
+    c9d9 N 55
+    c9c10 N 17
+    i10i9 N 15
+    e9d9 N 11
+    c6d5 N 9
+--- nửa nước 73 (trắng đi) → g1j1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8
+  depth 1 seldepth 1 multipv 1 wdl 160 0 840 nodes 807 nps 0 time 0 pv g1j1
+    g1j1 N 543 Q -0.6256
+    b10e9 N 40
+    d9a9 N 30
+    d9d10 N 18
+    d9c9 N 13
+    d9b9 N 12
+    d9g9 N 10
+    b10a7 N 7
+--- nửa nước 74 (đen đi) → j8i8
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1
+  depth 1 seldepth 1 multipv 1 wdl 865 0 135 nodes 809 nps 0 time 0 pv j8i8
+    j8i8 N 511 Q 0.8211
+    j8h10 N 81
+    c6b5 N 25
+    f10e10 N 13
+    i10i9 N 11
+    a8b10 N 9
+    c6c5 N 9
+    h8h7 N 9
+--- nửa nước 75 (trắng đi) → f3f5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8
+  depth 1 seldepth 1 multipv 1 wdl 122 0 878 nodes 807 nps 0 time 0 pv f3f5
+    f3f5 N 239 Q -0.5468
+    e2d3 N 112
+    d9g9 N 44
+    i4f5 N 35
+    d9b9 N 25
+    b10c7 N 22
+    d9a9 N 19
+    b10a7 N 18
+--- nửa nước 76 (đen đi) → i8g10
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5
+  depth 1 seldepth 1 multipv 1 wdl 825 0 175 nodes 804 nps 0 time 0 pv i8g10
+    i8g10 N 385 Q 0.7639
+    c6b5 N 62
+    i10h10 N 34
+    i10i9 N 25
+    i10h9 N 20
+    e8e6 N 17
+    e9d10 N 13
+    a8b10 N 11
+--- nửa nước 77 (trắng đi) → b10e9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10
+  depth 1 seldepth 1 multipv 1 wdl 219 0 781 nodes 814 nps 0 time 0 pv b10e9
+    b10e9 N 587 Q -0.4801
+    d9a9 N 40
+    d9g9 N 23
+    d9c9 N 12
+    d9e9 N 11
+    d9d10 N 10
+    d9b9 N 9
+    b10c8 N 7
+--- nửa nước 78 (đen đi) → g10i8
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9
+  depth 1 seldepth 1 multipv 1 wdl 738 0 262 nodes 808 nps 0 time 0 pv g10i8
+    g10i8 N 221 Q 0.6167
+    i7j6 N 110
+    i10h9 N 77
+    a8b6 N 36
+    f10e10 N 32
+    j9h9 N 30
+    g10h9 N 23
+    g9f8 N 19
+--- nửa nước 79 (trắng đi) → d9g9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8
+  depth 1 seldepth 1 multipv 1 wdl 268 0 732 nodes 800 nps 0 time 0 pv d9g9
+    d9g9 N 609 Q -0.3933
+    d9a9 N 25
+    e9g8 N 11
+    e9c8 N 10
+    d9c9 N 9
+    d9b9 N 6
+    a1c2 N 5
+    e9b8 N 5
+--- nửa nước 80 (đen đi) → f10e9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9
+  depth 1 seldepth 1 multipv 1 wdl 657 0 343 nodes 203 nps 0 time 0 pv f10e9
+    f10e9 N 83 Q 0.5157
+    j9g9 N 41
+    f10g9 N 12
+    c6c5 N 7
+    j9i9 N 6
+    a8b8 N 5
+    a8c7 N 5
+    j9j8 N 5
+--- nửa nước 81 (trắng đi) → j1j9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9
+  depth 1 seldepth 1 multipv 1 wdl 197 0 803 nodes 205 nps 0 time 0 pv g9f9
+    g9f9 N 81 Q -0.5891
+    j1j9 N 51 Q -0.5366
+    g9h9 N 11
+    g9g8 N 7
+    g9i9 N 6
+    g9g10 N 5
+    b3b5 N 3
+    e2i6 N 3
+--- nửa nước 82 (đen đi) → i8j9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9
+  depth 1 seldepth 1 multipv 1 wdl 734 0 266 nodes 202 nps 0 time 0 pv i8j9
+    i8j9 N 141 Q 0.6248
+    i10j9 N 26
+    i8h9 N 6
+    e9c10 N 5
+    i10i9 N 5
+    e9d10 N 4
+    e9e10 N 4
+    i10h9 N 3
+--- nửa nước 83 (trắng đi) → g9f9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9
+  depth 1 seldepth 1 multipv 1 wdl 198 0 802 nodes 207 nps 0 time 0 pv g9f9
+    g9f9 N 48 Q -0.5624
+    e2j7 N 23
+    h4i6 N 11
+    e2a6 N 10
+    g9g10 N 8
+    h4g6 N 8
+    e2i6 N 7
+    g9g8 N 5
+--- nửa nước 84 (đen đi) → j9f9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9
+  depth 1 seldepth 1 multipv 1 wdl 768 0 232 nodes 220 nps 0 time 0 pv j9f9
+    j9f9 N 197 Q 0.5945
+    e9f9 N 12
+    e9c10 N 3
+    e9d10 N 2
+    e9e10 N 2
+    e9c9 N 1
+    e9d9 N 1
+    e9g7 N 1
+--- nửa nước 85 (trắng đi) → f1d3
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9
+  depth 1 seldepth 1 multipv 1 wdl 203 0 797 nodes 817 nps 0 time 0 pv i4j7
+    i4j7 N 290 Q -0.4651
+    f1d3 N 275 Q -0.5693
+    e2h5 N 13
+    f2f3 N 11
+    h4g6 N 11
+    i4j2 N 11
+    f1f3 N 10
+    e2a6 N 7
+--- nửa nước 86 (đen đi) → f9f7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3
+  depth 1 seldepth 1 multipv 1 wdl 830 0 170 nodes 820 nps 0 time 0 pv f9f7
+    f9f7 N 615 Q 0.7355
+    e9c10 N 33
+    e9f10 N 17
+    f9g9 N 17
+    d8d6 N 16
+    a8b7 N 13
+    a8b6 N 11
+    c6c5 N 8
+--- nửa nước 87 (trắng đi) → d3d9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7
+  depth 1 seldepth 1 multipv 1 wdl 141 0 859 nodes 222 nps 0 time 0 pv d3d9
+    d3d9 N 80 Q -0.6594
+    d3c4 N 20
+    h4i6 N 10
+    i4g5 N 10
+    e2i6 N 6
+    e2j7 N 5
+    b1d1 N 4
+    d2e3 N 4
+--- nửa nước 88 (đen đi) → e9d9
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9
+  depth 1 seldepth 1 multipv 1 wdl 876 0 124 nodes 226 nps 0 time 0 pv e9d9
+    e9d9 N 219 Q 0.7863
+    e9f10 N 1
+    e9f8 N 1
+    e9f9 N 1
+    e9g10 N 1
+    e9g7 N 1
+    e9g9 N 1
+--- nửa nước 89 (trắng đi) → e2c4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9
+  depth 1 seldepth 1 multipv 1 wdl 90 0 910 nodes 242 nps 0 time 0 pv e2c4
+    e2c4 N 25 Q -0.7371
+    h4i6 N 12
+    i4h6 N 11
+    e2i6 N 9
+    e2j7 N 9
+    i4h7 N 9
+    h4g6 N 8
+    i4g5 N 8
+--- nửa nước 90 (đen đi) → f7d7
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9 e2c4
+  depth 1 seldepth 1 multipv 1 wdl 848 0 152 nodes 205 nps 0 time 0 pv f7a7
+    f7a7 N 58 Q 0.8176
+    f7d7 N 43 Q 0.8038
+    f7b7 N 33
+    c6b5 N 11
+    f7c7 N 7
+    f7f9 N 6
+    f7h5 N 6
+    f7d5 N 3
+--- nửa nước 91 (trắng đi) → a1c2
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9 e2c4 f7d7
+  depth 1 seldepth 1 multipv 1 wdl 119 0 881 nodes 827 nps 0 time 0 pv a1c2
+    a1c2 N 513 Q -0.7129
+    c4d5 N 24
+    h4j3 N 18
+    h4g6 N 14
+    i2j3 N 14
+    c4b4 N 12
+    c4d4 N 12
+    c4f7 N 12
+--- nửa nước 92 (đen đi) → c6b5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9 e2c4 f7d7 a1c2
+  depth 1 seldepth 1 multipv 1 wdl 866 0 134 nodes 816 nps 0 time 0 pv g8g7
+    g8g7 N 136 Q 0.8340
+    c6b5 N 78 Q 0.7868
+    d9b10 N 68
+    d7d6 N 45
+    i7j6 N 45
+    d7a7 N 41
+    a8b8 N 39
+    d9b9 N 34
+--- nửa nước 93 (trắng đi) → c4b5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9 e2c4 f7d7 a1c2 c6b5
+  depth 1 seldepth 1 multipv 1 wdl 119 0 881 nodes 809 nps 0 time 0 pv c4b5
+    c4b5 N 373 Q -0.7228
+    c4g8 N 100
+    c4c5 N 59
+    c4e2 N 26
+    c4d4 N 18
+    c4e6 N 16
+    c2e3 N 15
+    d2d3 N 14
+--- nửa nước 94 (đen đi) → d7b5
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9 e2c4 f7d7 a1c2 c6b5 c4b5
+  depth 1 seldepth 1 multipv 1 wdl 842 0 158 nodes 258 nps 0 time 0 pv d7b5
+    d7b5 N 198 Q 0.8197
+    d7c7 N 3
+    d7d4 N 3
+    d7f7 N 3
+    a8b6 N 2
+    a8b7 N 2
+    a8b8 N 2
+    a8c7 N 2
+--- nửa nước 95 (trắng đi) → b1c1
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9 e2c4 f7d7 a1c2 c6b5 c4b5 d7b5
+  depth 1 seldepth 1 multipv 1 wdl 82 0 918 nodes 201 nps 0 time 0 pv b1c1
+    b1c1 N 89 Q -0.7421
+    c2b4 N 11
+    b1a1 N 9
+    a3c5 N 4
+    b1d1 N 4
+    c3c4 N 4
+    i4g5 N 4
+    i4j1 N 4
+--- nửa nước 96 (đen đi) → b5b3
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9 e2c4 f7d7 a1c2 c6b5 c4b5 d7b5 b1c1
+  depth 1 seldepth 1 multipv 1 wdl 870 0 130 nodes 218 nps 0 time 0 pv b5b3
+    b5b3 N 79 Q 0.8988
+    b5a6 N 17
+    b5e5 N 16
+    a8a7 N 11
+    d9d10 N 10
+    b5b7 N 9
+    a8b8 N 8
+    a8c7 N 8
+--- nửa nước 97 (trắng đi) → c1e2
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9 e2c4 f7d7 a1c2 c6b5 c4b5 d7b5 b1c1 b5b3
+  depth 1 seldepth 1 multipv 1 wdl 31 0 969 nodes 814 nps 0 time 0 pv c1e2
+    c1e2 N 241 Q -0.8970
+    a3a4 N 63
+    i4f3 N 54
+    i4j7 N 50
+    g2f3 N 36
+    i4g5 N 22
+    h4i6 N 17
+    a3a5 N 15
+--- nửa nước 98 (đen đi) → b3c4
+position fen rcgcgvvqbb/ysmsmysrsn/nppppppppk/10/10/10/10/MPPPPPPPPY/KSNSBRSRSM/VYQCBGCGNV w - - 8+8 0 1 moves j3j4 j9i7 j4j6 j8j9 j6j7 i8j7 j2i4 i9i8 h1j3 a8c7 j3j8 h10j8 i4j5 c10a8 a3a4 j9h10 a1b4 g10f7 j5i6 b8b6 i6i7 i8i7 c2a1 b10c10 c1c2 f7h6 b1c1 a8a3 c1a3 f9d7 a2b1 e10h7 e3e4 h9j9 i3i5 d7f5 i5h6 f5d3 c2d3 h7h6 j1i4 h6c1 b1c1 f8f6 c1b1 f10e7 i1j3 b6b5 a4b5 c7b5 d3b5 c10b10 b5a5 b9a8 b1c1 e7d4 d1d4 h10f10 j3h4 a9a7 b4a7 b10b2 d4d9 b2b1 c1b1 d10b10 a5b5 a8c6 b5b10 a10b10 a7b10 c9a8 g1j1 j8i8 f3f5 i8g10 b10e9 g10i8 d9g9 f10e9 j1j9 i8j9 g9f9 j9f9 f1d3 f9f7 d3d9 e9d9 e2c4 f7d7 a1c2 c6b5 c4b5 d7b5 b1c1 b5b3 c1e2
+  depth 1 seldepth 1 multipv 1 wdl 971 0 29 nodes 846 nps 0 time 0 pv b3c4
+    b3c4 N 505 Q 1.0000
+    b3b5 N 154
+    b3c2 N 47
+    d9e10 N 12
+    b3a2 N 9
+    b3b2 N 8
+    b3a4 N 7
+    b3b1 N 6

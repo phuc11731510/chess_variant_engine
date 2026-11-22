@@ -30,7 +30,12 @@ class NativeFfiEngine implements EngineService {
   final LaunchConfig config;
   final bool verbose;
 
-  NativeFfiEngine(this.config, {this.verbose = false});
+  /// Chỉ luật cờ (xem lại ván): không nạp mạng, không `isready`, không tìm kiếm. `position / fen / legalmoves /
+  /// result` của engine chạy ngay trong `fz_send` nên mỗi câu hỏi được trả lời tức thì (không đợi nhịp của bộ
+  /// đếm giờ): mở một ván 150 nước mất vài chục mili-giây thay vì vài giây.
+  final bool rulesOnly;
+
+  NativeFfiEngine(this.config, {this.verbose = false, this.rulesOnly = false});
 
   /// Kênh hỏi đường dẫn hệ thống (xem MainActivity.kt).
   static const MethodChannel _paths = MethodChannel('fairyzero/paths');
@@ -73,7 +78,7 @@ class NativeFfiEngine implements EngineService {
     _fzDestroy = _lib.lookupFunction<_FzDestroyC, _FzDestroyD>('fz_destroy');
     _buf = malloc.allocate<Uint8>(_bufCap);
 
-    final modelPath = await _resolveModelPath();
+    final modelPath = rulesOnly ? '' : await _resolveModelPath();
     final provider = config.provider; // 'cpu' trên Android (mặc định)
 
     final pModel = modelPath.toNativeUtf8();
@@ -103,6 +108,11 @@ class NativeFfiEngine implements EngineService {
       what: 'uciok',
     );
 
+    if (rulesOnly) {
+      _started = true;
+      return;
+    }
+
     // Tận dụng đa nhân điện thoại cho lượng giá NN (M2: 1→18, 4→62 nps).
     _send('setoption name BackendThreads value 4');
     _send('setoption name Provider value $provider');
@@ -131,7 +141,7 @@ class NativeFfiEngine implements EngineService {
         ? 'position startpos'
         : 'position fen $base';
     _sendPosition();
-    await _syncReady();
+    if (!rulesOnly) await _syncReady();
   }
 
   @override
@@ -139,14 +149,14 @@ class NativeFfiEngine implements EngineService {
     _ensureStarted();
     _moves.add(uci);
     _sendPosition();
-    await _syncReady();
+    if (!rulesOnly) await _syncReady();
   }
 
   @override
   Future<List<String>> legalMoves() async {
     _ensureStarted();
-    _send('legalmoves');
-    final line = await _expect(
+    final line = await _request(
+      'legalmoves',
       (l) => l.startsWith('legalmoves'),
       what: 'legalmoves',
     );
@@ -157,16 +167,14 @@ class NativeFfiEngine implements EngineService {
   @override
   Future<String> currentFen() async {
     _ensureStarted();
-    _send('fen');
-    final line = await _expect((l) => l.startsWith('fen '), what: 'fen');
+    final line = await _request('fen', (l) => l.startsWith('fen '), what: 'fen');
     return line.substring(4).trim();
   }
 
   @override
   Future<GameResult> gameResult() async {
     _ensureStarted();
-    _send('result');
-    final line = await _expect((l) => l.startsWith('result '), what: 'result');
+    final line = await _request('result', (l) => l.startsWith('result '), what: 'result');
     switch (line.substring(7).trim()) {
       case 'white':
         return GameResult.white;
@@ -288,6 +296,20 @@ class NativeFfiEngine implements EngineService {
       final line = _buf.cast<Utf8>().toDartString(length: n);
       _onLine(line);
     }
+  }
+
+  /// Gửi [cmd] rồi lấy ngay dòng trả lời khớp [match]: đăng ký chờ TRƯỚC khi gửi, rồi rút hàng đợi native tại chỗ
+  /// (các lệnh hỏi thế cờ của engine trả lời đồng bộ), không đợi nhịp của bộ đếm giờ.
+  Future<String> _request(
+    String cmd,
+    bool Function(String) match, {
+    Duration timeout = const Duration(seconds: 15),
+    String what = '',
+  }) {
+    final f = _expect(match, timeout: timeout, what: what);
+    _send(cmd);
+    _pump();
+    return f;
   }
 
   Future<String> _expect(
