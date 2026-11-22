@@ -52,7 +52,7 @@ struct EngineOptions {
     // cudnn_conv_algo_search=HEURISTIC, prefer_nhwc=1), passed as-is to
     // UpdateCUDAProviderOptions -- an unknown key stops the run. --provider cuda only.
     std::vector<std::string> sp_cuda_opts;
-    // --fz-opt key=value (repeatable): option of the CUDA runner for --provider fzcuda (contexts=2, split=2, autotune=0; see
+    // --fz-opt key=value (repeatable): option of the CUDA runner for --provider fzcuda (contexts=2, autotune=0, graph=0, ff1=cublas; see
     // neural/fz/fzcuda_backend.h).
     std::vector<std::string> sp_fz_opts;
     // --trt-opt key=value (repeatable): ORT TensorRT EP option for --provider tensorrt

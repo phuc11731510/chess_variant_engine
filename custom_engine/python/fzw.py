@@ -232,20 +232,16 @@ def simulate(w, planes, tanh_ff1=False, taps=None):
         o = o.transpose(1, 2).reshape(B, SQUARES, d)
         if i == 0:
             tap("att0", o)
-        y = _h(o @ T[p + "proj.w"].T)                                                                      # (7) attention output product
-        s = x + y + T[p + "proj.b"]
-        x = _h(s)
-        ln = _h(_layernorm(s, T[p + "ln2.g"], T[p + "ln2.b"]))
+        x = _h(x + o @ T[p + "proj.w"].T + _h(T[p + "proj.b"]))                                            # (7) x += attention product + bias: ONE rounding
+        ln = _h(_layernorm(x, T[p + "ln2.g"], T[p + "ln2.b"]))                                             # LayerNorm of the rounded stream
         if i == 0:
             tap("ln2_0", ln)
         a = _h(_gelu(ln @ T[p + "ff1.w"].T + T[p + "ff1.b"], tanh_ff1))                                    # (8) ff1 product + bias + GELU
         if i == 0:
             tap("ff0", a)
-        y = _h(a @ T[p + "ff2.w"].T)                                                                       # (9) ff2 product
-        s = x + y + T[p + "ff2.b"]
-        x = _h(s)
+        x = _h(x + a @ T[p + "ff2.w"].T + _h(T[p + "ff2.b"]))                                              # (9) x += ff2 product + bias: ONE rounding
         g, b = ((T[f"b{i + 1}.ln1.g"], T[f"b{i + 1}.ln1.b"]) if i + 1 < layers else (T["final.ln.g"], T["final.ln.b"]))
-        ln = _h(_layernorm(s, g, b))
+        ln = _h(_layernorm(x, g, b))
         if i == 0:
             tap("x1", x)
     tap("ln_final", ln)

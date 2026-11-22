@@ -48,16 +48,16 @@ __global__ void ExpandInputKernel(const PlaneGpu* __restrict__ planes, __half* _
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Residual add + LayerNorm: one warp per row, D / 64 half2 per lane
+// Row bias + LayerNorm (the embedding: the position table is added) -- one warp per row, D / 64 half2 per lane
 // ---------------------------------------------------------------------------------------------------------------------
 
 constexpr float kLayerNormEps = 1e-5f;
 constexpr int kLnWarpsPerBlock = 8;
 
 template <int D>
-__global__ void AddLayerNormKernel(const __half* x_in, const __half* __restrict__ y, const float* __restrict__ bias,
-                                   int bias_rows, const float* __restrict__ gamma, const float* __restrict__ beta,
-                                   __half* x_out, __half* __restrict__ ln_out, int rows) {
+__global__ void AddLayerNormKernel(const __half* x_in, const float* __restrict__ bias, int bias_rows,
+                                   const float* __restrict__ gamma, const float* __restrict__ beta, __half* x_out,
+                                   __half* __restrict__ ln_out, int rows) {
   constexpr int kPairs = D / 64;
   const int row = blockIdx.x * kLnWarpsPerBlock + (threadIdx.x >> 5);
   if (row >= rows) return;
@@ -71,14 +71,8 @@ __global__ void AddLayerNormKernel(const __half* x_in, const __half* __restrict_
     const int c = 2 * lane + 64 * j;
     const float2 a = __half22float2(*reinterpret_cast<const __half2*>(x_in + base + c));
     const float2 bb = *reinterpret_cast<const float2*>(brow + c);
-    float s0 = a.x + bb.x, s1 = a.y + bb.y;
-    if (y != nullptr) {
-      const float2 yy = __half22float2(*reinterpret_cast<const __half2*>(y + base + c));
-      s0 += yy.x;
-      s1 += yy.y;
-    }
-    v[2 * j] = s0;
-    v[2 * j + 1] = s1;
+    v[2 * j] = a.x + bb.x;
+    v[2 * j + 1] = a.y + bb.y;
   }
   float sum = 0.0f;
   #pragma unroll
@@ -98,6 +92,46 @@ __global__ void AddLayerNormKernel(const __half* x_in, const __half* __restrict_
     const float2 g = *reinterpret_cast<const float2*>(gamma + c);
     const float2 bt = *reinterpret_cast<const float2*>(beta + c);
     *reinterpret_cast<__half2*>(x_out + base + c) = __floats2half2_rn(v[2 * j], v[2 * j + 1]);
+    *reinterpret_cast<__half2*>(ln_out + base + c) =
+        __floats2half2_rn((v[2 * j] - mean) * rstd * g.x + bt.x, (v[2 * j + 1] - mean) * rstd * g.y + bt.y);
+  }
+}
+
+// LayerNorm of rows that already hold the residual stream (the residual add happened in the cuBLASLt epilogue of the product
+// before): one warp per row, reads x once, writes ln_out once.
+template <int D>
+__global__ void LayerNormKernel(const __half* __restrict__ x, const float* __restrict__ gamma, const float* __restrict__ beta,
+                                __half* __restrict__ ln_out, int rows) {
+  constexpr int kPairs = D / 64;
+  const int row = blockIdx.x * kLnWarpsPerBlock + (threadIdx.x >> 5);
+  if (row >= rows) return;
+  const int lane = threadIdx.x & 31;
+  const size_t base = static_cast<size_t>(row) * D;
+
+  float v[2 * kPairs];
+  #pragma unroll
+  for (int j = 0; j < kPairs; ++j) {
+    const float2 a = __half22float2(*reinterpret_cast<const __half2*>(x + base + 2 * lane + 64 * j));
+    v[2 * j] = a.x;
+    v[2 * j + 1] = a.y;
+  }
+  float sum = 0.0f;
+  #pragma unroll
+  for (int i = 0; i < 2 * kPairs; ++i) sum += v[i];
+  #pragma unroll
+  for (int off = 16; off > 0; off >>= 1) sum += __shfl_xor_sync(kFullMask, sum, off);
+  const float mean = sum * (1.0f / D);
+  float sq = 0.0f;
+  #pragma unroll
+  for (int i = 0; i < 2 * kPairs; ++i) sq += (v[i] - mean) * (v[i] - mean);
+  #pragma unroll
+  for (int off = 16; off > 0; off >>= 1) sq += __shfl_xor_sync(kFullMask, sq, off);
+  const float rstd = rsqrtf(sq * (1.0f / D) + kLayerNormEps);
+  #pragma unroll
+  for (int j = 0; j < kPairs; ++j) {
+    const int c = 2 * lane + 64 * j;
+    const float2 g = *reinterpret_cast<const float2*>(gamma + c);
+    const float2 bt = *reinterpret_cast<const float2*>(beta + c);
     *reinterpret_cast<__half2*>(ln_out + base + c) =
         __floats2half2_rn((v[2 * j] - mean) * rstd * g.x + bt.x, (v[2 * j + 1] - mean) * rstd * g.y + bt.y);
   }
@@ -250,6 +284,136 @@ __global__ void __launch_bounds__(kAttnThreads)
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// ff1: Y = GELU(X W^T + bias), the first feed-forward product with its activation fused.
+//
+// Why a kernel of its own: the GELU epilogue of cuBLASLt costs about as much as the product (measured on a T4, batch 64, the ten
+// layers: product alone 1.05 ms, with the epilogue 1.85-2.0 ms), and GELU as a separate pass is worse (it reads and writes the whole
+// 9.8 MB result: 0.9 ms). Here the activation runs on the accumulators, in registers, before the one store of the result. This
+// kernel is not as fast as the cuBLASLt product alone (1.8-1.9 ms, ~10 TFLOPS: 180 registers, no spills, no profiler to look
+// further), but it is 4-6% faster than the product with its epilogue and 2-5% in real self-play (T4, two sessions).
+//
+// X [m, k] and W [n, k] are row-major FP16 (W^T is the "col" operand of mma.m16n8k8), Y [m, n] FP16. n is a multiple of 128 and
+// k of 64. One block computes a 128 x 128 tile of Y with 8 warps (2 x 4, each 64 x 32), walking K in chunks of 64. A chunk of A and
+// of B (16 KB each) is in shared memory, XOR-swizzled so ldmatrix and the stores are free of bank conflicts; the next chunk is
+// fetched into registers while the current one is multiplied (Turing has no cp.async), then stored to the other of two buffers.
+// ---------------------------------------------------------------------------------------------------------------------
+
+constexpr int kUpBm = 128, kUpBn = 128, kUpBk = 64, kUpThreads = 256;
+constexpr int kUpRowBytes = kUpBk * 2;                   // one tile row: 64 halves = 8 chunks of 16 bytes
+constexpr int kUpTileBytes = kUpBm * kUpRowBytes;        // 16 KB
+constexpr int kUpSmemBytes = 4 * kUpTileBytes;           // A and B, two buffers: exactly the 64 KB a Turing block may use
+constexpr int kUpPieces = kUpBm * (kUpBk / 8) / kUpThreads;  // 16-byte pieces of A (and of B) each thread moves per K chunk (4)
+
+// The 16-byte chunk `chunk` of tile row `row` is stored at chunk position `chunk ^ (row % 8)`: the 8 rows an ldmatrix reads, and the
+// 8 threads of a quarter-warp that store a row each, then fall on 8 different groups of 4 banks.
+__device__ __forceinline__ int UpSwizzle(int row, int chunk) { return chunk ^ (row & 7); }
+
+__device__ __forceinline__ uint32_t SharedAddr(const void* p) { return static_cast<uint32_t>(__cvta_generic_to_shared(p)); }
+
+// Four 8x8 matrices of halves from shared memory into one register each (thread l holds row l / 4, columns 2 (l % 4), +1).
+__device__ __forceinline__ void LdMatrix4(uint32_t (&r)[4], uint32_t addr) {
+  asm volatile("ldmatrix.sync.aligned.m8n8.x4.shared.b16 {%0,%1,%2,%3}, [%4];\n"
+               : "=r"(r[0]), "=r"(r[1]), "=r"(r[2]), "=r"(r[3])
+               : "r"(addr));
+}
+
+// GELU, tanh form: x sigmoid(2 sqrt(2 / pi) (x + 0.044715 x^3)) -- the same function as 0.5 x (1 + tanh(...)), as tanh(z) = 2 sigmoid(2z) - 1.
+__device__ __forceinline__ float GeluSigmoid(float x) {
+  const float z = x * (1.5957691216f + 0.0713548163f * x * x);
+  return __fdividef(x, 1.0f + __expf(-z));
+}
+
+__global__ void __launch_bounds__(kUpThreads, 1)
+    FfnUpKernel(const __half* __restrict__ x, const __half* __restrict__ w, const __half* __restrict__ bias, __half* __restrict__ y,
+                int m, int n, int k) {
+  extern __shared__ __align__(16) uint8_t smem[];
+  const int tid = threadIdx.x, warp = tid >> 5, lane = tid & 31;
+  const int row0 = blockIdx.y * kUpBm, col0 = blockIdx.x * kUpBn;
+  const int wm = warp >> 2, wn = warp & 3;
+
+  uint4 pre[2 * kUpPieces];  // the next chunk: kUpPieces pieces of A, as many of B
+  float acc[4][4][4];
+  #pragma unroll
+  for (int i = 0; i < 4; ++i)
+    #pragma unroll
+    for (int j = 0; j < 4; ++j)
+      #pragma unroll
+      for (int e = 0; e < 4; ++e) acc[i][j][e] = 0.0f;
+
+  auto load_chunk = [&](int kc) {
+    #pragma unroll
+    for (int q = 0; q < kUpPieces; ++q) {
+      const int idx = tid + q * kUpThreads, r = idx >> 3, c = idx & 7;
+      const int gr = row0 + r;
+      pre[q] = gr < m ? *reinterpret_cast<const uint4*>(x + static_cast<size_t>(gr) * k + kc * kUpBk + c * 8) : make_uint4(0, 0, 0, 0);
+      pre[kUpPieces + q] = *reinterpret_cast<const uint4*>(w + static_cast<size_t>(col0 + r) * k + kc * kUpBk + c * 8);
+    }
+  };
+  auto store_chunk = [&](int stage) {
+    uint8_t* a = smem + stage * 2 * kUpTileBytes;
+    uint8_t* b = a + kUpTileBytes;
+    #pragma unroll
+    for (int q = 0; q < kUpPieces; ++q) {
+      const int idx = tid + q * kUpThreads, r = idx >> 3, c = idx & 7;
+      const int off = r * kUpRowBytes + (UpSwizzle(r, c) << 4);
+      *reinterpret_cast<uint4*>(a + off) = pre[q];
+      *reinterpret_cast<uint4*>(b + off) = pre[kUpPieces + q];
+    }
+  };
+  auto compute = [&](int stage) {
+    const uint32_t a_base = SharedAddr(smem + stage * 2 * kUpTileBytes), b_base = a_base + kUpTileBytes;
+    #pragma unroll
+    for (int ks = 0; ks < kUpBk / 16; ++ks) {
+      uint32_t a[4][4], b[2][4];
+      #pragma unroll
+      for (int i = 0; i < 4; ++i) {  // m16 tile i: matrices (rows 0-7, k 0-7), (rows 8-15, k 0-7), (rows 0-7, k 8-15), (rows 8-15, k 8-15)
+        const int row = wm * 64 + i * 16 + ((lane >> 3) & 1) * 8 + (lane & 7);
+        const int chunk = ks * 2 + (lane >> 4);
+        LdMatrix4(a[i], a_base + row * kUpRowBytes + (UpSwizzle(row, chunk) << 4));
+      }
+      #pragma unroll
+      for (int p = 0; p < 2; ++p) {  // n8 tiles 2p and 2p + 1: matrices (tile 2p, k 0-7), (2p, k 8-15), (2p + 1, k 0-7), (2p + 1, k 8-15)
+        const int row = wn * 32 + (2 * p + (lane >> 4)) * 8 + (lane & 7);
+        const int chunk = ks * 2 + ((lane >> 3) & 1);
+        LdMatrix4(b[p], b_base + row * kUpRowBytes + (UpSwizzle(row, chunk) << 4));
+      }
+      #pragma unroll
+      for (int s = 0; s < 2; ++s)
+        #pragma unroll
+        for (int i = 0; i < 4; ++i)
+          #pragma unroll
+          for (int j = 0; j < 4; ++j) Mma8(acc[i][j], a[i][2 * s], a[i][2 * s + 1], b[j >> 1][2 * (j & 1) + s]);
+    }
+  };
+
+  const int chunks = k / kUpBk;
+  load_chunk(0);
+  store_chunk(0);
+  __syncthreads();
+  for (int c = 0; c < chunks; ++c) {
+    if (c + 1 < chunks) load_chunk(c + 1);
+    compute(c & 1);
+    if (c + 1 < chunks) store_chunk((c + 1) & 1);
+    __syncthreads();
+  }
+
+  #pragma unroll
+  for (int j = 0; j < 4; ++j) {
+    const int col = col0 + wn * 32 + j * 8 + 2 * (lane & 3);
+    const float2 bi = __half22float2(*reinterpret_cast<const __half2*>(bias + col));
+    #pragma unroll
+    for (int i = 0; i < 4; ++i)
+      #pragma unroll
+      for (int h = 0; h < 2; ++h) {
+        const int row = row0 + wm * 64 + i * 16 + (lane >> 2) + h * 8;
+        if (row < m)
+          *reinterpret_cast<__half2*>(y + static_cast<size_t>(row) * n + col) =
+              __floats2half2_rn(GeluSigmoid(acc[i][j][2 * h] + bi.x), GeluSigmoid(acc[i][j][2 * h + 1] + bi.y));
+      }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // Heads
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -319,13 +483,13 @@ void LaunchExpandInput(const PlaneGpu* planes, __half* x0, int batch, cudaStream
   ExpandInputKernel<<<dim3(batch, kTokens / kTokensPerExpandBlock), kPlanesPadded, 0, stream>>>(planes, x0);
 }
 
-void LaunchAddLayerNorm(const __half* x_in, const __half* y, const float* bias, int bias_rows, const float* gamma,
-                        const float* beta, __half* x_out, __half* ln_out, int rows, int d, cudaStream_t stream) {
+void LaunchAddLayerNorm(const __half* x_in, const float* bias, int bias_rows, const float* gamma, const float* beta,
+                        __half* x_out, __half* ln_out, int rows, int d, cudaStream_t stream) {
   const int blocks = (rows + kLnWarpsPerBlock - 1) / kLnWarpsPerBlock;
   const int threads = kLnWarpsPerBlock * 32;
 #define FZ_LN_CASE(DD)                                                                                              \
   case DD:                                                                                                          \
-    AddLayerNormKernel<DD><<<blocks, threads, 0, stream>>>(x_in, y, bias, bias_rows, gamma, beta, x_out, ln_out, rows); \
+    AddLayerNormKernel<DD><<<blocks, threads, 0, stream>>>(x_in, bias, bias_rows, gamma, beta, x_out, ln_out, rows); \
     break;
   switch (d) {
     FZ_LN_CASE(64)
@@ -340,6 +504,36 @@ void LaunchAddLayerNorm(const __half* x_in, const __half* y, const float* bias, 
       break;  // fz_net.cu refuses such a width when the weights are loaded
   }
 #undef FZ_LN_CASE
+}
+
+void LaunchLayerNorm(const __half* x, const float* gamma, const float* beta, __half* ln_out, int rows, int d, cudaStream_t stream) {
+  const int blocks = (rows + kLnWarpsPerBlock - 1) / kLnWarpsPerBlock;
+  const int threads = kLnWarpsPerBlock * 32;
+#define FZ_LN_CASE(DD)                                                                       \
+  case DD:                                                                                   \
+    LayerNormKernel<DD><<<blocks, threads, 0, stream>>>(x, gamma, beta, ln_out, rows);       \
+    break;
+  switch (d) {
+    FZ_LN_CASE(64)
+    FZ_LN_CASE(128)
+    FZ_LN_CASE(192)
+    FZ_LN_CASE(256)
+    FZ_LN_CASE(320)
+    FZ_LN_CASE(384)
+    FZ_LN_CASE(448)
+    FZ_LN_CASE(512)
+    default:
+      break;  // fz_net.cu refuses such a width when the weights are loaded
+  }
+#undef FZ_LN_CASE
+}
+
+bool FfnUpSupported(int n, int k) { return n % kUpBn == 0 && k % kUpBk == 0; }
+
+void LaunchFfnUp(const __half* x, const __half* w, const __half* bias, __half* y, int m, int n, int k, cudaStream_t stream) {
+  static const cudaError_t once = cudaFuncSetAttribute(FfnUpKernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kUpSmemBytes);
+  (void)once;
+  FfnUpKernel<<<dim3(n / kUpBn, (m + kUpBm - 1) / kUpBm), kUpThreads, kUpSmemBytes, stream>>>(x, w, bias, y, m, n, k);
 }
 
 void LaunchAttention(const __half* qkv, const float* relbias, __half* out, int batch, int heads, cudaStream_t stream) {

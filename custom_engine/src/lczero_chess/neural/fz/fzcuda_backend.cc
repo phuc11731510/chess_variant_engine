@@ -137,6 +137,8 @@ void FzCudaBackend::UpdateConfiguration(const OptionsDict& opts) {
         net_options.autotune = kv[1] != "0";
       } else if (kv[0] == "graph") {
         net_options.graphs = kv[1] != "0";
+      } else if (kv[0] == "ff1") {
+        net_options.own_ff1 = kv[1] != "cublas";
       } else if (kv[0] != "provider") {
         std::cerr << "[FzCuda Backend] Warning: backend option '" << kv[0] << "' is not used by provider fzcuda" << std::endl;
       }

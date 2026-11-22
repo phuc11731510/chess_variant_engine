@@ -95,16 +95,16 @@ void TestExpandInput() {
 
 // ---------------------------------------------------------------------------------------------------------------------
 
-void TestAddLayerNorm(int d, bool with_y, int bias_rows) {
+void TestAddLayerNorm(int d, int bias_rows) {
   std::mt19937 rng(2);
   const int rows = 300;
-  const auto x = RandomVec(rng, size_t(rows) * d, 3.0f, true), y = RandomVec(rng, size_t(rows) * d, 2.0f, true);
+  const auto x = RandomVec(rng, size_t(rows) * d, 3.0f, true);
   const auto bias = RandomVec(rng, size_t(bias_rows) * d, 1.0f, false);
   auto gamma = RandomVec(rng, d, 0.3f, false), beta = RandomVec(rng, d, 0.3f, false);
   for (auto& g : gamma) g += 1.0f;
-  Dev<__half> d_x(HalfVec(x)), d_y(HalfVec(y)), d_xo(size_t(rows) * d), d_ln(size_t(rows) * d);
+  Dev<__half> d_x(HalfVec(x)), d_xo(size_t(rows) * d), d_ln(size_t(rows) * d);
   Dev<float> d_b(bias), d_g(gamma), d_be(beta);
-  LaunchAddLayerNorm(d_x.p, with_y ? d_y.p : nullptr, d_b.p, bias_rows, d_g.p, d_be.p, d_xo.p, d_ln.p, rows, d, nullptr);
+  LaunchAddLayerNorm(d_x.p, d_b.p, bias_rows, d_g.p, d_be.p, d_xo.p, d_ln.p, rows, d, nullptr);
   ST_CUDA(cudaDeviceSynchronize());
   const auto xo = d_xo.Get(), ln = d_ln.Get();
   double worst_x = 0, worst_ln = 0;
@@ -112,7 +112,7 @@ void TestAddLayerNorm(int d, bool with_y, int bias_rows) {
     std::vector<double> s(d);
     double mean = 0, var = 0;
     for (int c = 0; c < d; ++c) {
-      s[c] = double(x[size_t(r) * d + c]) + (with_y ? y[size_t(r) * d + c] : 0.0) + bias[size_t(r % bias_rows) * d + c];
+      s[c] = double(x[size_t(r) * d + c]) + bias[size_t(r % bias_rows) * d + c];
       mean += s[c];
     }
     mean /= d;
@@ -125,9 +125,58 @@ void TestAddLayerNorm(int d, bool with_y, int bias_rows) {
     }
   }
   char buf[160];
-  std::snprintf(buf, sizeof(buf), "d=%d y=%d bias_rows=%d: relative error x %.2e, layernorm %.2e (FP16 rounding is 4.9e-4)", d,
-                with_y, bias_rows, worst_x, worst_ln);
-  Report("add + layernorm", worst_x < 1.5e-3 && worst_ln < 2e-3, buf);
+  std::snprintf(buf, sizeof(buf), "d=%d bias_rows=%d: relative error x %.2e, layernorm %.2e (FP16 rounding is 4.9e-4)", d,
+                bias_rows, worst_x, worst_ln);
+  Report("embedding bias + layernorm", worst_x < 1.5e-3 && worst_ln < 2e-3, buf);
+}
+
+void TestLayerNorm(int d) {
+  std::mt19937 rng(7);
+  const int rows = 300;
+  const auto x = RandomVec(rng, size_t(rows) * d, 3.0f, true);
+  auto gamma = RandomVec(rng, d, 0.3f, false), beta = RandomVec(rng, d, 0.3f, false);
+  for (auto& g : gamma) g += 1.0f;
+  Dev<__half> d_x(HalfVec(x)), d_ln(size_t(rows) * d);
+  Dev<float> d_g(gamma), d_be(beta);
+  LaunchLayerNorm(d_x.p, d_g.p, d_be.p, d_ln.p, rows, d, nullptr);
+  ST_CUDA(cudaDeviceSynchronize());
+  const auto ln = d_ln.Get();
+  double worst = 0;
+  for (int r = 0; r < rows; ++r) {
+    double mean = 0, var = 0;
+    for (int c = 0; c < d; ++c) mean += x[size_t(r) * d + c];
+    mean /= d;
+    for (int c = 0; c < d; ++c) var += (x[size_t(r) * d + c] - mean) * (x[size_t(r) * d + c] - mean);
+    var /= d;
+    for (int c = 0; c < d; ++c) {
+      const double want = (x[size_t(r) * d + c] - mean) / std::sqrt(var + 1e-5) * gamma[c] + beta[c];
+      worst = std::max(worst, std::fabs(double(__half2float(ln[size_t(r) * d + c])) - want) / std::max(1.0, std::fabs(want)));
+    }
+  }
+  char buf[120];
+  std::snprintf(buf, sizeof(buf), "d=%d: relative error %.2e (FP16 rounding is 4.9e-4)", d, worst);
+  Report("layernorm", worst < 2e-3, buf);
+}
+
+// The fused ff1 product against a double-precision reference, for a full batch, a partial tile and a single position.
+void TestFfnUp(int m, int n, int k) {
+  std::mt19937 rng(11);
+  const auto x = RandomVec(rng, size_t(m) * k, 1.0f, true), w = RandomVec(rng, size_t(n) * k, 0.2f, true), b = RandomVec(rng, n, 0.5f, true);
+  Dev<__half> d_x(HalfVec(x)), d_w(HalfVec(w)), d_b(HalfVec(b)), d_y(size_t(m) * n);
+  LaunchFfnUp(d_x.p, d_w.p, d_b.p, d_y.p, m, n, k, nullptr);
+  ST_CUDA(cudaDeviceSynchronize());
+  const auto y = d_y.Get();
+  double worst = 0;
+  for (int r = 0; r < m; ++r)
+    for (int c = 0; c < n; ++c) {
+      double s = b[c];
+      for (int i = 0; i < k; ++i) s += double(x[size_t(r) * k + i]) * double(w[size_t(c) * k + i]);
+      const double want = 0.5 * s * (1.0 + std::tanh(0.7978845608028654 * (s + 0.044715 * s * s * s)));
+      worst = std::max(worst, std::fabs(double(__half2float(y[size_t(r) * n + c])) - want) / std::max(0.1, std::fabs(want)));
+    }
+  char buf[140];
+  std::snprintf(buf, sizeof(buf), "%d x %d * %d x %d^T: relative error %.2e (FP16 rounding is 4.9e-4)", m, k, n, k, worst);
+  Report("ff1 product + gelu", worst < 2e-3, buf);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -243,9 +292,14 @@ int RunKernelSelfTests() {
   ST_CUDA(cudaSetDevice(0));
   std::cout << "--- fzcuda kernels vs CPU references ---" << std::endl;
   TestExpandInput();
-  TestAddLayerNorm(192, true, 1);
-  TestAddLayerNorm(192, false, kTokens);
-  TestAddLayerNorm(128, true, 1);
+  TestAddLayerNorm(192, kTokens);
+  TestAddLayerNorm(128, kTokens);
+  TestLayerNorm(192);
+  TestLayerNorm(128);
+  TestFfnUp(6400, 768, 192);
+  TestFfnUp(4300, 768, 192);
+  TestFfnUp(100, 768, 192);
+  TestFfnUp(300, 512, 64);
   TestAttention(1, 6);
   TestAttention(4, 6);
   TestHeads();

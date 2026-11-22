@@ -386,7 +386,11 @@ int run_fzcuda(const EngineOptions& o) {
     lczero::OptionsParser parser;
     auto* d = parser.GetMutableDefaultsOptions();
     d->Set<std::string>(lczero::SharedBackendParams::kWeightsId, o.weights_file);
-    d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "provider=fzcuda,fixed_batch=64,contexts=2");
+    {
+      std::string bopts = "provider=fzcuda,fixed_batch=64,contexts=2";
+      for (const auto& kv : o.sp_fz_opts) bopts += "," + kv;   // --fz-opt exp=1 ...
+      d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bopts);
+    }
     d->Set<float>(lczero::SharedBackendParams::kPolicySoftmaxTemp, 1.0f);
     lczero::FzCudaBackend backend;
     backend.UpdateConfiguration(parser.GetOptionsDict());

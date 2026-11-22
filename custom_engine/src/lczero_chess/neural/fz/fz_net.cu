@@ -113,16 +113,20 @@ constexpr size_t kWorkspaceBytes = 32u << 20;  // cuBLASLt scratch per context
 
 enum class Epilogue { kNone, kBias, kGeluBias };
 
-// Y[M, N] = X[M, K] * W[N, K]^T (+ bias) (+ GELU), everything row-major, X and W FP16, Y FP16 or FP32.
+// Y[M, N] = X[M, K] * W[N, K]^T (+ bias) (+ GELU) (+ Y), everything row-major, X and W FP16, Y FP16 or FP32. `residual`: Y is also an
+// input and is updated in place, Y += X * W^T (+ bias) -- cuBLASLt beta = 1 with C = D = Y, so the residual add of the transformer
+// block costs one read of Y inside the product instead of a pass of its own.
 struct GemmShape {
   int n = 0, k = 0;
   bool out_f32 = false;
   Epilogue epi = Epilogue::kNone;
   bool bias_f32 = false;
-  std::tuple<int, int, bool, int, bool> Key() const { return {n, k, out_f32, static_cast<int>(epi), bias_f32}; }
+  bool residual = false;
+  std::tuple<int, int, bool, int, bool, bool> Key() const { return {n, k, out_f32, static_cast<int>(epi), bias_f32, residual}; }
   std::string Name(int m) const {
     return std::to_string(m) + "x" + std::to_string(k) + " * " + std::to_string(n) + "x" + std::to_string(k) + "^T" +
-           (out_f32 ? " ->f32" : "") + (epi == Epilogue::kGeluBias ? " +bias+gelu" : epi == Epilogue::kBias ? " +bias" : "");
+           (out_f32 ? " ->f32" : "") + (epi == Epilogue::kGeluBias ? " +bias+gelu" : epi == Epilogue::kBias ? " +bias" : "") +
+           (residual ? " +residual" : "");
   }
 };
 
@@ -210,10 +214,13 @@ struct Net::Impl {
   int d = 0, layers = 0, heads = 0, ffn = 0, head_cols = 0;
   uint8_t* blob = nullptr;  // the weights file image on the GPU
   size_t blob_bytes = 0;
+  __half* bias16 = nullptr;  // proj.b and ff2.b of every layer rounded to FP16: the product's own epilogue adds them (see Init)
+  bool own_ff1 = false;      // ff1 runs on FfnUpKernel (fz_kernels.cu) instead of a cuBLASLt product with the GELU epilogue (see Init)
+  std::vector<const __half*> ff1_w, ff1_b;
   int lt_version = 0;
 
   struct LayerWeights {
-    const float *ln1_g, *ln1_b, *relbias, *proj_b, *ln2_g, *ln2_b, *ff2_b;
+    const float *ln1_g, *ln1_b, *relbias, *ln2_g, *ln2_b;
   };
   std::vector<LayerWeights> lw;
   const float *posb = nullptr, *final_g = nullptr, *final_b = nullptr;
@@ -232,7 +239,7 @@ struct Net::Impl {
   std::vector<Stage*> free_stages;
   std::mutex stage_mu;
 
-  std::map<std::tuple<int, int, bool, int, bool, int>, cublasLtMatmulAlgo_t> algo_cache;
+  std::map<std::tuple<int, int, bool, int, bool, bool, int>, cublasLtMatmulAlgo_t> algo_cache;
   std::mutex algo_mu;
 
   ~Impl();
@@ -268,7 +275,7 @@ class Net::Impl::Gemm {
 
   void Run(Context& c, int m, const void* x, void* y) {
     const Plan& p = PlanFor(c, m, x, y);
-    const float alpha = 1.0f, beta = 0.0f;
+    const float alpha = 1.0f, beta = shape_.residual ? 1.0f : 0.0f;
     FZ_LT(owner_->lt->Matmul(c.lt, p.desc, &alpha, w_, p.a, x, p.b, &beta, y, p.c, y, p.c, &p.algo, c.workspace, kWorkspaceBytes,
                              c.stream));
   }
@@ -301,7 +308,8 @@ class Net::Impl::Gemm {
     FZ_LT(lt.MatrixLayoutCreate(&p.a, CUDA_R_16F, shape_.k, shape_.n, shape_.k));
     FZ_LT(lt.MatrixLayoutCreate(&p.b, CUDA_R_16F, shape_.k, m, shape_.k));
     FZ_LT(lt.MatrixLayoutCreate(&p.c, shape_.out_f32 ? CUDA_R_32F : CUDA_R_16F, shape_.n, m, shape_.n));
-    p.algo = owner_->ChooseAlgo(c, shape_, m, bias_, p.desc, p.a, p.b, p.c, w_, x, y);
+    // A residual product is timed on scratch memory: its timed runs would otherwise add the product to the real residual stream.
+    p.algo = owner_->ChooseAlgo(c, shape_, m, bias_, p.desc, p.a, p.b, p.c, w_, x, shape_.residual ? static_cast<void*>(c.y) : y);
     return plans_.emplace(m, p).first->second;
   }
 
@@ -395,7 +403,7 @@ cublasLtMatmulAlgo_t Net::Impl::ChooseAlgo(Context& c, const GemmShape& shape, i
     cudaEvent_t e0, e1;
     FZ_CUDA(cudaEventCreate(&e0));
     FZ_CUDA(cudaEventCreate(&e1));
-    const float alpha = 1.0f, beta = 0.0f;
+    const float alpha = 1.0f, beta = shape.residual ? 1.0f : 0.0f;
     double best_ms = -1.0, heuristic_ms = -1.0;
     size_t ran = 0;
     for (size_t i = 0; i < candidates.size(); ++i) {
@@ -504,6 +512,7 @@ void Net::Impl::Init(const std::string& path) {
   auto f16 = [&](const std::string& n, uint32_t r, uint32_t cc) { return dev(file->Get(n, kFzwF16, r, cc)); };
 
   const uint32_t D = d, F = ffn * d;
+  std::vector<__half> bias16_host;
   posb = f32("embed.posb", kTokens, D);
   final_g = f32("final.ln.g", 1, D);
   final_b = f32("final.ln.b", 1, D);
@@ -525,19 +534,33 @@ void Net::Impl::Init(const std::string& path) {
     w.ln1_g = f32(p + "ln1.g", 1, D);
     w.ln1_b = f32(p + "ln1.b", 1, D);
     w.relbias = f32(p + "relbias", heads, kRelEntries);
-    w.proj_b = f32(p + "proj.b", 1, D);
     w.ln2_g = f32(p + "ln2.g", 1, D);
     w.ln2_b = f32(p + "ln2.b", 1, D);
-    w.ff2_b = f32(p + "ff2.b", 1, D);
     lw.push_back(w);
+    for (const char* name : {"proj.b", "ff2.b"}) {  // FP32 in the file; the epilogue of a product takes the bias in the type of the output
+      const float* b = reinterpret_cast<const float*>(file->Get(p + name, kFzwF32, 1, D));
+      for (uint32_t j = 0; j < D; ++j) bias16_host.push_back(__float2half_rn(b[j]));
+    }
+  }
+  FZ_CUDA(cudaMalloc(&bias16, bias16_host.size() * sizeof(__half)));
+  FZ_CUDA(cudaMemcpy(bias16, bias16_host.data(), bias16_host.size() * sizeof(__half), cudaMemcpyHostToDevice));
+  for (int i = 0; i < layers; ++i) {
+    const std::string p = "b" + std::to_string(i) + ".";
+    const __half* proj_b = bias16 + size_t(2 * i) * D;
+    const __half* ff2_b = bias16 + size_t(2 * i + 1) * D;
     qkv.push_back(std::make_unique<Gemm>(this, GemmShape{3 * d, d, false, Epilogue::kBias, false}, f16(p + "qkv.w", 3 * D, D),
                                          f16(p + "qkv.b", 1, 3 * D)));
-    proj.push_back(std::make_unique<Gemm>(this, GemmShape{d, d, false, Epilogue::kNone, false}, f16(p + "proj.w", D, D), nullptr));
+    proj.push_back(std::make_unique<Gemm>(this, GemmShape{d, d, false, Epilogue::kBias, false, true}, f16(p + "proj.w", D, D), proj_b));
+    // ff1: its own kernel unless that is off or the sizes do not fit it; then the cuBLASLt product with the GELU epilogue (the Gemm
+    // below is only created for that, no plan is made for it otherwise).
     ff1.push_back(std::make_unique<Gemm>(this, GemmShape{ffn * d, d, false, Epilogue::kGeluBias, false}, f16(p + "ff1.w", F, D),
                                          f16(p + "ff1.b", 1, F)));
-    ff2.push_back(std::make_unique<Gemm>(this, GemmShape{d, ffn * d, false, Epilogue::kNone, false}, f16(p + "ff2.w", D, F), nullptr));
+    ff1_w.push_back(reinterpret_cast<const __half*>(f16(p + "ff1.w", F, D)));
+    ff1_b.push_back(reinterpret_cast<const __half*>(f16(p + "ff1.b", 1, F)));
+    ff2.push_back(std::make_unique<Gemm>(this, GemmShape{d, ffn * d, false, Epilogue::kBias, false, true}, f16(p + "ff2.w", D, F), ff2_b));
   }
 
+  own_ff1 = options.own_ff1 && FfnUpSupported(static_cast<int>(F), static_cast<int>(D)) && prop.sharedMemPerBlockOptin >= 64 * 1024;
   const int n = std::max(1, options.contexts);
   for (int i = 0; i < n; ++i) {
     contexts.push_back(std::make_unique<Context>());
@@ -567,6 +590,7 @@ Net::Impl::~Impl() {
   fc1v.reset();
   fc1m.reset();
   if (blob) cudaFree(blob);
+  if (bias16) cudaFree(bias16);
   for (auto& s : stages) cudaFreeHost(s->block);
 }
 
@@ -648,7 +672,7 @@ void Net::Impl::Forward(Context& c, int batch, Observer* obs) {
   embed->Run(c, M, c.x0, c.y);
   mark("embed product");
   tap("embed", c.y, d, true);
-  LaunchAddLayerNorm(c.y, nullptr, posb, kTokens, lw[0].ln1_g, lw[0].ln1_b, c.x, c.ln, M, d, s);
+  LaunchAddLayerNorm(c.y, posb, kTokens, lw[0].ln1_g, lw[0].ln1_b, c.x, c.ln, M, d, s);
   mark("add + layernorm");
   tap("x_in", c.x, d, true);
   tap("ln_in", c.ln, d, true);
@@ -660,20 +684,23 @@ void Net::Impl::Forward(Context& c, int batch, Observer* obs) {
     LaunchAttention(c.qkv, w.relbias, c.att, batch, heads, s);
     mark("attention");
     if (i == 0) tap("att0", c.att, d, true);
-    proj[i]->Run(c, M, c.att, c.y);
-    mark("proj product");
-    LaunchAddLayerNorm(c.x, c.y, w.proj_b, 1, w.ln2_g, w.ln2_b, c.x, c.ln, M, d, s);
-    mark("add + layernorm");
+    proj[i]->Run(c, M, c.att, c.x);  // x += att * Wproj^T + bias
+    mark("proj product + residual");
+    LaunchLayerNorm(c.x, w.ln2_g, w.ln2_b, c.ln, M, d, s);
+    mark("layernorm");
     if (i == 0) tap("ln2_0", c.ln, d, true);
-    ff1[i]->Run(c, M, c.ln, c.ff);
+    if (own_ff1)
+      LaunchFfnUp(c.ln, ff1_w[i], ff1_b[i], c.ff, M, ffn * d, d, s);
+    else
+      ff1[i]->Run(c, M, c.ln, c.ff);
     mark("ff1 product + gelu");
     if (i == 0) tap("ff0", c.ff, ffn * d, true);
-    ff2[i]->Run(c, M, c.ff, c.y);
-    mark("ff2 product");
+    ff2[i]->Run(c, M, c.ff, c.x);  // x += ff * Wff2^T + bias
+    mark("ff2 product + residual");
     const float* g = i + 1 < layers ? lw[i + 1].ln1_g : final_g;
     const float* b = i + 1 < layers ? lw[i + 1].ln1_b : final_b;
-    LaunchAddLayerNorm(c.x, c.y, w.ff2_b, 1, g, b, c.x, c.ln, M, d, s);
-    mark("add + layernorm");
+    LaunchLayerNorm(c.x, g, b, c.ln, M, d, s);
+    mark("layernorm");
     if (i == 0) tap("x1", c.x, d, true);
   }
   tap("ln_final", c.ln, d, true);
@@ -717,7 +744,8 @@ std::string Net::Describe() const {
   o << impl_->prop.name << " (sm_" << impl_->prop.major << impl_->prop.minor << ", " << impl_->prop.multiProcessorCount
     << " SMs); network d_model " << impl_->d << ", " << impl_->layers << " layers, " << impl_->heads << " heads, weights "
     << impl_->blob_bytes / 1000000.0 << " MB; cuBLASLt " << impl_->lt_version / 10000 << "." << (impl_->lt_version / 100) % 100
-    << "." << impl_->lt_version % 100 << "; " << impl_->contexts.size() << " contexts, batches up to " << kMaxBatch;
+    << "." << impl_->lt_version % 100 << "; " << impl_->contexts.size() << " contexts, batches up to " << kMaxBatch << "; ff1 on "
+    << (impl_->own_ff1 ? "its own kernel" : "cuBLASLt");
   return o.str();
 }
 

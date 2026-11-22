@@ -311,7 +311,7 @@ Mở PowerShell tại thư mục `FairyZero`:
   (`src/lczero_chess/neural/fz/`), mạng là tệp `.fzw` (`python/lay_mang.py fzw /content/gen17.fzw --rel <Release>` hoặc
   `python/fzw.py convert gen17.pt gen17.fzw`; ~10 MB, chỉ cần `torch`). Trên T4, mạng gen17, cùng cờ như ô 04: tự đấu **12.600 nps
   so với 6.590 của ONNX Runtime (gấp 1,9 lần)**, lô 64 chạy 6,4 ms thay vì 12,9 ms; sai khác với FP32 cỡ 0,0005 (giới hạn 0,01).
-  Cờ: `--provider fzcuda --weights x.fzw --fixed-batch 64 [--fz-opt contexts=2 --fz-opt autotune=0 --fz-opt graph=0]`. Cần binary dựng với
+  Cờ: `--provider fzcuda --weights x.fzw --fixed-batch 64 [--fz-opt contexts=2 --fz-opt autotune=0 --fz-opt graph=0 --fz-opt ff1=cublas]`. Cần binary dựng với
   `-Duse_fzcuda=true` (`bien_dich_linux_cuda.bat`, image Docker `fz-build-cuda:24.04`) và `libcublasLt.so.12` (nạp lúc chạy; có trong
   gói pip `nvidia-cublas-cu12` mà `run.sh` đã đưa vào `LD_LIBRARY_PATH`). Mô tả đầy đủ, số đo, bẫy: Walkthrough mục 22.
 

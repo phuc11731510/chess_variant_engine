@@ -34,6 +34,7 @@ struct NetOptions {
   bool autotune = true;    // time the candidate cuBLASLt algorithms of every product at the largest batch, keep the fastest
   bool verbose = true;
   bool graphs = true;      // run a batch as one CUDA graph launch (see Net::SetGraphs)
+  bool own_ff1 = true;     // ff1 on the hand-written fused kernel; false: a cuBLASLt product with the GELU epilogue (slower, for comparing)
 };
 
 // Time per stage of one forward pass (Net::Profile).
