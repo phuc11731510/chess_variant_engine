@@ -37,3 +37,18 @@ option('portable',
        type : 'boolean',
        value: false,
        description: 'x86-64: only -mavx2 -mfma (no x86-64-v3, no -DUSE_POPCNT): for a CPU older than 2013 or an unknown host. Default false = x86-64-v3 + popcnt (about 10% faster move generation)')
+
+option('onnxruntime_dlopen',
+       type : 'boolean',
+       value: false,
+       description: 'Linux only: do NOT link libonnxruntime.so; load it with dlopen the first time an ONNX backend is built (-DORT_API_MANUAL_INIT, neural/ort_loader.cc). The binary then starts on a machine without ONNX Runtime and --provider fzcuda never needs it (the Colab binary: 79 MB less to download).')
+
+option('use_fzcuda',
+       type : 'boolean',
+       value: false,
+       description: 'Build the CUDA network runner (src/lczero_chess/neural/fz/, --provider fzcuda with a .fzw weights file): cuBLASLt products + hand-written kernels in place of ONNX Runtime. Linux + the CUDA 12 toolkit (nvcc) only; the binary then needs libcublasLt.so.12 at run time (loaded with dlopen, only when the provider is used)')
+
+option('fzcuda_toolkit',
+       type : 'string',
+       value: '/usr/local/cuda',
+       description: 'CUDA toolkit root (lib64/libcudart_static.a is linked statically) for use_fzcuda=true')

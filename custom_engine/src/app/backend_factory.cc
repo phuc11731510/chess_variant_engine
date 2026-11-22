@@ -44,6 +44,10 @@
 #include "neural/backend.h"
 #include "neural/shared_params.h"
 #include "neural/onnx_backend.h"
+#ifdef USE_FZCUDA
+#include "neural/fz/fzcuda_backend.h"
+#endif
+#include "utils/exception.h"
 #include "neural/zero_heap_cache.h"
 #include "utils/random.h"
 #include "chess/callbacks.h"
@@ -53,9 +57,31 @@
 using namespace Stockfish;
 
 
-std::unique_ptr<lczero::Backend> arena_make_backend(const lczero::OptionsDict& opts) {
+namespace {
+bool WantsFzCuda(const lczero::OptionsDict& opts) {
+    const std::string bopts = opts.GetOrDefault<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "");
+    std::istringstream in(bopts);
+    for (std::string kv; std::getline(in, kv, ',');)
+        if (kv == "provider=fzcuda") return true;
+    return false;
+}
+}  // namespace
+
+std::unique_ptr<lczero::Backend> make_network_backend(const lczero::OptionsDict& opts) {
+    if (WantsFzCuda(opts)) {
+#ifdef USE_FZCUDA
+        auto raw = std::make_unique<lczero::FzCudaBackend>();
+        raw->UpdateConfiguration(opts);
+        return raw;
+#else
+        throw lczero::Exception("provider fzcuda: this binary was built without the CUDA runner (meson -Duse_fzcuda=true)");
+#endif
+    }
     auto raw = std::make_unique<lczero::OnnxBackend>();
     raw->UpdateConfiguration(opts);
-    return lczero::CreateMemCache(std::move(raw), opts);
+    return raw;
 }
 
+std::unique_ptr<lczero::Backend> arena_make_backend(const lczero::OptionsDict& opts) {
+    return lczero::CreateMemCache(make_network_backend(opts), opts);
+}

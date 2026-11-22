@@ -13,7 +13,8 @@ struct EngineOptions {
          uci_nn_mode=false, test_uci_mode=false, test_encoder_mode=false, play_mode=false,
          arena_mode=false, audit_generation_mode=false, bench_nn_mode=false, bench_cpu_mode=false,
          test_search_logic_mode=false, test_history_mode=false, audit_rules_mode=false,
-         test_neural_mode=false, test_cli_mode=false;
+         test_neural_mode=false, test_cli_mode=false,
+         test_fzcuda_mode=false, bench_fzcuda_mode=false, fzcuda_dump_mode=false;  // the CUDA runner (neural/fz/)
     // Command-line errors (unknown flag, missing value, bad number): main() prints
     // them and exits 2 instead of running with a default the user did not ask for.
     std::vector<std::string> errors;
@@ -40,6 +41,8 @@ struct EngineOptions {
     float sp_temperature=0.5f;
     bool sp_temp_cutoff_given=false;  // --temp-cutoff (the arena's old opening length) is now an error everywhere
     std::string sp_start_fen;
+    std::string fz_dump;       // --fzcuda-dump FILE: positions file for python/fzw.py ref
+    std::string fz_positions;  // --fz-positions FILE: that file, read back by --test-fzcuda / --bench-fzcuda
     float sp_resign_threshold=-2.0f, sp_no_resign_frac=0.10f;
     int sp_resign_consecutive=3, sp_resign_earliest=0;
     std::vector<std::pair<std::string,std::string>> sp_search_opts;
@@ -49,6 +52,9 @@ struct EngineOptions {
     // cudnn_conv_algo_search=HEURISTIC, prefer_nhwc=1), passed as-is to
     // UpdateCUDAProviderOptions -- an unknown key stops the run. --provider cuda only.
     std::vector<std::string> sp_cuda_opts;
+    // --fz-opt key=value (repeatable): option of the CUDA runner for --provider fzcuda (contexts=2, split=2, autotune=0; see
+    // neural/fz/fzcuda_backend.h).
+    std::vector<std::string> sp_fz_opts;
     // --trt-opt key=value (repeatable): ORT TensorRT EP option for --provider tensorrt
     // (e.g. trt_engine_cache_path=/content/trt_cache, trt_builder_optimization_level=5).
     std::vector<std::string> sp_trt_opts;

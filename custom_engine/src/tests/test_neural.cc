@@ -17,6 +17,7 @@
 //      when the root's cache entry has been overwritten (a 1-bucket cache).
 
 #include "tests/test_common.h"
+#include "neural/ort_loader.h"
 #include <limits>
 #include "onnxruntime_cxx_api.h"
 
@@ -209,6 +210,7 @@ struct RefEval {
 void TestOnnxBackend(const std::string& weights) {
     std::cout << "--- 3. OnnxBackend vs an independent ORT session (" << weights << ") ---"
               << std::endl;
+    lczero::EnsureOnnxRuntime();
     auto positions = MakePositions(64);
     std::vector<lczero::MoveList> legal;
     for (const auto& h : positions) legal.push_back(h->Last().GetBoard().GenerateLegalMoves());

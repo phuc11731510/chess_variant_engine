@@ -95,6 +95,9 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         else if (a == "--test-history")       o.test_history_mode = true;
         else if (a == "--test-neural")        o.test_neural_mode = true;
         else if (a == "--test-cli")           o.test_cli_mode = true;
+        else if (a == "--test-fzcuda")        o.test_fzcuda_mode = true;
+        else if (a == "--bench-fzcuda")       o.bench_fzcuda_mode = true;
+        else if (a == "--fzcuda-dump")        { o.fzcuda_dump_mode = true; string_value(&o.fz_dump); }
         else if (a == "--test-mcts") {         // optional value: the weights file
             o.test_mcts_mode = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') o.weights_file = argv[++i];
@@ -132,6 +135,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         else if (a == "--stop-file")          string_value(&o.sp_stop_file);
         else if (a == "--ort-profile")        string_value(&o.ort_profile);
         else if (a == "--start-fen")          string_value(&o.sp_start_fen);
+        else if (a == "--fz-positions")       string_value(&o.fz_positions);
         else if (a == "--weights")            { string_value(&o.weights_file); o.weights_given = true; }
         else if (a == "--model-a")            string_value(&o.arena_a);
         else if (a == "--model-b")            string_value(&o.arena_b);
@@ -171,7 +175,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
                     i = j + 1;
                 }
             }
-        } else if (a == "--cuda-opt" || a == "--trt-opt") {  // "key=value", ORT CUDA / TensorRT EP option
+        } else if (a == "--cuda-opt" || a == "--trt-opt" || a == "--fz-opt") {  // "key=value", ORT CUDA / TensorRT EP option; CUDA runner option
             std::string kv;
             const size_t errors_before = o.errors.size();
             string_value(&kv);
@@ -185,15 +189,15 @@ EngineOptions parse_cli(int argc, char* argv[]) {
                        kv.find_first_of(",=", eq + 1) != std::string::npos) {
                 error(a + " '" + kv + "': expected key=value (key: letters, digits, _)");
             } else {
-                (a == "--cuda-opt" ? o.sp_cuda_opts : o.sp_trt_opts).push_back(kv);
+                (a == "--cuda-opt" ? o.sp_cuda_opts : a == "--fz-opt" ? o.sp_fz_opts : o.sp_trt_opts).push_back(kv);
             }
         } else {
             error(a.rfind("-", 0) == 0 ? "unknown flag " + a : "unexpected argument " + a);
         }
     }
     if (o.sp_provider != "cpu" && o.sp_provider != "cuda" && o.sp_provider != "dml" &&
-        o.sp_provider != "tensorrt")
-        error("--provider " + o.sp_provider + ": expected cpu, cuda, tensorrt or dml");
+        o.sp_provider != "tensorrt" && o.sp_provider != "fzcuda")
+        error("--provider " + o.sp_provider + ": expected cpu, cuda, tensorrt, fzcuda or dml");
     // Neither self-play nor the arena has an opening phase any more: every move of the game is drawn
     // with --temperature (2026-11-20). A stale --temp-cutoff would otherwise be accepted and silently do
     // nothing (the arena used to read it as the length of its sampled opening).

@@ -8,8 +8,13 @@
 #
 # Ma nguon dat o /content/chess_variant_engine/custom_engine nhu tren Colab, nen RUNPATH ghi trong binary
 # giong het ban dich tren Colab. Ket qua: /src/ban_linux/custom_engine (+ thong tin kiem tra).
+#
+# FZ_CUDA=1 (bien_dich_linux_cuda.bat, image fz-build-cuda:24.04 co nvcc): dich them bo chay mang CUDA rieng (-Duse_fzcuda=true,
+# `--provider fzcuda`); ket qua /src/ban_linux/custom_engine_fzcuda (khong de len ban thuong).
 set -euo pipefail
 ORT=onnxruntime-linux-x64-gpu-1.20.1
+FZ_CUDA="${FZ_CUDA:-}"
+OUT_NAME=custom_engine${FZ_CUDA:+_fzcuda}
 ED=/content/chess_variant_engine/custom_engine
 OUT=/src/ban_linux
 
@@ -24,7 +29,7 @@ fi
 # va mang mtime moi, nen ninja chi bien dich lai nhung tep do.
 rm -rf /tmp/moi && mkdir -p /tmp/moi "$ED"
 git -C /src archive HEAD custom_engine | tar -x -C /tmp/moi
-rsync -rlc --delete --exclude /build-linux/ --exclude "/third_party/$ORT/" /tmp/moi/custom_engine/ "$ED/"
+rsync -rlc --delete --exclude /build-linux/ --exclude /third_party/ /tmp/moi/custom_engine/ "$ED/"
 
 if [ ! -f "$ED/third_party/$ORT/include/onnxruntime_cxx_api.h" ]; then
   echo "[linux] giai nen ONNX Runtime ($ORT) ..."
@@ -33,8 +38,13 @@ if [ ! -f "$ED/third_party/$ORT/include/onnxruntime_cxx_api.h" ]; then
 fi
 
 cd "$ED"
+# -Donnxruntime_dlopen=true: the binary does not link libonnxruntime.so (neural/ort_loader.cc opens it when an ONNX backend is built),
+# so a Colab machine that runs only the CUDA runner never needs the ONNX Runtime package.
+OPTS="-Duse_cuda=true -Donnxruntime_dir=third_party/$ORT -Donnxruntime_dlopen=true ${FZ_CUDA:+-Duse_fzcuda=true}"
 if [ ! -f build-linux/build.ninja ]; then
-  meson setup build-linux --buildtype=release -Duse_cuda=true -Donnxruntime_dir="third_party/$ORT"
+  meson setup build-linux --buildtype=release $OPTS
+else
+  meson setup --reconfigure build-linux --buildtype=release $OPTS >/dev/null   # a build tree from before an option existed picks it up
 fi
 ninja -C build-linux
 BIN=$ED/build-linux/custom_engine
@@ -46,15 +56,27 @@ echo "[linux] can toi da: $gmax, $cmax"
 printf '%s\n%s\n' "$gmax" GLIBC_2.39 | sort -CV || { echo "[linux] LOI: can glibc moi hon Colab"; exit 1; }
 printf '%s\n%s\n' "$cmax" GLIBCXX_3.4.33 | sort -CV || { echo "[linux] LOI: can libstdc++ moi hon Colab"; exit 1; }
 
+# Binary khong lien ket dong voi ONNX Runtime (nap luc can): phai chay --test-uci khi KHONG co thu vien do tren duong dan.
+if ldd "$BIN" | grep -q libonnxruntime; then echo "[linux] LOI: binary van lien ket dong voi libonnxruntime"; exit 1; fi
+env -u LD_LIBRARY_PATH "$BIN" --test-uci 2>&1 | grep -q '\[PASS\]' || { echo "[linux] LOI: --test-uci khong chay khi thieu ONNX Runtime"; exit 1; }
+echo "[linux] binary chay duoc khi KHONG co ONNX Runtime (nap luc can)"
+
 # Chay thu tren CPU (may nay khong co GPU NVIDIA; phan CUDA chi kiem duoc tren Colab -- o 02 tu chay --test-uci).
 export LD_LIBRARY_PATH="$ED/third_party/$ORT/lib"
 "$BIN" --test-uci 2>&1 | grep -E '\[(PASS|FAIL)\]' | tail -3
 "$BIN" --test-uci 2>&1 | grep -q '\[PASS\]' || { echo "[linux] LOI: --test-uci khong PASS"; exit 1; }
 "$BIN" --test-adapter 2>&1 | tail -2
 
+if [ -n "$FZ_CUDA" ]; then
+  # Khong co GPU o day: chi kiem cac thu khong can GPU (bai thu that tren T4: scripts/thu_fzcuda_t4.py).
+  "$BIN" --test-fzcuda 2>&1 | tail -n 2 || true
+  # Binary khong duoc lien ket dong voi thu vien CUDA (cudart tinh, cublasLt nap bang dlopen): may khong co chung van chay ONNX.
+  if ldd "$BIN" | grep -i -E "cudart|cublas|libcuda"; then echo "[linux] LOI: binary lien ket dong voi thu vien CUDA"; exit 1; fi
+  echo "[linux] binary khong lien ket dong voi thu vien CUDA nao: dung"
+fi
 mkdir -p "$OUT"
-cp -f "$BIN" "$OUT/custom_engine"
+cp -f "$BIN" "$OUT/$OUT_NAME"
 { echo "commit=$REV"; echo "built=$(date '+%Y-%m-%d %H:%M:%S')"; echo "gcc=$(gcc -dumpfullversion)";
   echo "glibc_max=$gmax"; echo "glibcxx_max=$cmax"; echo "sha256=$(sha256sum "$BIN" | cut -d' ' -f1)"; } > "$OUT/thong_tin.txt"
 cat "$OUT/thong_tin.txt"
-echo "[linux] XONG: ban_linux\\custom_engine"
+echo "[linux] XONG: ban_linux\\$OUT_NAME"

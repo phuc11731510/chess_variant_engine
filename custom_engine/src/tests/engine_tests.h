@@ -23,3 +23,6 @@ void run_history_tests();
 void run_rules_oracle_audit(int num_games, int max_plies);
 void run_neural_tests(const std::string& weights_path);
 void run_cli_tests();
+// The CUDA network runner: --test-fzcuda / --bench-fzcuda / --fzcuda-dump (test_fzcuda.cc). Returns the exit code.
+struct EngineOptions;
+int run_fzcuda(const EngineOptions& o);
