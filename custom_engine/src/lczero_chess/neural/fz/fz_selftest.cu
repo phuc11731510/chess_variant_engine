@@ -130,6 +130,52 @@ void TestAddLayerNorm(int d, bool with_y, int bias_rows) {
   Report("add + layernorm", worst_x < 1.5e-3 && worst_ln < 2e-3, buf);
 }
 
+void TestLayerNorm(int d) {
+  std::mt19937 rng(7);
+  const int rows = 300;
+  const auto x = RandomVec(rng, size_t(rows) * d, 3.0f, true);
+  auto gamma = RandomVec(rng, d, 0.3f, false), beta = RandomVec(rng, d, 0.3f, false);
+  for (auto& g : gamma) g += 1.0f;
+  Dev<__half> d_x(HalfVec(x)), d_ln(size_t(rows) * d);
+  Dev<float> d_g(gamma), d_be(beta);
+  LaunchLayerNorm(d_x.p, d_g.p, d_be.p, d_ln.p, rows, d, nullptr);
+  ST_CUDA(cudaDeviceSynchronize());
+  const auto ln = d_ln.Get();
+  double worst = 0;
+  for (int r = 0; r < rows; ++r) {
+    double mean = 0, var = 0;
+    for (int c = 0; c < d; ++c) mean += x[size_t(r) * d + c];
+    mean /= d;
+    for (int c = 0; c < d; ++c) var += (x[size_t(r) * d + c] - mean) * (x[size_t(r) * d + c] - mean);
+    var /= d;
+    for (int c = 0; c < d; ++c) {
+      const double want = (x[size_t(r) * d + c] - mean) / std::sqrt(var + 1e-5) * gamma[c] + beta[c];
+      worst = std::max(worst, std::fabs(double(__half2float(ln[size_t(r) * d + c])) - want) / std::max(1.0, std::fabs(want)));
+    }
+  }
+  char buf[120];
+  std::snprintf(buf, sizeof(buf), "d=%d: relative error %.2e (FP16 rounding is 4.9e-4)", d, worst);
+  Report("layernorm", worst < 2e-3, buf);
+}
+
+void TestGelu() {
+  std::mt19937 rng(8);
+  const size_t n = 100000;
+  const auto x = RandomVec(rng, n, 2.0f, true);
+  Dev<__half> d_x(HalfVec(x));
+  LaunchGelu(d_x.p, n, nullptr);
+  ST_CUDA(cudaDeviceSynchronize());
+  const auto y = d_x.Get();
+  double worst = 0;
+  for (size_t i = 0; i < n; ++i) {
+    const double v = x[i], want = 0.5 * v * (1.0 + std::tanh(0.7978845608028654 * (v + 0.044715 * v * v * v)));
+    worst = std::max(worst, std::fabs(double(__half2float(y[i])) - want) / std::max(0.1, std::fabs(want)));
+  }
+  char buf[100];
+  std::snprintf(buf, sizeof(buf), "relative error %.2e against the tanh form (FP16 rounding is 4.9e-4)", worst);
+  Report("gelu", worst < 2e-3, buf);
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 
 void TestAttention(int batch, int heads) {
@@ -246,6 +292,9 @@ int RunKernelSelfTests() {
   TestAddLayerNorm(192, true, 1);
   TestAddLayerNorm(192, false, kTokens);
   TestAddLayerNorm(128, true, 1);
+  TestLayerNorm(192);
+  TestLayerNorm(128);
+  TestGelu();
   TestAttention(1, 6);
   TestAttention(4, 6);
   TestHeads();

@@ -103,6 +103,56 @@ __global__ void AddLayerNormKernel(const __half* x_in, const __half* __restrict_
   }
 }
 
+// LayerNorm of rows that already hold the residual stream (the residual add happened in the cuBLASLt epilogue of the product
+// before): one warp per row, reads x once, writes ln_out once.
+template <int D>
+__global__ void LayerNormKernel(const __half* __restrict__ x, const float* __restrict__ gamma, const float* __restrict__ beta,
+                                __half* __restrict__ ln_out, int rows) {
+  constexpr int kPairs = D / 64;
+  const int row = blockIdx.x * kLnWarpsPerBlock + (threadIdx.x >> 5);
+  if (row >= rows) return;
+  const int lane = threadIdx.x & 31;
+  const size_t base = static_cast<size_t>(row) * D;
+
+  float v[2 * kPairs];
+  #pragma unroll
+  for (int j = 0; j < kPairs; ++j) {
+    const float2 a = __half22float2(*reinterpret_cast<const __half2*>(x + base + 2 * lane + 64 * j));
+    v[2 * j] = a.x;
+    v[2 * j + 1] = a.y;
+  }
+  float sum = 0.0f;
+  #pragma unroll
+  for (int i = 0; i < 2 * kPairs; ++i) sum += v[i];
+  #pragma unroll
+  for (int off = 16; off > 0; off >>= 1) sum += __shfl_xor_sync(kFullMask, sum, off);
+  const float mean = sum * (1.0f / D);
+  float sq = 0.0f;
+  #pragma unroll
+  for (int i = 0; i < 2 * kPairs; ++i) sq += (v[i] - mean) * (v[i] - mean);
+  #pragma unroll
+  for (int off = 16; off > 0; off >>= 1) sq += __shfl_xor_sync(kFullMask, sq, off);
+  const float rstd = rsqrtf(sq * (1.0f / D) + kLayerNormEps);
+  #pragma unroll
+  for (int j = 0; j < kPairs; ++j) {
+    const int c = 2 * lane + 64 * j;
+    const float2 g = *reinterpret_cast<const float2*>(gamma + c);
+    const float2 bt = *reinterpret_cast<const float2*>(beta + c);
+    *reinterpret_cast<__half2*>(ln_out + base + c) =
+        __floats2half2_rn((v[2 * j] - mean) * rstd * g.x + bt.x, (v[2 * j + 1] - mean) * rstd * g.y + bt.y);
+  }
+}
+
+// GELU, tanh form, as x * sigmoid(2 * sqrt(2 / pi) * (x + 0.044715 x^3)) (the same function: tanh(z) = 2 sigmoid(2z) - 1).
+__global__ void GeluKernel(__half2* x, size_t n2) {
+  const size_t i = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+  if (i >= n2) return;
+  float2 v = __half22float2(x[i]);
+  v.x = v.x / (1.0f + __expf(-1.5957691216f * (v.x + 0.044715f * v.x * v.x * v.x)));
+  v.y = v.y / (1.0f + __expf(-1.5957691216f * (v.y + 0.044715f * v.y * v.y * v.y)));
+  x[i] = __floats2half2_rn(v.x, v.y);
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Attention: S = q k^T / sqrt(32) + position bias, softmax over the 100 keys, O = P v. One block per (head, position),
 // one warp per tile of 16 queries (7 tiles cover 100 queries). The scores and the probabilities never leave registers: the
@@ -340,6 +390,33 @@ void LaunchAddLayerNorm(const __half* x_in, const __half* y, const float* bias, 
       break;  // fz_net.cu refuses such a width when the weights are loaded
   }
 #undef FZ_LN_CASE
+}
+
+void LaunchLayerNorm(const __half* x, const float* gamma, const float* beta, __half* ln_out, int rows, int d, cudaStream_t stream) {
+  const int blocks = (rows + kLnWarpsPerBlock - 1) / kLnWarpsPerBlock;
+  const int threads = kLnWarpsPerBlock * 32;
+#define FZ_LN_CASE(DD)                                                                       \
+  case DD:                                                                                   \
+    LayerNormKernel<DD><<<blocks, threads, 0, stream>>>(x, gamma, beta, ln_out, rows);       \
+    break;
+  switch (d) {
+    FZ_LN_CASE(64)
+    FZ_LN_CASE(128)
+    FZ_LN_CASE(192)
+    FZ_LN_CASE(256)
+    FZ_LN_CASE(320)
+    FZ_LN_CASE(384)
+    FZ_LN_CASE(448)
+    FZ_LN_CASE(512)
+    default:
+      break;  // fz_net.cu refuses such a width when the weights are loaded
+  }
+#undef FZ_LN_CASE
+}
+
+void LaunchGelu(__half* x, size_t n, cudaStream_t stream) {
+  const size_t n2 = n / 2;
+  GeluKernel<<<static_cast<unsigned>((n2 + 255) / 256), 256, 0, stream>>>(reinterpret_cast<__half2*>(x), n2);
 }
 
 void LaunchAttention(const __half* qkv, const float* relbias, __half* out, int batch, int heads, cudaStream_t stream) {

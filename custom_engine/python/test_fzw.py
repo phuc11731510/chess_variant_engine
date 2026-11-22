@@ -126,9 +126,10 @@ def test_model_vs_fp32():
     check({"x0", "embed", "x_in", "ln_in", "qkv0", "att0", "ln2_0", "ff0", "x1", "ln_final", "head", "wdlm"} <= set(taps),
           "every tap the engine writes (--test-fzcuda) exists in the model")
     check(taps["wdlm"].shape == (1, 4) and abs(taps["wdlm"][0, :3].sum() - 1) < 1e-5, "wdlm tap: a softmax and the moves left")
-    # one position alone gives what it gives inside a batch
+    # one position alone gives what it gives inside a batch (up to the last FP16 bit of a few values: the matrix product sums in
+    # another order for another batch size, and a value on a rounding boundary then falls the other way -- logits move ~1e-4)
     one = fzw.simulate(w, x[5:6])
-    check(np.allclose(one[0][0], out[0][5], atol=1e-5), "a position gives the same logits alone and in a batch")
+    check(np.allclose(one[0][0], out[0][5], atol=2e-3), "a position gives the same logits alone and in a batch (to FP16 rounding)")
 
 
 def test_lay_mang_fzw():

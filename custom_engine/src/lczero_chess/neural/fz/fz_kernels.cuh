@@ -38,6 +38,12 @@ void LaunchExpandInput(const PlaneGpu* planes, __half* x0, int batch, cudaStream
 void LaunchAddLayerNorm(const __half* x_in, const __half* y, const float* bias, int bias_rows, const float* gamma,
                         const float* beta, __half* x_out, __half* ln_out, int rows, int d, cudaStream_t stream);
 
+// ln_out = FP16(LayerNorm(x) * gamma + beta) for each of `rows` rows of x (FP16). d as above.
+void LaunchLayerNorm(const __half* x, const float* gamma, const float* beta, __half* ln_out, int rows, int d, cudaStream_t stream);
+
+// x[i] = FP16(GELU(x[i])) for i < n (n even): the tanh form, as the cuBLASLt GELU epilogue computes it. Developer experiment only.
+void LaunchGelu(__half* x, size_t n, cudaStream_t stream);
+
 // Multi-head attention with the learned relative-position bias, for every (position, head), from the qkv product
 // [batch * 100, 3 * heads * 32] (q | k | v, heads of 32 side by side) to out [batch * 100, heads * 32].
 void LaunchAttention(const __half* qkv, const float* relbias, __half* out, int batch, int heads, cudaStream_t stream);
