@@ -289,6 +289,17 @@ def main():
         print("\n[3b] tail SWA (--swa-tail N --swa-tail-every K)")
         test_tail_swa(tmp, base)
 
+        print("\n[3c] --out *.pt: the checkpoint alone (CUDA runner: no onnx export, no onnx package needed)")
+        out_p = os.path.join(tmp, "p.pt")
+        rc, out = run(base + ["--epochs", "1", "--max-steps", "3", "--out", out_p], tmp)
+        check(rc == 0 and os.path.exists(out_p) and not os.path.exists(os.path.join(tmp, "p.onnx")) and "onnx vs torch" not in out,
+              "train.py --out p.pt wrote p.pt and no .onnx")
+        check(not same_weights(out_p, seed_pt), "that checkpoint holds the trained weights")
+        out_s = os.path.join(tmp, "q.pt")
+        rc, out = run([os.path.join(HERE, "make_seed.py"), "--out", out_s, "--seed", "4"] + net_args, tmp)
+        check(rc == 0 and os.path.exists(out_s) and not os.path.exists(os.path.join(tmp, "q.onnx")),
+              "make_seed.py --out q.pt wrote q.pt and no .onnx")
+
         print("\n[4] --data with a part that matches nothing")
         rc, out = run(base + ["--epochs", "1", "--data", data + "," + os.path.join(tmp, "gen9.zip"),
                               "--out", os.path.join(tmp, "d.onnx")], tmp)

@@ -19,6 +19,10 @@
 # Cache NN 2.000.000 mục (--search-opt nn-cache-size=2000000, như mặc định self-play của lc0; mặc định
 # engine 65.536): đo T4 gen23 2026-10-03, ABAB 360 s: gửi NN 66% -> 61% lượt tìm, 3.944 -> 4.225 nps
 # (+7%); RAM tiến trình ~4,2 GB / 12,9 GB của máy.
+# Bộ chạy mạng (2026-11-22): kiểu mạng "fzw" (mặc định, xem NET_KIND ở ô 00) chạy bằng bộ chạy CUDA riêng của engine
+# (--provider fzcuda, tệp .fzw): cuBLASLt + nhân tự viết, CUDA Graph mỗi cỡ mẻ, FP16. Đo T4 gen17 cùng cấu hình dưới đây:
+# 12.600 nps so với 6.590 của ONNX Runtime (gấp 1,9), GPU bận ~95%. Cỡ mẻ nhỏ chạy trên đồ thị của chính cỡ đó (không cần
+# phiên phụ --extra-batches, chỉ ONNX cần). Kiểu "onnx" chạy như trước (--provider cuda).
 # Phiên phụ cỡ mẻ 16/32/48 (--extra-batches 16,32,48, engine từ fbaaffc 2026-10-04): mẻ ít thế chạy trên
 # phiên nhỏ nhất vừa đủ thay vì điền 0 cho đủ 64. Đo T4 gen23 ABAB 360 s (cache 2M): 4.372 -> 4.634 nps
 # khi 16 ván chạy (+6%), cả lần chạy 4.162 -> 4.522 (+8,6%), phí pad 10% -> 5%; kết quả NN lệch 0,000005.
@@ -43,9 +47,13 @@ try:
 except OSError:          # chưa có binary (ô 02 lỗi?) -- lệnh dưới sẽ báo
     _bin = b""
 co_dung_mem = b"--stop-file" in _bin
-co_phien_phu = b"--extra-batches" in _bin   # binary cũ không có: chạy như trước (chỉ phiên 64)
+co_phien_phu = b"--extra-batches" in _bin and NET_EXT == "onnx"   # binary cũ không có: chạy như trước (chỉ phiên 64); fzcuda không cần
 del _bin
 print("FZ_PHIEN_PHU=" + ("co" if co_phien_phu else "khong"))
+print("FZ_NET=" + NET_EXT)
+if not (os.path.exists(CURRENT_NET) and os.path.getsize(CURRENT_NET) > 0):
+    raise SystemExit(f"[!] Không có {CURRENT_NET} -- chạy ô 02 trước (tải gen{GEN_CURRENT}.pt từ Release NN_Model và chuyển)")
+_provider = "fzcuda" if NET_EXT == "fzw" else "cuda"
 print("FZ_DUNG_MEM=" + ("co" if co_dung_mem else "khong"))
 if not co_dung_mem:
     print("[!] Binary chưa có --stop-file (bản cũ): không dừng mềm được. Chạy ô 02b, đưa binary mới lên Release.")
@@ -60,10 +68,10 @@ cmd = f"""bash {E}/run.sh --selfplay \
     --games {GAMES} --max-seconds {SECS} \
     --visits 800 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 \
     --temperature 0.5 --start-fen {BOOK} \
-    --parallel {PARALLEL} --provider cuda --fixed-batch 64 --batch-aggregate \
+    --parallel {PARALLEL} --provider {_provider} --fixed-batch 64 --batch-aggregate \
     --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 \
     --search-opt nn-cache-size=2000000 \
-    --weights {CURRENT_ONNX} --out {OUT_GAMES_DIR}""" + (f" --stop-file {DUNG_MEM}" if co_dung_mem else "") \
+    --weights {CURRENT_NET} --out {OUT_GAMES_DIR}""" + (f" --stop-file {DUNG_MEM}" if co_dung_mem else "") \
     + (" --extra-batches 16,32,48" if co_phien_phu else "")
 
 print(cmd)

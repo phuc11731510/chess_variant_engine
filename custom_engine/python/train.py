@@ -7,7 +7,8 @@ value and moves-left heads only. Value target (qMix, 8.2.1) is mixed in the data
 averages the last epochs' weights. Export matches the engine I/O contract exactly (FP32).
 
 Usage:
-    python train.py --data selfplay_data --epochs 20 --batch 32 --out model_gen1.onnx
+    python train.py --data selfplay_data --epochs 20 --batch 32 --out model_gen1.onnx   # model_gen1.pt + the ONNX file
+    python train.py --data selfplay_data --epochs 20 --batch 32 --out model_gen1.pt     # the checkpoint only (CUDA runner)
 """
 
 import argparse
@@ -571,7 +572,9 @@ def main():
     ap.add_argument("--d-model", type=int, default=192, help="transformer width (fresh train only)")
     ap.add_argument("--layers", type=int, default=10, help="transformer layers (fresh train only)")
     ap.add_argument("--heads", type=int, default=6, help="attention heads per layer (fresh train only)")
-    ap.add_argument("--out", default="model_gen1.onnx")
+    ap.add_argument("--out", default="model_gen1.onnx",
+                    help="the .pt checkpoint is always written next to it (same name); a name ending in .pt writes the checkpoint "
+                         "only, any other name also exports the ONNX network of the engine's ONNX Runtime path")
     ap.add_argument("--init-from", default="", help="warm-start: load .pt weights of previous gen")
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--workers", type=int, default=None,
@@ -950,6 +953,9 @@ def main():
     torch.save(final.state_dict(), ckpt)
     print(f"[ckpt] saved {ckpt}")
 
+    if args.out.endswith(".pt"):      # --out gen5.pt: the checkpoint alone (the CUDA runner reads .fzw made from it, lay_mang.py fzw)
+        print("[export] --out is a .pt: no .onnx written (the engine's CUDA runner takes .fzw, python/lay_mang.py fzw)")
+        return
     export_onnx(final, args.out, fp16=args.onnx_fp16, sample=guard_x)
     verify_onnx(args.out, final)
 

@@ -20,6 +20,7 @@
 # Bien moi truong:
 #   BIN_URL  URL tai binary (bo qua neu build-linux/custom_engine da co)
 #   ORT_VER  phien ban ONNX Runtime (mac dinh 1.20.1 -- PHAI khop luc build)
+#   SKIP_ORT=1  khong tai ONNX Runtime (may chay bo chay CUDA rieng, --provider fzcuda); binary cu can no thi tu tai o cuoi
 # =============================================================================
 set -e
 
@@ -64,6 +65,10 @@ fi
 chmod +x "$BIN"
 
 # --- 2. ONNX Runtime ---------------------------------------------------------
+# SKIP_ORT=1 (2026-11-22): may chi chay bo chay CUDA rieng cua engine (--provider fzcuda, o 02) khong can ONNX Runtime (79 MB).
+# Binary tu Release v3.0.0 (dung -Donnxruntime_dlopen=true) khong lien ket libonnxruntime, nen chay duoc khi thieu no; neu
+# binary la ban cu (can libonnxruntime ngay luc nap) thi buoc kiem tra o cuoi se tai ONNX Runtime roi kiem lai.
+lay_ort() {
 mkdir -p third_party && cd third_party
 if [ ! -d "$ORT_PKG" ]; then
   # Uu tien goi GON tren Release cua repo (ORT_GON_URL): chi 3 thu vien engine can (libonnxruntime,
@@ -87,6 +92,12 @@ if [ ! -d "$ORT_PKG" ]; then
 fi
 cd "$ENGINE_DIR"
 echo "[quick] ONNX Runtime: $ENGINE_DIR/third_party/$ORT_PKG"
+}
+if [ "${SKIP_ORT:-0}" = 1 ]; then
+  echo "[quick] bo qua ONNX Runtime (SKIP_ORT=1: bo chay CUDA rieng khong can no)"
+else
+  lay_ort
+fi
 
 # --- 3. run.sh ---------------------------------------------------------------
 cat > "$ENGINE_DIR/run.sh" <<EOF
@@ -107,7 +118,12 @@ chmod +x "$ENGINE_DIR/run.sh"
 echo "[quick] wrote $ENGINE_DIR/run.sh"
 
 # --- 4. kiem tra -------------------------------------------------------------
-if bash "$ENGINE_DIR/run.sh" --test-uci 2>/tmp/fz_quick | grep -q '\[PASS\]'; then
+kiem_tra() { bash "$ENGINE_DIR/run.sh" --test-uci 2>/tmp/fz_quick | grep -q '\[PASS\]'; }
+if ! kiem_tra && [ "${SKIP_ORT:-0}" = 1 ]; then
+  echo "[quick] engine can ONNX Runtime ngay luc nap (binary ban cu?) -- tai no roi kiem lai"
+  lay_ort
+fi
+if kiem_tra; then
   echo "[quick] OK -- engine chay duoc tren Colab image nay."
   echo "[quick] Dung qua:  bash $ENGINE_DIR/run.sh <args>"
 else

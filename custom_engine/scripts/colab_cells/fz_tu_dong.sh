@@ -21,14 +21,16 @@
 #      may, cho). Gop du lieu (fz_tu_dong.py gop), can >= 20 phut T4 LUC SAP TAI LEN, tai len, 07,
 #      tai mang moi ve. May mat giua chung -> xin may moi ngay, roi cu 10 phut mot lan, lam lai.
 #   4. gh release upload gen<n>.pt -> GitHub Release NN_Model (REL_NN cua o 00; ve kiem tra sha256). Release
-#      CHI giu .pt cua MOI doi, KHONG giu .onnx (2026-11-20, chu du an chon de bot tai len / tai xuong, ~19 MB
-#      moi doi thay vi ~40 MB: .onnx tao lai tu .pt tren tung may Colab bang python/lay_mang.py, o 02 / 08;
+#      CHI giu .pt cua MOI doi, KHONG giu .onnx / .fzw (2026-11-20, chu du an chon de bot tai len / tai xuong, ~19 MB
+#      moi doi thay vi ~40 MB: .fzw (bo chay CUDA rieng, mac dinh tu 2026-11-22) hoac .onnx (ONNX Runtime) tao lai tu .pt
+#      tren tung may Colab bang python/lay_mang.py, o 02 / 07 / 08; kieu nao: NET_KIND o 00, o 02 ghi kieu that cua may vao
+#      /content/fz_log/net_kind (td_net_may); mot may bo chay CUDA hong thi tu roi ve ONNX, cac may khac van dung fzw;
 #      mot Release chua toi da 1000 tep nen vong lap DUNG khi ra doi TD_GEN_CUOI = 990), GEN_CURRENT + 1,
 #      roi don dien thoai (td_don_dep): goi van doi truoc, thu muc van ngoai cua so huan luyen, mang da len
 #      GitHub (sha256 khop). Don cung chay luc bat dau vong lap.
 #   0. ARENA (tuy chon, hoi luc bat dau: day doi a b c ...): khi doi hien tai G la mot so trong day
-#      (khong phai so dau; Release khong giu .onnx -> o 08 tu tai .pt roi chuyen sang
-#      .onnx tren may), truoc khi sinh du lieu doi G: o 08 cho genG dau voi doi dung truoc no
+#      (khong phai so dau; Release khong giu .onnx / .fzw -> o 08 tu tai .pt roi chuyen sang
+#      .fzw / .onnx tren may), truoc khi sinh du lieu doi G: o 08 cho genG dau voi doi dung truoc no
 #      trong day, tong TD_AR_VAN van (mac dinh 100) chia cho cac may nhu o 04 (dem ca van dang do,
 #      du thi dung mem, khong thua ca loat van song song). Ket qua tung may cong vao
 #      Download/FairyZero/arena/gen<G>_vs_gen<a>.txt; du van -> dong XONG = arena do da xong, vong lap
@@ -72,6 +74,13 @@ td_song() { tr '\0' ' ' 2>/dev/null < "/proc/$1/cmdline" | grep -q 'menu\.sh'; }
 # td_rel_nn_url in URL thu muc tai ve (REL_NN dung cho wget tren Colab). REL (v3.0.0) chi con binary + ONNX Runtime.
 td_rel_nn() { doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's#^REL_NN *= *"https://github.com/\([^/]*/[^/]*\)/releases/download/\([^"]*\)".*#\1 \2#p' | head -1; }
 td_rel_nn_url() { doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^REL_NN *= *"\([^"]*\)".*/\1/p' | head -1; }
+# Kieu mang cai trong o 00 (NET_KIND = "auto" | "fzw" | "onnx"; o 00 cu chua co dong nay = auto). "auto": kieu that cua TUNG may do o 02 ghi
+# vao /content/fz_log/net_kind (xem 00 / 02); td_net_may in kieu cua may dang giu ("fzw" khi may chua chay 02: kieu uu tien).
+td_net_kind() { local k; k=$(doc "$D/00_cau_hinh.py" 2>/dev/null | sed -n 's/^NET_KIND *= *"\([a-z]*\)".*/\1/p' | head -1); echo "${k:-auto}"; }
+td_net_may() {
+  local k; k=$(ssh_colab "k=$(td_net_kind); [ \$k = auto ] && k=\$(cat /content/fz_log/net_kind 2>/dev/null); echo \$k" 2>/dev/null | tail -1)
+  case "$k" in fzw|onnx) echo "$k" ;; *) echo fzw ;; esac
+}
 # Tep cua Release $2 ($1 = chu/kho), moi dong "ten<TAB>kich thuoc<TAB>sha256:...". Loi mang / chua dang nhap -> ma 1.
 td_tep_release() {
   local id
@@ -578,17 +587,19 @@ td_chay() {
   td_xem "$1" "$pid"
 }
 
-# May san sang cho doi $1: co ma nguon + binary co --stop-file + gen$1.onnx (+ gen$1.pt neu $2 = pt).
+# May san sang cho doi $1: co ma nguon + binary co --stop-file + mang gen$1 dung kieu cua may (.fzw / .onnx) (+ gen$1.pt neu $2 = pt).
 # Chua thi chay 02. 0 = san sang, 1 = loi (thu lai), 2 = loi khong tu sua duoc, 3 = mat may, 4 = q.
 td_kiem_may_cl() {
-  ssh_colab "b=$E_CL/build-linux/custom_engine; test -s \$b && echo BIN_\$(grep -c -a -- --stop-file \$b) && echo BINA_\$(grep -c -a FZ_ARENA \$b); test -s $E_CL/python/lay_mang.py && echo CO_LM; test -s /content/gen$1.onnx && echo CO_ONNX; test -s /content/gen$1.pt && python3 -c 'import onnx, onnxscript, onnxruntime' 2>/dev/null && echo CO_PT" 2>/dev/null
+  # k = kieu mang: NET_KIND cua o 00, "auto" -> kieu o 02 da ghi tren may (rong = may chua chay 02 -> khong co CO_NET). CO_PT: gen$1.pt +
+  # (chi kieu onnx) thu vien xuat ONNX; kieu fzw chi can torch cua Colab.
+  ssh_colab "k=$(td_net_kind); [ \$k = auto ] && k=\$(cat /content/fz_log/net_kind 2>/dev/null); echo NET_\${k:-chua}; b=$E_CL/build-linux/custom_engine; test -s \$b && echo BIN_\$(grep -c -a -- --stop-file \$b) && echo BINA_\$(grep -c -a FZ_ARENA \$b); test -s $E_CL/python/lay_mang.py && echo CO_LM; test -n \"\$k\" && test -s /content/gen$1.\$k && echo CO_NET; test -s /content/gen$1.pt && { [ \"\$k\" != onnx ] || python3 -c 'import onnx, onnxscript, onnxruntime' 2>/dev/null; } && echo CO_PT" 2>/dev/null
 }
 td_chuan_bi() {
   local g=$1 can_pt=${2:-} out rc
   out=$(td_kiem_may_cl "$g")
-  if ! grep -q '^BIN_[1-9]' <<<"$out" || ! grep -q CO_ONNX <<<"$out" || ! grep -q CO_LM <<<"$out"; then
+  if ! grep -q '^BIN_[1-9]' <<<"$out" || ! grep -q CO_NET <<<"$out" || ! grep -q CO_LM <<<"$out"; then
     td_ghi buoc=chuan_bi
-    td_in "chạy 02 (mã, binary, gen$g từ Release NN_Model)"
+    td_in "chạy 02 (mã, binary, gen$g từ Release NN_Model, kiểu mạng fzw / onnx)"
     td_chay 02 "$(ls "$D"/02_*.py 2>/dev/null | head -1)"; rc=$?
     [ $rc = 0 ] || return $rc
     out=$(td_kiem_may_cl "$g")
@@ -603,16 +614,16 @@ td_chuan_bi() {
     td_in "    (bản cũ): chạy tay 02 rồi 02b, đưa binary mới lên Release, rồi mở lại vòng lặp"
     return 2
   fi
-  if ! grep -q CO_ONNX <<<"$out"; then
+  if ! grep -q CO_NET <<<"$out"; then
     # Thuong la loi tam thoi cua GitHub (vd HTTP 500) -- cua so khac van tai duoc. 5 phut sau chay lai
     # 02; 6 lan lien (30 phut) van khong co thi moi dung (va tra may, xem td_vong).
     TD_LOI_ONNX=$((${TD_LOI_ONNX:-0} + 1))
     if [ $TD_LOI_ONNX -ge 6 ]; then
-      td_in "${M_DO}[!] $TD_LOI_ONNX lần liền không có được gen$g.onnx (tải gen$g.pt từ Release rồi chuyển sang .onnx)${M_HET} -- dừng"
+      td_in "${M_DO}[!] $TD_LOI_ONNX lần liền không có được mạng gen$g (tải gen$g.pt từ Release rồi chuyển sang .fzw / .onnx)${M_HET} -- dừng"
       TD_LOI_ONNX=0; return 2
     fi
-    td_in "${M_VANG}[!] chưa có gen$g.onnx (tải .pt từ Release + chuyển; lần $TD_LOI_ONNX/6)${M_HET} -- 5 phút nữa thử lại"
-    ssh_colab "rm -f /content/gen$g.onnx" 2>/dev/null
+    td_in "${M_VANG}[!] chưa có mạng gen$g (tải .pt từ Release + chuyển; lần $TD_LOI_ONNX/6)${M_HET} -- 5 phút nữa thử lại"
+    ssh_colab "rm -f /content/gen$g.fzw /content/gen$g.onnx" 2>/dev/null
     td_ngu 300 || return 4
     return 1
   fi
@@ -765,7 +776,7 @@ td_ar_ket() {
 td_ar_ghi() {
   local g=$1 a=$2 ds dau da kq co=1
   [ "$(td_ar_doi_thu "$g")" = "$a" ] || return 0
-  mapfile -t ds < <(ssh_colab "printf '%s\n' \"\$(head -1 $LOGD/08.log 2>/dev/null)\" \"\$(cat $LOGD/08.da_ghi 2>/dev/null)\" \"\$(grep -c 'A=/content/gen$g.onnx  vs  B=/content/gen$a.onnx' $LOGD/08.log 2>/dev/null)\" \"\$(grep '^FZ_ARENA ' $LOGD/08.log 2>/dev/null | tail -1)\"" 2>/dev/null)
+  mapfile -t ds < <(ssh_colab "printf '%s\n' \"\$(head -1 $LOGD/08.log 2>/dev/null)\" \"\$(cat $LOGD/08.da_ghi 2>/dev/null)\" \"\$(grep -cE 'A=/content/gen$g\\.[a-z]+  vs  B=/content/gen$a\\.[a-z]+' $LOGD/08.log 2>/dev/null)\" \"\$(grep '^FZ_ARENA ' $LOGD/08.log 2>/dev/null | tail -1)\"" 2>/dev/null)
   [ ${#ds[@]} -ge 4 ] || { td_in "[!] không đọc được log ô 08 -- ghi kết quả sau"; return 1; }
   dau=${ds[0]}; da=${ds[1]}; kq=${ds[3]}
   if [ -z "$dau" ] || [ "$da" = "$dau" ] || [ "${ds[2]:-0}" = 0 ]; then td_ghi van=0; return 0; fi
@@ -785,13 +796,13 @@ td_ar_ghi() {
   [ $co = 0 ] && rmdir "$TAI/.khoa_dat_ten" 2>/dev/null
   return 0
 }
-# Mang .onnx cua doi thu gen$1 len may Colab: co san / .pt cua doi do tren Release NN_Model roi chuyen sang
-# .onnx ngay tren may (python/lay_mang.py; Release khong giu .onnx) / .pt tren dien thoai roi chuyen.
+# Mang cua doi thu gen$1 len may Colab (dung kieu cua may: .fzw / .onnx): co san / .pt cua doi do tren Release NN_Model roi
+# chuyen ngay tren may (python/lay_mang.py; Release khong giu .onnx / .fzw) / .pt tren dien thoai roi chuyen.
 # 0 = co, 1 = loi mang (thu lai), 2 = khong co o dau ca.
 td_ar_mang() {
-  local a=$1 url out rc x lenh
-  url=$(td_rel_nn_url)
-  lenh="python3 $E_CL/python/lay_mang.py onnx /content/gen$a.onnx --rel '$url'; echo FZ_RC=\$?"
+  local a=$1 url out rc x lenh k
+  url=$(td_rel_nn_url); k=$(td_net_may)
+  lenh="python3 $E_CL/python/lay_mang.py $k /content/gen$a.$k --rel '$url'; echo FZ_RC=\$?"
   out=$(ssh_colab "$lenh" 2>&1)
   rc=$(sed -n 's/^FZ_RC=//p' <<<"$out" | tail -1)
   case "$rc" in
@@ -799,12 +810,12 @@ td_ar_mang() {
     10) ;;                                  # Release khong co .pt cua doi do: thu dien thoai
     *) tail -5 <<<"$out"; return 1 ;;
   esac
-  for x in onnx pt; do
+  for x in $k pt; do                        # dien thoai chi co .pt (mang .onnx cu con sot lai chi dung duoc o kieu onnx)
     [ -s "$TAI/gen$a.$x" ] || continue
     td_in "Release không có gen$a.$x -> tải từ điện thoại lên"
     tai_len "$TAI/gen$a.$x" "/content/gen$a.$x" || return 1
-    [ $x = onnx ] && return 0
-    out=$(ssh_colab "$lenh" 2>&1)           # .pt da len /content: lay_mang.py chuyen sang .onnx
+    [ $x = $k ] && return 0
+    out=$(ssh_colab "$lenh" 2>&1)           # .pt da len /content: lay_mang.py chuyen sang .fzw / .onnx
     grep -q '^FZ_RC=0' <<<"$out" && return 0
     tail -5 <<<"$out"; return 1
   done
@@ -840,11 +851,11 @@ td_arena() {
   td_ar_mang "$a"; rc=$?
   case $rc in
     0) ;;
-    2) td_ar_bo "$g" "$a" "không có gen$a (.onnx / .pt) trên Release NN_Model lẫn Download/FairyZero"; return ;;
+    2) td_ar_bo "$g" "$a" "không có gen$a.pt trên Release NN_Model lẫn Download/FairyZero"; return ;;
     *) td_con_may || td_mat_may; return ;;
   esac
   o08=$(ls "$D"/08_*.py 2>/dev/null | head -1)
-  if [ -z "$o08" ] || ! grep -q '^A_ONNX' "$o08" || ! grep -q lay_mang "$o08"; then
+  if [ -z "$o08" ] || ! grep -q '^A_GEN' "$o08" || ! grep -q lay_mang "$o08"; then
     td_in "${M_DO}[!] ô 08 trên điện thoại là bản cũ${M_HET}: bash ~/lay_ve.sh 08, rồi mở lại vòng lặp"
     TD_LOI=1; return
   fi
@@ -860,7 +871,7 @@ td_arena() {
   [ $so -ge 1 ] || return
   f=$TD/o_$$/$(basename "$o08")
   mkdir -p "$TD/o_$$"
-  sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^GAMES[[:space:]]*=[[:space:]]*[0-9]+/s//GAMES = $so/; s#^A_ONNX[[:space:]]*=.*#A_ONNX = \"/content/gen$g.onnx\"#; s#^B_ONNX[[:space:]]*=.*#B_ONNX = \"/content/gen$a.onnx\"#" \
+  sed -E "0,/^SECS[[:space:]]*=[[:space:]]*[0-9]+/s//SECS = $secs/; 0,/^GAMES[[:space:]]*=[[:space:]]*[0-9]+/s//GAMES = $so/; s#^A_GEN[[:space:]]*=.*#A_GEN = $g#; s#^B_GEN[[:space:]]*=.*#B_GEN = $a#" \
     "$o08" > "$f"
   TD_G=$g; TD_AR_A=$a; TD_KIEU=arena; TD_TONG_IN=
   td_ghi gen="$g" buoc=arena van=0 giao="$so" par="$par" dung_van= dung_dang=
@@ -899,8 +910,8 @@ td_tiep_tuc() {
       # Arena cua vong lap: doi + doi thu doc tu dong "=== ARENA: A=... vs B=..." cua log.
       local ar g2 a2 cfg giao par
       ar=$(ssh_colab "grep -m1 '=== ARENA: A=' $LOGD/08.log" 2>/dev/null)
-      [[ "$ar" =~ A=/content/gen([0-9]+)\.onnx\ +vs\ +B=/content/gen([0-9]+)\.onnx ]] || return 0
-      g2=${BASH_REMATCH[1]}; a2=${BASH_REMATCH[2]}
+      [[ "$ar" =~ A=/content/gen([0-9]+)\.(onnx|fzw)\ +vs\ +B=/content/gen([0-9]+)\.(onnx|fzw) ]] || return 0
+      g2=${BASH_REMATCH[1]}; a2=${BASH_REMATCH[3]}
       [ "$(td_ar_doi_thu "$g2")" = "$a2" ] || return 0      # arena chay tay, khong phai cua day
       if [ "$tt" = chay ]; then
         cfg=$(ssh_colab "pgrep -af '[c]ustom_engine.* --arena' | head -1" 2>/dev/null)
@@ -1198,6 +1209,11 @@ td_bat_dau() {
   if [ -n "$(grep -L lay_mang "$D"/02_*.py "$D"/02c_*.py 2>/dev/null)" ]; then
     echo "[!] Ô 02 / 02c trên điện thoại là bản cũ (tải mạng từ Release v3.0.0 và chưa chuyển .pt -> .onnx):"
     echo "    bash ~/lay_ve.sh 02 02c      (không đụng 00: GEN_CURRENT giữ nguyên)"
+    return 1
+  fi
+  if [ -n "$(grep -L -e NET_EXT -e NET_KIND "$D"/00_*.py "$D"/02_*.py "$D"/04_*.py "$D"/07_*.py "$D"/08_*.py 2>/dev/null)" ]; then
+    echo "[!] Các ô trên điện thoại là bản cũ (chưa có kiểu mạng fzw / onnx: NET_KIND, NET_EXT):"
+    echo "    bash ~/lay_ve.sh      (cập nhật từng ô, giữ GEN_CURRENT / SECS / GAMES bạn đã đặt)"
     return 1
   fi
   o04=$(ls "$D"/04_*.py 2>/dev/null | head -1)
