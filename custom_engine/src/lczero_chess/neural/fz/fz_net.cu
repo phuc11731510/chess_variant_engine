@@ -215,6 +215,8 @@ struct Net::Impl {
   uint8_t* blob = nullptr;  // the weights file image on the GPU
   size_t blob_bytes = 0;
   __half* bias16 = nullptr;  // proj.b and ff2.b of every layer rounded to FP16: the product's own epilogue adds them (see Init)
+  bool own_ff1 = false;      // ff1 runs on FfnUpKernel (fz_kernels.cu) instead of a cuBLASLt product with the GELU epilogue
+  std::vector<const __half*> ff1_w, ff1_b;
   int lt_version = 0;
 
   struct LayerWeights {
@@ -556,9 +558,12 @@ void Net::Impl::Init(const std::string& path) {
                                                                                   : Epilogue::kGeluBias;
     ff1.push_back(std::make_unique<Gemm>(this, GemmShape{ffn * d, d, false, ff1_epi, false}, f16(p + "ff1.w", F, D),
                                          ff1_epi == Epilogue::kNone ? nullptr : f16(p + "ff1.b", 1, F)));
+    ff1_w.push_back(reinterpret_cast<const __half*>(f16(p + "ff1.w", F, D)));
+    ff1_b.push_back(reinterpret_cast<const __half*>(f16(p + "ff1.b", 1, F)));
     ff2.push_back(std::make_unique<Gemm>(this, GemmShape{d, ffn * d, false, Epilogue::kBias, false, true}, f16(p + "ff2.w", D, F), ff2_b));
   }
 
+  own_ff1 = options.experiment == 4 && FfnUpSupported(static_cast<int>(F), static_cast<int>(D)) && prop.sharedMemPerBlockOptin >= 64 * 1024;
   const int n = std::max(1, options.contexts);
   for (int i = 0; i < n; ++i) {
     contexts.push_back(std::make_unique<Context>());
@@ -687,8 +692,11 @@ void Net::Impl::Forward(Context& c, int batch, Observer* obs) {
     LaunchLayerNorm(c.x, w.ln2_g, w.ln2_b, c.ln, M, d, s);
     mark("layernorm");
     if (i == 0) tap("ln2_0", c.ln, d, true);
-    ff1[i]->Run(c, M, c.ln, c.ff);
-    mark(options.experiment == 0 ? "ff1 product + gelu" : "ff1 product (experiment)");
+    if (own_ff1)
+      LaunchFfnUp(c.ln, ff1_w[i], ff1_b[i], c.ff, M, ffn * d, d, s);
+    else
+      ff1[i]->Run(c, M, c.ln, c.ff);
+    mark(options.experiment == 0 || options.experiment == 4 ? "ff1 product + gelu" : "ff1 product (experiment)");
     if (options.experiment == 1) {
       LaunchGelu(c.ff, size_t(M) * ffn * d, s);
       mark("gelu kernel (experiment)");
