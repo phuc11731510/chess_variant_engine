@@ -15,7 +15,8 @@ class TempChoice {
   String get header => exponent == 1 ? '%N' : '%N^${formatExponent(exponent)}';
 }
 
-String formatExponent(double e) => e == e.roundToDouble() ? e.toInt().toString() : e.toString();
+String formatExponent(double e) =>
+    e == e.roundToDouble() ? e.toInt().toString() : e.toString();
 
 /// Các nhiệt độ có sẵn. Engine chọn nước theo xác suất ∝ (N / N_max)^(1/T)
 /// (`MoveChoiceProbabilities`, selfplay_game.cc), tức ∝ N^(1/T): T = 0,5 là N².
@@ -34,7 +35,8 @@ List<double?> temperatureShares(List<int?> ns, double exponent) {
   if (nMax <= 0) return List<double?>.filled(ns.length, null);
   double sum = 0;
   final w = <double?>[
-    for (final n in ns) n == null ? null : math.pow(n / nMax, exponent).toDouble(),
+    for (final n in ns)
+      n == null ? null : math.pow(n / nMax, exponent).toDouble(),
   ];
   for (final x in w) {
     if (x != null) sum += x;
@@ -170,7 +172,10 @@ class _SearchPanelState extends State<SearchPanel> {
                       canRequestFocus: false,
                       onTap: () => _choose(c.exponent),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 5,
+                        ),
                         child: Row(
                           children: [
                             Icon(
@@ -178,22 +183,32 @@ class _SearchPanelState extends State<SearchPanel> {
                                   ? Icons.radio_button_checked
                                   : Icons.radio_button_unchecked,
                               size: 16,
-                              color: c.exponent == widget.exponent ? Colors.amber : Colors.white38,
+                              color: c.exponent == widget.exponent
+                                  ? Colors.amber
+                                  : Colors.white38,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text.rich(
-                                TextSpan(children: [
-                                  TextSpan(
-                                    text: c.header,
-                                    style: const TextStyle(
-                                        color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                                  ),
-                                  TextSpan(
-                                    text: '   ${c.hint}',
-                                    style: const TextStyle(color: Colors.white60, fontSize: 11),
-                                  ),
-                                ]),
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: c.header,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: '   ${c.hint}',
+                                      style: const TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
@@ -212,9 +227,9 @@ class _SearchPanelState extends State<SearchPanel> {
   // --- bảng ---
 
   Widget _cell(String text, int width, {bool right = true}) => Text(
-        right ? text.padLeft(width) : text.padRight(width),
-        style: _mono.copyWith(color: Colors.white54),
-      );
+    right ? text.padLeft(width) : text.padRight(width),
+    style: _mono.copyWith(color: Colors.white54),
+  );
 
   Widget _headerRow() {
     final hov = _mono.copyWith(
@@ -238,7 +253,11 @@ class _SearchPanelState extends State<SearchPanel> {
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: _enter,
-              child: Text('%N'.padLeft(_wPct), key: const ValueKey('tieu_de_pct_n'), style: hov),
+              child: Text(
+                '%N'.padLeft(_wPct),
+                key: const ValueKey('tieu_de_pct_n'),
+                style: hov,
+              ),
             ),
           ),
         ),
@@ -263,63 +282,112 @@ class _SearchPanelState extends State<SearchPanel> {
     final ply = widget.ply;
     final children = <Widget>[
       Text(
-        ply == 0 ? 'Thế xuất phát' : 'Nửa nước $ply · $side đi → ${played ?? "?"}',
-        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+        ply == 0
+            ? 'Thế xuất phát'
+            : 'Nửa nước $ply · $side đi → ${played ?? "?"}',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
       ),
       const SizedBox(height: 4),
     ];
     if (ply == 0) {
-      children.add(_note('Chưa có nước nào. Đi tới một nước để xem lần tìm đã chọn nó.'));
+      children.add(
+        _note('Chưa có nước nào. Đi tới một nước để xem lần tìm đã chọn nó.'),
+      );
     } else if (rec == null) {
       children.add(_note('Không có nhật ký tìm kiếm cho nước này.'));
     } else {
       final nodes = rec.nodes;
       final secs = rec.timeMs == null ? null : rec.timeMs! / 1000.0;
-      children.add(_note([
-        if (nodes != null) '$nodes lượt tìm',
-        if (rec.nps != null) '${rec.nps} nps',
-        if (secs != null) '${secs.toStringAsFixed(1)} s',
-      ].join(' · ')));
+      children.add(
+        _note(
+          [
+            if (nodes != null) '$nodes lượt tìm',
+            if (rec.nps != null) '${rec.nps} nps',
+            if (secs != null) '${secs.toStringAsFixed(1)} s',
+          ].join(' · '),
+        ),
+      );
       if (played != null && rec.bestmove != played) {
-        children.add(_note('Nhật ký ghi engine trả về ${rec.bestmove}, ván đi $played.',
-            color: Colors.orangeAccent));
+        children.add(
+          _note(
+            'Nhật ký ghi engine trả về ${rec.bestmove}, ván đi $played.',
+            color: Colors.orangeAccent,
+          ),
+        );
       }
-      children.add(_note('Q, cp theo phía TRẮNG: dương = Trắng có lợi '
-          '(engine in theo phía bên đi; bản gốc ở cuối bảng).'));
-      children.add(_note('P = prior trong cây (tự đấu: 0.75·mạng + 0.25·nhiễu Dirichlet ở gốc); '
-          'Pnet = prior thô của mạng, trước nhiễu.'));
-      children.add(_note('Rê chuột vào tiêu đề %N để chọn nhiệt độ: thêm cột %N^e = xác suất engine chọn '
-          'từng nước khi áp nhiệt độ T = 1/e (vd %N^2 là T = 0,5).'));
+      children.add(
+        _note(
+          'Q, cp theo phía TRẮNG: dương = Trắng có lợi '
+          '(engine in theo phía bên đi; bản gốc ở cuối bảng).',
+        ),
+      );
+      children.add(
+        _note(
+          'P = prior trong cây (tự đấu: 0.75·mạng + 0.25·nhiễu Dirichlet ở gốc); '
+          'Pnet = prior thô của mạng, trước nhiễu.',
+        ),
+      );
+      children.add(
+        _note(
+          'Rê chuột (hoặc chạm) vào tiêu đề %N để chọn nhiệt độ: thêm cột %N^e = xác suất engine chọn '
+          'từng nước khi áp nhiệt độ T = 1/e (vd %N^2 là T = 0,5).',
+        ),
+      );
       if (_extra) {
         final e = formatExponent(widget.exponent);
-        children.add(_note(
+        children.add(
+          _note(
             '${TempChoice(widget.exponent, '').header} = N^$e / ΣN^$e trên các nước đang liệt kê '
             '(nước ngoài bảng có rất ít lượt nên gần như không đổi con số khi T ≤ 1).',
-            color: Colors.amber));
+            color: Colors.amber,
+          ),
+        );
       }
       children.add(const SizedBox(height: 6));
-      children.add(SingleChildScrollView(scrollDirection: Axis.horizontal, child: _headerRow()));
+      children.add(
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: _headerRow(),
+        ),
+      );
       final cands = rec.candidates;
-      final shares = temperatureShares([for (final c in cands) c.n], widget.exponent);
+      final shares = temperatureShares([
+        for (final c in cands) c.n,
+      ], widget.exponent);
       for (int i = 0; i < cands.length; i++) {
         children.add(_row(cands[i], nodes, _extra ? shares[i] : null));
       }
       if (played != null && !cands.any((c) => c.move == played)) {
-        children.add(_note('Nước đã đi ($played) không nằm trong các nước engine liệt kê.'));
+        children.add(
+          _note(
+            'Nước đã đi ($played) không nằm trong các nước engine liệt kê.',
+          ),
+        );
       }
       children.add(const SizedBox(height: 8));
-      children.add(Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          childrenPadding: EdgeInsets.zero,
-          title: const Text('Nhật ký gốc (giá trị theo phía bên đi)',
-              style: TextStyle(color: Colors.white70, fontSize: 12)),
-          children: [
-            SelectableText(rec.rawText, style: _mono.copyWith(fontSize: 11, color: Colors.white70)),
-          ],
+      children.add(
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            title: const Text(
+              'Nhật ký gốc (giá trị theo phía bên đi)',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            children: [
+              SelectableText(
+                rec.rawText,
+                style: _mono.copyWith(fontSize: 11, color: Colors.white70),
+              ),
+            ],
+          ),
         ),
-      ));
+      );
     }
     // Material (không phải Container có màu): ExpansionTile / ListTile vẽ nền và hiệu ứng bấm lên Material gần nhất.
     return Material(
@@ -329,9 +397,9 @@ class _SearchPanelState extends State<SearchPanel> {
   }
 
   Widget _note(String s, {Color color = Colors.white60}) => Padding(
-        padding: const EdgeInsets.only(bottom: 2),
-        child: Text(s, style: TextStyle(color: color, fontSize: 12)),
-      );
+    padding: const EdgeInsets.only(bottom: 2),
+    child: Text(s, style: TextStyle(color: color, fontSize: 12)),
+  );
 
   Widget _row(SearchCandidate c, int? nodes, double? share) {
     final v = c.forWhite(widget.whiteMoved);
@@ -341,7 +409,8 @@ class _SearchPanelState extends State<SearchPanel> {
         ? ''
         : (100.0 * c.n! / nodes).toStringAsFixed(1);
     final pctT = share == null ? null : (100.0 * share).toStringAsFixed(1);
-    final line = '${c.move.padRight(_wMove)}${(c.n?.toString() ?? '').padLeft(_wN)}${pct.padLeft(_wPct)}'
+    final line =
+        '${c.move.padRight(_wMove)}${(c.n?.toString() ?? '').padLeft(_wN)}${pct.padLeft(_wPct)}'
         '${pctT == null ? '' : pctT.padLeft(_wPct)}'
         '${(c.p?.toStringAsFixed(4) ?? '').padLeft(_wP)}${(c.pnet?.toStringAsFixed(4) ?? '').padLeft(_wPnet)}'
         '${(v.q == null ? '' : sign(v.q!, 3)).padLeft(_wQ)}';
@@ -357,7 +426,12 @@ class _SearchPanelState extends State<SearchPanel> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             physics: const NeverScrollableScrollPhysics(),
-            child: Text(line, style: isPlayed ? _mono.copyWith(fontWeight: FontWeight.bold) : _mono),
+            child: Text(
+              line,
+              style: isPlayed
+                  ? _mono.copyWith(fontWeight: FontWeight.bold)
+                  : _mono,
+            ),
           ),
           if (c.pv.isNotEmpty || cp.isNotEmpty)
             Text(

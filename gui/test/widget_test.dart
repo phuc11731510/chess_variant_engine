@@ -88,8 +88,8 @@ void main() {
     expect(b.at(9, 2)!.letter, 'c'); // c10 Pháo Đen
     expect(b.at(9, 7)!.letter, 'g'); // h10 Grasshopper Đen
     expect(b.whiteToMove, true);
-    expect(b.checksWhite, 7);
-    expect(b.checksBlack, 7);
+    expect(b.checksWhite, 8);
+    expect(b.checksBlack, 8);
 
     int count = 0;
     for (int r = 0; r < 10; r++) {

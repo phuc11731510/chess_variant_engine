@@ -89,12 +89,16 @@ class ReplayEntry {
 class ReplayLibrary {
   final String dir;
   final List<ReplayEntry> entries;
-  const ReplayLibrary(this.dir, this.entries);
+
+  /// Gọi TRƯỚC khi mở nhật ký của một ván (Android: ghi nhật ký của ván đó từ dữ liệu huấn luyện khi cần).
+  /// Null = nhật ký đã có sẵn trong [dir].
+  final void Function(ReplayEntry e)? prepare;
+  const ReplayLibrary(this.dir, this.entries, {this.prepare});
 
   static const indexName = 'chi_muc.tsv';
 
   /// Đọc `chi_muc.tsv` trong [dir]. Ném [FileSystemException] / [FormatException] nếu không có / rỗng.
-  static ReplayLibrary load(String dir) {
+  static ReplayLibrary load(String dir, {void Function(ReplayEntry e)? prepare}) {
     final f = File('$dir${Platform.pathSeparator}$indexName');
     final lines = f.readAsLinesSync();
     final out = <ReplayEntry>[];
@@ -104,7 +108,7 @@ class ReplayLibrary {
       if (e != null) out.add(e);
     }
     if (out.isEmpty) throw FormatException('$indexName không có ván nào');
-    return ReplayLibrary(dir, out);
+    return ReplayLibrary(dir, out, prepare: prepare);
   }
 
   String pathOf(ReplayEntry e) => '$dir${Platform.pathSeparator}${e.file}';

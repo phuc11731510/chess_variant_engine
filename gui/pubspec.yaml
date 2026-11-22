@@ -41,6 +41,7 @@ dependencies:
   # host không cần Developer Mode/symlink. Thư mục model lấy qua MethodChannel
   # tự viết trong MainActivity, không dùng path_provider.)
   ffi: ^2.1.0
+  archive: ^4.7.1
 
 dev_dependencies:
   flutter_test:

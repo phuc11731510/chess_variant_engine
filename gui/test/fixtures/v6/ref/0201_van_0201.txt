@@ -1,0 +1,62 @@
+# dữ liệu huấn luyện · 1016_game_29.xz · ván 201/1016 · 6 nửa nước · Đen thắng (mỗi nước: số lượt thăm N của 8 nước nhiều nhất; Q chỉ có cho nước đã đi và nước tốt nhất)
+--- nửa nước 1 (trắng đi) → a3a5
+position fen vygcnqvrcg/ksmsbbsrsy/nppppppppm/10/10/10/10/YPPPPPPPPY/NSMSBRSKSN/QVRVCMGCBG w - - 8+8 0 1
+  depth 1 seldepth 1 multipv 1 wdl 398 0 602 nodes 211 nps 0 time 0 pv a3a5
+    a3a5 N 90 Q -0.1100
+    b1a4 N 39
+    a3c5 N 23
+    b1c4 N 14
+    a2b4 N 9
+    d1c4 N 6
+    a3a4 N 4
+    j3j5 N 4
+--- nửa nước 2 (đen đi) → g10f7
+position fen vygcnqvrcg/ksmsbbsrsy/nppppppppm/10/10/10/10/YPPPPPPPPY/NSMSBRSKSN/QVRVCMGCBG w - - 8+8 0 1 moves a3a5
+  depth 1 seldepth 1 multipv 1 wdl 532 0 468 nodes 200 nps 0 time 0 pv g10f7
+    g10f7 N 51 Q 0.1495
+    g10h7 N 36
+    a10b7 N 17
+    j9h7 N 9
+    g8g7 N 7
+    i8i7 N 7
+    b8b6 N 6
+    b8b7 N 6
+--- nửa nước 3 (trắng đi) → a5c7
+position fen vygcnqvrcg/ksmsbbsrsy/nppppppppm/10/10/10/10/YPPPPPPPPY/NSMSBRSKSN/QVRVCMGCBG w - - 8+8 0 1 moves a3a5 g10f7
+  depth 1 seldepth 1 multipv 1 wdl 362 0 638 nodes 805 nps 0 time 0 pv a5c7
+    a5c7 N 537 Q -0.2156
+    f3f4 N 37
+    a5a7 N 36
+    g3g4 N 28
+    h3h4 N 25
+    i3i4 N 15
+    d1e4 N 13
+    j2i4 N 13
+--- nửa nước 4 (đen đi) → b8c7
+position fen vygcnqvrcg/ksmsbbsrsy/nppppppppm/10/10/10/10/YPPPPPPPPY/NSMSBRSKSN/QVRVCMGCBG w - - 8+8 0 1 moves a3a5 g10f7 a5c7
+  depth 1 seldepth 1 multipv 1 wdl 552 0 448 nodes 201 nps 0 time 0 pv b8c7
+    b8c7 N 111 Q 0.1313
+    d8c7 N 84
+    a8c7 N 5
+--- nửa nước 5 (trắng đi) → j3j5
+position fen vygcnqvrcg/ksmsbbsrsy/nppppppppm/10/10/10/10/YPPPPPPPPY/NSMSBRSKSN/QVRVCMGCBG w - - 8+8 0 1 moves a3a5 g10f7 a5c7 b8c7
+  depth 1 seldepth 1 multipv 1 wdl 402 0 598 nodes 210 nps 0 time 0 pv d1c4
+    b1a4 N 39
+    b1c4 N 39
+    d1c4 N 39 Q -0.1480
+    a2b4 N 17
+    d1e4 N 12
+    j3h5 N 8
+    f3f4 N 6
+    j3j5 N 6 Q -0.2070
+--- nửa nước 6 (đen đi) → f7g5
+position fen vygcnqvrcg/ksmsbbsrsy/nppppppppm/10/10/10/10/YPPPPPPPPY/NSMSBRSKSN/QVRVCMGCBG w - - 8+8 0 1 moves a3a5 g10f7 a5c7 b8c7 j3j5
+  depth 1 seldepth 1 multipv 1 wdl 972 0 28 nodes 816 nps 0 time 0 pv f7g5
+    f7g5 N 756 Q 1.0000
+    b10b8 N 12
+    f10g10 N 7
+    b9b8 N 3
+    a10b7 N 2
+    a10b8 N 2
+    b9b7 N 2
+    c9b8 N 2
