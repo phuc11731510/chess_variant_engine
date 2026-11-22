@@ -200,6 +200,7 @@ int run_selfplay(const EngineOptions& o) {
         cfg.plan.fast_visits = o.sp_fast_visits;
         cfg.plan.fast_prob = o.sp_fast_prob;
         cfg.plan.temperature = o.sp_temperature;
+        cfg.plan.elo_cutoff = o.sp_elo_cutoff;
         cfg.plan.fast_options = &fast_options;
         cfg.max_moves = o.sp_max_moves;
         cfg.parallel = o.sp_parallel;
@@ -224,7 +225,9 @@ int run_selfplay(const EngineOptions& o) {
                           << ", noise eps " << o.sp_fast_noise_eps << "), policy target not trained";
             else
                 std::cout << "; PCR off";
-            std::cout << "; every move drawn with temperature " << o.sp_temperature << std::endl;
+            std::cout << "; every move drawn with temperature " << o.sp_temperature;
+            if (o.sp_elo_cutoff > 0.0f) std::cout << ", moves more than " << o.sp_elo_cutoff << " Elo below the most visited are struck out";
+            std::cout << std::endl;
         }
         if (o.sp_resign_threshold > -1.0f) {
             std::cout << "[selfplay] resign: best_q<=" << o.sp_resign_threshold

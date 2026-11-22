@@ -1006,6 +1006,107 @@ void TestPlayoutCapRandomization() {
             }
         EXPECT(sums, "a move-choice distribution does not sum to 1");
     }
+    // b) The Elo cutoff (2026-11-22): moves more than 70.44 Elo below the most visited one are struck out; the others keep the
+    // weight T = 0.5 gives them in the WHOLE visit distribution, so the survivors are that distribution renormalised.
+    {
+        // 70.44 Elo is a score of 0.6 against 0.5: Q = 0.2 against Q = 0. The clamp makes a proven win / loss +-1200 Elo.
+        EXPECT(close(lczero::EloOfValue(0.0), 0.0, 1e-9) && close(lczero::EloOfValue(0.2), 400.0 * std::log10(1.5), 1e-9) &&
+                   close(lczero::EloOfValue(-0.2), -400.0 * std::log10(1.5), 1e-9) &&
+                   close(lczero::EloOfValue(1.0), 400.0 * std::log10(999.0), 1e-9) &&
+                   close(lczero::EloOfValue(-1.0), -400.0 * std::log10(999.0), 1e-9) &&
+                   close(lczero::EloOfValue(5.0), lczero::EloOfValue(1.0)),
+               "EloOfValue: 0 -> 0, +-0.2 -> +-70.44, +-1 (and beyond) -> +-1199.6");
+        constexpr float kCut = 70.44f;
+        const std::vector<uint32_t> v = {600, 300, 100, 0};
+        const auto plain = lczero::MoveChoiceProbabilities(v, 0.5f);
+        // Nothing to strike out: every value within 70.44 Elo of the first move's. The result is the plain T = 0.5 distribution.
+        {
+            const auto p = lczero::MoveChoiceProbabilities(v, {0.0f, -0.19f, 0.1f, -1.0f}, 0.5f, kCut);
+            bool same = p.size() == plain.size();
+            for (size_t i = 0; same && i < p.size(); ++i) same = close(p[i], plain[i]);
+            EXPECT(same, "nothing struck out must leave the plain distribution");
+        }
+        // Boundary: Q = -0.2 is 70.4365 Elo below Q = 0 (kept: 70.4365 < 70.44); Q = -0.21 is 74.0 below (struck out).
+        {
+            const auto kept = lczero::MoveChoiceProbabilities({100, 50}, {0.0f, -0.2f}, 0.5f, kCut);
+            const auto gone = lczero::MoveChoiceProbabilities({100, 50}, {0.0f, -0.21f}, 0.5f, kCut);
+            EXPECT(close(kept[1], 0.2) && close(kept[0], 0.8) && gone[0] == 1.0 && gone[1] == 0.0,
+                   "a move 70.4365 Elo below must stay and one 74 Elo below must go: " << kept[1] << " " << gone[1]);
+        }
+        // The third move is struck out; the survivors are the T = 0.5 weights 360000 : 90000 of the WHOLE distribution
+        // (600 / 300 / 100 -> N^2 = 360000 / 90000 / 10000) renormalised: 0.8 / 0.2. Computing the weights over the survivors' visits
+        // alone gives the same numbers (a power law), and this pins it.
+        {
+            const auto p = lczero::MoveChoiceProbabilities(v, {0.0f, -0.1f, -0.5f, 0.0f}, 0.5f, kCut);
+            EXPECT(close(p[0], 0.8) && close(p[1], 0.2) && p[2] == 0.0 && p[3] == 0.0,
+                   "struck-out third move: " << p[0] << " " << p[1] << " " << p[2]);
+            EXPECT(close(p[1] / p[0], plain[1] / plain[0]), "survivors keep the ratio the whole distribution gives them");
+        }
+        // The most visited move always stays, whatever the others are; all others struck out gives it probability 1.
+        {
+            const auto p = lczero::MoveChoiceProbabilities({800, 799, 700}, {0.0f, -0.9f, -0.95f}, 0.5f, kCut);
+            EXPECT(p[0] == 1.0 && p[1] == 0.0 && p[2] == 0.0, "the most visited move is the only one left");
+        }
+        // The reference is the most visited move, not the best valued: a rarely visited move of high value does not strike out the rest.
+        {
+            const auto p = lczero::MoveChoiceProbabilities({800, 10}, {0.0f, 0.9f}, 0.5f, kCut);
+            EXPECT(p[0] > 0.999 && p[1] > 0.0, "a move with a higher value than the most visited one must not be struck out");
+        }
+        // Equal visits: the reference is the one of higher value (the other is 74 Elo below and goes).
+        {
+            const auto p = lczero::MoveChoiceProbabilities({500, 500, 20}, {-0.21f, 0.0f, 0.0f}, 0.5f, kCut);
+            EXPECT(p[0] == 0.0 && p[1] > 0.99 && p[2] > 0.0, "tie in visits: the cutoff reads from the higher valued move");
+        }
+        // A proven win (Q = 1, +1200 clamped) strikes out a 0.95-valued move (+511.5): 688 Elo below; a 0.998 one (s = 0.999) stays.
+        {
+            const auto p = lczero::MoveChoiceProbabilities({600, 300, 100}, {1.0f, 0.95f, 0.998f}, 0.5f, kCut);
+            EXPECT(p[1] == 0.0 && p[0] > 0.0 && p[2] > 0.0, "a clearly worse move next to a proven win is struck out");
+        }
+        // Not visited: weight 0 whatever its value; the value of an unvisited move is never read.
+        {
+            const auto p = lczero::MoveChoiceProbabilities({10, 0}, {0.0f, std::nanf("")}, 0.5f, kCut);
+            EXPECT(p[0] == 1.0 && p[1] == 0.0, "an unvisited move must not be drawn");
+        }
+        // Off: cutoff 0, negative, NaN; values of the wrong length; T <= 0 (the most visited move only).
+        {
+            const std::vector<float> val = {0.0f, -0.9f, -0.9f, 0.0f};
+            for (const float off : {0.0f, -5.0f, std::nanf("")}) {
+                const auto p = lczero::MoveChoiceProbabilities(v, val, 0.5f, off);
+                bool same = true;
+                for (size_t i = 0; i < p.size(); ++i) same &= close(p[i], plain[i]);
+                EXPECT(same, "cutoff " << off << " must be off");
+            }
+            const auto wrong = lczero::MoveChoiceProbabilities(v, {0.0f}, 0.5f, kCut);
+            EXPECT(close(wrong[1], plain[1]), "values of the wrong length must leave the plain distribution");
+            const auto greedy = lczero::MoveChoiceProbabilities(v, val, 0.0f, kCut);
+            EXPECT(greedy[0] == 1.0 && greedy[1] == 0.0, "T = 0 plays the most visited move with the cutoff too");
+            const auto nan_ref = lczero::MoveChoiceProbabilities(v, {std::nanf(""), -0.9f, -0.9f, 0.0f}, 0.5f, kCut);
+            EXPECT(close(nan_ref[1], plain[1]), "a NaN reference value strikes nothing out");
+        }
+        // Every distribution still sums to 1 and is finite, over many random cases.
+        {
+            bool ok = true;
+            for (int t = 0; t < 2000; ++t) {
+                const int n = 1 + static_cast<int>(lczero::Random::Get().GetDouble(30.0));
+                std::vector<uint32_t> vis(n);
+                std::vector<float> val(n);
+                for (int i = 0; i < n; ++i) {
+                    vis[i] = static_cast<uint32_t>(lczero::Random::Get().GetDouble(801.0));
+                    val[i] = static_cast<float>(lczero::Random::Get().GetDouble(2.0) - 1.0);
+                }
+                const auto p = lczero::MoveChoiceProbabilities(vis, val, 0.5f, kCut);
+                double s = 0;
+                for (const double x : p) {
+                    ok &= std::isfinite(x) && x >= 0.0;
+                    s += x;
+                }
+                uint32_t nmax = 0;
+                for (const uint32_t x : vis) nmax = std::max(nmax, x);
+                ok &= nmax == 0 ? s == 0.0 : close(s, 1.0, 1e-9);
+            }
+            EXPECT(ok, "a distribution with the cutoff does not sum to 1 / has a bad entry");
+        }
+    }
     // The sampler: cumulative, and the last entry when rounding leaves a gap at the top.
     {
         const std::vector<double> p = {0.5, 0.0, 0.5};
@@ -1075,18 +1176,23 @@ void TestPlayoutCapRandomization() {
     // d) Games with PCR: the coin, the visits, the marks.
     const std::string file = std::string("test_pcr_game") + lczero::TrainingDataWriter::Extension();
     {
-        struct Run { float prob; float temp; const char* name; };
+        struct Run { float prob; float temp; const char* name; float elo = 0.0f; };
+        // The last two draw with the Elo cutoff: the production value, and 0.1 Elo, which strikes out every move the search
+        // does not rate (almost) equal to the most visited one, so the check below on the records is not vacuous.
         const Run runs[] = {{0.5f, 0.5f, "PCR 50%, T=0.5"}, {0.0f, 0.5f, "PCR off, T=0.5"},
-                            {1.0f, 0.5f, "all shallow"}, {0.0f, 0.0f, "PCR off, T=0 (greedy)"}};
+                            {1.0f, 0.5f, "all shallow"}, {0.0f, 0.0f, "PCR off, T=0 (greedy)"},
+                            {0.5f, 0.5f, "PCR 50%, T=0.5, Elo cutoff 70.44", 70.44f},
+                            {0.5f, 0.5f, "PCR 50%, T=0.5, Elo cutoff 0.1", 0.1f}};
         for (const Run& run : runs) {
             lczero::SelfPlaySearchPlan plan;
             plan.full_visits = 64;
             plan.fast_visits = 16;
             plan.fast_prob = run.prob;
             plan.temperature = run.temp;
+            plan.elo_cutoff = run.elo;
             plan.fast_options = &fast;
             int total = 0, shallow = 0, off_best = 0, bad = 0, over_full = 0, over_fast = 0;
-            int under = 0, mismatch = 0;
+            int under = 0, mismatch = 0, over_cut = 0;
             for (int game = 0; game < 6; ++game) {
                 int moves = -1, fast_moves = -1;
                 lczero::PlayOneGame(lczero::ChessBoard::kStartposFen, &backend, opts.Dict(), plan, 40, file,
@@ -1109,6 +1215,10 @@ void TestPlayoutCapRandomization() {
                         if (r.probabilities[k] > 0.0f) { sum += r.probabilities[k]; top = std::max(top, r.probabilities[k]); }
                     bad += (std::abs(sum - 1.0) > 1e-3) ? 1 : 0;   // the label is the visit fraction, shallow or not
                     off_best += (r.probabilities[r.played_idx] < top) ? 1 : 0;
+                    // The move played is never more than the cutoff below the best move (both values are W - L of the root mover).
+                    if (run.elo > 0.0f &&
+                        lczero::EloOfValue(r.best_q) - lczero::EloOfValue(r.played_q) > static_cast<double>(run.elo) + 1e-6)
+                        ++over_cut;
                 }
                 mismatch += (moves != static_cast<int>(recs.size()) || fast_moves != marked) ? 1 : 0;
                 total += static_cast<int>(recs.size());
@@ -1124,6 +1234,7 @@ void TestPlayoutCapRandomization() {
             EXPECT(over_full <= 16 && over_fast <= 16,
                    run.name << ": a search overshot its playout cap by " << std::max(over_full, over_fast));
             EXPECT(mismatch == 0, run.name << ": out_moves / out_fast_moves differ from the records");
+            EXPECT(over_cut == 0, run.name << ": " << over_cut << " move(s) played more than " << run.elo << " Elo below the best");
             if (run.prob == 0.5f) EXPECT(std::abs(frac - 0.5) < 0.15, "PCR 50%: shallow fraction " << frac);
             if (run.prob == 0.0f) EXPECT(shallow == 0, run.name << ": " << shallow << " shallow record(s)");
             if (run.prob == 1.0f) EXPECT(shallow == total, run.name << ": not every record is shallow");

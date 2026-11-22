@@ -9,7 +9,12 @@
 # tung đồng xu 50/50: tìm đủ 800 lượt (c_puct 1,5, nhiễu Dirichlet eps 0,25) hoặc tìm nông 200 lượt
 # (c_puct 1,25, eps 0,125); alpha 0,15 chung. Nước tìm nông ghi fast_search = 1: huấn luyện value + mlh,
 # KHÔNG huấn luyện policy. Mỗi nước tạo cây mới (không tái dùng cây). Nước đi được chọn cho CẢ ván theo
-# trọng số N^(1/T), T = 0,5 (--temperature; nhãn policy vẫn là tỷ lệ lượt thăm). Số lượt thăm là mức
+# trọng số N^(1/T), T = 0,5 (--temperature; nhãn policy vẫn là tỷ lệ lượt thăm) -- TRỪ những nước mà cây tìm
+# kiếm đã cho thấy kém nước nhiều lượt thăm nhất quá ELO_CAT Elo (2026-11-22, chủ dự án chọn 70,44: mức Elo của
+# một nước là 400 log10(s / (1 - s)) với điểm kỳ vọng s = (1 + Q) / 2; 70,44 Elo = điểm 0,6 so với 0,5): chúng bị
+# loại khỏi lần bốc, các nước còn lại giữ nguyên trọng số N^(1/T) của TOÀN BỘ phân bố lượt thăm (chuẩn hoá lại).
+# Đo trên 1013 ván đời 24: nước kém hơn 70 Elo chiếm 5,2% số nước tìm đầy đủ và gây ~46% số điểm kỳ vọng bị bỏ đi do
+# bốc lệch. --temp-elo-cutoff 0 (hoặc ELO_CAT = 0) = tắt. Số lượt thăm là mức
 # SÀN: một lượt tìm kiếm dừng sau lô lá cuối (tối đa +31 với minibatch-size=32), như lc0.
 # Thế khởi đầu: MỖI VÁN một thế ngẫu nhiên (python/sinh_the_khoi_dau.py: Tốt và Sergeant cố định, 18 quân
 # còn lại xếp ngẫu nhiên, an toàn hai nước), sinh mới ở mỗi lần chạy ô (hạt giống ngẫu nhiên nên các máy
@@ -34,6 +39,7 @@
 SECS = 15480
 GAMES = 1000
 PARALLEL = 16       # số ván chơi cùng lúc (menu fz đọc số này để tính đuôi ván và ván đang dở)
+ELO_CAT = 70.44     # loại khỏi lần bốc nước những nước kém nước nhiều lượt thăm nhất quá chừng này Elo (0 = không loại)
 
 # Dừng MỀM theo lệnh: có tệp DUNG_MEM thì engine không nhận ván mới, ván đang chơi chơi nốt rồi
 # thoát như hết SECS (06 chạy tiếp bình thường). Tệp do ô 09b hoặc vòng lặp tự động (menu v) tạo.
@@ -47,6 +53,7 @@ try:
 except OSError:          # chưa có binary (ô 02 lỗi?) -- lệnh dưới sẽ báo
     _bin = b""
 co_dung_mem = b"--stop-file" in _bin
+co_elo_cat = b"--temp-elo-cutoff" in _bin   # binary cũ không có: sinh dữ liệu như trước (KHÔNG loại nước sai)
 co_phien_phu = b"--extra-batches" in _bin and NET_EXT == "onnx"   # binary cũ không có: chạy như trước (chỉ phiên 64); fzcuda không cần
 del _bin
 print("FZ_PHIEN_PHU=" + ("co" if co_phien_phu else "khong"))
@@ -55,6 +62,9 @@ if not (os.path.exists(CURRENT_NET) and os.path.getsize(CURRENT_NET) > 0):
     raise SystemExit(f"[!] Không có {CURRENT_NET} -- chạy ô 02 trước (tải gen{GEN_CURRENT}.pt từ Release NN_Model và chuyển)")
 _provider = "fzcuda" if NET_EXT == "fzw" else "cuda"
 print("FZ_DUNG_MEM=" + ("co" if co_dung_mem else "khong"))
+print("FZ_ELO_CAT=" + (f"{ELO_CAT}" if co_elo_cat and ELO_CAT > 0 else "khong"))
+if ELO_CAT > 0 and not co_elo_cat:
+    print("[!] Binary chưa có --temp-elo-cutoff: sinh dữ liệu KHÔNG loại nước sai. Chạy ô 02 / đưa binary mới lên Release.")
 if not co_dung_mem:
     print("[!] Binary chưa có --stop-file (bản cũ): không dừng mềm được. Chạy ô 02b, đưa binary mới lên Release.")
 
@@ -72,7 +82,8 @@ cmd = f"""bash {E}/run.sh --selfplay \
     --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 \
     --search-opt nn-cache-size=2000000 \
     --weights {CURRENT_NET} --out {OUT_GAMES_DIR}""" + (f" --stop-file {DUNG_MEM}" if co_dung_mem else "") \
-    + (" --extra-batches 16,32,48" if co_phien_phu else "")
+    + (" --extra-batches 16,32,48" if co_phien_phu else "") \
+    + (f" --temp-elo-cutoff {ELO_CAT}" if co_elo_cat and ELO_CAT > 0 else "")
 
 print(cmd)
 !{cmd}

@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <numbers>
 #include <vector>
 
 #include "chess/callbacks.h"  // UciResponder
@@ -63,24 +64,31 @@ class PlayoutStopper : public classic::SearchStopper {
 
 }  // namespace
 
-// Picks the move to play: drawn for EVERY move of the game with weight (N / N_max)^(1 / T)
-// (MoveChoiceProbabilities); the most visited move if nothing was visited. Used by self-play and by the
-// arena (2026-11-20: the arena draws every move the same way).
-classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, float temperature) {
+// Picks the move to play: drawn for EVERY move of the game with weight (N / N_max)^(1 / T) among the moves the
+// Elo cutoff leaves (MoveChoiceProbabilities); the most visited move if nothing was visited. Used by self-play and
+// by the arena (2026-11-20: the arena draws every move the same way).
+classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, float temperature, float elo_cutoff) {
+  const bool cut = elo_cutoff > 0.0f;
+  const size_t count = root->GetNumEdges();
   std::vector<classic::EdgeAndNode> edges;
   std::vector<uint32_t> visits;
+  std::vector<float> values;  // only for the cutoff: Q = W - L of the root mover (draw score 0), read for visited moves
+  edges.reserve(count);
+  visits.reserve(count);
+  if (cut) values.reserve(count);
   classic::EdgeAndNode best;
   uint32_t best_n = 0;
   for (const auto& e : root->Edges()) {
     const uint32_t n = e.GetN();
     edges.push_back(e);
     visits.push_back(n);
+    if (cut) values.push_back(n > 0 ? e.GetQ(0.0f, 0.0f) : 0.0f);
     if (n >= best_n) {
       best_n = n;
       best = e;
     }
   }
-  const int i = SampleIndex(MoveChoiceProbabilities(visits, temperature),
+  const int i = SampleIndex(MoveChoiceProbabilities(visits, values, temperature, elo_cutoff),
                             Random::Get().GetDouble(1.0));
   return i < 0 ? best : edges[i];
 }
@@ -91,16 +99,41 @@ bool ChooseFastSearch(float fast_prob) {
   return Random::Get().GetDouble(1.0) < static_cast<double>(fast_prob);
 }
 
+double EloOfValue(double q) {
+  constexpr double kClamp = 0.001;
+  const double s = std::clamp(0.5 * (1.0 + q), kClamp, 1.0 - kClamp);
+  return 400.0 / std::numbers::ln10 * std::log(s / (1.0 - s));
+}
+
+std::vector<double> MoveChoiceProbabilities(const std::vector<uint32_t>& visits, float temperature) {
+  return MoveChoiceProbabilities(visits, {}, temperature, 0.0f);
+}
+
 std::vector<double> MoveChoiceProbabilities(const std::vector<uint32_t>& visits,
-                                            float temperature) {
+                                            const std::vector<float>& values, float temperature,
+                                            float elo_cutoff) {
   std::vector<double> p(visits.size(), 0.0);
   uint32_t n_max = 0;
   for (const uint32_t n : visits) n_max = std::max(n_max, n);
   if (n_max == 0) return p;
+
+  // The Elo below which a move is struck out: that of the most visited move (of equals, the best valued) less the cutoff.
+  // NaN (a NaN value, a NaN cutoff) strikes out nothing: every comparison with it is false.
+  const bool cut = elo_cutoff > 0.0f && values.size() == visits.size();
+  double min_elo = 0.0;
+  if (cut) {
+    size_t best = 0;
+    for (size_t i = 0; i < visits.size(); ++i)
+      if (visits[i] > visits[best] || (visits[i] == visits[best] && visits[i] > 0 && values[i] > values[best])) best = i;
+    min_elo = EloOfValue(values[best]) - elo_cutoff;
+  }
+
   // (N / N_max) <= 1, so a small T underflows to 0 for every move but the best instead of
-  // overflowing as N^(1/T) would; the best move always weighs exactly 1.
+  // overflowing as N^(1/T) would; the best move always weighs exactly 1 and is never struck out.
   double sum = 0.0;
   for (size_t i = 0; i < visits.size(); ++i) {
+    if (visits[i] == 0) continue;
+    if (cut && EloOfValue(values[i]) < min_elo) continue;
     p[i] = temperature <= 0.0f
                ? (visits[i] == n_max ? 1.0 : 0.0)
                : std::pow(static_cast<double>(visits[i]) / n_max, 1.0 / temperature);
@@ -233,8 +266,8 @@ GameResult PlayOneGame(const std::string& start_fen, Backend* backend,
     // Input planes + scalar aux (T3).
     EncodePlanesIntoRecord(tree->GetPositionHistory(), rec);
 
-    // Move selection: weight (N / N_max)^(1 / T) for every move of the game.
-    const classic::EdgeAndNode played_edge = SelectMoveEdge(root, plan.temperature);
+    // Move selection: weight (N / N_max)^(1 / T) for every move of the game, without the moves the Elo cutoff strikes out.
+    const classic::EdgeAndNode played_edge = SelectMoveEdge(root, plan.temperature, plan.elo_cutoff);
     const Move played = RecordPlayedMove(played_edge, best, rec);
 
     records.push_back(rec);

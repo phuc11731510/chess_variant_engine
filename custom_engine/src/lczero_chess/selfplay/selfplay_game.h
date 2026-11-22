@@ -31,13 +31,20 @@ int64_t SearchSelfPlayMove(classic::NodeTree* tree, Backend* backend,
 // (the trainer masks its policy loss); its value and moves-left targets are trained as usual.
 //
 // The move actually played is drawn for EVERY move of the game with weight (N / N_max)^(1 / T) over
-// the root moves' visit counts N (T = `temperature`; T <= 0 means the most visited move). The
-// training label (the policy target) stays the visit fraction; the temperature only affects play.
+// the root moves' visit counts N (T = `temperature`; T <= 0 means the most visited move), after the
+// moves that a search has shown to be clearly worse than the most visited one are struck out
+// (`elo_cutoff`, below). The training label (the policy target) stays the visit fraction; the
+// temperature and the cutoff only affect play.
 struct SelfPlaySearchPlan {
   int full_visits = 800;
   int fast_visits = 200;
   float fast_prob = 0.0f;     // chance that a move is searched shallowly; 0 = PCR off
   float temperature = 0.5f;
+  // Moves whose value is more than this many Elo below that of the most visited move are never played
+  // (2026-11-22, owner's decision: a draw at T = 0.5 sometimes picks a move the search itself has found to
+  // lose a lot). The expected score of a move is (1 + Q) / 2, Q = W - L from the root mover's side;
+  // its Elo is 400 log10(s / (1 - s)). 0 = off. See MoveChoiceProbabilities.
+  float elo_cutoff = 0.0f;
   // Options of the shallow searches (a child of the full options that overrides c_puct and the
   // noise epsilon). nullptr = the shallow searches use the full options too.
   const OptionsDict* fast_options = nullptr;
@@ -46,20 +53,35 @@ struct SelfPlaySearchPlan {
 // The coin of PCR: true with probability `fast_prob` (never for <= 0, always for >= 1).
 bool ChooseFastSearch(float fast_prob);
 
+// Elo of a move whose search value is q = W - L (root mover's side): 400 log10(s / (1 - s)) with the
+// expected score s = (1 + q) / 2 (a draw counts half), s clamped to [0.001, 0.999] so that a proven win
+// or loss is +-1200 Elo instead of infinite. 70.44 Elo is exactly s = 0.6 against 0.5.
+double EloOfValue(double q);
+
 // Probability of playing each root move, from the moves' visit counts: (N / N_max)^(1 / T),
 // normalised. T <= 0: spread evenly over the most visited moves. Empty / all-zero visits: all
 // zeros. Pure function (the sampling below uses it), exposed for the tests.
 std::vector<double> MoveChoiceProbabilities(const std::vector<uint32_t>& visits,
                                             float temperature);
 
+// The same with the Elo cutoff: `values[i]` is the search value Q = W - L of move i (only read for visited
+// moves; the vector may be empty when `elo_cutoff` <= 0). A visited move whose Elo is more than `elo_cutoff`
+// below the Elo of the most visited move (the one T = 0 plays; among equals the one of highest value) gets
+// probability 0. The others keep the weight the temperature gives them in the WHOLE visit distribution, so the
+// result is that distribution with the struck-out moves removed and the rest renormalised. The most visited
+// move always stays. `elo_cutoff` <= 0 (or NaN): nothing is struck out.
+std::vector<double> MoveChoiceProbabilities(const std::vector<uint32_t>& visits,
+                                            const std::vector<float>& values, float temperature,
+                                            float elo_cutoff);
+
 // Index drawn by `toss` in [0, 1) from `probabilities` (cumulative); the last non-zero entry
 // when rounding leaves a gap at the top. -1 if every probability is 0.
 int SampleIndex(const std::vector<double>& probabilities, double toss);
 
 // The move played from `root` after a search: drawn with weight (N / N_max)^(1 / temperature) over the
-// root edges' visits (temperature <= 0: the most visited move; nothing visited: the last best edge).
-// The same rule in self-play and in the arena.
-classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, float temperature);
+// root edges' visits, minus the moves `elo_cutoff` strikes out (temperature <= 0: the most visited move;
+// nothing visited: the last best edge). The same rule in self-play and in the arena.
+classic::EdgeAndNode SelectMoveEdge(const classic::Node* root, float temperature, float elo_cutoff = 0.0f);
 
 // Plays one full self-play game from `start_fen` and writes a training record
 // for EVERY position (no filtering) to `out_filename` via TrainingDataWriter.
