@@ -70,6 +70,15 @@ void TestParseCli() {
                    std::fabs(o.sp_temperature - 0.5f) < 1e-7 && !o.sp_temp_cutoff_given,
                "self-play defaults of PCR / temperature");
     }
+    // The Elo cutoff of the move choice: off by default, taken as given (the value of cell 04, 2026-11-22), 0 = off.
+    {
+        const auto d = Parse({"--selfplay"});
+        const auto c = Parse({"--selfplay", "--temp-elo-cutoff", "70.44", "--temperature", "0.5"});
+        const auto z = Parse({"--arena", "--temp-elo-cutoff", "0"});
+        EXPECT(d.errors.empty() && d.sp_elo_cutoff == 0.0f && c.errors.empty() && std::fabs(c.sp_elo_cutoff - 70.44f) < 1e-4 &&
+                   z.errors.empty() && z.sp_elo_cutoff == 0.0f,
+               "--temp-elo-cutoff: default 0 (off), 70.44 taken, 0 accepted");
+    }
     // Flags that must stop the run instead of being taken or ignored.
     for (const auto& bad : std::vector<std::vector<std::string>>{
              {"--selfplay", "--temp-cutoff", "32"},                              // no opening phase any more
@@ -81,6 +90,8 @@ void TestParseCli() {
              {"--selfplay", "--fast-prob", "-0.1"},
              {"--selfplay", "--fast-visits", "0"},
              {"--selfplay", "--temperature", "-1"},
+             {"--selfplay", "--temp-elo-cutoff", "-1"},
+             {"--selfplay", "--temp-elo-cutoff", "5000"},
              {"--selfplay", "--fast-noise-eps", "1.5"}}) {
         EXPECT(!Parse(bad).errors.empty(), "should be refused: " << Join(bad));
     }

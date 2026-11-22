@@ -39,6 +39,8 @@ struct EngineOptions {
     int sp_fast_visits=200;
     // --temperature: self-play AND the arena draw EVERY move with weight (N / N_max)^(1 / T) (0 = most visited).
     float sp_temperature=0.5f;
+    // --temp-elo-cutoff <Elo>: a move more than this many Elo below the most visited one is never drawn (0 = off; see selfplay_game.h).
+    float sp_elo_cutoff=0.0f;
     bool sp_temp_cutoff_given=false;  // --temp-cutoff (the arena's old opening length) is now an error everywhere
     std::string sp_start_fen;
     std::string fz_dump;       // --fzcuda-dump FILE: positions file for python/fzw.py ref

@@ -45,7 +45,9 @@ void RunSelfPlay(const SelfPlayConfig& cfg, Backend* backend,
   if (cfg.plan.fast_prob > 0.0f)
     std::cout << " [PCR: " << 100.0 * cfg.plan.fast_prob << "% nuoc tim nong "
               << cfg.plan.fast_visits << " luot]";
-  std::cout << " [temperature " << cfg.plan.temperature << "]";
+  std::cout << " [temperature " << cfg.plan.temperature;
+  if (cfg.plan.elo_cutoff > 0.0f) std::cout << ", Elo cutoff " << cfg.plan.elo_cutoff;
+  std::cout << "]";
   if (cfg.max_seconds > 0.0)
     std::cout << " [gioi han thoi gian: " << cfg.max_seconds << "s]";
   if (!cfg.stop_file.empty())

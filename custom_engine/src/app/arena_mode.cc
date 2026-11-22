@@ -86,7 +86,9 @@ int run_arena(const EngineOptions& o) {
               << "  (" << games << " games, visits=" << visits
               << ", provider=" << o.sp_provider << ") ===" << std::endl;
     std::cout << "[arena] search: PUCT, " << visits << " playouts every move (cpuct " << cpuct
-              << ", no noise); every move drawn with temperature " << temperature << std::endl;
+              << ", no noise); every move drawn with temperature " << temperature
+              << (o.sp_elo_cutoff > 0.0f ? ", moves more than " + std::to_string(o.sp_elo_cutoff) + " Elo below the most visited are struck out" : "")
+              << std::endl;
     setup_custom_variant();
     // Start positions. With --start-fen FILE every PAIR of games (2k and 2k+1, A is White in the even one) starts
     // from line k of the book (wrapping round), so each position is played once with each color: the two sides of a
@@ -290,7 +292,7 @@ int run_arena(const EngineOptions& o) {
                 lczero::classic::Node* root = tree->GetCurrentHead();
                 game_nodes += static_cast<int64_t>(root->GetN());
                 // The same draw as self-play, for every move of the game.
-                const lczero::classic::EdgeAndNode played_edge = lczero::SelectMoveEdge(root, temperature);
+                const lczero::classic::EdgeAndNode played_edge = lczero::SelectMoveEdge(root, temperature, o.sp_elo_cutoff);
                 if (played_edge.GetMove().is_null()) break;
                 lczero::Move played = played_edge.GetMove();
                 if (o.arena_show_moves) {

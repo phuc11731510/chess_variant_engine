@@ -115,6 +115,7 @@ EngineOptions parse_cli(int argc, char* argv[]) {
         else if (a == "--max-seconds")        real_value(&o.sp_max_seconds, 0.0, 1e9);
         else if (a == "--temp-cutoff")        { int_value(&o.sp_temp_cutoff, 0, kBig); o.sp_temp_cutoff_given = true; }
         else if (a == "--temperature")        real_value(&o.sp_temperature, 0.0, 100.0);
+        else if (a == "--temp-elo-cutoff")    real_value(&o.sp_elo_cutoff, 0.0, 2400.0);
         else if (a == "--fast-visits")        int_value(&o.sp_fast_visits, 1, kBig);
         else if (a == "--fast-prob")          real_value(&o.sp_fast_prob, 0.0, 1.0);
         else if (a == "--fast-cpuct")         real_value(&o.sp_fast_cpuct, 0.0, 1e6);
