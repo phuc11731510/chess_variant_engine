@@ -69,7 +69,8 @@ std::vector<double> MoveChoiceProbabilities(const std::vector<uint32_t>& visits,
 // below the Elo of the most visited move (the one T = 0 plays; among equals the one of highest value) gets
 // probability 0. The others keep the weight the temperature gives them in the WHOLE visit distribution, so the
 // result is that distribution with the struck-out moves removed and the rest renormalised. The most visited
-// move always stays. `elo_cutoff` <= 0 (or NaN): nothing is struck out.
+// move always stays. `elo_cutoff` <= 0 (or NaN): nothing is struck out. T <= 0 plays the most visited move, so the cutoff only
+// matters there when several moves tie for the most visited: one more than `elo_cutoff` below the best valued of them is struck out.
 std::vector<double> MoveChoiceProbabilities(const std::vector<uint32_t>& visits,
                                             const std::vector<float>& values, float temperature,
                                             float elo_cutoff);

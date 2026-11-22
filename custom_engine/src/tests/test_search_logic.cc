@@ -1080,6 +1080,13 @@ void TestPlayoutCapRandomization() {
             EXPECT(close(wrong[1], plain[1]), "values of the wrong length must leave the plain distribution");
             const auto greedy = lczero::MoveChoiceProbabilities(v, val, 0.0f, kCut);
             EXPECT(greedy[0] == 1.0 && greedy[1] == 0.0, "T = 0 plays the most visited move with the cutoff too");
+            // T = 0 shares the weight between moves tied for the most visited; the cutoff then still strikes out a tied move that is
+            // more than the cutoff below the best valued of them (and keeps the share when they are within it).
+            const auto tie_far = lczero::MoveChoiceProbabilities({400, 400, 10}, {0.0f, -0.21f, 0.0f}, 0.0f, kCut);
+            const auto tie_near = lczero::MoveChoiceProbabilities({400, 400, 10}, {0.0f, -0.1f, 0.0f}, 0.0f, kCut);
+            EXPECT(tie_far[0] == 1.0 && tie_far[1] == 0.0 && tie_far[2] == 0.0, "T = 0, tied top moves 74 Elo apart: the worse one must go");
+            EXPECT(close(tie_near[0], 0.5) && close(tie_near[1], 0.5) && tie_near[2] == 0.0,
+                   "T = 0, tied top moves 35 Elo apart: the share must stay 50 / 50");
             const auto nan_ref = lczero::MoveChoiceProbabilities(v, {std::nanf(""), -0.9f, -0.9f, 0.0f}, 0.5f, kCut);
             EXPECT(close(nan_ref[1], plain[1]), "a NaN reference value strikes nothing out");
         }
