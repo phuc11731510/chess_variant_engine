@@ -20,20 +20,33 @@ if not os.path.exists(CURRENT_PT):
 # nhân ma trận FP16 (autocast), softmax / layer norm / ba hàm mất mát FP32, nhân tỉ lệ loss động (GradScaler), --grad-clip 10 cắt
 # gradient SAU khi bỏ tỉ lệ, bước có gradient vô cực/NaN bị bỏ và đếm (dòng "[amp] ..."; 16 bước liền như vậy thì dừng, không xuất mạng).
 # --onnx-fp16 = .onnx cho engine ở FP16, chỉ dùng sau khi kiểm trên GPU là ra gần như số FP32 (lệch thì giữ FP32 và nói lý do).
+# Kiểu mạng "fzw" (2026-11-22, bộ chạy CUDA riêng của engine; NET_EXT ở ô 00 / 02): train.py ghi CHỈ .pt (--out gen<N>.pt, không xuất ONNX, nên
+# máy huấn luyện không cần pip onnx / onnxscript / onnxruntime-gpu), rồi python/lay_mang.py fzw chuyển .pt -> .fzw ngay ở dưới (kiểm an toàn
+# với mạng FP32 như đã nói; lệch / NaN thì KHÔNG ghi .fzw và ô báo lỗi, không tải mạng về). Kiểu "onnx": như trước.
+if NET_EXT == "fzw":
+    _out, _onnx_opt = NEXT_PT, ""
+else:
+    _out, _onnx_opt = NEXT_NET, "--onnx-fp16"
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
     --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen --batch 512 --accum-steps 2 --lr 1e-3 \
-    --q-ratio 0.25 --weight-decay 1e-4 --report-every 20 --amp --grad-clip 10 --onnx-fp16 \
-    --out {NEXT_ONNX}"""
+    --q-ratio 0.25 --weight-decay 1e-4 --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
+    --out {_out}"""
 
 print(cmd)
 !{cmd}
 import os
-if _exit_code == 0 and os.path.exists(NEXT_ONNX) and os.path.exists(NEXT_PT):
-    !ls -la {NEXT_ONNX} {NEXT_PT}
+_train_ok = _exit_code == 0 and os.path.exists(NEXT_PT)
+if _train_ok and NET_EXT == "fzw":
+    !python {E}/python/lay_mang.py fzw {NEXT_NET} --rel {REL_NN}
+    _train_ok = _exit_code == 0 and os.path.exists(NEXT_NET)
+elif _train_ok:
+    _train_ok = os.path.exists(NEXT_NET)
+if _train_ok:
+    !ls -la {NEXT_NET} {NEXT_PT}
     # Menu fz đọc các dòng FZ_TAI_VE=: tải mạng đời mới về Download/FairyZero khi ô xong
-    # (đã có tệp cùng tên -> "gen1 (2).pt", không ghi đè). CHỈ .pt (2026-11-20): Release không giữ .onnx, mỗi
-    # máy Colab chuyển .pt -> .onnx tại chỗ (python/lay_mang.py); nên điện thoại chỉ tải về và tải lên ~19 MB.
+    # (đã có tệp cùng tên -> "gen1 (2).pt", không ghi đè). CHỈ .pt (2026-11-20): Release không giữ .onnx / .fzw, mỗi
+    # máy Colab chuyển .pt -> .fzw / .onnx tại chỗ (python/lay_mang.py); nên điện thoại chỉ tải về và tải lên ~19 MB.
     print(f"FZ_TAI_VE={NEXT_PT}")
 else:
     print("[!] Huấn luyện lỗi -- không tải về")

@@ -8,22 +8,29 @@
 # 32 thay 64: arena gom ít lá mỗi lần (cây mới mỗi nước, 400 lượt), mẻ 64 bỏ phí 40-45% chỗ trống;
 # đo T4 gen20 vs gen19: 64 -> 2.165-2.364 nps, 32 -> 2.599 nps (phí còn 27%). Binary cũ không có
 # arena gom batch: log thiếu dòng "[arena] batch-aggregate ON" -> lấy binary mới (ô 02).
-# Vòng lặp tự động (menu v) tự ghi A_ONNX, B_ONNX, GAMES, SECS dưới đây vào bản chép của ô này.
+# Bộ chạy mạng (2026-11-22): theo kiểu mạng của máy (NET_EXT, ô 00 / 02): "fzw" = bộ chạy CUDA riêng của engine (--provider fzcuda, tệp
+# .fzw), "onnx" = ONNX Runtime (--provider cuda, tệp .onnx).
+# Vòng lặp tự động (menu v) tự ghi A_GEN, B_GEN, GAMES, SECS dưới đây vào bản chép của ô này.
 # fz: hoi GAMES Số ván arena (hai bên đổi màu mỗi ván)
 GAMES = 100
 PARALLEL = 16       # số ván cùng lúc (menu v đọc số này để tính ván đang dở)
 SECS = 0            # > 0: dừng MỀM sau chừng này giây (ván dở chơi nốt); 0 = không giới hạn
-A_ONNX = NEXT_ONNX      # mạng A (kết quả "A wins" = A thắng)
-B_ONNX = CURRENT_ONNX   # mạng B
+A_GEN = GEN_NEXT        # đời của mạng A (kết quả "A wins" = A thắng)
+B_GEN = GEN_CURRENT     # đời của mạng B
+A_NET = f"/content/gen{A_GEN}.{NET_EXT}"
+B_NET = f"/content/gen{B_GEN}.{NET_EXT}"
 
-# Mạng .onnx của hai bên: máy chưa có thì lấy từ Release NN_Model. Release chỉ giữ .pt (không giữ .onnx)
+# Mạng của hai bên: máy chưa có thì lấy từ Release NN_Model. Release chỉ giữ .pt (không giữ .onnx / .fzw)
 # (từ 2026-10-20, vì một Release chứa tối đa 1000 tệp); đời cũ hơn thì python/lay_mang.py tải .pt đời đó rồi
-# chuyển sang .onnx ngay trên máy (~1-3 phút, CPU), nên đấu hai đời bất kỳ đều được. Đã có sẵn thì bỏ qua.
+# chuyển ngay trên máy (.fzw ~10-20 giây; .onnx ~1-3 phút, CPU), nên đấu hai đời bất kỳ đều được. Đã có sẵn thì bỏ qua.
 import os
-for _f in (A_ONNX, B_ONNX):
+_fp16 = " --fp16" if NET_EXT == "onnx" else ""
+for _f in (A_NET, B_NET):
     if not (os.path.exists(_f) and os.path.getsize(_f) > 0):
-        !python {E}/python/lay_mang.py onnx {_f} --rel {REL_NN} --fp16
-_thieu = [_f for _f in (A_ONNX, B_ONNX) if not (os.path.exists(_f) and os.path.getsize(_f) > 0)]
+        !python {E}/python/lay_mang.py {NET_EXT} {_f} --rel {REL_NN}{_fp16}
+_thieu = [_f for _f in (A_NET, B_NET) if not (os.path.exists(_f) and os.path.getsize(_f) > 0)]
+_provider = "fzcuda" if NET_EXT == "fzw" else "cuda"
+print("FZ_NET=" + NET_EXT)
 
 # Dừng MỀM theo lệnh (như ô 04): có tệp DUNG_MEM thì không nhận ván mới, ván đang chơi chơi nốt, in
 # kết quả của các ván đã xong. Cần binary có arena dừng mềm (dòng FZ_ARENA, từ 2026-09-30).
@@ -61,10 +68,10 @@ if not _thieu and co_the_arena:
         raise SystemExit(f"[!] Không sinh được {BOOK} (python/sinh_the_khoi_dau.py lỗi) -- dừng, không chạy arena.")
 
 cmd = f"""bash {E}/run.sh --arena \
-    --model-a {A_ONNX} \
-    --model-b {B_ONNX} \
+    --model-a {A_NET} \
+    --model-b {B_NET} \
     --games {GAMES} --visits 400 --temperature 0 --cpuct 1.25 --start-fen {BOOK} \
-    --provider cuda --fixed-batch 32 --max-moves 400 --show-nps \
+    --provider {_provider} --fixed-batch 32 --max-moves 400 --show-nps \
     --search-opt max-prefetch=0 --parallel {PARALLEL} --batch-aggregate \
     --search-opt minibatch-size=32 --search-opt task-workers=0"""
 if co_dung_mem:

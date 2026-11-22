@@ -471,7 +471,7 @@ doi_doi() {
   sed -i -E "0,/^GEN_CURRENT[[:space:]]*=[[:space:]]*[0-9]+/s//GEN_CURRENT = $moi/" "$f"
   gen=$(gia_tri "$f" GEN_CURRENT)
   if [ "$gen" = "$moi" ]; then
-    echo "[xong] GEN_CURRENT = $moi -> ô chạy sau dùng gen$moi.onnx / gen$moi.pt, sinh vào games_gen$moi, huấn luyện ra gen$((moi + 1))"
+    echo "[xong] GEN_CURRENT = $moi -> ô chạy sau dùng gen$moi.fzw (hoặc .onnx) / gen$moi.pt, sinh vào games_gen$moi, huấn luyện ra gen$((moi + 1))"
   else
     echo "[!] Ghi không được (đang là '$gen') -- sửa tay 00_cau_hinh.py"
   fi

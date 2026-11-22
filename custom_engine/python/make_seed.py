@@ -6,9 +6,11 @@ This SUPERSEDES create_zero_elo_net.py (which used a scale-only SE that does not
 match lc0 / model.py). Writes both:
   <out>.onnx : engine-loadable seed (value softmax in-graph)
   <out>.pt   : raw FairyNet state_dict for warm-starting generation 1
+With --out model_gen0.pt only the .pt is written (no onnx packages needed).
 
 Usage:
     python make_seed.py --out model_gen0.onnx
+    python make_seed.py --out model_gen0.pt
 """
 
 import argparse
@@ -19,7 +21,7 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet  # noqa: E402
-from train import export_onnx, verify_onnx  # noqa: E402
+from train import export_onnx, verify_onnx  # noqa: E402  (train.py imports onnx lazily, so a .pt run needs no onnx package)
 from run_seed import resolve_seed  # noqa: E402
 
 
@@ -48,6 +50,9 @@ def main():
     torch.save(net.state_dict(), ckpt)
     print(f"[seed] {params:.2f}M params -> saved {ckpt}")
 
+    if args.out.endswith(".pt"):     # --out gen0.pt: the checkpoint alone (the CUDA runner reads .fzw made from it)
+        print(f"[seed] gen-0 bootstrap ready: {ckpt} (no .onnx: python/lay_mang.py fzw makes the .fzw)")
+        return
     export_onnx(net, args.out)
     verify_onnx(args.out, net)
     print(f"[seed] gen-0 bootstrap ready: {args.out}")

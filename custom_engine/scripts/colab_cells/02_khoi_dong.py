@@ -36,17 +36,74 @@ for lan in (1, 2, 3):
         break
     print(f"[02] git lan {lan} that bai hoac treo -- thu lai", flush=True)
     time.sleep(5)
-!BIN_URL={REL}/custom_engine bash {E}/scripts/colab_quickstart.sh
+# ONNX Runtime (79 MB) CHỈ tải khi máy cần nó (NET_KIND = "onnx", hoặc "auto" mà bộ chạy CUDA riêng hỏng: xem dưới).
+SKIP_ORT = 0 if NET_KIND == "onnx" else 1
+!SKIP_ORT={SKIP_ORT} BIN_URL={REL}/custom_engine bash {E}/scripts/colab_quickstart.sh
 
-# Mạng đời hiện tại (.onnx): Release NN_Model (REL_NN) chỉ giữ .pt, nên lay_mang.py tải gen<N>.pt rồi chuyển
-# sang .onnx FP16 (--fp16, kiểm trên GPU so với FP32; lệch thì giữ FP32) ngay trên máy (cần torch, onnx, onnxscript,
-# onnxruntime-gpu: tự pip install nếu thiếu). Đặt False nếu bạn tự
-# tải lên từ điện thoại (colab upload) hoặc tự tạo (ô 03, đời 0). .pt + thư viện huấn luyện: ô 02c
-# (chỉ máy huấn luyện).
-TAI_ONNX = True
-for tai, f in [(TAI_ONNX, CURRENT_ONNX)]:
-    if tai:
-        # lay_mang.py không để lại tệp rỗng/dở khi lỗi; thử lại 4 lần với HTTP 429/5xx
-        name = f.split("/")[-1]
-        !python {E}/python/lay_mang.py onnx {f} --rel {REL_NN} --fp16 || echo "[!] Khong lay duoc {name} tu Release NN_Model"
-!ls -la /content/gen*.onnx /content/gen*.pt 2>/dev/null
+# ---- Mạng đời hiện tại và KIỂU MẠNG của máy này (xem NET_KIND ở ô 00) ----------------------------------------------------
+# Release NN_Model (REL_NN) chỉ giữ .pt, nên python/lay_mang.py tải gen<N>.pt rồi chuyển ngay trên máy:
+#   .fzw  (--provider fzcuda): chỉ cần torch + numpy (Colab có sẵn), ~10-20 giây, KIỂM an toàn trước khi ghi (mô hình CPU của
+#         bộ chạy phải ra gần như số FP32 của mạng; lệch / NaN thì không ghi tệp).
+#   .onnx (--provider cuda):   cần pip onnx, onnxscript, onnxruntime-gpu (tự pip install nếu thiếu, ~250 MB) + ONNX Runtime 79 MB.
+# "fzw" / "auto": chuyển .fzw rồi CHẠY THỬ thật một ván hai nước bằng bộ chạy CUDA (nạp libcublasLt, GPU, trọng số, một lượt chạy
+# mạng). Chạy được -> kiểu "fzw". Không chạy được: "auto" rơi về "onnx" (tải ONNX Runtime + chuyển .onnx), "fzw" dừng và báo lý do.
+# Kiểu thật được GHI vào NET_FILE (/content/fz_log/net_kind) và in ra dòng FZ_NET=...; ô 00 đọc lại để mọi ô dùng cùng kiểu.
+# Đặt TAI_MANG = False nếu bạn tự tải mạng lên từ điện thoại (colab upload) hoặc tự tạo (ô 03, đời 0): ô này không đụng tới mạng.
+# .pt + thư viện huấn luyện: ô 02c (chỉ máy huấn luyện).
+TAI_MANG = True
+
+
+def _lay_mang(ext):
+    """python/lay_mang.py <ext>: gen<GEN_CURRENT>.<ext> có trên máy (không để lại tệp rỗng / dở khi lỗi; thử lại 4 lần với HTTP 429/5xx)."""
+    f = f"/content/gen{GEN_CURRENT}.{ext}"
+    sub = subprocess.run(f"python3 {E}/python/lay_mang.py {ext} {f} --rel {REL_NN}" + (" --fp16" if ext == "onnx" else ""), shell=True)
+    return sub.returncode == 0 and os.path.exists(f) and os.path.getsize(f) > 0
+
+
+def _thu_fzcuda(fzw):
+    """Chạy THẬT bộ chạy CUDA riêng: một ván hai nước --provider fzcuda trên mạng fzw (như ô 04, chỉ nhỏ hơn). In lỗi của engine nếu hỏng."""
+    cmd = (f"rm -rf /content/fz_thu && bash {E}/run.sh --selfplay --games 1 --max-moves 2 --visits 16 --fast-visits 8 --parallel 2 "
+           f"--provider fzcuda --fixed-batch 16 --fz-opt contexts=1 --fz-opt autotune=0 --fz-opt graph=0 --weights {fzw} --out /content/fz_thu")
+    try:
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        print("[02] chạy thử bộ chạy CUDA quá 300 giây (treo?)", flush=True)
+        return False
+    if r.returncode != 0:
+        print(f"[02] chạy thử bộ chạy CUDA lỗi (mã {r.returncode}):\n" + "\n".join((r.stdout + r.stderr).strip().splitlines()[-12:]), flush=True)
+    subprocess.run("rm -rf /content/fz_thu", shell=True)
+    return r.returncode == 0
+
+
+if TAI_MANG:
+    os.makedirs(os.path.dirname(NET_FILE), exist_ok=True)
+    try:
+        _truoc = open(NET_FILE).read().strip()      # kết luận của lần chạy 02 trước trên CHÍNH máy này (máy mới thuê: không có)
+    except OSError:
+        _truoc = ""
+    kind = None
+    if NET_KIND == "auto" and _truoc in ("fzw", "onnx"):
+        # Máy này đã được thử rồi (mỗi đời mới máy chạy lại 02 để lấy mạng mới): giữ kết luận, không chạy thử lại mỗi đời.
+        kind = _truoc
+        if not _lay_mang(kind):
+            raise SystemExit(f"[!] Khong lay duoc gen{GEN_CURRENT}.{kind} tu Release NN_Model")
+    else:
+        if NET_KIND in ("fzw", "auto"):
+            if _lay_mang("fzw") and _thu_fzcuda(f"/content/gen{GEN_CURRENT}.fzw"):
+                kind = "fzw"
+            elif NET_KIND == "fzw":
+                raise SystemExit("[!] NET_KIND = \"fzw\" nhưng không có / không chạy được mạng .fzw trên máy này (lý do ở trên) -- "
+                                 "đổi NET_KIND ở ô 00 thành \"auto\" hoặc \"onnx\" để dùng ONNX Runtime")
+            else:
+                print("[02] bộ chạy CUDA riêng KHÔNG chạy được trên máy này (lý do ở trên) -> rơi về ONNX Runtime", flush=True)
+        if kind is None:
+            !bash {E}/scripts/colab_quickstart.sh
+            if not _lay_mang("onnx"):
+                raise SystemExit(f"[!] Khong lay duoc gen{GEN_CURRENT}.onnx tu Release NN_Model")
+            kind = "onnx"
+        with open(NET_FILE, "w") as _f:
+            _f.write(kind)
+    print(f"FZ_NET={kind}")
+else:
+    print("(TAI_MANG = False: ô này không tải / chuyển mạng và không ghi kiểu mạng)")
+!ls -la /content/gen*.fzw /content/gen*.onnx /content/gen*.pt 2>/dev/null
