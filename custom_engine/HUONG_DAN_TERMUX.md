@@ -54,7 +54,7 @@ Có hai cách dùng:
   `04_sinh_du_lieu.py`, …), viết đúng cú pháp ô Colab (`!lệnh`, `%cd`, biến Python).
 - Gõ **`fz`** trong Termux → hiện **menu** liệt kê các ô kèm tên; gõ số ô (vd `04`) → ô đó được gửi
   lên máy Colab và chạy. Trước mỗi ô, menu **ghép ô cấu hình `00_cau_hinh.py` vào đầu**, nên mọi ô
-  đều biết `GEN_CURRENT`, `E`, `CURRENT_ONNX`, … — giống sổ tay chạy ô cấu hình trước.
+  đều biết `GEN_CURRENT`, `E`, `CURRENT_NET`, `NET_EXT`, … — giống sổ tay chạy ô cấu hình trước.
 - **Mọi ô** (trừ 3 ô ngắn 01, 05, 09) chạy **nền** trên máy Colab, và menu **hiện log của ô đó
   trực tiếp** như ô sổ tay trên web. **Ctrl+C** chỉ đóng màn hình log, **ô vẫn chạy tiếp**; mất sóng
   hay đóng Termux cũng vậy. Xem lại: menu `l`. Chi tiết cơ chế: mục 6.1.
@@ -352,8 +352,8 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 |---|---|---|---|
 | 00 | `00_cau_hinh.py` | Cấu hình | `GEN_CURRENT` và mọi đường dẫn — **tự ghép vào đầu mọi ô** |
 | 01 | `01_kiem_gpu.py` | 0 | `nvidia-smi` |
-| 02 | `02_khoi_dong.py` | 1 | mã (lần đầu clone **thưa** chỉ `custom_engine` ~1 MB; các đời sau chỉ `git fetch` + `reset`, **không** xoá thư mục), binary + ONNX Runtime từ Release `v3.0.0` (chỉ tải lại khi chưa có hoặc Release đổi), `gen<N>.onnx` từ Release `NN_Model` (đời cũ: chuyển từ `.pt`). **Dung lượng tải đo trên T4: máy mới ~351 MiB (phần lớn là pip `onnxruntime-gpu`), mỗi đời kế trên cùng máy ~19,5 MiB** (chỉ `gen<N>.pt`) |
-| 02c | `02c_chuan_bi_huan_luyen.py` | 5a | chỉ máy sắp huấn luyện: `gen<N>.pt` từ Release `NN_Model` + `pip install onnx…` (chạy trước 07) |
+| 02 | `02_khoi_dong.py` | 1 | mã (lần đầu clone **thưa** chỉ `custom_engine` ~1 MB; các đời sau chỉ `git fetch` + `reset`, **không** xoá thư mục), binary từ Release `v3.0.0` (chỉ tải lại khi chưa có hoặc Release đổi; ONNX Runtime 79 MB **chỉ** tải khi máy phải dùng kiểu mạng `onnx`), `gen<N>.pt` từ Release `NN_Model` rồi chuyển ngay trên máy sang `.fzw` (mặc định) hoặc `.onnx` (xem "Kiểu mạng" dưới). **Dung lượng tải đo trên T4: máy mới ~351 MiB (phần lớn là pip `onnxruntime-gpu`), mỗi đời kế trên cùng máy ~19,5 MiB** (chỉ `gen<N>.pt`) |
+| 02c | `02c_chuan_bi_huan_luyen.py` | 5a | chỉ máy sắp huấn luyện: `gen<N>.pt` từ Release `NN_Model` + (chỉ kiểu mạng `onnx`) `pip install onnx…` (chạy trước 07) |
 | 02b | `02b_bien_dich.py` | 1b | biên dịch lại (chỉ khi cần) |
 | 03 | `03_tao_gen0.py` | 2 | tạo mạng đời 0 mới (ghi đè gen0) |
 | 04 | `04_sinh_du_lieu.py` | 3 | sinh dữ liệu (dừng mềm được bằng 09b / vòng lặp tự động) |
@@ -564,7 +564,7 @@ Phải thấy `Tesla T4, 15360 MiB`. Không thấy → máy CPU, xem mục 4.
 Mở xem trước bằng MT Manager (`02_khoi_dong.py`). Cuối ô có:
 
 ```python
-TAI_ONNX = True     # lấy gen{GEN_CURRENT}.onnx từ GitHub Release NN_Model (REL_NN ở ô 00)
+TAI_MANG = True     # lấy gen{GEN_CURRENT}.pt từ GitHub Release NN_Model (REL_NN ở ô 00) rồi chuyển sang .fzw / .onnx
 ```
 
 Đặt `False` cho tệp nào bạn định **tự tải lên từ điện thoại** (mục 8) hoặc **tự tạo** (ô 03).
@@ -572,7 +572,7 @@ TAI_ONNX = True     # lấy gen{GEN_CURRENT}.onnx từ GitHub Release NN_Model (
 Menu `fz` → chọn **`02`** (gõ tắt: `o 02`).
 
 Phải thấy `[quick] OK -- engine chay duoc tren Colab image nay.` và cuối cùng danh sách
-`/content/gen0.onnx`, `/content/gen0.pt`. Nếu mạng không lấy được từ Release, ô in
+`/content/gen0.fzw`, `/content/gen0.pt` (kiểu mạng `fzw`) và dòng `FZ_NET=fzw`. Nếu mạng không lấy được từ Release, ô in
 `[!] Khong lay duoc …` và **không để lại tệp rỗng**.
 
 > Mạng nằm ở Release **`NN_Model`** (tên "NN Models", `REL_NN` trong ô 00), không còn ở `v3.0.0`
@@ -585,6 +585,25 @@ Phải thấy `[quick] OK -- engine chay duoc tren Colab image nay.` và cuối 
 
 Cảnh báo `protobuf ... incompatible` khi `pip install` là của các gói khác của Colab, không ảnh hưởng
 FairyZero.
+
+#### Kiểu mạng: `fzw` (bộ chạy CUDA riêng) hay `onnx` (ONNX Runtime)
+
+Từ 2026-11-22 engine có bộ chạy mạng CUDA riêng (`--provider fzcuda`, tệp `.fzw` ~10 MB; thiết kế và số đo
+ở Walkthrough §22): trên T4 tự đấu **12.600 nps so với 6.590** của ONNX Runtime (gấp 1,9), và máy **không cần**
+`pip install onnx onnxscript onnxruntime-gpu` (~250 MB) lẫn ONNX Runtime (79 MB): một máy Colab mới tải khoảng
+26 MB (binary 5 MB + mã 1 MB + `gen<N>.pt` 20 MB), mỗi đời sau ~20 MB. Dòng `NET_KIND` trong ô 00 chọn:
+
+| `NET_KIND` | Nghĩa |
+|---|---|
+| `"auto"` (mặc định) | `fzw` nếu bộ chạy CUDA chạy được trên máy đó, không thì `onnx`. Ô 02 **chạy thử thật** (một ván hai nước bằng `--provider fzcuda`) trên từng máy mới, ghi kiểu thật vào `/content/fz_log/net_kind` và in `FZ_NET=fzw` / `FZ_NET=onnx`. Máy đã được thử thì các đời sau giữ kết luận. |
+| `"fzw"` | chỉ bộ chạy CUDA; không chạy được thì ô 02 **dừng** và nói lý do (không tự đổi) |
+| `"onnx"` | ONNX Runtime như trước (kiểu cũ, `.onnx`, `--provider cuda`) |
+
+`.fzw` làm từ `.pt` ngay trên máy (`python/lay_mang.py fzw`, chỉ cần torch có sẵn của Colab) và **được kiểm trước
+khi ghi**: mô hình CPU của bộ chạy phải ra gần như số FP32 của mạng (cùng ngưỡng FP16 của `train.py`), lệch hay NaN thì
+không ghi tệp. Ô 07 ở kiểu `fzw` gọi `train.py --out gen<N+1>.pt` (không xuất ONNX) rồi `lay_mang.py fzw` — nên
+một mạng hỏng bị chặn ngay ở máy huấn luyện. Release `NN_Model` vẫn chỉ giữ `.pt`. Mỗi máy tự chọn kiểu của nó: một
+máy `auto` bị hỏng bộ chạy CUDA rơi về `onnx` (tải ONNX Runtime + pip) mà các máy khác vẫn `fzw`.
 
 ### Ô 03 — tạo mạng đời 0 mới (tuỳ chọn)
 
@@ -724,9 +743,9 @@ colab ls -s fz /content
 
 | Muốn | Làm |
 |---|---|
-| Lấy từ GitHub Release | `TAI_ONNX = True` trong ô 02 (mặc định) |
-| Lấy từ điện thoại | `TAI_ONNX = False` trong ô 02, rồi `colab upload` như trên |
-| Tạo mới (đời 0) | `TAI_ONNX = False` trong ô 02, rồi `o 03` |
+| Lấy từ GitHub Release | `TAI_MANG = True` trong ô 02 (mặc định) |
+| Lấy từ điện thoại | `TAI_MANG = False` trong ô 02, rồi `colab upload` như trên (tải lên `.fzw` hoặc `.onnx` đúng kiểu mạng của máy) |
+| Tạo mới (đời 0) | `TAI_MANG = False` trong ô 02, rồi `o 03` |
 
 ---
 
@@ -735,7 +754,7 @@ colab ls -s fz /content
 1. MT Manager: `00_cau_hinh.py` → `GEN_CURRENT = 1`, lưu.
 2. Menu `fz`: `m` (nếu đã trả máy), rồi `01 02`.
 3. Mạng đời 1: có trên Release `NN_Model` thì ô 02 tự tải (`.onnx` chỉ có đời mới nhất, đời cũ hơn tự
-   chuyển từ `.pt`); không có thì `TAI_ONNX = False` và `colab upload` từ `Download/FairyZero/`.
+   chuyển từ `.pt`); không có thì `TAI_MANG = False` và `colab upload` từ `Download/FairyZero/`.
 4. Ô `04` → `05` → `06` → `07` → …
 
 Kiến trúc `144 × 12` SE-8 phải giữ nguyên suốt chuỗi warm-start.
@@ -1025,7 +1044,7 @@ cấu hình. Dùng `o <số>`.
 **Ô 02 báo `[quick]` lỗi** — Release chưa có binary hoặc Colab đổi image: `o 02b` (8-12 phút), rồi
 tải binary về theo lệnh ô in ra và đưa lên GitHub Release (tên đúng: `custom_engine`).
 
-**Ô chạy nền xong ngay (`ma thoat` khác 0)** — lỗi khi khởi động; đọc log bằng menu `l` (in từ đầu). Hay gặp: thiếu mạng (`/content/genN.onnx` không có — kiểm `GEN_CURRENT`),
+**Ô chạy nền xong ngay (`ma thoat` khác 0)** — lỗi khi khởi động; đọc log bằng menu `l` (in từ đầu). Hay gặp: thiếu mạng (`/content/genN.fzw` — hoặc `.onnx` ở kiểu mạng `onnx` — không có: kiểm `GEN_CURRENT`),
 hoặc máy không có GPU.
 
 **Huấn luyện báo không thấy `.pt`** — `gen{GEN_CURRENT}.pt` chưa có trên máy (Release chưa có tệp đó):
