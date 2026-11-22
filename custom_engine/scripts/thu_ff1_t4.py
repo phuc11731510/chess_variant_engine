@@ -70,8 +70,7 @@ ket("tep the + tham chieu", os.path.exists(P + ".ref"))
 for exp in (0, 4, 5):
     rc, out = sh(f"bash {E}/run.sh --test-fzcuda --weights {W} --fz-positions {P} --fz-opt exp={exp} 2>&1", timeout=900)
     keep = [l for l in out.splitlines() if "ff1" in l or "all 512" in l or "FAIL" in l]
-    print("
-".join(keep)[-1800:], flush=True)
+    print(chr(10).join(keep)[-1800:], flush=True)
     ket(f"--test-fzcuda exp={exp}", rc == 0 and "[PASS] --test-fzcuda" in out, f"ma thoat {rc}")
     rc, out = sh(f"cd {E}/python && python3 fzw.py taps {C}/gen{GEN}.pt {P} 2>&1", timeout=600)
     ket(f"taps khop mo hinh CPU (exp={exp})", "all stages agree" in out, out.strip().splitlines()[-1][:100] if out.strip() else "")
