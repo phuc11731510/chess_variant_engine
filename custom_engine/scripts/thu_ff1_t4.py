@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""thu_ff1_t4.py -- thu tren T4 that tich ff1 tu viet (FfnUpKernel, --fz-opt exp=4) so voi cuBLASLt + epilogue GELU (chay bang ~/chay_t4_thu.py).
+"""thu_ff1_t4.py -- thu tren T4 that binary fzcuda co cong du trong epilogue + LayerNorm rieng + tich ff1 tu viet, so voi binary tren Release
+(chay bang ~/chay_t4_thu.py --tep <moi>:/content/cu_moi --tep <release>:/content/cu_cu).
 
-Mot binary (do ~/chay_t4_thu.py --tep dua len: /content/cu_moi), hai cach chay ff1: exp=0 (cuBLASLt) va exp=4 (tich tu viet). Cac buoc:
-  1. may, clone thua nhanh BRANCH, gen<GEN>.fzw;  2. --test-fzcuda (bai thu nhan, trong do ff1 tu viet vs double) o exp=0, 4, 5, taps;
-  3. thoi gian tung buoc (--bench-fzcuda) o exp=0, 4, 5;  4. tu dau 90 s xen ke exp=0 / 4 / 5 hai vong.
+  1. may, clone thua nhanh BRANCH, gen<GEN>.fzw;  2. binary MOI: --test-fzcuda (nhan, mang vs PyTorch FP32, backend) mac dinh va voi
+     --fz-opt ff1=cublas (duong du phong), taps vs mo hinh CPU;  3. thoi gian tung buoc cua CU, MOI, MOI ff1=cublas;
+  4. tu dau 90 s xen ke CU / MOI / MOI ff1=cublas, hai vong (cung co nhu o 04), de so nps THAT.
 """
 import glob
 import hashlib
@@ -20,7 +21,7 @@ REL = REPO + "/releases/download/v3.0.0"
 REL_NN = REPO + "/releases/download/NN_Model"
 C = "/content"
 E = f"{C}/chess_variant_engine/custom_engine"
-B_MOI = f"{C}/cu_moi"
+B_MOI, B_CU = f"{C}/cu_moi", f"{C}/cu_cu"
 T0 = time.time()
 KQ = []
 
@@ -50,7 +51,8 @@ def dung(binary):
 log("1. may:", sh("nvidia-smi --query-gpu=name,driver_version,memory.total,clocks.max.sm --format=csv,noheader")[1].strip())
 sh(f"cd {C} && rm -rf chess_variant_engine && timeout 120 git clone -q --depth 1 --filter=blob:none --sparse -b {BRANCH} {REPO}.git "
    f"chess_variant_engine && cd chess_variant_engine && git sparse-checkout set custom_engine", timeout=200)
-log("   sha256 binary", hashlib.sha256(open(B_MOI, "rb").read()).hexdigest()[:16])
+for b in (B_MOI, B_CU):
+    log("   sha256", os.path.basename(b), hashlib.sha256(open(b, "rb").read()).hexdigest()[:16])
 dung(B_MOI)
 rc, out = sh(f"SKIP_ORT=1 bash {E}/scripts/colab_quickstart.sh 2>&1 | tail -n 3", timeout=700)
 print(out, flush=True)
@@ -67,13 +69,13 @@ P = f"{C}/pos.bin"
 rc, out = sh(f"bash {E}/run.sh --fzcuda-dump {P} --games 512 --start-fen {C}/book.txt 2>&1 | tail -n 2", timeout=300)
 rc, out = sh(f"cd {E}/python && python3 fzw.py ref {C}/gen{GEN}.pt {P} {P}.ref 2>&1 | tail -n 1", timeout=600)
 ket("tep the + tham chieu", os.path.exists(P + ".ref"))
-for exp in (0, 4, 5):
-    rc, out = sh(f"bash {E}/run.sh --test-fzcuda --weights {W} --fz-positions {P} --fz-opt exp={exp} 2>&1", timeout=900)
+for extra in ("", "--fz-opt ff1=cublas"):
+    rc, out = sh(f"bash {E}/run.sh --test-fzcuda --weights {W} --fz-positions {P} {extra} 2>&1", timeout=900)
     keep = [l for l in out.splitlines() if "ff1" in l or "all 512" in l or "FAIL" in l]
     print(chr(10).join(keep)[-1800:], flush=True)
-    ket(f"--test-fzcuda exp={exp}", rc == 0 and "[PASS] --test-fzcuda" in out, f"ma thoat {rc}")
+    ket(f"--test-fzcuda {extra or '(mac dinh: ff1 tu viet)'}", rc == 0 and "[PASS] --test-fzcuda" in out, f"ma thoat {rc}")
     rc, out = sh(f"cd {E}/python && python3 fzw.py taps {C}/gen{GEN}.pt {P} 2>&1", timeout=600)
-    ket(f"taps khop mo hinh CPU (exp={exp})", "all stages agree" in out, out.strip().splitlines()[-1][:100] if out.strip() else "")
+    ket(f"taps khop mo hinh CPU {extra or '(mac dinh)'}", "all stages agree" in out, out.strip().splitlines()[-1][:100] if out.strip() else "")
 
 
 def bench(binary, tag, extra=""):
@@ -96,18 +98,16 @@ def bench(binary, tag, extra=""):
 
 
 log("3. thoi gian tung buoc (lo 64)")
-st0, t0 = bench(B_MOI, "exp=0 (cuBLASLt + GELU epilogue)")
-best = {}
-for exp in (4, 5):
-    best[exp] = bench(B_MOI, f"exp={exp} (ff1 tu viet, bien the {exp - 4})", f"--fz-opt exp={exp}")
-    ket(f"ff1 tu viet exp={exp}: buoc ff1 nhanh hon cuBLASLt", best[exp][0].get("ff1 product + gelu", 9e9) < st0.get("ff1 product + gelu", 0),
-        f"{best[exp][0].get('ff1 product + gelu')} ms so voi {st0.get('ff1 product + gelu')} ms")
+st_cu, t_cu = bench(B_CU, "CU (Release)")
+st_moi, t_moi = bench(B_MOI, "MOI (mac dinh)")
+ket("MOI nhanh hon CU o lo 64 (--bench-fzcuda, graph)", t_cu is not None and t_moi is not None and t_moi < t_cu, f"{t_moi} ms so voi {t_cu} ms")
+bench(B_MOI, "MOI ff1=cublas", "--fz-opt ff1=cublas")
 
-log("4. tu dau 90 s xen ke exp=0 / 4 / 5 / 0 / 4 / 5")
+log("4. tu dau 90 s xen ke CU / MOI / MOI ff1=cublas, hai vong")
 
 
-def tu_dau(extra, tag):
-    dung(B_MOI)
+def tu_dau(binary, tag, extra=""):
+    dung(binary)
     cmd = (f"cd {C} && rm -rf sp_x && bash {E}/run.sh --selfplay --games 48 --max-seconds 90 --visits 800 --max-moves 400 --fast-visits 200 "
            f"--fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 --temperature 0.5 --start-fen {C}/book.txt --parallel 16 --provider fzcuda "
            f"--fixed-batch 64 --batch-aggregate --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 "
@@ -123,13 +123,15 @@ def tu_dau(extra, tag):
     return mean
 
 
-res = {0: [], 4: [], 5: []}
-for exp in (0, 4, 5, 0, 4, 5):
-    res[exp].append(tu_dau("" if exp == 0 else f"--fz-opt exp={exp}", f"exp={exp}"))
-mean = {e: sum(v) / len(v) if v else 0.0 for e, v in res.items()}
-log("   nps tu dau: " + " ; ".join(f"exp={e} {res[e]} (tb {mean[e]:.0f})" for e in res) +
-    (f" ; exp4/exp0 = {mean[4] / mean[0]:.3f}, exp5/exp0 = {mean[5] / mean[0]:.3f}" if mean[0] else ""))
-ket("ff1 tu viet nhanh hon o tu dau that (ABAB, it nhat mot bien the)", mean[0] > 0 and max(mean[4], mean[5]) > mean[0], f"exp4 {mean[4]:.0f}, exp5 {mean[5]:.0f} so voi {mean[0]:.0f} nps")
+res = {"CU": [], "MOI": [], "MOIc": []}
+for _ in range(2):
+    res["CU"].append(tu_dau(B_CU, "CU"))
+    res["MOI"].append(tu_dau(B_MOI, "MOI"))
+    res["MOIc"].append(tu_dau(B_MOI, "MOI ff1=cublas", "--fz-opt ff1=cublas"))
+mean = {k: sum(v) / len(v) if v else 0.0 for k, v in res.items()}
+log("   nps tu dau: " + " ; ".join(f"{k} {v} (tb {mean[k]:.0f})" for k, v in res.items()) +
+    (f" ; MOI/CU = {mean['MOI'] / mean['CU']:.3f}, MOI ff1=cublas / CU = {mean['MOIc'] / mean['CU']:.3f}" if mean["CU"] else ""))
+ket("MOI nhanh hon CU o tu dau that (ABAB)", mean["CU"] > 0 and mean["MOI"] > mean["CU"], f"{mean['MOI']:.0f} so voi {mean['CU']:.0f} nps")
 
 log("=== TOM TAT ===")
 for ten, ok, note in KQ:

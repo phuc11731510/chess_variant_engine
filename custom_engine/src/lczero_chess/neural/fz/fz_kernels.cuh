@@ -33,10 +33,10 @@ static_assert(sizeof(PlaneGpu) == 32, "PlaneGpu must mirror InputPlane (32 bytes
 // x0[b * 100 + token][plane] = value of the plane at that square (0 elsewhere), FP16, 208 columns (the last 4 are 0).
 void LaunchExpandInput(const PlaneGpu* planes, __half* x0, int batch, cudaStream_t stream);
 
-// s = x_in + y (if y) + bias[row % bias_rows]  (FP32);  x_out = FP16(s);  ln_out = FP16(LayerNorm(s) * gamma + beta).
-// x_out may be x_in. d = width of a row (a multiple of 64, at most 512).
-void LaunchAddLayerNorm(const __half* x_in, const __half* y, const float* bias, int bias_rows, const float* gamma,
-                        const float* beta, __half* x_out, __half* ln_out, int rows, int d, cudaStream_t stream);
+// s = x_in + bias[row % bias_rows]  (FP32);  x_out = FP16(s);  ln_out = FP16(LayerNorm(s) * gamma + beta). The embedding: x_in is the
+// product with the embedding matrix and bias the position table (+ the embedding bias). d = width of a row (a multiple of 64, at most 512).
+void LaunchAddLayerNorm(const __half* x_in, const float* bias, int bias_rows, const float* gamma, const float* beta, __half* x_out,
+                        __half* ln_out, int rows, int d, cudaStream_t stream);
 
 // ln_out = FP16(LayerNorm(x) * gamma + beta) for each of `rows` rows of x (FP16). d as above.
 void LaunchLayerNorm(const __half* x, const float* gamma, const float* beta, __half* ln_out, int rows, int d, cudaStream_t stream);
@@ -44,11 +44,7 @@ void LaunchLayerNorm(const __half* x, const float* gamma, const float* beta, __h
 // y[m, n] = FP16(GELU(x[m, k] * w[n, k]^T + bias[n])): the first feed-forward product with its activation (see FfnUpKernel).
 // Needs n % 128 == 0 and k % 64 == 0 (FfnUpSupported) and a block that may use 64 KB of shared memory (Turing and later).
 bool FfnUpSupported(int n, int k);
-// variant 0: 64-wide K chunks, one block per SM; 1: 32-wide chunks, two blocks per SM.
-void LaunchFfnUp(const __half* x, const __half* w, const __half* bias, __half* y, int m, int n, int k, int variant, cudaStream_t stream);
-
-// x[i] = FP16(GELU(x[i])) for i < n (n even): the tanh form, as the cuBLASLt GELU epilogue computes it. Developer experiment only.
-void LaunchGelu(__half* x, size_t n, cudaStream_t stream);
+void LaunchFfnUp(const __half* x, const __half* w, const __half* bias, __half* y, int m, int n, int k, cudaStream_t stream);
 
 // Multi-head attention with the learned relative-position bias, for every (position, head), from the qkv product
 // [batch * 100, 3 * heads * 32] (q | k | v, heads of 32 side by side) to out [batch * 100, heads * 32].

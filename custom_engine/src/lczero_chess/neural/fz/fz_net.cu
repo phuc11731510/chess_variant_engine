@@ -215,7 +215,7 @@ struct Net::Impl {
   uint8_t* blob = nullptr;  // the weights file image on the GPU
   size_t blob_bytes = 0;
   __half* bias16 = nullptr;  // proj.b and ff2.b of every layer rounded to FP16: the product's own epilogue adds them (see Init)
-  bool own_ff1 = false;      // ff1 runs on FfnUpKernel (fz_kernels.cu) instead of a cuBLASLt product with the GELU epilogue
+  bool own_ff1 = false;      // ff1 runs on FfnUpKernel (fz_kernels.cu) instead of a cuBLASLt product with the GELU epilogue (see Init)
   std::vector<const __half*> ff1_w, ff1_b;
   int lt_version = 0;
 
@@ -551,19 +551,16 @@ void Net::Impl::Init(const std::string& path) {
     qkv.push_back(std::make_unique<Gemm>(this, GemmShape{3 * d, d, false, Epilogue::kBias, false}, f16(p + "qkv.w", 3 * D, D),
                                          f16(p + "qkv.b", 1, 3 * D)));
     proj.push_back(std::make_unique<Gemm>(this, GemmShape{d, d, false, Epilogue::kBias, false, true}, f16(p + "proj.w", D, D), proj_b));
-    // Developer switch (NetOptions::experiment, --fz-opt exp=N): 1 = bias in the epilogue and GELU as a kernel of its own; 2 and 3 =
-    // the product without bias + GELU / with bias only (wrong numbers, only to time what the epilogue costs).
-    const Epilogue ff1_epi = options.experiment == 1 || options.experiment == 3 ? Epilogue::kBias
-                             : options.experiment == 2                            ? Epilogue::kNone
-                                                                                  : Epilogue::kGeluBias;
-    ff1.push_back(std::make_unique<Gemm>(this, GemmShape{ffn * d, d, false, ff1_epi, false}, f16(p + "ff1.w", F, D),
-                                         ff1_epi == Epilogue::kNone ? nullptr : f16(p + "ff1.b", 1, F)));
+    // ff1: its own kernel unless that is off or the sizes do not fit it; then the cuBLASLt product with the GELU epilogue (the Gemm
+    // below is only created for that, no plan is made for it otherwise).
+    ff1.push_back(std::make_unique<Gemm>(this, GemmShape{ffn * d, d, false, Epilogue::kGeluBias, false}, f16(p + "ff1.w", F, D),
+                                         f16(p + "ff1.b", 1, F)));
     ff1_w.push_back(reinterpret_cast<const __half*>(f16(p + "ff1.w", F, D)));
     ff1_b.push_back(reinterpret_cast<const __half*>(f16(p + "ff1.b", 1, F)));
     ff2.push_back(std::make_unique<Gemm>(this, GemmShape{d, ffn * d, false, Epilogue::kBias, false, true}, f16(p + "ff2.w", D, F), ff2_b));
   }
 
-  own_ff1 = (options.experiment == 4 || options.experiment == 5) && FfnUpSupported(static_cast<int>(F), static_cast<int>(D)) && prop.sharedMemPerBlockOptin >= 64 * 1024;
+  own_ff1 = options.own_ff1 && FfnUpSupported(static_cast<int>(F), static_cast<int>(D)) && prop.sharedMemPerBlockOptin >= 64 * 1024;
   const int n = std::max(1, options.contexts);
   for (int i = 0; i < n; ++i) {
     contexts.push_back(std::make_unique<Context>());
@@ -675,7 +672,7 @@ void Net::Impl::Forward(Context& c, int batch, Observer* obs) {
   embed->Run(c, M, c.x0, c.y);
   mark("embed product");
   tap("embed", c.y, d, true);
-  LaunchAddLayerNorm(c.y, nullptr, posb, kTokens, lw[0].ln1_g, lw[0].ln1_b, c.x, c.ln, M, d, s);
+  LaunchAddLayerNorm(c.y, posb, kTokens, lw[0].ln1_g, lw[0].ln1_b, c.x, c.ln, M, d, s);
   mark("add + layernorm");
   tap("x_in", c.x, d, true);
   tap("ln_in", c.ln, d, true);
@@ -693,14 +690,10 @@ void Net::Impl::Forward(Context& c, int batch, Observer* obs) {
     mark("layernorm");
     if (i == 0) tap("ln2_0", c.ln, d, true);
     if (own_ff1)
-      LaunchFfnUp(c.ln, ff1_w[i], ff1_b[i], c.ff, M, ffn * d, d, options.experiment == 5 ? 1 : 0, s);
+      LaunchFfnUp(c.ln, ff1_w[i], ff1_b[i], c.ff, M, ffn * d, d, s);
     else
       ff1[i]->Run(c, M, c.ln, c.ff);
-    mark(options.experiment == 0 || options.experiment >= 4 ? "ff1 product + gelu" : "ff1 product (experiment)");
-    if (options.experiment == 1) {
-      LaunchGelu(c.ff, size_t(M) * ffn * d, s);
-      mark("gelu kernel (experiment)");
-    }
+    mark("ff1 product + gelu");
     if (i == 0) tap("ff0", c.ff, ffn * d, true);
     ff2[i]->Run(c, M, c.ff, c.x);  // x += ff * Wff2^T + bias
     mark("ff2 product + residual");
@@ -751,7 +744,8 @@ std::string Net::Describe() const {
   o << impl_->prop.name << " (sm_" << impl_->prop.major << impl_->prop.minor << ", " << impl_->prop.multiProcessorCount
     << " SMs); network d_model " << impl_->d << ", " << impl_->layers << " layers, " << impl_->heads << " heads, weights "
     << impl_->blob_bytes / 1000000.0 << " MB; cuBLASLt " << impl_->lt_version / 10000 << "." << (impl_->lt_version / 100) % 100
-    << "." << impl_->lt_version % 100 << "; " << impl_->contexts.size() << " contexts, batches up to " << kMaxBatch;
+    << "." << impl_->lt_version % 100 << "; " << impl_->contexts.size() << " contexts, batches up to " << kMaxBatch << "; ff1 on "
+    << (impl_->own_ff1 ? "its own kernel" : "cuBLASLt");
   return o.str();
 }
 
