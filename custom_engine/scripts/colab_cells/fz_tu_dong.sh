@@ -42,6 +42,8 @@ TD_DUNG=$TD/dung_tay
 TD_DUNG_RIENG=$TD/dung_cs_$$   # dung mem RIENG cua so nay (d trong menu Ctrl+C); TD_DUNG = dung ca vong lap
 TD_PHUT_HL=20      # phut T4 toi thieu luc sap tai du lieu len de huan luyen
 TD_PHUT_SINH=20    # sau khi tru so phut chua, con it hon chung nay phut choi thi khong chay 04, tra may
+TD_PHUT_KET_CB=30  # mot cua so o buoc "chuan bi" qua chung nay phut thi coi la ket: khong con chan huan luyen (td_ai_ban)
+TD_TRONG_LA=0      # 1 = dang xu ly o la con sot tren may (td_chay -> td_tiep_tuc): khong long de quy
 TD_SO_DOI=4        # so doi du lieu moi lan huan luyen: doi hien tai + 3 doi truoc (tu doi 12, 2026-09-29; truoc la 3)
 TD_GEN_CUOI=990    # doi mang cuoi cung duoc huan luyen + len GitHub: ra doi nay thi DUNG vong lap
 TD_REL_TOI_DA=1000 # so tep toi da cua mot Release GitHub (NN_Model: .pt gen0..gen990 = 991 tep)
@@ -94,7 +96,7 @@ td_ghi() {
   cat "$TD_W" > "$t" 2>/dev/null || : > "$t"
   for kv in "$@"; do
     sed -i "/^${kv%%=*}=/d" "$t"; echo "$kv" >> "$t"
-    [ "${kv%%=*}" = buoc ] && td_pha "${kv#*=}"
+    if [ "${kv%%=*}" = buoc ]; then sed -i '/^t_buoc=/d' "$t"; echo "t_buoc=$(date +%s)" >> "$t"; td_pha "${kv#*=}"; fi
   done
   mv "$t" "$TD_W"
 }
@@ -564,6 +566,32 @@ td_gui_dung() {
   return 1
 }
 
+# "<o> <pid>" cua o dang chay nen tren may (rong = khong co o nao). Doc lai khi ssh loi: Colab chi cho MOT ssh moi may, mot lan doc
+# truot tra ve rong giong het "khong co o nao" -- tung lam td_tiep_tuc bo qua o dang chay. Dau FZ_DOC_XONG = ssh da chay het lenh.
+td_dang_chay() {
+  local out i
+  for i in 1 2 3 4; do
+    out=$(ssh_colab "cat $LOGD/dang_chay 2>/dev/null; echo FZ_DOC_XONG" 2>/dev/null)
+    if grep -q FZ_DOC_XONG <<<"$out"; then grep -v FZ_DOC_XONG <<<"$out" | head -1; return 0; fi
+    [ $i = 4 ] || sleep 5
+  done
+  td_in "${M_VANG}[!] không đọc được ô đang chạy trên máy (ssh lỗi?)${M_HET}" >&2
+  return 1
+}
+# O la $1 (pid $2) con sot tren may: 04 / 08 thi dung mem (ván dở chơi nốt), roi cho toi da 15 phut. 0 = da het, 1 = van chay, 4 = q.
+td_cho_o_la() {
+  local o=$1 pid=$2 i tt
+  ssh_colab "touch $LOGD/dung_mem" 2>/dev/null
+  td_in "dừng mềm ô $o còn sót trên máy -- chờ tối đa 15 phút cho ván dở chơi nốt"
+  for ((i = 0; i < 60; i++)); do
+    tt=$(ssh_colab "python3 $LOGD/fz_may.py trang_thai $o $pid" 2>/dev/null)
+    [ "$tt" = chay ] || return 0
+    td_ngu 15 || return 4
+  done
+  td_in "${M_VANG}[!] ô $o vẫn chạy sau 15 phút${M_HET} -- bỏ lượt này, thử lại sau"
+  return 1
+}
+
 # Chay o $1 (tep $2) nen tren may cua cua so nay va xem den khi xong. 0 = xong, 1 = khong khoi dong
 # duoc, 3 = mat may, 4 = q.
 td_chay() {
@@ -575,10 +603,26 @@ td_chay() {
   out=$(khoi_dong_ssh "$1" "$2") || { td_con_may || return 3; return 1; }
   ban=$(sed -n 's/^FZ_BAN=//p' <<<"$out")
   if [ -n "$ban" ]; then
-    # O khac dang chay nen tren may nay (vd nhan lai may giua chung): xem no xong roi chay o nay.
-    read -r ban pid <<<"$(ssh_colab "cat $LOGD/dang_chay" 2>/dev/null)"
-    td_in "ô $ban đang chạy trên máy -- xem tới khi xong"
-    td_xem "$ban" "$pid" 20 || return $?
+    # O khac dang chay nen tren may nay (vd nhan lai may giua chung). 2026-11-22: truoc day chi xem no toi khi xong -- mot o 08 cu con
+    # sot (arena da du van, khong ai dung mem) giu cua so o "chuan bi" ~3 gio va chan ca huan luyen. Gio:
+    #   1. xu ly no DUNG nhu luc nhan lai may (td_tiep_tuc: xem toi khi xong, tinh van vao tong, dung mem khi du, ghi ket qua arena);
+    #   2. con chay (khong thuoc vong lap / td_tiep_tuc khong nhan ra): 04, 08 dung mem roi cho toi da 15 phut; o khac (07...) xem toi khi xong.
+    read -r ban pid <<<"$(td_dang_chay)"
+    if [ -n "$ban" ]; then
+      td_in "ô $ban đang chạy trên máy (còn sót từ trước?) -- xử lý nó trước khi chạy ô $1"
+      if [ "$TD_TRONG_LA" = 0 ]; then
+        TD_TRONG_LA=1; td_tiep_tuc "$(td_gen)"; TD_TRONG_LA=0
+        [ $TD_THOAT = 1 ] && return 4
+        td_con_may || return 3
+        read -r ban pid <<<"$(td_dang_chay)"
+      fi
+      if [ -n "$ban" ] && [ "$(ssh_colab "python3 $LOGD/fz_may.py trang_thai $ban $pid" 2>/dev/null)" = chay ]; then
+        case $ban in
+          04|08) td_cho_o_la "$ban" "$pid" || return $? ;;
+          *) td_xem "$ban" "$pid" 20 || return $? ;;
+        esac
+      fi
+    fi
     out=$(khoi_dong_ssh "$1" "$2") || return 1
   fi
   pid=$(sed -n 's/^FZ_PID=//p' <<<"$out")
@@ -886,7 +930,7 @@ td_arena() {
 # May vua nhan lai (vong lap truoc bi dong giua chung): may dang lam gi thi lam tiep viec do.
 td_tiep_tuc() {
   local g=$1 o pid tt rc
-  read -r o pid <<<"$(ssh_colab "cat $LOGD/dang_chay 2>/dev/null" 2>/dev/null)"
+  read -r o pid <<<"$(td_dang_chay)"
   [ -n "$o" ] || return 0
   tt=$(ssh_colab "python3 $LOGD/fz_may.py trang_thai $o $pid" 2>/dev/null)
   td_in "máy đang có ô $o ($tt)"
@@ -962,12 +1006,20 @@ td_chon_hl() {
   echo "$b"
 }
 # Con cua so nao (khac cua so nay) cua doi $1 dang chuan bi / sinh / tai ve?
+# Chuan bi (02...) that chi mat vai phut: qua TD_PHUT_KET_CB phut thi cua so do dang KET (2026-11-22: mot cua so nhan lai may dang
+# chay o 08 cu, doi no ~3 gio o buoc nay, va ca ba cua so con lai cho no -> khong ai huan luyen) -- dung chan huan luyen nua.
 td_ai_ban() {
-  local f
+  local f t
   for f in $(td_cac_cua_so); do
     [ "$f" = "$TD_W" ] && continue
     [ "$(td_doc "$f" gen)" = "$1" ] || continue
-    case $(td_doc "$f" buoc) in chuan_bi|sinh|tai) return 0 ;; esac
+    case $(td_doc "$f" buoc) in
+      chuan_bi)
+        t=$(td_doc "$f" t_buoc)
+        [[ "$t" =~ ^[0-9]+$ ]] && [ $(( $(date +%s) - t )) -gt $((TD_PHUT_KET_CB * 60)) ] && continue
+        return 0 ;;
+      sinh|tai) return 0 ;;
+    esac
   done
   return 1
 }
