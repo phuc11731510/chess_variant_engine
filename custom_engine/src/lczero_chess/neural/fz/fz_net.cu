@@ -563,7 +563,7 @@ void Net::Impl::Init(const std::string& path) {
     ff2.push_back(std::make_unique<Gemm>(this, GemmShape{d, ffn * d, false, Epilogue::kBias, false, true}, f16(p + "ff2.w", D, F), ff2_b));
   }
 
-  own_ff1 = options.experiment == 4 && FfnUpSupported(static_cast<int>(F), static_cast<int>(D)) && prop.sharedMemPerBlockOptin >= 64 * 1024;
+  own_ff1 = (options.experiment == 4 || options.experiment == 5) && FfnUpSupported(static_cast<int>(F), static_cast<int>(D)) && prop.sharedMemPerBlockOptin >= 64 * 1024;
   const int n = std::max(1, options.contexts);
   for (int i = 0; i < n; ++i) {
     contexts.push_back(std::make_unique<Context>());
@@ -693,10 +693,10 @@ void Net::Impl::Forward(Context& c, int batch, Observer* obs) {
     mark("layernorm");
     if (i == 0) tap("ln2_0", c.ln, d, true);
     if (own_ff1)
-      LaunchFfnUp(c.ln, ff1_w[i], ff1_b[i], c.ff, M, ffn * d, d, s);
+      LaunchFfnUp(c.ln, ff1_w[i], ff1_b[i], c.ff, M, ffn * d, d, options.experiment == 5 ? 1 : 0, s);
     else
       ff1[i]->Run(c, M, c.ln, c.ff);
-    mark(options.experiment == 0 || options.experiment == 4 ? "ff1 product + gelu" : "ff1 product (experiment)");
+    mark(options.experiment == 0 || options.experiment >= 4 ? "ff1 product + gelu" : "ff1 product (experiment)");
     if (options.experiment == 1) {
       LaunchGelu(c.ff, size_t(M) * ffn * d, s);
       mark("gelu kernel (experiment)");

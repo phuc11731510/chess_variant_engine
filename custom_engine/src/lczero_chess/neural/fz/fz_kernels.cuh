@@ -44,7 +44,8 @@ void LaunchLayerNorm(const __half* x, const float* gamma, const float* beta, __h
 // y[m, n] = FP16(GELU(x[m, k] * w[n, k]^T + bias[n])): the first feed-forward product with its activation (see FfnUpKernel).
 // Needs n % 128 == 0 and k % 64 == 0 (FfnUpSupported) and a block that may use 64 KB of shared memory (Turing and later).
 bool FfnUpSupported(int n, int k);
-void LaunchFfnUp(const __half* x, const __half* w, const __half* bias, __half* y, int m, int n, int k, cudaStream_t stream);
+// variant 0: 64-wide K chunks, one block per SM; 1: 32-wide chunks, two blocks per SM.
+void LaunchFfnUp(const __half* x, const __half* w, const __half* bias, __half* y, int m, int n, int k, int variant, cudaStream_t stream);
 
 // x[i] = FP16(GELU(x[i])) for i < n (n even): the tanh form, as the cuBLASLt GELU epilogue computes it. Developer experiment only.
 void LaunchGelu(__half* x, size_t n, cudaStream_t stream);

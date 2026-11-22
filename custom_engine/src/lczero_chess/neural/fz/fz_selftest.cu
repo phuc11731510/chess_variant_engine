@@ -159,11 +159,11 @@ void TestLayerNorm(int d) {
 }
 
 // The fused ff1 product against a double-precision reference, for a full batch, a partial tile and a single position.
-void TestFfnUp(int m, int n, int k) {
+void TestFfnUp(int m, int n, int k, int variant) {
   std::mt19937 rng(11);
   const auto x = RandomVec(rng, size_t(m) * k, 1.0f, true), w = RandomVec(rng, size_t(n) * k, 0.2f, true), b = RandomVec(rng, n, 0.5f, true);
   Dev<__half> d_x(HalfVec(x)), d_w(HalfVec(w)), d_b(HalfVec(b)), d_y(size_t(m) * n);
-  LaunchFfnUp(d_x.p, d_w.p, d_b.p, d_y.p, m, n, k, nullptr);
+  LaunchFfnUp(d_x.p, d_w.p, d_b.p, d_y.p, m, n, k, variant, nullptr);
   ST_CUDA(cudaDeviceSynchronize());
   const auto y = d_y.Get();
   double worst = 0;
@@ -175,7 +175,7 @@ void TestFfnUp(int m, int n, int k) {
       worst = std::max(worst, std::fabs(double(__half2float(y[size_t(r) * n + c])) - want) / std::max(0.1, std::fabs(want)));
     }
   char buf[140];
-  std::snprintf(buf, sizeof(buf), "%d x %d * %d x %d^T: relative error %.2e (FP16 rounding is 4.9e-4)", m, k, n, k, worst);
+  std::snprintf(buf, sizeof(buf), "variant %d, %d x %d * %d x %d^T: relative error %.2e (FP16 rounding is 4.9e-4)", variant, m, k, n, k, worst);
   Report("ff1 product + gelu", worst < 2e-3, buf);
 }
 
@@ -316,10 +316,14 @@ int RunKernelSelfTests() {
   TestLayerNorm(192);
   TestLayerNorm(128);
   TestGelu();
-  TestFfnUp(6400, 768, 192);
-  TestFfnUp(4300, 768, 192);
-  TestFfnUp(100, 768, 192);
-  TestFfnUp(300, 512, 64);
+  TestFfnUp(6400, 768, 192, 0);
+  TestFfnUp(4300, 768, 192, 0);
+  TestFfnUp(100, 768, 192, 0);
+  TestFfnUp(300, 512, 64, 0);
+  TestFfnUp(6400, 768, 192, 1);
+  TestFfnUp(4300, 768, 192, 1);
+  TestFfnUp(100, 768, 192, 1);
+  TestFfnUp(300, 512, 64, 1);
   TestAttention(1, 6);
   TestAttention(4, 6);
   TestHeads();

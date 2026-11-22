@@ -2,8 +2,8 @@
 """thu_ff1_t4.py -- thu tren T4 that tich ff1 tu viet (FfnUpKernel, --fz-opt exp=4) so voi cuBLASLt + epilogue GELU (chay bang ~/chay_t4_thu.py).
 
 Mot binary (do ~/chay_t4_thu.py --tep dua len: /content/cu_moi), hai cach chay ff1: exp=0 (cuBLASLt) va exp=4 (tich tu viet). Cac buoc:
-  1. may, clone thua nhanh BRANCH, gen<GEN>.fzw;  2. --test-fzcuda (bai thu nhan, trong do ff1 tu viet vs double) o exp=0 va exp=4, taps;
-  3. thoi gian tung buoc (--bench-fzcuda) o exp=0 va exp=4;  4. tu dau 90 s xen ke exp=0 / exp=4 / exp=0 / exp=4.
+  1. may, clone thua nhanh BRANCH, gen<GEN>.fzw;  2. --test-fzcuda (bai thu nhan, trong do ff1 tu viet vs double) o exp=0, 4, 5, taps;
+  3. thoi gian tung buoc (--bench-fzcuda) o exp=0, 4, 5;  4. tu dau 90 s xen ke exp=0 / 4 / 5 hai vong.
 """
 import glob
 import hashlib
@@ -67,12 +67,14 @@ P = f"{C}/pos.bin"
 rc, out = sh(f"bash {E}/run.sh --fzcuda-dump {P} --games 512 --start-fen {C}/book.txt 2>&1 | tail -n 2", timeout=300)
 rc, out = sh(f"cd {E}/python && python3 fzw.py ref {C}/gen{GEN}.pt {P} {P}.ref 2>&1 | tail -n 1", timeout=600)
 ket("tep the + tham chieu", os.path.exists(P + ".ref"))
-rc, out = sh(f"bash {E}/run.sh --test-fzcuda --weights {W} --fz-positions {P} 2>&1", timeout=900)
-print("\n".join(l for l in out.splitlines() if "[PASS]" in l or "[FAIL]" in l or "TV" in l or "worst" in l or "FAIL" in l)[-3500:], flush=True)
-ket("--test-fzcuda (binary MOI)", rc == 0 and "[PASS] --test-fzcuda" in out, f"ma thoat {rc}")
-rc, out = sh(f"cd {E}/python && python3 fzw.py taps {C}/gen{GEN}.pt {P} 2>&1", timeout=600)
-print(out[-1800:], flush=True)
-ket("taps khop mo hinh CPU moi", "all stages agree" in out)
+for exp in (0, 4, 5):
+    rc, out = sh(f"bash {E}/run.sh --test-fzcuda --weights {W} --fz-positions {P} --fz-opt exp={exp} 2>&1", timeout=900)
+    keep = [l for l in out.splitlines() if "ff1" in l or "all 512" in l or "FAIL" in l]
+    print("
+".join(keep)[-1800:], flush=True)
+    ket(f"--test-fzcuda exp={exp}", rc == 0 and "[PASS] --test-fzcuda" in out, f"ma thoat {rc}")
+    rc, out = sh(f"cd {E}/python && python3 fzw.py taps {C}/gen{GEN}.pt {P} 2>&1", timeout=600)
+    ket(f"taps khop mo hinh CPU (exp={exp})", "all stages agree" in out, out.strip().splitlines()[-1][:100] if out.strip() else "")
 
 
 def bench(binary, tag, extra=""):
@@ -96,10 +98,13 @@ def bench(binary, tag, extra=""):
 
 log("3. thoi gian tung buoc (lo 64)")
 st0, t0 = bench(B_MOI, "exp=0 (cuBLASLt + GELU epilogue)")
-st4, t4 = bench(B_MOI, "exp=4 (ff1 tu viet)", "--fz-opt exp=4")
-ket("ff1 tu viet nhanh hon o lo 64 (graph)", t0 is not None and t4 is not None and t4 < t0, f"{t4} ms so voi {t0} ms")
+best = {}
+for exp in (4, 5):
+    best[exp] = bench(B_MOI, f"exp={exp} (ff1 tu viet, bien the {exp - 4})", f"--fz-opt exp={exp}")
+    ket(f"ff1 tu viet exp={exp}: buoc ff1 nhanh hon cuBLASLt", best[exp][0].get("ff1 product + gelu", 9e9) < st0.get("ff1 product + gelu", 0),
+        f"{best[exp][0].get('ff1 product + gelu')} ms so voi {st0.get('ff1 product + gelu')} ms")
 
-log("4. tu dau 90 s xen ke exp=0 / exp=4 / exp=0 / exp=4")
+log("4. tu dau 90 s xen ke exp=0 / 4 / 5 / 0 / 4 / 5")
 
 
 def tu_dau(extra, tag):
@@ -119,12 +124,13 @@ def tu_dau(extra, tag):
     return mean
 
 
-res = {"CU": [], "MOI": []}
-for tag, extra in (("CU", ""), ("MOI", "--fz-opt exp=4"), ("CU", ""), ("MOI", "--fz-opt exp=4")):
-    res[tag].append(tu_dau(extra, tag))
-m_cu, m_moi = sum(res["CU"]) / len(res["CU"]), sum(res["MOI"]) / len(res["MOI"])
-log(f"   nps tu dau: exp=0 {res['CU']} (tb {m_cu:.0f}) ; exp=4 {res['MOI']} (tb {m_moi:.0f}) ; exp4/exp0 = {m_moi / m_cu:.3f}" if m_cu else "   khong do duoc nps")
-ket("ff1 tu viet nhanh hon o tu dau that (ABAB)", m_cu > 0 and m_moi > m_cu, f"{m_moi:.0f} so voi {m_cu:.0f} nps")
+res = {0: [], 4: [], 5: []}
+for exp in (0, 4, 5, 0, 4, 5):
+    res[exp].append(tu_dau("" if exp == 0 else f"--fz-opt exp={exp}", f"exp={exp}"))
+mean = {e: sum(v) / len(v) if v else 0.0 for e, v in res.items()}
+log("   nps tu dau: " + " ; ".join(f"exp={e} {res[e]} (tb {mean[e]:.0f})" for e in res) +
+    (f" ; exp4/exp0 = {mean[4] / mean[0]:.3f}, exp5/exp0 = {mean[5] / mean[0]:.3f}" if mean[0] else ""))
+ket("ff1 tu viet nhanh hon o tu dau that (ABAB, it nhat mot bien the)", mean[0] > 0 and max(mean[4], mean[5]) > mean[0], f"exp4 {mean[4]:.0f}, exp5 {mean[5]:.0f} so voi {mean[0]:.0f} nps")
 
 log("=== TOM TAT ===")
 for ten, ok, note in KQ:

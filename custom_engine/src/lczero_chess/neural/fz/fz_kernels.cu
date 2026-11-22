@@ -312,9 +312,18 @@ __global__ void __launch_bounds__(kAttnThreads)
 // fetched into registers while the current one is multiplied (Turing has no cp.async), then stored to the other of two buffers.
 // ---------------------------------------------------------------------------------------------------------------------
 
-constexpr int kUpBm = 128, kUpBn = 128, kUpBk = 64, kUpThreads = 256;
-constexpr int kUpTileBytes = kUpBm * kUpBk * 2;  // 128 rows of 64 halves = 128 bytes each
-constexpr int kUpSmemBytes = 4 * kUpTileBytes;   // A and B, two buffers: exactly the 64 KB a Turing block may use
+constexpr int kUpBm = 128, kUpBn = 128, kUpThreads = 256;
+
+template <int BK>
+constexpr int UpSmemBytes() { return 4 * kUpBm * BK * 2; }  // A and B tiles, two buffers
+
+// The 16-byte chunk `chunk` of tile row `row` (BK / 8 chunks per row) goes to chunk position `chunk ^ ...` of that row: the 8 rows an
+// ldmatrix reads, or the 8 threads of a quarter-warp store, then fall on 8 different groups of 4 banks.
+template <int BK>
+__device__ __forceinline__ int UpSwizzle(int row, int chunk) {
+  if constexpr (BK == 64) return chunk ^ (row & 7);
+  else return chunk ^ ((row >> 1) & 3);  // BK = 32: 4 chunks of 16 bytes per row
+}
 
 __device__ __forceinline__ uint32_t SharedAddr(const void* p) { return static_cast<uint32_t>(__cvta_generic_to_shared(p)); }
 
@@ -331,15 +340,20 @@ __device__ __forceinline__ float GeluSigmoid(float x) {
   return __fdividef(x, 1.0f + __expf(-z));
 }
 
-__global__ void __launch_bounds__(kUpThreads, 1)
+// BK = K chunk held in shared memory (64: one block per SM, 64 KB; 32: two blocks per SM, 32 KB each, so the SM has 16 warps to
+// switch between while one waits for its loads or the barrier), MINB = blocks per SM the register budget must allow.
+template <int BK, int MINB>
+__global__ void __launch_bounds__(kUpThreads, MINB)
     FfnUpKernel(const __half* __restrict__ x, const __half* __restrict__ w, const __half* __restrict__ bias, __half* __restrict__ y,
                 int m, int n, int k) {
+  constexpr int kChunksPerRow = BK / 8, kRowBytes = BK * 2, kTileBytes = kUpBm * kRowBytes;
+  constexpr int kQ = kUpBm * kChunksPerRow / kUpThreads;  // 16-byte pieces of A (and of B) each thread moves per K chunk
   extern __shared__ __align__(16) uint8_t smem[];
   const int tid = threadIdx.x, warp = tid >> 5, lane = tid & 31;
   const int row0 = blockIdx.y * kUpBm, col0 = blockIdx.x * kUpBn;
   const int wm = warp >> 2, wn = warp & 3;
 
-  uint4 pre[8];  // the next chunk: 4 of A, 4 of B (each thread: 16 bytes of 4 rows of the tile)
+  uint4 pre[2 * kQ];  // the next chunk: kQ pieces of A, kQ of B
   float acc[4][4][4];
   #pragma unroll
   for (int i = 0; i < 4; ++i)
@@ -350,40 +364,40 @@ __global__ void __launch_bounds__(kUpThreads, 1)
 
   auto load_chunk = [&](int kc) {
     #pragma unroll
-    for (int q = 0; q < 4; ++q) {
-      const int idx = tid + q * kUpThreads, r = idx >> 3, c = idx & 7;
+    for (int q = 0; q < kQ; ++q) {
+      const int idx = tid + q * kUpThreads, r = idx / kChunksPerRow, c = idx % kChunksPerRow;
       const int gr = row0 + r;
-      pre[q] = gr < m ? *reinterpret_cast<const uint4*>(x + static_cast<size_t>(gr) * k + kc * kUpBk + c * 8) : make_uint4(0, 0, 0, 0);
-      pre[4 + q] = *reinterpret_cast<const uint4*>(w + static_cast<size_t>(col0 + r) * k + kc * kUpBk + c * 8);
+      pre[q] = gr < m ? *reinterpret_cast<const uint4*>(x + static_cast<size_t>(gr) * k + kc * BK + c * 8) : make_uint4(0, 0, 0, 0);
+      pre[kQ + q] = *reinterpret_cast<const uint4*>(w + static_cast<size_t>(col0 + r) * k + kc * BK + c * 8);
     }
   };
   auto store_chunk = [&](int stage) {
-    uint8_t* a = smem + stage * 2 * kUpTileBytes;
-    uint8_t* b = a + kUpTileBytes;
+    uint8_t* a = smem + stage * 2 * kTileBytes;
+    uint8_t* b = a + kTileBytes;
     #pragma unroll
-    for (int q = 0; q < 4; ++q) {
-      const int idx = tid + q * kUpThreads, r = idx >> 3, c = idx & 7;
-      const int off = r * 128 + ((c ^ (r & 7)) << 4);
+    for (int q = 0; q < kQ; ++q) {
+      const int idx = tid + q * kUpThreads, r = idx / kChunksPerRow, c = idx % kChunksPerRow;
+      const int off = r * kRowBytes + (UpSwizzle<BK>(r, c) << 4);
       *reinterpret_cast<uint4*>(a + off) = pre[q];
-      *reinterpret_cast<uint4*>(b + off) = pre[4 + q];
+      *reinterpret_cast<uint4*>(b + off) = pre[kQ + q];
     }
   };
   auto compute = [&](int stage) {
-    const uint32_t a_base = SharedAddr(smem + stage * 2 * kUpTileBytes), b_base = a_base + kUpTileBytes;
+    const uint32_t a_base = SharedAddr(smem + stage * 2 * kTileBytes), b_base = a_base + kTileBytes;
     #pragma unroll
-    for (int ks = 0; ks < kUpBk / 16; ++ks) {
+    for (int ks = 0; ks < BK / 16; ++ks) {
       uint32_t a[4][4], b[2][4];
       #pragma unroll
       for (int i = 0; i < 4; ++i) {  // m16 tile i: matrices (rows 0-7, k 0-7), (rows 8-15, k 0-7), (rows 0-7, k 8-15), (rows 8-15, k 8-15)
         const int row = wm * 64 + i * 16 + ((lane >> 3) & 1) * 8 + (lane & 7);
         const int chunk = ks * 2 + (lane >> 4);
-        LdMatrix4(a[i], a_base + row * 128 + ((chunk ^ (row & 7)) << 4));
+        LdMatrix4(a[i], a_base + row * kRowBytes + (UpSwizzle<BK>(row, chunk) << 4));
       }
       #pragma unroll
       for (int p = 0; p < 2; ++p) {  // n8 tiles 2p and 2p + 1: matrices (tile 2p, k 0-7), (2p, k 8-15), (2p + 1, k 0-7), (2p + 1, k 8-15)
         const int row = wn * 32 + (2 * p + (lane >> 4)) * 8 + (lane & 7);
         const int chunk = ks * 2 + ((lane >> 3) & 1);
-        LdMatrix4(b[p], b_base + row * 128 + ((chunk ^ (row & 7)) << 4));
+        LdMatrix4(b[p], b_base + row * kRowBytes + (UpSwizzle<BK>(row, chunk) << 4));
       }
       #pragma unroll
       for (int s = 0; s < 2; ++s)
@@ -394,7 +408,7 @@ __global__ void __launch_bounds__(kUpThreads, 1)
     }
   };
 
-  const int chunks = k / kUpBk;
+  const int chunks = k / BK;
   load_chunk(0);
   store_chunk(0);
   __syncthreads();
@@ -536,12 +550,17 @@ void LaunchLayerNorm(const __half* x, const float* gamma, const float* beta, __h
 #undef FZ_LN_CASE
 }
 
-bool FfnUpSupported(int n, int k) { return n % kUpBn == 0 && k % kUpBk == 0; }
+bool FfnUpSupported(int n, int k) { return n % kUpBn == 0 && k % 64 == 0; }
 
-void LaunchFfnUp(const __half* x, const __half* w, const __half* bias, __half* y, int m, int n, int k, cudaStream_t stream) {
-  static const cudaError_t once = cudaFuncSetAttribute(FfnUpKernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kUpSmemBytes);
-  (void)once;
-  FfnUpKernel<<<dim3(n / kUpBn, (m + kUpBm - 1) / kUpBm), kUpThreads, kUpSmemBytes, stream>>>(x, w, bias, y, m, n, k);
+void LaunchFfnUp(const __half* x, const __half* w, const __half* bias, __half* y, int m, int n, int k, int variant, cudaStream_t stream) {
+  const dim3 grid(n / kUpBn, (m + kUpBm - 1) / kUpBm);
+  if (variant == 0) {
+    static const cudaError_t once = cudaFuncSetAttribute(FfnUpKernel<64, 1>, cudaFuncAttributeMaxDynamicSharedMemorySize, UpSmemBytes<64>());
+    (void)once;
+    FfnUpKernel<64, 1><<<grid, kUpThreads, UpSmemBytes<64>(), stream>>>(x, w, bias, y, m, n, k);
+  } else {
+    FfnUpKernel<32, 2><<<grid, kUpThreads, UpSmemBytes<32>(), stream>>>(x, w, bias, y, m, n, k);
+  }
 }
 
 void LaunchGelu(__half* x, size_t n, cudaStream_t stream) {
