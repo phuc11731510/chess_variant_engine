@@ -177,9 +177,10 @@ class Cay:
             return c
         z = np.load(f)
         c.n = len(z["n_cha"])
-        c.a = {k: z[f"n_{k}"] for k in cls.NODE}            # mỗi lần đọc z[...] đã là một mảng mới
+        # mỗi lần đọc z[...] đã là một mảng mới; trường mà tệp cũ chưa có (lớp con thêm sau) nhận giá trị mặc định
+        c.a = {k: (z[f"n_{k}"] if f"n_{k}" in z.files else np.full(c.n, v, t)) for k, (t, v) in cls.NODE.items()}
         c.np_ = len(z["p_mv"])
-        c.p = {k: z[f"p_{k}"] for k in cls.POOL}
+        c.p = {k: (z[f"p_{k}"] if f"p_{k}" in z.files else np.full(c.np_, v, t)) for k, (t, v) in cls.POOL.items()}
         with open(os.path.join(thu_muc, "cay.json"), encoding="utf-8") as fj:
             c.meta = json.load(fj)
         c.meta["tep_mau"] = [t.replace("\\", "/") for t in c.meta["tep_mau"]]   # cây tạo trên Windows (thử)
