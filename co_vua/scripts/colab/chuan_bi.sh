@@ -19,6 +19,8 @@ if [ ! -f lib/libonnxruntime_providers_cuda.so ]; then
   cp -a /tmp/$ORT/lib/libonnxruntime* lib/
 fi
 python3 -c "import chess, onnx" 2>/dev/null || pip install -q chess onnx
+# 23/11: kiểm đồ thị FP16 trên GPU (python/mang.py fp16_onnx) cần onnxruntime-gpu; không cài được thì xuất fp32.
+python3 -c "import onnxruntime as o; assert 'CUDAExecutionProvider' in o.get_available_providers()" 2>/dev/null || pip install -q onnxruntime-gpu || true
 LD="$CV/lib"
 PYSITE=$(python3 -c "import site; print(site.getsitepackages()[0])")
 for d in "$PYSITE"/nvidia/*/lib; do

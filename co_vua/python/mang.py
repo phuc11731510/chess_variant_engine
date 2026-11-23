@@ -95,13 +95,100 @@ def so_tham_so(mang):
     return sum(t.numel() for t in mang.parameters())
 
 
-def xuat_onnx(mang, duong_dan, fp16=False):
-    """Xuất ONNX với tên nút input_planes, policy, wdl (dùng khi bọc bằng onnx2leela)."""
+# ---------------------------------------------------------------- FP16 cho suy luận (chép cách của fz: train.py fp16_onnx)
+# Mạng huấn luyện giữ fp32 (.pt); chỉ tệp .onnx cho engine được đổi sang nửa chính xác (đầu vào và đầu ra vẫn fp32,
+# có nút Cast ở hai đầu). Các kiểm tra truyền thống của suy luận fp16 đều làm ở đây:
+#   1. đồ thị fp16 chạy trên GPU được so với đồ thị fp32 chạy trên CPU (chuẩn đúng), trên các thế cờ thật nếu người gọi
+#      có (lô huấn luyện đầu tiên), không thì thế cờ tổng hợp;
+#   2. không có NaN hay vô cực ở đầu ra nào (tràn fp16 hiện ra như vậy);
+#   3. xác suất nước đi và WDL phải sát bản fp32 trong FP16_DUNG_SAI;
+#   4. softmax chạy trong nhân CUDA của ONNX Runtime, cộng dồn bằng fp32.
+# Không kiểm được (không có GPU, không có onnxruntime-gpu) hoặc kiểm không đạt thì GIỮ NGUYÊN tệp fp32 và in lý do:
+# nửa chính xác chỉ là tối ưu, không bao giờ làm mất mạng xuất. CV_ONNX_FP16=0 trong môi trường thì tắt hẳn.
+FP16_DUNG_SAI = (0.01, 0.01)       # lớn nhất trên các thế cờ kiểm: khoảng cách biến thiên toàn phần của softmax(policy), |WDL|
+FP16_SO_THE = 64
+
+
+def dau_vao_kiem(n=FP16_SO_THE, seed=0):
+    """n thế cờ tổng hợp dạng như thế thật: mặt phẳng quân thưa 0/1, nhập thành, bên đi, bộ đếm luật 50 nước (số thô)."""
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    x = np.zeros((n, 112, 8, 8), np.float32)
+    x[:, :104] = (rng.random((n, 104, 8, 8)) < 0.04)
+    x[:, 104:109] = (rng.random((n, 5, 1, 1)) < 0.5)
+    x[:, 109] = rng.integers(0, 99, (n, 1, 1))
+    x[:, 111] = 1.0
+    return x
+
+
+def _softmax(a):
+    import numpy as np
+    e = np.exp(a - a.max(axis=1, keepdims=True))
+    return e / e.sum(axis=1, keepdims=True)
+
+
+def fp16_khac_biet(chuan, ra):
+    """(TV lớn nhất của softmax(policy), |WDL| lớn nhất) giữa hai kết quả (policy, wdl); None nếu `ra` có NaN / vô cực.
+    Dùng khoảng cách biến thiên toàn phần vì đó là thứ search thấy: logit lệch 0,01 ở nơi các logit cách nhau 20 không tính."""
+    import numpy as np
+    if not all(np.isfinite(a).all() for a in ra):
+        return None
+    tv = 0.5 * np.abs(_softmax(chuan[0].astype(np.float64)) - _softmax(ra[0].astype(np.float64))).sum(axis=1).max()
+    return float(tv), float(np.abs(chuan[1] - ra[1]).max())
+
+
+def fp16_onnx(duong_dan, x=None):
+    """Đổi trọng số và phép tính của đồ thị fp32 tại `duong_dan` sang fp16 NGAY TẠI CHỖ, sau các kiểm tra ở trên.
+    True nếu tệp giờ là đồ thị fp16; False (tệp fp32 giữ nguyên) nếu không dùng được, kèm lý do in ra."""
+    import os
+    tam = duong_dan + ".fp16"
+    try:
+        import numpy as np
+        import onnx
+        import onnxruntime as ort
+        from onnxruntime.transformers.onnx_model import OnnxModel
+        if "CUDAExecutionProvider" not in ort.get_available_providers():
+            print("[xuat] FP16 KHÔNG dùng: onnxruntime này không có CUDA để kiểm đồ thị fp16 "
+                  "(pip install onnxruntime-gpu trên máy GPU); giữ đồ thị fp32")
+            return False
+        xs = dau_vao_kiem() if x is None else np.asarray(x, dtype=np.float32)
+        chuan = ort.InferenceSession(duong_dan, providers=["CPUExecutionProvider"]).run(["policy", "wdl"], {"input_planes": xs})
+        om = OnnxModel(onnx.load(duong_dan))
+        om.convert_float_to_float16(keep_io_types=True)
+        om.save_model_to_file(tam)
+        phien = ort.InferenceSession(tam, providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+        if phien.get_providers()[0] != "CUDAExecutionProvider":
+            print("[xuat] FP16 KHÔNG dùng: phiên kiểm không chạy được trên CUDA; giữ đồ thị fp32")
+            return False
+        ra = phien.run(["policy", "wdl"], {"input_planes": xs})
+        kb = fp16_khac_biet(chuan, ra)
+        if kb is None:
+            print("[xuat] FP16 KHÔNG dùng: đầu ra có NaN hoặc vô cực (tràn); giữ đồ thị fp32")
+            return False
+        if any(d > t for d, t in zip(kb, FP16_DUNG_SAI)):
+            print(f"[xuat] FP16 KHÔNG dùng: lệch fp32 (TV policy, |WDL|) = ({kb[0]:.4f}, {kb[1]:.4f}) > {FP16_DUNG_SAI}; giữ đồ thị fp32")
+            return False
+        os.replace(tam, duong_dan)
+        print(f"[xuat] đồ thị FP16 (trọng số và phép tính nửa chính xác, vào/ra fp32), đã kiểm trên GPU với fp32 qua {len(xs)} thế: "
+              f"TV policy {kb[0]:.1e}, |WDL| {kb[1]:.1e}")
+        return True
+    except Exception as e:      # noqa: BLE001 -- nửa chính xác chỉ là tối ưu: không bao giờ để nó làm mất mạng xuất
+        print(f"[xuat] FP16 bỏ qua ({type(e).__name__}: {str(e)[:200]}); giữ đồ thị fp32")
+        return False
+    finally:
+        if os.path.exists(tam):
+            os.remove(tam)
+
+
+def xuat_onnx(mang, duong_dan, fp16=False, x_that=None):
+    """Xuất ONNX (fp32) với tên nút input_planes, policy, wdl (dùng khi bọc bằng onnx2leela). fp16=True: rồi đổi sang
+    đồ thị fp16 nếu qua các kiểm tra của fp16_onnx (x_that: các thế cờ thật để kiểm). Trả về True nếu tệp là fp16."""
+    import os
     m = MangXuat(mang).eval()
     x = torch.zeros(1, 112, 8, 8)
-    if fp16:
-        m = m.half()
-        x = x.half()
     torch.onnx.export(m, (x,), duong_dan, input_names=["input_planes"], output_names=["policy", "wdl"],
                       dynamic_axes={"input_planes": {0: "batch"}, "policy": {0: "batch"}, "wdl": {0: "batch"}},
                       opset_version=17, dynamo=False)
+    if fp16 and os.environ.get("CV_ONNX_FP16", "") != "0":
+        return fp16_onnx(duong_dan, x_that)
+    return False

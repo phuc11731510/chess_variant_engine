@@ -1,5 +1,5 @@
 # Tạo mạng đời 0 MỚI cho CẢ HAI cách (ghi đè tt_gen0, cay_gen0)
-# Chép theo ô 03 của fz: mạng đời 0, trọng số ngẫu nhiên, fp32. Hai cách bắt đầu từ CÙNG một mạng đời 0 (so sánh
+# Chép theo ô 03 của fz: mạng đời 0, trọng số ngẫu nhiên; tệp ONNX fp16 nếu qua kiểm trên GPU (23/11), không thì fp32. Hai cách bắt đầu từ CÙNG một mạng đời 0 (so sánh
 # công bằng), nên ô này ghi một mạng ra hai tên tt_gen0.* và cay_gen0.* (cùng nội dung, sha256 in ở cuối).
 # CHỈ chạy nếu muốn mạng đời 0 MỚI. Kiến trúc 11 x 64 SE-8 (py/mang.py) phải giữ nguyên suốt chuỗi warm-start.
 # Seed NGẪU NHIÊN mỗi lần tạo (chủ dự án chốt 2026-11-04), in ra và ghi vào <cách>_gen0.seed.txt (tải về điện thoại)
@@ -7,7 +7,7 @@
 import random as _r
 SEED = _r.SystemRandom().randrange(1, 2**31)
 print(f"[gen0] SEED = {SEED}")
-!mkdir -p /content/doi0_moi && cd {CV}/py && python3 tao_mang_doi0.py /content/doi0_moi {SEED}
+!mkdir -p /content/doi0_moi && cd {CV}/py && python3 tao_mang_doi0.py /content/doi0_moi {SEED} --fp16
 !{CV}/lc0 onnx2leela --input=/content/doi0_moi/doi0.onnx --output=/content/doi0_moi/doi0.pb.gz \
     --onnx-input=input_planes --onnx-output-policy=policy --onnx-output-wdl=wdl --moves-left-format=MOVES_LEFT_NONE
 for _ben in ("tt", "cay"):

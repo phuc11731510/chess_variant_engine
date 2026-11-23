@@ -3,7 +3,7 @@
 # một cách: mặc định A = truyền thống (tt), B = cây trò chơi (cay), đời GEN_CURRENT. Kết quả "A thắng" = tt thắng.
 # Chủ dự án chốt (2026-11-04): 1000 ván, 400 lượt thăm mỗi nước (như arena của fz). 1000 ván: sai số 95% của tỉ lệ
 # điểm khoảng +-3,1 điểm phần trăm, tức khoảng +-22 Elo quanh mức ngang nhau.
-# Hai bên đổi màu mỗi ván; không nhiễu Dirichlet; temperature 1 trong 8 nửa nước đầu (để các ván khác nhau; chốt 15/11, trước đó 30); cùng
+# Hai bên đổi màu mỗi ván; không nhiễu Dirichlet; temperature 1 trong 16 nửa nước đầu (để các ván khác nhau; chốt 23/11, trước đó 8 từ 15/11, trước đó 30); cùng
 # tham số search như ô 04 (cpuct 1,3, FPU 0, không prefetch); ván dừng ở nửa nước 450 (hoà).
 # Vòng lặp tự động (menu v) tự ghi A_PB, B_PB, GAMES, SECS dưới đây vào bản chép của ô này.
 # cv: hoi GAMES Số ván arena (hai bên đổi màu mỗi ván)
@@ -12,6 +12,16 @@ PARALLEL = 128      # số ván cùng lúc (menu v đọc số này để tính 
 SECS = 0            # > 0: dừng MỀM sau chừng này giây (ván dở chơi nốt); 0 = không giới hạn
 A_PB = f"/content/tt_gen{GEN_CURRENT}.pb.gz"    # mạng A (kết quả "A thắng" = A thắng)
 B_PB = f"/content/cay_gen{GEN_CURRENT}.pb.gz"   # mạng B
+# FP16 (chủ dự án chốt 23/11): mạng xuất ONNX fp16 được THÊM lượt thăm khi đấu với mạng fp32 (vd mạng của lần chạy mới
+# đấu mạng lần chạy 5), để phép so không phạt phần chính xác nửa độ: bên fp16 VISITS + THUONG_FP16, bên fp32 giữ VISITS.
+# Hai bên CÙNG độ chính xác (tt với cay của cùng một lần chạy) thì cả hai VISITS, như mọi arena trước. Đấu mạng cũ fp32:
+# đặt A_FP16 hoặc B_FP16 = False cho mạng đó. Cần engine có --visits2 (bản dựng từ 23/11).
+VISITS = 400
+THUONG_FP16 = 20
+A_FP16 = True
+B_FP16 = True
+VISITS_A = VISITS + (THUONG_FP16 if A_FP16 and not B_FP16 else 0)
+VISITS_B = VISITS + (THUONG_FP16 if B_FP16 and not A_FP16 else 0)
 
 # Mạng của hai bên: máy chưa có thì lấy từ Release co_vua_mang (đời cũ: py/lay_mang.py chuyển từ .pt ngay trên máy).
 import os, time
@@ -27,7 +37,7 @@ if os.path.exists(DUNG_MEM):
 _ten = os.path.basename(A_PB).split(".")[0] + "_vs_" + os.path.basename(B_PB).split(".")[0]
 LAN = f"/content/arena/{_ten}/" + time.strftime("lan_%Y%m%d_%H%M%S")
 cmd = f"""python3 {CV}/colab/arena.py --lc0 {CV}/lc0 --a {A_PB} --b {B_PB} --thu-muc {LAN} \
-    --song-song {PARALLEL} --visits 400 --temp-plies 8 --max-ply 450 \
+    --song-song {PARALLEL} --visits {VISITS_A} {"--visits2 %d" % VISITS_B if VISITS_B != VISITS_A else ""} --temp-plies 16 --max-ply 450 \
     --giao {GAMES} --max-giay {SECS} --tep-dung {DUNG_MEM}"""
 
 if _thieu:

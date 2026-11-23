@@ -1,15 +1,21 @@
-"""Huấn luyện một đời: AdamW, tốc độ học cố định, SWA kiểu lc0, fp32 (THIET_KE_CO_VUA.md 2.5).
+"""Huấn luyện một đời: AdamW, tốc độ học cố định, SWA kiểu lc0, fp32 hoặc FP16 hỗn hợp (--amp) (THIET_KE_CO_VUA.md 2.5).
 
 Giữ đúng cách của engine cờ biến thể (custom_engine/python/train.py với cấu hình ô 07): batch 1024,
 tốc độ học 1e-3, weight decay 1e-4, 1 lượt qua dữ liệu của cửa sổ, cứ 25 bước tối ưu thì gộp trọng số
 vào bản trung bình SWA (tối đa 10 bản), cập nhật lại BatchNorm cho bản SWA rồi xuất. Đời sau khởi động
-từ bản SWA của đời trước. Khác engine biến thể ở một điểm: không dùng --amp, mọi phép tính là fp32.
+từ bản SWA của đời trước. --amp (chủ dự án chốt 23/11: FP16 cho cả sinh dữ liệu và huấn luyện), theo cách truyền thống như train.py của
+engine biến thể: trọng số và bộ tối ưu giữ fp32; phép nhân ma trận / tích chập chạy fp16 (torch.autocast); softmax,
+log_softmax và hai hàm mất mát chạy fp32; co giãn mất mát động (GradScaler); bước có gradient vô cực / NaN bị BỎ QUA
+và đếm, quá 16 bước liên tiếp thì dừng, không xuất gì; thống kê BatchNorm của bản SWA tính lại bằng fp32. --onnx-fp16:
+tệp .onnx cho engine đổi sang fp16 sau khi kiểm trên GPU với bản fp32 (mang.fp16_onnx); không đạt thì giữ fp32.
 
 Chạy:  python huan_luyen.py --mau d1.npz,d2.npz,... --khoi-tao doi3.pt --ra doi4
 Ra:    doi4.pt, doi4.onnx, và một dòng JSON tóm tắt in ra cuối cùng.
 """
 import argparse
 import json
+import math
+import sys
 import time
 
 import numpy as np
@@ -74,6 +80,9 @@ def main():
     ap.add_argument("--swa-toi-da", type=int, default=10, help="số bản tối đa trong trung bình SWA")
     ap.add_argument("--seed", type=int, default=0, help="0 = ngẫu nhiên")
     ap.add_argument("--thiet-bi", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--amp", action="store_true", help="huấn luyện FP16 hỗn hợp (chỉ trên GPU; trên CPU bỏ qua)")
+    ap.add_argument("--onnx-fp16", action="store_true", help="xuất .onnx fp16 cho engine sau khi kiểm trên GPU (mang.fp16_onnx)")
+    ap.add_argument("--grad-clip", type=float, default=0.0, help="cắt chuẩn gradient (0 = tắt); với --amp cắt SAU khi chia lại co giãn")
     a = ap.parse_args()
 
     seed = a.seed or int(np.random.SeedSequence().entropy % 2**31)
@@ -104,6 +113,14 @@ def main():
     del du_moi
 
     opt = torch.optim.AdamW(mang.parameters(), lr=a.lr, weight_decay=a.weight_decay)
+    dung_amp = a.amp and a.thiet_bi.startswith("cuda")
+    # GradScaler = co giãn mất mát động, cách bảo vệ chuẩn của huấn luyện FP16 (Micikevicius và cs. 2018): mất mát nhân với một
+    # hệ số (khởi đầu 65536) để gradient nhỏ không bị làm tròn về 0 trong fp16; gradient chia lại trước khi bộ tối ưu thấy;
+    # bước có gradient vô cực / NaN bị BỎ QUA và hệ số giảm một nửa; sau 2000 bước sạch thì gấp đôi. Không làm gì khi tắt.
+    scaler = torch.amp.GradScaler("cuda", enabled=dung_amp)
+    amp_bo_qua = amp_chuoi = amp_loss_hong = 0
+    TOI_DA_CHUOI = 16      # 16 bước liên tiếp bị bỏ qua = hệ số đã từ 65536 xuống 1: có thứ gì đó phân kỳ, không phải tràn fp16
+    x_that = None          # các thế cờ thật (lô đầu tiên) để kiểm đồ thị fp16
     swa = MangCoVua().to(a.thiet_bi)
     swa.load_state_dict(mang.state_dict())
     so_ban = 0
@@ -121,13 +138,36 @@ def main():
             else:
                 ci = hoan_vi[d:d + a.batch]
             x, pi, wdl = du.lo(ci)
-            p, v = mang(x)
-            lp, lv = mat_policy(p, pi), mat_value(v, wdl)
+            if x_that is None:
+                x_that = x[:64].detach().float().cpu().numpy()
+            # autocast chạy nhân ma trận / tích chập bằng fp16 nhưng giữ softmax / log_softmax bằng fp32, nên mất mát policy có
+            # điền -inf vẫn an toàn về số.
+            with torch.autocast(device_type="cuda", enabled=dung_amp):
+                p, v = mang(x)
+                lp, lv = mat_policy(p, pi), mat_value(v, wdl)
             opt.zero_grad(set_to_none=True)
-            (lp + lv).backward()
-            opt.step()
+            scaler.scale(lp + lv).backward()
+            if a.grad_clip > 0:
+                scaler.unscale_(opt)       # cắt gradient THẬT, không phải gradient đã co giãn
+                torch.nn.utils.clip_grad_norm_(mang.parameters(), a.grad_clip)
+            he_so_truoc = scaler.get_scale()
+            scaler.step(opt)               # bộ co giãn bỏ qua bước nếu gradient có vô cực / NaN
+            scaler.update()
+            if dung_amp and scaler.get_scale() < he_so_truoc:
+                amp_bo_qua += 1
+                amp_chuoi += 1
+                if amp_chuoi >= TOI_DA_CHUOI:
+                    sys.exit(f"[amp] {amp_chuoi} bước tối ưu liên tiếp có gradient vô cực/NaN (hệ số {scaler.get_scale():g}): "
+                             f"huấn luyện phân kỳ hoặc có trọng số NaN, không phải tràn fp16. Dừng, không xuất gì. "
+                             f"Chạy lại không --amp để so.")
+            else:
+                amp_chuoi = 0
             buoc += 1
-            tp += lp.item() * len(x); tv += lv.item() * len(x); n += len(x)
+            lp_v, lv_v = lp.item(), lv.item()
+            if dung_amp and not (math.isfinite(lp_v) and math.isfinite(lv_v)):
+                amp_loss_hong += 1         # tràn ngay lúc tính tiến: gradient NaN, bộ co giãn đã bỏ bước; giữ NaN ngoài số trung bình
+            else:
+                tp += lp_v * len(x); tv += lv_v * len(x); n += len(x)
             if buoc % a.swa_moi == 0:
                 # SWA kiểu lc0: bản đầu là bản sao, sau đó swa += (w - swa) / (min(số bản, tối đa) + 1).
                 with torch.no_grad():
@@ -141,12 +181,14 @@ def main():
     xuat = swa if so_ban > 0 else mang
     cap_nhat_bn(xuat, du, a.batch)
     torch.save(xuat.state_dict(), a.ra + ".pt")
-    xuat_onnx(xuat.to("cpu").eval(), a.ra + ".onnx")
+    onnx_fp16 = xuat_onnx(xuat.to("cpu").eval(), a.ra + ".onnx", fp16=a.onnx_fp16, x_that=x_that)
     print(json.dumps({"so_mau": du.n, "so_buoc": buoc, "theo_trong_so": trong_so is not None, "so_ban_swa": so_ban, "seed": seed,
                       "mat_policy_hoc": tp / max(n, 1), "mat_value_hoc": tv / max(n, 1),
                       "mat_policy_dau_tren_doi_moi": dau_p, "mat_value_dau_tren_doi_moi": dau_v,
                       "giay_nap": round(t_nap, 1), "giay_hoc": round(t_hoc, 1),
-                      "so_tham_so": so_tham_so(mang)}, ensure_ascii=False))
+                      "so_tham_so": so_tham_so(mang), "amp": dung_amp, "amp_buoc_bo_qua": amp_bo_qua,
+                      "amp_loss_hong": amp_loss_hong, "he_so_cuoi": scaler.get_scale() if dung_amp else None,
+                      "onnx_fp16": onnx_fp16}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

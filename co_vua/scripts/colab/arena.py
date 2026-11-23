@@ -30,6 +30,7 @@ def main():
     ap.add_argument("--thu-muc", required=True)
     ap.add_argument("--song-song", type=int, default=128)
     ap.add_argument("--visits", type=int, default=400)
+    ap.add_argument("--visits2", type=int, default=0, help="số lượt thăm của mạng B (0 = như --visits); cần engine có --visits2")
     ap.add_argument("--temp-plies", type=int, default=30)
     ap.add_argument("--max-ply", type=int, default=450)
     ap.add_argument("--giao", type=int, required=True, help="số ván được giao")
@@ -54,6 +55,8 @@ def main():
     lenh = [a.lc0, "treeplay", f"--weights={a.a}", f"--weights2={a.b}", f"--backend={a.backend}",
             f"--backend-opts={a.backend_opts}", f"--parallelism={a.song_song}",
             f"--visits={a.visits}", f"--max-ply={a.max_ply}", "--report-seconds=60", f"--output={tm('arena.bin')}"]
+    if a.visits2 > 0:
+        lenh.append(f"--visits2={a.visits2}")
     log("lenh: " + " ".join(lenh))
     p = subprocess.Popen(lenh, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(tm("engine_loi.log"), "a"),
                          text=True, bufsize=1)
