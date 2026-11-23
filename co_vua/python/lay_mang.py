@@ -77,7 +77,7 @@ def ten_mang(p):
 
 
 def chuyen(pt, pb):
-    """pt (state_dict của MangCoVua) -> .onnx (fp16 nếu qua kiểm, không thì fp32) -> .pb.gz cho lc0, đúng như huấn luyện xuất ra."""
+    """pt (state_dict của MangCoVua) -> .onnx (mặc định fp32; fp16 nếu mang.ONNX_FP16_MAC_DINH và qua kiểm) -> .pb.gz cho lc0, đúng như huấn luyện xuất ra."""
     import torch
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from mang import MangCoVua, xuat_onnx
@@ -87,7 +87,7 @@ def chuyen(pt, pb):
     onnx = pb + ".dang_chuyen.onnx"
     tam = pb + ".dang_chuyen"
     try:
-        xuat_onnx(mang, onnx, fp16=True)       # như huấn luyện: fp16 sau khi kiểm trên GPU, không đạt thì fp32
+        xuat_onnx(mang, onnx)                  # như huấn luyện: mặc định mang.ONNX_FP16_MAC_DINH (fp32)
         subprocess.run([LC0, "onnx2leela", f"--input={onnx}", f"--output={tam}", "--onnx-input=input_planes",
                         "--onnx-output-policy=policy", "--onnx-output-wdl=wdl",
                         "--moves-left-format=MOVES_LEFT_NONE"], check=True)

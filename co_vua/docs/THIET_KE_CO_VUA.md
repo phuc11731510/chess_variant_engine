@@ -778,6 +778,22 @@ Số phép nhân cho một lần đánh giá, tính tay: khoảng 59.1 triệu, 
 
 Mạng luôn chạy và xuất ở **fp32**, không dùng fp16 (bạn chốt). Khi xuất cho lc0, policy là logit (lc0 tự làm softmax trên các nước hợp lệ), còn WDL là xác suất: với mạng bọc bằng `onnx2leela`, backend ONNX của lc0 không làm softmax cho WDL (`neural/backends/onnx/network_onnx.cc` dòng 602 đến 624 và 945, 946). Mặt phẳng 109 (luật 50 nước) vào mạng dưới dạng số nửa nước thô, mạng tự chia cho 99.
 
+**Đổi ngày 23/11: chủ dự án chốt FP16 cho cả sinh dữ liệu và huấn luyện của lần chạy mới. Sau khi đo, chỉ giữ cho huấn luyện (xem đoạn đo engine bên dưới).** Mạng huấn luyện giữ trọng số và bộ tối ưu bằng fp32 (`.pt`). Huấn luyện dùng `--amp` kiểu truyền thống: phép nhân ma trận và tích chập chạy fp16 (`torch.autocast`), softmax và các hàm mất mát chạy fp32, co giãn mất mát động (`GradScaler`), bước có gradient vô cực hoặc NaN bị bỏ qua và đếm, quá 16 bước liên tiếp thì dừng và không xuất gì, cắt gradient (nếu bật) sau khi chia lại hệ số, thống kê BatchNorm của bản SWA tính lại bằng fp32. Tệp ONNX cho engine được đổi sang fp16 trong `python/mang.py` (`fp16_onnx`), đầu vào và đầu ra vẫn fp32, sau các kiểm tra: so với đồ thị fp32 chạy trên CPU bằng thế cờ thật (lô huấn luyện đầu), không NaN hay vô cực, TV của softmax(policy) và $|$WDL$|$ đều không quá 0,01; không đạt hoặc không kiểm được thì giữ fp32 và in lý do. `CV_ONNX_FP16=0` tắt hẳn phần xuất fp16, và `AMP = False` ở ô 07 tắt AMP. Phần cơ chế chung chép từ `train.py` của fz; phần riêng của mạng transformer (hợp nhất attention, LayerNorm, đầu số nước còn lại) không chép vì mạng cv là mạng tích chập 11 khối 64 kênh có SE.
+
+**Kiểm trên T4 (23/11, mạng đời 20 của lần chạy 5, 20 000 thế cờ thật).** Đồ thị fp16 so với fp32: TV policy trung bình $3{,}9\times10^{-4}$ và lớn nhất $2{,}9\times10^{-3}$; $|$WDL$|$ lớn nhất $3{,}3\times10^{-3}$; nước đứng đầu của policy trùng 99,54%; không NaN. ONNX Runtime CUDA chạy fp16 nhanh gấp 1,6 tới 1,9 lần fp32 ở lô 128 trở lên (35 000 so với 21 900 thế mỗi giây ở lô 128), và không nhanh hơn ở lô 64. Huấn luyện cùng hạt giống, 400 bước trên 84 824 mẫu đời 20: fp32 mất 134,6 giây, AMP mất 28,9 giây (nhanh gấp 4,65 lần); mất mát policy 2,36452 so với 2,36454, value 0,10566 so với 0,10573; 0 bước bị bỏ, hệ số co giãn giữ 65 536. Chỉ là phép thử ngắn: độ an toàn qua nhiều đời chưa biết, nên `hl.json` mỗi đời ghi `amp_buoc_bo_qua`, `amp_loss_hong` và `he_so_cuoi` để theo dõi.
+
+**Tốc độ engine thật với đồ thị fp16 (23/11, T4, mạng đời 20, 128 ván song song, 800 lượt thăm, mỗi cấu hình chạy 130 giây).** Engine chạy fp16 CHẬM hơn fp32, trái với ONNX Runtime đơn lẻ:
+
+| Đồ thị cho engine | Ván song song | Lần chạy mạng mỗi giây |
+|---|---|---|
+| fp32 | 128 | 7 900 đến 8 040 (hai vòng) |
+| fp32 | 256 | 8 390 đến 8 590 |
+| fp16, vào/ra fp32 (Cast ở hai đầu) | 128 | 6 060 đến 6 340 (hai vòng) |
+| fp16, vào/ra fp16 (đường fp16 gốc của lc0) | 128 | 6 700 đến 6 890 |
+| fp16, vào/ra fp16 | 256 | 6 790 đến 6 920 |
+
+Vậy fp16 chậm hơn 14% đến 21%. Lý do khả dĩ: nút thắt của engine là CPU (một luồng gom lô, tìm kiếm cây, bộ nhớ đệm), GPU chỉ là một phần nhỏ của thời gian mỗi lần chạy mạng, nên giảm thời gian GPU không giúp, còn đường fp16 thêm chi phí mỗi lần gọi (chưa xác định cụ thể là phần nào). Cũng ghi nhận: với mạng thật, 256 ván song song nhanh hơn 128 khoảng 6% ở fp32 (chưa thử 384, 512). **Quyết định:** huấn luyện dùng AMP (nhanh gấp 4,65 lần, mất mát như fp32); tệp ONNX cho engine giữ fp32 (`mang.ONNX_FP16_MAC_DINH = False`, ô 07 `ONNX_FP16 = False`, ô 08 `A_FP16 = B_FP16 = False`). Phần xuất fp16 có kiểm vẫn nằm trong mã và đã thử, bật lại bằng một công tắc nếu sau này engine hoặc mạng đổi.
+
 **Đã kiểm khớp với lc0.** Script `co_vua/python/kiem_khop_lc0.py` so mạng chạy trong Python với mạng chạy trong lc0 trên 7 thế cờ: thế khởi đầu, Đen đi, Trắng đã nhập thành, có bắt tốt qua đường, thế lặp lại, phong cấp, Đen mất quyền nhập thành một cánh. Chỉ số policy của mọi nước hợp lệ trùng với chỉ số lc0 in ra. WL và D mà `lc0 treeplay` ghi lại trùng với Python tới 6 chữ số thập phân. Prior thô lệch tương đối tối đa khoảng 0.3%, vì lc0 lưu prior ở độ chính xác 16 bit; search cũng chạy trên chính các prior này. Như vậy bộ mã hoá 112 mặt phẳng (`co_vua/python/ma_hoa.py`), bảng chỉ số nước đi và việc xuất mạng đều đúng.
 
 Tốc độ thực phải đo, vì với mạng nhỏ thì nút thắt có thể nằm ở CPU và chi phí mỗi lần gọi GPU, không nằm ở số phép nhân.
