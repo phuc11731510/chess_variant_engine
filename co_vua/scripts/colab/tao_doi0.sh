@@ -8,7 +8,7 @@ SEED=$1
 cd "$CV/py"
 {
   echo "$(date '+%F %T') tao doi 0, seed $SEED"
-  python3 tao_mang_doi0.py "$CV/mang" "$SEED" --fp16
+  python3 tao_mang_doi0.py "$CV/mang" "$SEED"
   "$CV/lc0" onnx2leela --input="$CV/mang/doi0.onnx" --output="$CV/mang/doi0.pb.gz" \
     --onnx-input=input_planes --onnx-output-policy=policy --onnx-output-wdl=wdl --moves-left-format=MOVES_LEFT_NONE
   sha256sum "$CV/mang/doi0.pt" "$CV/mang/doi0.pb.gz"

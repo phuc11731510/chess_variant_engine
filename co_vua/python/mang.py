@@ -105,6 +105,11 @@ def so_tham_so(mang):
 #   4. softmax chạy trong nhân CUDA của ONNX Runtime, cộng dồn bằng fp32.
 # Không kiểm được (không có GPU, không có onnxruntime-gpu) hoặc kiểm không đạt thì GIỮ NGUYÊN tệp fp32 và in lý do:
 # nửa chính xác chỉ là tối ưu, không bao giờ làm mất mạng xuất. CV_ONNX_FP16=0 trong môi trường thì tắt hẳn.
+# Đo trên T4 (23/11, mạng đời 20, engine thật, 128 ván song song, 800 lượt thăm): engine chạy đồ thị FP16 CHẬM hơn fp32
+# (6 060-6 340 lần chạy mạng mỗi giây với vào/ra fp32, 6 700-6 900 với vào/ra fp16; fp32: 7 900-8 000), dù ONNX Runtime đơn lẻ
+# nhanh gấp 1,6-1,9 lần ở lô từ 128: nút thắt của engine là CPU, không phải GPU. Vì vậy MẶC ĐỊNH tệp ONNX cho engine là fp32;
+# AMP trong huấn luyện thì vẫn dùng (nhanh gấp 4,65 lần). Muốn thử lại fp16 cho engine: đặt True ở đây, hoặc --onnx-fp16.
+ONNX_FP16_MAC_DINH = False
 FP16_DUNG_SAI = (0.01, 0.01)       # lớn nhất trên các thế cờ kiểm: khoảng cách biến thiên toàn phần của softmax(policy), |WDL|
 FP16_SO_THE = 64
 
@@ -180,10 +185,12 @@ def fp16_onnx(duong_dan, x=None):
             os.remove(tam)
 
 
-def xuat_onnx(mang, duong_dan, fp16=False, x_that=None):
+def xuat_onnx(mang, duong_dan, fp16=None, x_that=None):
     """Xuất ONNX (fp32) với tên nút input_planes, policy, wdl (dùng khi bọc bằng onnx2leela). fp16=True: rồi đổi sang
     đồ thị fp16 nếu qua các kiểm tra của fp16_onnx (x_that: các thế cờ thật để kiểm). Trả về True nếu tệp là fp16."""
     import os
+    if fp16 is None:
+        fp16 = ONNX_FP16_MAC_DINH
     m = MangXuat(mang).eval()
     x = torch.zeros(1, 112, 8, 8)
     torch.onnx.export(m, (x,), duong_dan, input_names=["input_planes"], output_names=["policy", "wdl"],

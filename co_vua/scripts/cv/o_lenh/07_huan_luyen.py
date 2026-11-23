@@ -5,7 +5,7 @@
 # Tham số theo ô 07 của fz (từ đời 12 của fz, 2026-09-29): cửa sổ 4 đời, 1 epoch, SWA kiểu lc0 (cứ 25 bước lấy trung
 # bình trọng số một lần, tối đa 10 bản), tốc độ học không đổi 1e-3, batch 1024, weight decay 1e-4, q-ratio 0.2. Khác
 # fz một chỗ: trước 23/11 không --amp, mọi phép tính fp32. Từ 23/11 chủ dự án chốt FP16 cho cả sinh dữ liệu và huấn luyện:
-# AMP (AMP = True dưới đây) và tệp ONNX fp16 cho engine sau khi kiểm trên GPU. AMP = False: quay về fp32 như cũ.
+# AMP (AMP = True dưới đây); tệp ONNX cho engine vẫn fp32 vì fp16 làm engine chậm hơn (ONNX_FP16). AMP = False: fp32 như cũ.
 # Như --val-newest-gen của fz: trước khi học, py/huan_luyen.py chấm mạng đời hiện tại MỘT LẦN trên toàn bộ mẫu của
 # đời mới nhất (ván nó vừa chơi, chưa học) -- hai số mat_*_dau_tren_doi_moi trong dòng JSON tóm tắt; so giữa các đời.
 import glob, os, re, shutil, subprocess
@@ -14,7 +14,8 @@ HL = "/content/hl"
 shutil.rmtree(HL, ignore_errors=True)
 os.makedirs(HL)
 SO_BUOC = 0
-AMP = True          # 23/11: huấn luyện FP16 hỗn hợp + ONNX fp16 cho engine (python/huan_luyen.py --amp --onnx-fp16); False = fp32 như trước
+AMP = True          # 23/11: huấn luyện FP16 hỗn hợp (python/huan_luyen.py --amp): nhanh gấp 4,65 lần, mất mát như fp32; False = fp32 như trước
+ONNX_FP16 = False   # tệp ONNX cho engine fp16: engine chạy CHẬM hơn fp32 (đo 23/11), nên tắt; True = thử lại (--onnx-fp16)
 if BEN == "cay":
     # Cách cây trò chơi (THIET_KE_CO_VUA.md 10, 12.6): điện thoại gửi một tệp tar gồm nhãn (nhan_doi<G>.npz, cay.py)
     # và các mau.npz chứa mặt phẳng đầu vào của các node; py/gop_mau_cay.py ghép thành một tệp mẫu có trọng số w (số
@@ -91,7 +92,7 @@ if not ok:
 else:
     RA = NEXT_PT[:-len(".pt")]
     cmd = f"""cd {CV}/py && python3 huan_luyen.py --mau {",".join(MAU)} --khoi-tao {CURRENT_PT} --ra {RA} \
-        --batch 1024 --lr 1e-3 --weight-decay 1e-4 --so-luot 1 --swa-moi 25 --swa-toi-da 10 --so-buoc {SO_BUOC} {"--amp --onnx-fp16" if AMP else ""}"""
+        --batch 1024 --lr 1e-3 --weight-decay 1e-4 --so-luot 1 --swa-moi 25 --swa-toi-da 10 --so-buoc {SO_BUOC} {"--amp" if AMP else ""} {"--onnx-fp16" if ONNX_FP16 else ""}"""
     print(cmd)
     !{cmd} | tee {RA}.hl.json
     !{CV}/lc0 onnx2leela --input={RA}.onnx --output={NEXT_PB} \

@@ -18,8 +18,8 @@ B_PB = f"/content/cay_gen{GEN_CURRENT}.pb.gz"   # mạng B
 # đặt A_FP16 hoặc B_FP16 = False cho mạng đó. Cần engine có --visits2 (bản dựng từ 23/11).
 VISITS = 400
 THUONG_FP16 = 20
-A_FP16 = True
-B_FP16 = True
+A_FP16 = False   # tệp ONNX của lần chạy mới mặc định fp32 (07: ONNX_FP16 = False), nên cả hai bên 400 lượt thăm
+B_FP16 = False
 VISITS_A = VISITS + (THUONG_FP16 if A_FP16 and not B_FP16 else 0)
 VISITS_B = VISITS + (THUONG_FP16 if B_FP16 and not A_FP16 else 0)
 
