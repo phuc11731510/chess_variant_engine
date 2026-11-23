@@ -15,6 +15,17 @@
 #     tiep (fz_may.py theo_doi). Ctrl+C chi dong phan xem, o van chay tiep.
 #   - Moi may, lan dau: colab exec MOT lan de chup moi truong kernel (env.json) -- ssh co moi
 #     truong khac (thieu duong dan toi driver GPU...). ssh hong thi quay ve colab exec.
+# NHAT KY CUA SO (23/11/2026, chep tu menu.sh cua fz): boc ca cua so trong ~/cv/fz_nhat_ky.py -- chay NHU BINH THUONG,
+# nhung moi chu hien tren man hinh (menu, cau hoi, vong lap, log keo tu Colab ve) duoc ghi vao MOT tep rieng cua cua so:
+# ~/cv_nhat_ky/cua_so_<ngay_gio>_<pid>.log (tu cat khi qua 20000 dong, tu xoa tep khong doi qua 7 ngay). Thu muc rieng
+# cua cv, khong lan voi ~/fz_nhat_ky cua fz. Doc tu may tinh: ssh dt 'ls -t ~/cv_nhat_ky | head' roi tail tep moi nhat.
+# Bo qua (chay thang) khi: khong phai terminal, khong co python3 hoac fz_nhat_ky.py chay loi (--kiem-tra), FZ_KHONG_NHAT_KY=1,
+# hoac da duoc boc roi (FZ_NK_ACTIVE).
+if [ -z "${FZ_NK_ACTIVE:-}" ] && [ -z "${FZ_KHONG_NHAT_KY:-}" ] && [ -t 0 ] && [ -t 1 ] \
+   && command -v python3 >/dev/null 2>&1 && python3 "$HOME/cv/fz_nhat_ky.py" --kiem-tra >/dev/null 2>&1; then
+  export FZ_NK_THU_MUC="${FZ_NK_THU_MUC:-$HOME/cv_nhat_ky}"
+  exec python3 "$HOME/cv/fz_nhat_ky.py" -- bash "$0" "$@"
+fi
 D=$HOME/storage/downloads/CoVua/o_lenh
 TAI=$HOME/storage/downloads/CoVua
 S=${S:-cv}
