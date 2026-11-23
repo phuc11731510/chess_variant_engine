@@ -1063,7 +1063,7 @@ $$\mathbb E\big[(f-z)^2\big]=\mathbb E\big[(f-V^\beta)^2\big]+\mathrm{Var}(z\,|\
 6. **Giá trị search dọc ván thuần chưa dùng.** Các lần search lúc chơi ở những node sau $s$ trên ván thuần cũng là bằng chứng về $V^\beta(s)$, nhưng mục 12 chưa đưa chúng vào nhãn.
 7. **Chưa kiểm gì.** Mọi số liệu đều từ lần chạy 5 của cách cũ. Định lý 9 chỉ là chặn trên, và không định lý nào trong mục này chứng minh arena sẽ hơn mốc 78,2%.
 8. **Tuổi của mạng đã cho $q$.** Ở node gần gốc tạo ở đời 0, $q$ đến từ mạng đời 0 với WDL gần đều ($p$ quanh 0,667), còn node tạo ở các đời sau có $q$ của mạng tốt hơn. Cùng một nhóm theo $p$ có thể lẫn hai loại sai số $A$ rất khác nhau (12.14). Nhóm $g(s)$ nên tính tới đời của mạng cho $q$, hoặc tách riêng node đời 0.
-9. **Node rẽ không phải mẫu ngẫu nhiên.** Ở node cha có nhánh rẽ, $\mathbb E[z_\beta-q]$ là $-0{,}020$ chung và $-0{,}099$ ở nhóm $p$ cao, so với $-0{,}005$ của mọi vị trí (12.14). Vì vậy $\kappa$ và $o$ đo ở đó đúng cho tập node do luật chọn điểm rẽ hiện tại tạo ra. Nếu luật đổi thì phải đo lại.
+9. **Node rẽ không phải mẫu ngẫu nhiên.** Ở node cha có nhánh rẽ, $\mathbb E[z_\beta-q]$ là $-0{,}020$ chung và $-0{,}099$ ở nhóm $p$ cao, so với $-0{,}005$ của mọi vị trí (12.14). Vì vậy $\kappa$ và $o$ đo ở đó đúng cho tập node do luật chọn điểm rẽ hiện tại tạo ra. Nếu luật đổi thì phải đo lại. Một phần độ lệch này do $q$ lạc quan khi search phân vân (12.14, kết quả 4); phần còn lại chưa giải thích.
 
 ### 12.13 Phương án temperature 1 đã cân nhắc và không chọn
 
@@ -1114,7 +1114,7 @@ Có 74 433 cặp dùng được (một cặp có nước ép trùng nước đã
 - $\kappa$ dương, và khác 0 rõ ở hai nhóm cuối, nơi phương sai lớn. Ở bốn nhóm đầu nó bằng 0 trong sai số, nhưng ở đó phương sai chỉ 0,004 tới 0,024 nên cũng không quan trọng. Vậy trường hợp $\kappa=0$, nơi nhánh rẽ có trọng số 0 (bước 3 của 12.7), không xảy ra ở chỗ có sai số lớn.
 - Tỉ số $\hat\kappa/\mathrm{Var}(Y_1)$ là 0,18 ở nhóm 4, 0,13 ở nhóm 5 và 0,13 chung. Nó ổn định hơn bản thân $\kappa$, và đó là hệ số hồi quy của $Y_2$ theo $Y_1$.
 - Chia thêm theo số đời giữa ván tạo node cha và ván rẽ, trong ba nhóm theo $p$ và lấy nhóm trên cùng: $+0{,}029\pm0{,}007$ khi cách 0 hoặc 1 đời, $+0{,}032\pm0{,}011$ khi cách 2 tới 5 đời, $+0{,}045\pm0{,}009$ khi cách 6 đời trở lên. $\kappa$ tăng nhẹ theo số đời, chưa tách được khỏi việc mạng đổi giữa hai ván (12.12, chỗ 1).
-- $o=+0{,}011$ chung và $+0{,}057$ ở nhóm cao nhất. Ước tính "$-0{,}02$ tới $-0{,}035$" ở bước 1 của 12.7 sai dấu. Nó lấy độ lệch của $z_\beta-q$ bằng $-0{,}005$ như trung bình mọi vị trí. Thật ra ở các node cha có nhánh rẽ, $\mathbb E[Y_1]$ là $-0{,}020$ chung và $-0{,}099\pm0{,}011$ ở nhóm cao nhất: $q$ của ván tạo node lạc quan hơn nhiều so với mức trung bình của mọi vị trí. Chưa giải thích được. Luật chọn điểm rẽ (6.3) và việc node nào còn sống sau các lần cắt đều có thể liên quan tới kết quả của ván tạo node. Vì vậy $\kappa$ và $o$ trên đây đúng cho tập node cha được chọn theo luật hiện tại, không phải cho mọi node.
+- $o=+0{,}011$ chung và $+0{,}057$ ở nhóm cao nhất. Ước tính "$-0{,}02$ tới $-0{,}035$" ở bước 1 của 12.7 sai dấu. Nó lấy độ lệch của $z_\beta-q$ bằng $-0{,}005$ như trung bình mọi vị trí. Thật ra ở các node cha có nhánh rẽ, $\mathbb E[Y_1]$ là $-0{,}020$ chung và $-0{,}099\pm0{,}011$ ở nhóm cao nhất: $q$ của ván tạo node lạc quan hơn nhiều so với mức trung bình của mọi vị trí. Một phần được giải thích ở kết quả 4 bên dưới. Vì vậy $\kappa$ và $o$ trên đây đúng cho tập node cha được chọn theo luật hiện tại, không phải cho mọi node.
 
 **Kết quả 3: nhánh rẽ nhận bao nhiêu trọng số nếu $\kappa$ như đã đo.** Đây chỉ là tính toán với một giả định chưa đo: tỉ lệ $B/S$, phần may rủi trong sai số tổng. Lấy nhóm 5 ($S=0{,}507$, Var $Y_2=0{,}524$, $\hat\kappa=0{,}065$). Một nhánh rẽ, $N=1$, $B_a=B$, $\sigma_w^2=\mathrm{Var}(Y_2)-B$ và $\Gamma=A+\sigma_w^2-2\kappa$, rồi tính Gauss–Markov của 12.7:
 
@@ -1130,6 +1130,21 @@ Có 74 433 cặp dùng được (một cặp có nước ép trùng nước đã
 - Nhánh rẽ nhận 2,5% tới 10% trọng số, và chỉ hạ sai số bình phương của nhãn 0,4% tới 6,4%. Thấp hơn nhiều so với 12,1% ở ví dụ giả định của 12.7, và so với 32 tới 66% khối lượng mà $\rho$ của G2 đặt lên nước rẽ ở cách đang chạy. Với $\kappa/S$ cỡ 0,13, nhánh rẽ chỉ là phần phụ của nhãn $V^\beta$ tại node cha.
 - Trọng số của $q$ gần bằng $B/S$ và chạy từ 0,18 tới 0,71. Vậy $B/S$ là con số quyết định chất lượng nhãn. Mã đang chạy tin $B/S$ trong khoảng 0,12 tới 0,36 (bảng 4, $E/(E+\tau_q^2)$) mà chưa từng kiểm. Nếu giá trị thật là 0,8 thì nhãn đang quá thiên về $z$; nếu là 0,2 thì mã gần đúng. Theo công cụ 3 của 12.3, dữ liệu hiện có không tách được $A$ khỏi $B$. Chỉ cặp ván lặp (12.9) tách được.
 
+**Kết quả 4: $q$ lạc quan khi search phân vân, và nó giải thích một phần độ lệch ở node cha rẽ.** Tỉ lệ lượt thăm của nước nhiều lượt thăm nhất là thông tin có ngay tại $s$, và nó dự đoán độ lệch $z-q$ rất rõ. Với 131 452 vị trí có $p>0{,}3$ của các đời 18 đến 20:
+
+| Tỉ lệ lượt thăm của nước nhiều nhất | dưới 0,3 | 0,3–0,5 | 0,5–0,7 | 0,7–0,85 | 0,85–0,95 | từ 0,95 |
+|---|---|---|---|---|---|---|
+| Số vị trí | 21 421 | 34 874 | 31 642 | 23 540 | 14 295 | 5 680 |
+| Trung bình $z-q$ | −0,076 | −0,058 | −0,026 | +0,013 | +0,035 | +0,027 |
+
+Search càng phân vân giữa nhiều nước thì $q$ càng lạc quan. Đây là hiệu ứng quen thuộc khi lấy giá trị của nước thắng trong nhiều ước lượng nhiễu. Luật chọn điểm rẽ bốc nước theo $\mathrm{ns}^{1/T}$ nên hay rơi vào node phân vân: ở nhóm $p>0{,}3$, tỉ lệ lượt thăm trung bình là 0,33 ở node cha rẽ và 0,54 ở node khác. Hồi quy $z-q$ theo tỉ lệ lượt thăm trên node khác dự đoán $-0{,}061$ cho cha rẽ, còn đo được $-0{,}099$. Trong từng ô tỉ lệ lượt thăm, cha rẽ vẫn lạc quan hơn node khác $0{,}04$ tới $0{,}05$ (sai số chuẩn 0,02 tới 0,04), phần dư chưa giải thích.
+
+Ba hệ quả:
+
+- Tỉ lệ lượt thăm là biến nhóm biết ngay tại $s$ và nên có trong $g(s)$ (12.12, chỗ 5).
+- Có thể hiệu chỉnh $q$ bằng trung bình độ lệch của nhóm. Theo công cụ 1 của 12.3, hiệu chỉnh này đúng tuyệt đối khi nhóm lập theo thông tin biết tại $s$.
+- Ở node rẽ, $G-q$ trung bình là $-0{,}055$ (bảng 2, cân theo số node). Trên chính các node đó, ván tạo node đã cho $z_\beta-q=-0{,}019$. Vậy khoảng một phần ba độ lệch của $G$ ở node rẽ là do $q$ lạc quan, hai phần ba còn lại là do cách trộn nhánh rẽ. So sánh này xấp xỉ, vì $q$ ở bảng 2 là $q$ gộp còn ở đây là $q$ lúc chơi.
+
 **Điều đo này chưa làm được.**
 
 - $B$, và vì vậy $A$, $\Gamma$ và $\eta$ ở các nhóm đại diện. Một thử $\eta+B$ ở node có hai nhánh rẽ cho kết quả lẫn với tập node đời 0 nên chưa dùng được.
@@ -1140,4 +1155,5 @@ Có 74 433 cặp dùng được (một cặp có nước ép trùng nước đã
 
 - Cấu trúc của 12.7 giữ nguyên. Mặc định không đặt $\kappa=0$ mà dùng $\hat\kappa$ đo được theo nhóm, như bước 5 đã ghi. Nhánh rẽ chỉ là phần phụ của nhãn.
 - Việc đầu tiên bây giờ là đo $B/S$ bằng cặp ván lặp (bước 2 của 12.10), vì nó quyết định trọng số của $q$ so với $z$ trong nhãn của mọi node.
+- Tỉ lệ lượt thăm của nước nhiều nhất nên vào nhóm $g(s)$ (kết quả 4), và $q$ nên được hiệu chỉnh theo trung bình độ lệch của nhóm.
 - Nhóm lập theo $p$ chưa đủ: khối node đời 0 dồn ở một giá trị $p$ duy nhất (0,667), và $q$ của chúng đến từ mạng đời 0. Nhóm phải tính tới tuổi của mạng đã cho $q$ (12.12, chỗ 8).
