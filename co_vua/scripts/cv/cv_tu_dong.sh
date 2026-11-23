@@ -59,7 +59,7 @@ TD_AR_VAN_F=$TD/.arena_van   # so van moi arena
 TD_AR_DIR=$TAI/arena         # ket qua arena cua vong lap (tren dien thoai, xem duoc)
 TD_KIEU=           # o dang xem la arena (td_xem / td_can_dung dem theo arena)
 TD_AR_G=           # doi cua arena dang lam (td_ar_viec)
-TD_AR_T_CHINH=8    # arena chinh: temperature 1 trong 8 nua nuoc dau (chot 15/11, truoc arena doi 10; truoc do 30)
+TD_AR_T_CHINH=16   # arena chinh: temperature 1 trong 16 nua nuoc dau (chot 23/11; 15/11 la 8, truoc do 30)
 TD_AR_T=           # arena phu: so nua nuoc temperature 1 (rong = arena chinh); td_ar_viec / td_tiep_tuc dat
 TD_AR_PHU_F=$TD/.arena_phu   # arena phu (chan doan, 15/11): "<doi> <so nua nuoc temperature>", vd "7 8"
 # Goi chay tren may (o 02 giai goi.tar.gz vao day): PHAI khop CV cua o 00.

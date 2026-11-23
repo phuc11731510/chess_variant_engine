@@ -1,7 +1,7 @@
 """Tạo mạng đời 0 (khởi tạo ngẫu nhiên) và xuất ONNX.
 
 Chạy:  py -I tao_mang_doi0.py <thư mục ra> [seed] [--fp16]
-Ra:    doi0.pt (trọng số PyTorch) và doi0.onnx (hoặc doi0_fp16.onnx với --fp16).
+Ra:    doi0.pt (trọng số PyTorch) và doi0.onnx (với --fp16: đồ thị fp16 nếu qua kiểm trên GPU, không thì fp32).
 """
 import sys
 from pathlib import Path
@@ -20,7 +20,7 @@ def main():
     mang = MangCoVua()
     print(f"Mạng: {so_tham_so(mang)} tham số, seed {seed}")
     torch.save(mang.state_dict(), ra / "doi0.pt")
-    ten = "doi0_fp16.onnx" if fp16 else "doi0.onnx"
+    ten = "doi0.onnx"
     xuat_onnx(mang, str(ra / ten), fp16=fp16)
     print("Đã ghi", ra / "doi0.pt", "và", ra / ten)
 

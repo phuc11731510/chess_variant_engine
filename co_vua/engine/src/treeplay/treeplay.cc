@@ -87,6 +87,9 @@ namespace lczero {
 namespace {
 
 const OptionId kVisitsId{"visits", "Visits", "Visits per search."};
+const OptionId kVisits2Id{
+    "visits2", "Visits2",
+    "Visits per search of the second network (arena A jobs, --weights2); 0 = same as --visits."};
 const OptionId kParallelismId{"parallelism", "Parallelism",
                               "Number of games played at the same time."};
 const OptionId kOutputId{"output", "Output",
@@ -243,6 +246,7 @@ class TreePlay {
         backend_b_(backend_b),
         counter_b_(counter_b),
         visits_(options.Get<int>(kVisitsId)),
+        visits2_(options.Get<int>(kVisits2Id)),
         max_ply_(options.Get<int>(kMaxPlyId)) {
     const std::string out = options.Get<std::string>(kOutputId);
     out_ = std::fopen(out.c_str(), "ab");
@@ -256,7 +260,10 @@ class TreePlay {
 
   void Run() {
     const int parallelism = options_.Get<int>(kParallelismId);
-    std::cerr << "[treeplay] visits " << visits_ << ", parallelism "
+    std::cerr << "[treeplay] visits " << visits_
+              << (visits2_ > 0 ? " (network 2: " + std::to_string(visits2_) + ")"
+                               : std::string())
+              << ", parallelism "
               << parallelism << ", max ply " << max_ply_ << ", seed " << seed_
               << std::endl;
     const auto start = std::chrono::steady_clock::now();
@@ -463,8 +470,11 @@ class TreePlay {
     // into the root's priors when the root is expanded.
     tree->TrimTreeAtHead();
     auto stopper = std::make_unique<classic::ChainedSearchStopper>();
+    // Arena: the second network may search with its own number of visits.
+    const int visits =
+        (backend_b_ != nullptr && backend == backend_b_ && visits2_ > 0) ? visits2_ : visits_;
     stopper->AddStopper(
-        std::make_unique<classic::VisitsStopper>(visits_, false));
+        std::make_unique<classic::VisitsStopper>(visits, false));
     classic::PopulateIntrinsicStoppers(stopper.get(), options);
     auto responder = std::make_unique<CallbackUciResponder>(
         [](const BestMoveInfo&) {}, [](const std::vector<ThinkingInfo>&) {});
@@ -546,6 +556,7 @@ class TreePlay {
   Backend* backend_b_;
   CountingBackend* counter_b_;
   const int visits_;
+  const int visits2_;  // network 2 (arena); 0 = visits_
   const int max_ply_;
   uint64_t seed_ = 0;
   std::FILE* out_ = nullptr;
@@ -568,6 +579,7 @@ void PopulateOptions(OptionsParser* options) {
   classic::SearchParams::Populate(options);
   classic::PopulateTimeManagementOptions(classic::RunType::kSelfplay, options);
   options->Add<IntOption>(kVisitsId, 1, 1000000) = 800;
+  options->Add<IntOption>(kVisits2Id, 0, 1000000) = 0;
   options->Add<IntOption>(kParallelismId, 1, 1024) = 16;
   options->Add<StringOption>(kOutputId) = "treeplay.bin";
   options->Add<IntOption>(kMaxPlyId, 1, 10000) = 450;
