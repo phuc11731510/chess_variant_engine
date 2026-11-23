@@ -15,6 +15,7 @@ Không cần python-chess: nước đi là số 16 bit của lc0 (toạ độ tu
 
 Công tắc (mục 14, chủ dự án chốt 5/11 "mọi phần bật", nhãn policy mới tắt): CONG_TAC dưới đây.
 """
+import contextlib
 import gzip
 import json
 import os
@@ -705,23 +706,48 @@ def thu_muc_cay(cach):
     return os.path.join(cach, "cay")
 
 
+def lop_cay(cach):
+    """Lớp cây của thư mục chạy `cach`: CayMoi (cay_moi.py, phương pháp ở SUY_RA_CONG_THUC.md 12) nếu có tệp
+    `cach/phuong_phap_moi` hoặc biến môi trường CV_CAY_MOI=1; không thì Cay (phương pháp của lần chạy 1 đến 5).
+    Mọi nơi nạp cây (cap_nhat, sau_hl, don_mau, tinh_trang) phải qua hàm này: nạp bằng lớp cũ rồi lưu lại sẽ làm mất các
+    trường của lớp mới."""
+    if os.path.exists(os.path.join(cach, "phuong_phap_moi")) or os.environ.get("CV_CAY_MOI") == "1":
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import cay_moi
+        return cay_moi.CayMoi
+    return Cay
+
+
+@contextlib.contextmanager
+def _do_gio(gi, ten):
+    """with _do_gio(gi, "gop"): ... cộng số giây của khối vào gi["gop"] (nhật ký thời gian từng bước)."""
+    t = time.time()
+    try:
+        yield
+    finally:
+        gi[ten] = round(gi.get(ten, 0.0) + time.time() - t, 1)
+
+
 def cap_nhat(cach, g):
     t0 = time.time()
+    gi = {}
     tm = thu_muc_cay(cach)
     _cho_don(tm)                                         # bước dồn mặt phẳng chạy nền (sau sau_hl) phải xong trước
-    c = Cay.nap(tm)
+    with _do_gio(gi, "nap_cay"):
+        c = lop_cay(cach).nap(tm)
     c.meta["goc_cach"] = cach
     c.meta["doi"] = g
     gd = os.path.join(cach, f"games_gen{g}")
     lan = sorted(d for d in os.listdir(gd) if os.path.isdir(os.path.join(gd, d))) if os.path.isdir(gd) else []
     moi = so_s = so_v = 0
-    for d in lan:
-        key = f"games_gen{g}/{d}"
-        if key in c.meta["da_nap"]:
-            continue
-        a, b, v = c.nap_lan(os.path.join(gd, d), g)
-        moi, so_s, so_v = moi + a, so_s + b, so_v + v
-        c.meta["da_nap"].append(key)
+    with _do_gio(gi, "gop"):
+        for d in lan:
+            key = f"games_gen{g}/{d}"
+            if key in c.meta["da_nap"]:
+                continue
+            a, b, v = c.nap_lan(os.path.join(gd, d), g)
+            moi, so_s, so_v = moi + a, so_s + b, so_v + v
+            c.meta["da_nap"].append(key)
     c.meta["moi_moi_doi"][str(g)] = c.meta["moi_moi_doi"].get(str(g), 0) + moi
     # lần chạy mạng trung bình mỗi lần search, đo trên các lần sinh của đời này (xong.json của sinh.py)
     ev = 0
@@ -733,13 +759,17 @@ def cap_nhat(cach, g):
             pass
     if ev and so_s:
         c.meta["evals_moi_search"] = ev / so_s
-    c.nen()                                              # tinh cần pool gọn (gộp xong thì đoạn mới nằm cuối pool)
-    c.tinh()
+    with _do_gio(gi, "nen"):
+        c.nen()                                          # tinh cần pool gọn (gộp xong thì đoạn mới nằm cuối pool)
     so_buoc = _so_buoc_tt(cach, g) or max(1, int((c.a["trang"][:c.n] == 0).sum()) // 1024)
-    nh, tk = c.nhan(so_buoc)
+    with _do_gio(gi, "tinh_nhan"):
+        if not getattr(c, "NHAN_TU_TINH", False):        # CayMoi.nhan tự gọi tinh
+            c.tinh()
+        nh, tk = c.nhan(so_buoc)
     ra = os.path.join(cach, f"nhan_doi{g}.npz")
-    np.savez_compressed(ra[:-4] + ".tam.npz", **nh)
-    os.replace(ra[:-4] + ".tam.npz", ra)
+    with _do_gio(gi, "ghi_nhan"):
+        np.savez_compressed(ra[:-4] + ".tam.npz", **nh)
+        os.replace(ra[:-4] + ".tam.npz", ra)
     # Các tệp mau.npz cần tải lên máy huấn luyện: "<chỉ số>\t<đường dẫn tương đối trong thư mục cách>"
     can_tep = [(i, c.meta["tep_mau"][i]) for i in np.unique(nh["tep"]).tolist()]
     # Kho đệm (kho.py, 8/11): mau.npz đã có trên Release thì không gửi lại. .tep.txt (vòng lặp gói đúng các tệp ở cột
@@ -749,8 +779,9 @@ def cap_nhat(cach, g):
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import kho
         muc = [(t, os.path.join(cach, t)) for _, t in can_tep]
-        _, lay = kho.chia(cach, "cay", muc)
-        kho.khoi_len(cach, "cay", g, muc)
+        with _do_gio(gi, "kho"):
+            _, lay = kho.chia(cach, "cay", muc)
+            kho.khoi_len(cach, "cay", g, muc)
     except Exception as e:                           # thiếu kho.py / lỗi bất kỳ: gửi thẳng tất cả như trước
         print(f"(kho đệm: {e} -- gửi thẳng tất cả)", file=sys.stderr)
     trong_kho = {a: (t, kt) for a, t, kt in lay}
@@ -762,8 +793,14 @@ def cap_nhat(cach, g):
                "so_node_song": int((c.a["trang"][:c.n] == 0).sum()), "so_buoc": int(nh["so_buoc"]), "giay": round(time.time() - t0, 1),
                "so_tep_mau": len(can_tep), "kho_lay": len(lay), "kho_lay_mb": round(sum(x[2] for x in lay) / 1e6)})
     c.meta["nhat_ky"].append(tk)
-    c.luu(tm)
-    print(json.dumps(tk, ensure_ascii=False))
+    with _do_gio(gi, "luu"):
+        c.luu(tm)
+    tk["giay_buoc"] = gi
+    tk["giay"] = round(time.time() - t0, 1)
+    # Bản đầy đủ (gồm bảng tham số theo nhóm) vào tệp riêng; dòng in ra (vòng lặp chỉ lấy dòng cuối) là bản gọn.
+    with open(os.path.join(tm, f"nhat_ky_doi{g}.json"), "w", encoding="utf-8") as f:
+        json.dump(tk, f, ensure_ascii=False)
+    print(json.dumps({k: v for k, v in tk.items() if k not in ("tham", "S_nhom", "so_node_nhom")}, ensure_ascii=False))
 
 
 def _so_buoc_tt(cach, g):
@@ -781,27 +818,47 @@ def _so_buoc_tt(cach, g):
 
 
 def sau_hl(cach, g, ngan_sach):
+    """Làm cũ cây (giam), cắt lá, lập danh sách việc của đời g + 1. Chạy ĐƯỢC SONG SONG với huấn luyện đời g: nó chỉ cần cây
+    sau cap_nhat(g), không cần mạng mới. Gọi lại với cùng g thì không làm lại (giam hai lần sẽ làm cũ cây hai lần)."""
+    t0 = time.time()
+    gi = {}
     tm = thu_muc_cay(cach)
     _cho_don(tm)
-    c = Cay.nap(tm)
-    c.giam()
+    with _do_gio(gi, "nap_cay"):
+        c = lop_cay(cach).nap(tm)
+    if c.meta.get("sau_hl_g") == g and os.path.exists(os.path.join(cach, f"viec_doi{g + 1}.con_tro")):
+        print(json.dumps({"doi": g, "bo_qua": "sau_hl đời này đã xong"}, ensure_ascii=False))
+        return
+    with _do_gio(gi, "giam"):
+        c.giam()
     moi = c.meta["moi_moi_doi"]
     giu = sum(moi.get(str(k), 0) for k in range(g - W_DOI + 1, g + 1))
-    cat = c.cat_la(giu) if g >= W_DOI - 1 else 0
-    c.nen()
+    with _do_gio(gi, "cat_la"):
+        cat = c.cat_la(giu) if g >= W_DOI - 1 else 0
+    with _do_gio(gi, "nen"):
+        c.nen()
     rng = np.random.default_rng()
-    tat, tk = c.lap_viec(g + 1, ngan_sach, rng)
-    with open(os.path.join(cach, f"viec_doi{g + 1}.txt.tam"), "w") as f, \
-            open(os.path.join(cach, f"viec_doi{g + 1}.chi_phi.tam"), "w") as fc:
-        f.writelines(c.dong_viec(tat))
-        fc.write("".join(f"{int(cp)}\n" for _, _, _, cp in tat))
+    with _do_gio(gi, "lap_viec"):
+        tat, tk = c.lap_viec(g + 1, ngan_sach, rng)
+    with _do_gio(gi, "ghi_viec"):
+        with open(os.path.join(cach, f"viec_doi{g + 1}.txt.tam"), "w") as f, \
+                open(os.path.join(cach, f"viec_doi{g + 1}.chi_phi.tam"), "w") as fc:
+            f.writelines(c.dong_viec(tat))
+            fc.write("".join(f"{int(cp)}\n" for _, _, _, cp in tat))
+    # cây lưu TRƯỚC, danh sách việc công bố SAU: có con_tro nghĩa là cây của đời này đã giam xong và đã lưu
+    c.meta["sau_hl_g"] = g
+    tk.update({"doi": g, "cat": cat, "giu": giu, "so_node": int(c.n)})
+    c.meta["nhat_ky"].append({"sau_hl": tk})
+    with _do_gio(gi, "luu"):
+        c.luu(tm)
     for duoi in ("txt", "chi_phi"):
         os.replace(os.path.join(cach, f"viec_doi{g + 1}.{duoi}.tam"), os.path.join(cach, f"viec_doi{g + 1}.{duoi}"))
     with open(os.path.join(cach, f"viec_doi{g + 1}.con_tro"), "w") as f:
         f.write("0\n")
-    tk.update({"doi": g, "cat": cat, "giu": giu, "so_node": int(c.n)})
-    c.meta["nhat_ky"].append({"sau_hl": tk})
-    c.luu(tm)
+    tk["giay_buoc"] = gi
+    tk["giay"] = round(time.time() - t0, 1)
+    with open(os.path.join(tm, f"nhat_ky_sau_hl{g}.json"), "w", encoding="utf-8") as f:
+        json.dump(tk, f, ensure_ascii=False)
     print(json.dumps(tk, ensure_ascii=False))
     del c
     _mo_nen(cach, ["don_mau", cach, str(g)])
@@ -853,7 +910,7 @@ def don_mau(cach, g):
         f.write(str(os.getpid()))
     try:
         t0 = time.time()
-        c = Cay.nap(tm)
+        c = lop_cay(cach).nap(tm)
         n, a = c.n, c.a
         tep, hang = a["mau_tep"][:n], a["mau_hang"][:n]
         co = np.flatnonzero(tep >= 0)
@@ -1066,7 +1123,7 @@ def lay_viec(cach, g, giao, ra, giay=None):
 
 
 def tinh_trang(cach):
-    c = Cay.nap(thu_muc_cay(cach))
+    c = lop_cay(cach).nap(thu_muc_cay(cach))
     song = int((c.a["trang"][:c.n] == 0).sum())
     print(json.dumps({"doi": c.meta["doi"], "so_node": c.n, "so_node_song": song,
                       "moi_moi_doi": c.meta["moi_moi_doi"], "cuoi": c.meta["nhat_ky"][-2:]}, ensure_ascii=False))

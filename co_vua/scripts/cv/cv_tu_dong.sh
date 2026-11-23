@@ -1148,7 +1148,7 @@ td_huan_luyen() {
       ( trap '' INT; python $CVD/cv_tu_dong.py gop "$TB" "$TD_BEN" "$g" "$TD_SO_DOI" | tee "$TD/.gop_$$" )
       grep -q '^FZ_GOP_XONG' "$TD/.gop_$$" || { td_in "${M_DO}[!] gộp lỗi${M_HET}"; rm -f "$TD/.gop_$$"; TD_LOI=1; return; }
       rm -f "$TD/.gop_$$"
-      if [ "$TD_BEN" = cay ]; then td_cay_nhan "$g" || { TD_LOI=1; return; }; fi
+      if [ "$TD_BEN" = cay ]; then td_cay_nhan "$g" || { TD_LOI=1; return; }; td_cay_sau_nen "$g" "$n"; fi
       command -v termux-media-scan >/dev/null && termux-media-scan -r "$TB" >/dev/null 2>&1
     fi
     while :; do
@@ -1211,13 +1211,39 @@ td_cay_nhan() {
     mv "$TB/cay_hl_gen$g.tar.tam" "$TB/cay_hl_gen$g.tar" || return 1
   td_in "cây: cay_hl_gen$g.tar $(( $(stat -c %s "$TB/cay_hl_gen$g.tar") / 1048576 )) MB ($(echo "$tep" | wc -l) tệp mau.npz)"
 }
-# Cach cay, sau khi len doi $2: giam gamma, cat la, quet diem re, uu tien search lai, lap danh sach viec doi $2.
+# Cach cay, ngay sau khi gop doi $1 (23/11): lap danh sach viec doi $2 CHAY NEN, song song voi huan luyen. sau_hl chi can
+# cay da gop doi $1, khong can mang moi, nen khong phai doi huan luyen xong (truoc day: gop -> huan luyen -> sau_hl, may
+# phut dien thoai ngoi khong trong luc may T4 chay). Ket qua ghi vao $TB/.sau_hl_<G>.xong (dong cuoi cua cay.py); td_cay_sau
+# doc lai.
+td_cay_sau_nen() {
+  local g=$1 n=$2 f=$TB/.sau_hl_$1 ns
+  rm -f "$f".xong "$f".loi "$f".pid
+  ns=$(td_muc "$n")
+  ( trap '' INT; out=$(python3 $CVD/cay.py sau_hl "$TB" "$g" "$ns" 2>&1) && { echo "$out" | tail -1 > "$f.xong.tam"; mv "$f.xong.tam" "$f.xong"; } ||
+      echo "$out" | tail -2 > "$f.loi" ) >/dev/null 2>&1 &
+  echo $! > "$f.pid"
+  td_in "cây: lập danh sách việc đời $n chạy nền (song song với huấn luyện)"
+}
+# Cach cay, sau khi len doi $2: doi sau_hl chay nen xong (hoac chay lai neu chua co / loi): giam gamma, cat la, quet diem
+# re, uu tien search lai, lap danh sach viec doi $2. sau_hl goi hai lan cung doi thi lan sau bo qua (cay.py), nen an toan.
 td_cay_sau() {
-  local out
-  out=$( ( trap '' INT; python3 $CVD/cay.py sau_hl "$TB" "$1" "$(td_muc "$2")" ) 2>&1 ) ||
+  local g=$1 n=$2 out f=$TB/.sau_hl_$1 pid i=0
+  pid=$(cat "$f.pid" 2>/dev/null)
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    td_in "cây: chờ sau_hl chạy nền xong ..."
+    while kill -0 "$pid" 2>/dev/null && [ $i -lt 360 ]; do td_ngu 10 || return; i=$((i + 1)); done
+  fi
+  if [ -s "$f.xong" ]; then
+    td_in "cây: $(cat "$f.xong")"
+    rm -f "$TB/cay_hl_gen$g.tar" "$f".xong "$f".loi "$f".pid
+    return
+  fi
+  [ -s "$f.loi" ] && td_in "${M_VANG}[!] sau_hl chạy nền lỗi: $(cat "$f.loi") -- chạy lại${M_HET}"
+  rm -f "$f".xong "$f".loi "$f".pid
+  out=$( ( trap '' INT; python3 $CVD/cay.py sau_hl "$TB" "$g" "$(td_muc "$n")" ) 2>&1 ) ||
     { td_in "${M_DO}[!] cây sau huấn luyện lỗi: $(echo "$out" | tail -2)${M_HET}"; return; }
   td_in "cây: $(echo "$out" | tail -1)"
-  rm -f "$TB/cay_hl_gen$1.tar"
+  rm -f "$TB/cay_hl_gen$g.tar"
 }
 # Giai doan 4: gen$1.pb.gz + .pt cua cach dang lam len GitHub Release co_vua_mang (REL_NN trong o 00) voi ten
 # <cach>_gen$1.*, kiem sha256 tren Release, roi xoa .pb.gz cac doi truoc cua cach do. Loi mang -> thu lai.
