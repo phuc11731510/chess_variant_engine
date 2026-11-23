@@ -52,7 +52,8 @@ for c in $CELLS; do
 done
 # Menu, vong lap, tro ly Python khong phai thu ban sua -> luon lay ban moi.
 for t in cv_menu.sh cv_tu_dong.sh cv_tu_dong.py cay.py cay_moi.py cay_gm.py kho.py fz_may.py fz_han_muc.py fz_nhan_may.py fz_trung_tk.py fz_giu_may.py fz_colab.py fz_chuyen.py fz_nhat_ky.py; do
-  curl -fsSL -o "$CVD/$t" "$URL/$t" && echo "[tai]        ~/cv/$t"
+  # Tai ra tep tam roi mv (doi inode): cua so vong lap dang chay doc thang tep nay, ghi de len cho se lam bash doc nua cu nua moi.
+  curl -fsSL -o "$CVD/$t.tam" "$URL/$t" && mv -f "$CVD/$t.tam" "$CVD/$t" && echo "[tai]        ~/cv/$t"
 done
 
 # Lenh cv (thay dong cu neu co).

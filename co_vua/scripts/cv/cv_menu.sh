@@ -233,7 +233,11 @@ ssh_colab() {
   # phien khong con (CLI mac dinh xin may CPU moi -- vd bam l sau khi may bi thu hoi).
   local px="$(type -P colab) ssh --proxy-mode -s $S"
   [ -f $CVD/fz_giu_may.py ] && px="$(type -P python) $CVD/fz_giu_may.py proxy $S"
-  ssh -o ProxyCommand="env HOME=$TKH $px" \
+  # SSH_TO (giay, tuy chon, dat boi ham goi lenh ngan: khoi_dong_ssh, td_kiem_may_cl, ...): qua han thi giet ssh. Khong dat
+  # cho lenh dai (xem log, chep tep lon). --foreground: ssh van doc duoc tty / nhan Ctrl+C nhu khi chay thang.
+  local lim=()
+  [ -n "${SSH_TO:-}" ] && lim=(timeout --foreground -k 10 "$SSH_TO")
+  ${lim[@]+"${lim[@]}"} ssh -o ProxyCommand="env HOME=$TKH $px" \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
       -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=45 \
       "root@colab-$S" "$@"
@@ -293,7 +297,7 @@ print('FZ_ENV_OK')"
 
 # Khoi dong o $1 (tep $2, $3 = ep) chay nen qua ssh. In FZ_PID=/FZ_BAN=; 1 = ssh khong dung duoc.
 khoi_dong_ssh() {
-  local out rc
+  local out rc SSH_TO=600      # gom ca chup moi truong (toi da 2,5 phut) va gui ma o; qua 10 phut = ket, thu lai
   out=$(ssh_fz khoi_dong "$1" "$2" "${3:-}" 2>&1); rc=$?
   if [ $rc = 97 ]; then
     luu_env >&2 || return 1

@@ -77,6 +77,23 @@ def menu_dang_ssh(ten):
     return False
 
 
+def giam_sat_cha(chu_ky=1.0):
+    """ProxyCommand khong duoc de mo coi: ssh (cha) chet / bi `timeout` giet thi init nhan tien trinh nay (ppid doi, = 1
+    tren Termux) -> thoat NGAY. Truoc 2026-11-23 proxy cua CLI van song sau khi ssh chet (dang ket noi / cho 429), nen:
+      - no giu phien ssh DUY NHAT ma Colab cho moi may -> moi ssh sau bi tu choi;
+      - no giu dau ghi cua ong `$(...)` (stderr noi vao ong) -> lenh `out=$(khoi_dong_ssh ...)` cua vong lap khong bao
+        gio thay het du lieu: cua so ket mai (23/11, cua so thu 5 ket 17 phut)."""
+    import threading
+    cha = os.getppid()
+
+    def vong():
+        while True:
+            time.sleep(chu_ky)
+            if os.getppid() != cha:
+                os._exit(0)
+    threading.Thread(target=vong, daemon=True).start()
+
+
 def proxy(ten):
     """`colab ssh --proxy-mode -s <ten>` cua Colab CLI, CAM tu xin may.
 
@@ -84,6 +101,7 @@ def proxy(ten):
     -- vd may vua bi tra / thu hoi va mot lenh `colab sessions` da xoa phien (da xay ra 2026-09-26:
     tien trinh giu may kiem phien xong thi phien bi xoa, CLI khoi dong vai giay sau va xin may moi).
     O day thay ham tu xin may cua CLI ngay trong CUNG tien trinh -> khong con khe ho thoi gian."""
+    giam_sat_cha()          # truoc moi thu khac (ke ca import / ket noi cham): ssh cha chet thi thoat
     try:    # ProxyCommand: stdin la luong ssh -- hoi ma dang nhap o day thi ssh treo mai (khong ConnectTimeout nao cuu duoc)
         import fz_colab
         fz_colab.va(True)
