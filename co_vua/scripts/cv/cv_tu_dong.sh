@@ -610,7 +610,7 @@ td_can_dung() {
 # Tao tep dung mem ma engine dang xem (doc tu dong lenh cua engine, nhu o 09b). 0 = da gui.
 # Tao tep dung mem ma sinh.py dang xem (doc tu dong lenh, nhu o 09b). 0 = da gui.
 td_gui_dung() {
-  local i out
+  local i out SSH_TO=120
   for i in 1 2 3; do
     out=$(ssh_colab "p=\$(pgrep -af '[s]inh\.py |[a]rena\.py ' | sed -n 's/.* --tep-dung \([^ ]*\).*/\1/p' | head -1); if [ -n \"\$p\" ]; then touch \"\$p\" && echo FZ_DA_DUNG; else echo FZ_KHONG_CHAY; fi" 2>/dev/null)
     if grep -q FZ_DA_DUNG <<<"$out"; then
@@ -650,6 +650,7 @@ td_chay() {
 # May san sang cho doi $1 cua cach dang lam: goi chay (lc0, moi truong, py/lay_mang.py) + <cach>_gen$1.pb.gz
 # (+ .pt va thu vien huan luyen neu $2 = pt).
 td_kiem_may_cl() {
+  local SSH_TO=180
   ssh_colab "test -x $CV_CL/lc0 && test -s $CV_CL/moi_truong.sh && echo BIN_1 && echo BINA_\$(test -s $CV_CL/colab/arena.py && echo 1 || echo 0); test -s $CV_CL/py/lay_mang.py && echo CO_LM; test -s /content/${TD_BEN}_gen$1.pb.gz && echo CO_ONNX; test -s /content/${TD_BEN}_gen$1.pt && python3 -c 'import onnx, chess' 2>/dev/null && echo CO_PT" 2>/dev/null
 }
 # Chua thi chay 02. 0 = san sang, 1 = loi (thu lai), 2 = loi khong tu sua duoc, 3 = mat may, 4 = q.
