@@ -990,6 +990,18 @@ Backend là `multiplexing` bọc `onnx-cuda`. Nó gom thế cờ của nhiều v
 - Từ 64 ván trở lên với 1 luồng, tốc độ dừng ở khoảng 16 700 đến 17 000. GPU chỉ dùng 58 đến 70%, còn lc0 chỉ dùng khoảng 1.1 đến 1.2 trong 2 nhân CPU. Nghĩa là nút thắt là một phần chạy tuần tự trên CPU, không phải GPU. Thêm luồng gom lô còn làm chậm đi. Bạn đã khảo sát hiện tượng này nhiều lần trên engine cờ biến thể: có một mức trung gian nhanh nhất, tăng thêm thì lợi giảm. Vì vậy bạn chốt dùng cấu hình nhanh nhất đo được và không tìm nút thắt CPU nữa.
 - Mỗi số chỉ đo một lần, nên chênh lệch dưới khoảng 5% giữa các cấu hình chưa chắc là thật.
 - Với tốc độ này, 1 triệu lần chạy mạng mất khoảng 1 phút trên một máy T4. Ví dụ một đời 1000 ván, mỗi ván 100 nửa nước, 800 lượt thăm mỗi nửa nước, cần khoảng 80 triệu lần chạy mạng, tức khoảng 80 phút trên một máy T4. Độ dài ván thật với mạng còn yếu chưa đo, và có thể dài hơn nhiều.
+- **Tốc độ thật của các lần chạy 1 đến 5 (đo 23/11 từ `xong.json` của mọi lần sinh dài trên 600 giây, tức số lần chạy mạng chia số giây của từng máy).** Thấp hơn nhiều so với bảng trên, và bảng trên chỉ đo với mạng đời 0 ngẫu nhiên:
+
+  | Lần chạy | Số lần sinh | Lần chạy mạng mỗi giây (trung bình) | Trung vị | p10 | p90 | Tổng lần chạy mạng | Giờ máy sinh dữ liệu |
+  |---|---|---|---|---|---|---|---|
+  | 1 | 53 | 6 647 | 6 397 | 5 406 | 7 400 | 2,00 tỉ | 84 |
+  | 2 | 64 | 6 547 | 6 248 | 3 467 | 7 501 | 2,00 tỉ | 85 |
+  | 3 | 29 | 7 062 | 7 169 | 5 113 | 7 498 | 1,00 tỉ | 39 |
+  | 4 | 61 | 7 019 | 7 170 | 4 519 | 7 673 | 2,00 tỉ | 79 |
+  | 5, cách cây | 121 | 6 840 | 6 781 | 5 297 | 7 545 | 4,20 tỉ | 171 |
+  | 5, cách truyền thống | 187 | 5 561 | 4 896 | 391 | 6 637 | 4,20 tỉ | 210 |
+
+  Tốc độ thật khoảng 6 800, tức chỉ bằng 40% con số 16 947 của bảng trên. Chưa tìm ra nguyên nhân. Lần chạy 5 giữ máy tổng cộng 263 lần, khoảng 380 giờ máy trong 3,8 ngày thực (14/11 đến 18/11, bốn cửa sổ chạy song song), trong đó 171 giờ là sinh dữ liệu, phần còn lại là chuẩn bị máy, huấn luyện, tải và chờ. Mọi ước tính chi phí theo giờ máy phải dùng số 6 800 này, không dùng 17 000.
 
 ### 12.9 Bộ script Termux/Colab: lệnh `cvt` (cách truyền thống) và `cvc` (cách cây trò chơi)
 
