@@ -718,6 +718,26 @@ def lop_cay(cach):
     return Cay
 
 
+def cau_hinh_cay(c, cach):
+    """Áp tham số chỉnh được từ tệp `cach/phuong_phap_moi` (JSON, rỗng = mặc định) vào cây c, nếu c là CayMoi."""
+    if not hasattr(c, "ap_cau_hinh"):
+        return
+    try:
+        with open(os.path.join(cach, "phuong_phap_moi"), encoding="utf-8") as f:
+            noi_dung = f.read().strip()
+        d = json.loads(noi_dung) if noi_dung else {}
+        if not isinstance(d, dict):
+            raise ValueError("không phải đối tượng JSON")
+    except FileNotFoundError:
+        return                                   # bật bằng biến môi trường CV_CAY_MOI: không có tệp
+    except (OSError, ValueError) as e:
+        print(f"[!] phuong_phap_moi không đọc được ({e}) -- dùng mặc định", file=sys.stderr)
+        return
+    da = c.ap_cau_hinh(d)
+    if da:
+        print(f"(cấu hình cây từ phuong_phap_moi: {da})", file=sys.stderr)
+
+
 @contextlib.contextmanager
 def _do_gio(gi, ten):
     """with _do_gio(gi, "gop"): ... cộng số giây của khối vào gi["gop"] (nhật ký thời gian từng bước)."""
@@ -735,6 +755,7 @@ def cap_nhat(cach, g):
     _cho_don(tm)                                         # bước dồn mặt phẳng chạy nền (sau sau_hl) phải xong trước
     with _do_gio(gi, "nap_cay"):
         c = lop_cay(cach).nap(tm)
+    cau_hinh_cay(c, cach)
     c.meta["goc_cach"] = cach
     c.meta["doi"] = g
     gd = os.path.join(cach, f"games_gen{g}")
@@ -826,6 +847,7 @@ def sau_hl(cach, g, ngan_sach):
     _cho_don(tm)
     with _do_gio(gi, "nap_cay"):
         c = lop_cay(cach).nap(tm)
+    cau_hinh_cay(c, cach)
     if c.meta.get("sau_hl_g") == g and os.path.exists(os.path.join(cach, f"viec_doi{g + 1}.con_tro")):
         print(json.dumps({"doi": g, "bo_qua": "sau_hl đời này đã xong"}, ensure_ascii=False))
         return

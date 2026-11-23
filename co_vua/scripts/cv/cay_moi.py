@@ -323,6 +323,21 @@ class CayMoi(C.Cay):
         ok = co_o & np.isfinite(Qh) & np.isfinite(Dh)
         return con[ok], par[ok], Qh[ok], Dh[ok]
 
+    # Tham số chỉnh được mà không cần cài lại mã: ghi JSON vào tệp <thư mục cách>/phuong_phap_moi, vd {"DOI_DUNG_DO": 2}.
+    # cay.py đọc tệp này mỗi lần cap_nhat / sau_hl và gọi ap_cau_hinh. Tệp rỗng = mọi giá trị mặc định.
+    CAU_HINH_CHO_PHEP = ("DOI_DUNG_DO", "W_B", "SE_MUC", "DF_B_TOI_THIEU", "N_RE_TOI_THIEU", "S_BO_QUA",
+                         "TY_LE_CAP_DUY_TRI", "TY_LE_LAP_DON")
+
+    def ap_cau_hinh(self, d):
+        """Đặt các tham số trong d (chỉ những tên có trong CAU_HINH_CHO_PHEP, giữ kiểu của giá trị mặc định). Trả về dict đã đặt."""
+        da = {}
+        for k in self.CAU_HINH_CHO_PHEP:
+            if k in d:
+                setattr(self, k, type(getattr(type(self), k))(d[k]))
+                da[k] = getattr(self, k)
+        self._cau_hinh = da
+        return da
+
     # ------------------------------------------------------------ đo tham số (12.7 bước 5, 12.9)
     W_B = 6                  # số đời gần nhất dùng để đo B
     DOI_DUNG_DO = 10         # từ đời này nhãn dùng B đo được (chủ dự án chốt 23/11); trước đó dùng giá trị khởi đầu
@@ -652,7 +667,7 @@ class CayMoi(C.Cay):
               "E_nhan_tb": float(r["E_nhan"][co_pol].mean()) if len(chon) else 0.0,
               "S_nhom": [round(float(x), 4) for x in t["tham"]["S"]],
               "so_node_nhom": np.bincount(gg, minlength=gm.SO_NHOM).tolist(),
-              "tham": getattr(self, "_tham_log", {}),
+              "tham": getattr(self, "_tham_log", {}), "cau_hinh": getattr(self, "_cau_hinh", {}),
               "van_lap": list(self.meta.get("lap_dem", [0, 0, 0]))}
         return ra, tk
 
@@ -792,8 +807,13 @@ class CayMoi(C.Cay):
         so_re = min(so_re, len(nd))
         tat += [("G", int(s), int(m), cp_van[s]) for s, m in zip(nd[:so_re].tolist(), mvd[:so_re].tolist())]
         tat += [("S", s, None, e) for s in viec_s]
-        order = rng.permutation(len(tat))
-        tat = [tat[i] for i in order]
+        # Xáo theo KHỐI: hai ván của một cặp (nằm đầu danh sách, từng đôi một) luôn đi liền nhau. Vòng lặp nhận việc từ đầu danh
+        # sách tới khi đủ ngân sách rồi bỏ phần đuôi (danh sách lập dư DU_VIEC lần), nên xáo từng việc thì chỉ khoảng
+        # (2/3)^2 = 44% số cặp có CẢ HAI ván được chơi, phần còn lại thành ván lẻ không đo được B (đời 1 lần chạy 6: 649 cặp lập,
+        # 857 ván lặp được chơi, chỉ 282 node có đủ hai ván). Xáo theo khối thì cặp được chơi cả đôi hoặc bỏ cả đôi.
+        khoi = [(tat[2 * i], tat[2 * i + 1]) for i in range(so_cap)] + [(e,) for e in tat[2 * so_cap:]]
+        order = rng.permutation(len(khoi))
+        tat = [e for i in order for e in khoi[i]]
         return tat, {"so_diem_re": int(len(nd)), "so_viec_s": len(viec_s), "so_viec_g": int(so_re), "so_cap_lap": so_cap,
                      "so_lap_don": so_don, "cap_theo_lop": cap_theo_lop.tolist(), "can_cap_lop": can.astype(int).tolist(),
                      "da_co_cap_lop": da_co[:7].astype(int).tolist(), "con_thieu_cap": int(con_thieu.sum()),
