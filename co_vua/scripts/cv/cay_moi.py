@@ -16,6 +16,7 @@ import os
 import numpy as np
 
 import cay as C
+import cay_gm as gm
 
 NODE2 = dict(C.NODE)
 NODE2.update({
@@ -23,9 +24,11 @@ NODE2.update({
     "q_ch": (np.float32, 0), "d_ch": (np.float32, 0),                         # search lúc chơi của ván thuần mới nhất (góc bên đi)
     "chia_ch": (np.float32, 0), "doi_q": (np.int16, -1),                      # tỉ lệ lượt thăm nước nhiều nhất; đời của search đó
     "re": (np.int8, 0),                                                       # 1 = con sinh ra từ ván rẽ có nước ép
+    "ds": (np.float32, 0),                                                    # ván thuần: sum w 1[hoà]
 })
 POOL2 = dict(C.POOL)
 POOL2["qp"] = (np.float32, np.nan)                                            # Q lúc chơi của nước (ván thuần mới nhất tại node)
+POOL2["dp"] = (np.float32, np.nan)                                            # xác suất hoà lúc chơi của nước (như qp)
 
 
 class CayMoi(C.Cay):
@@ -61,7 +64,7 @@ class CayMoi(C.Cay):
         n0 = self.n
         goc = self.goc()
         # ---- 1. đi đường, tạo node (tuần tự: số hiệu node phải theo thứ tự gặp như bản cũ)
-        s_nut, s_van, s_N, s_bq, s_bd, s_p0, s_tham = [], [], [], [], [], [], []
+        s_nut, s_van, s_N, s_bq, s_bd, s_p0, s_tham, s_con = [], [], [], [], [], [], [], []
         duong_m = []              # node của mọi đường đi (đầu + nước đã chơi) của các ván, để cộng m
         van_z, van_re = [], []    # kết quả (góc Trắng) và "node đầu chơi được tạo mới" của từng ván
         delta = []
@@ -97,15 +100,17 @@ class CayMoi(C.Cay):
                         tat[x] = tat.get(x, 0.0) - y
                     tuoi = doi - a["gsum"][s] / a["k"][s]
                     delta.append((float(tuoi), float(a["k"][s]), 0.5 * sum(abs(v) for v in tat.values())))
-                s_nut.append(s); s_van.append(-1); s_N.append(N); s_bq.append(bq); s_bd.append(bd); s_p0.append(p0); s_tham.append(tham)
+                s_nut.append(s); s_van.append(-1); s_N.append(N); s_bq.append(bq); s_bd.append(bd); s_p0.append(p0); s_tham.append(tham); s_con.append(0)
                 continue
             so_van += 1
             van = len(van_z)
             van_z.append(kq if kt == 0 else 0)
             van_re.append(moi_cuoi and len(dd) > 0)
             nut_dau = s
-            for nuoc, N, bq, bd, p0, tham in lan:
+            lg = len(lan)
+            for j, (nuoc, N, bq, bd, p0, tham) in enumerate(lan):
                 s_nut.append(s); s_van.append(van); s_N.append(N); s_bq.append(bq); s_bd.append(bd); s_p0.append(p0); s_tham.append(tham)
+                s_con.append(lg - j)                # số nửa nước còn lại của ván tính từ node này (ước chi phí ván rẽ)
                 s2 = con.get(s * 65536 + nuoc)
                 if s2 is None:
                     s2 = self._tao_con(s, nuoc, doi)
@@ -202,6 +207,7 @@ class CayMoi(C.Cay):
             np.add.at(a["zs"], nut_gv, z_gv)
             np.add.at(a["ws"], nut_gv, np.float32(1))
             np.add.at(a["ws2"], nut_gv, np.float32(1))
+            np.add.at(a["ds"], nut_gv, (z_gv == 0).astype(np.float32))
             # search mới nhất của mỗi node (lần cuối trong lô)
             _, d_cuoi = np.unique(nut_gv[::-1], return_index=True)
             cuoi = gv[len(gv) - 1 - d_cuoi]                  # chỉ số search (trong lô) của search mới nhất mỗi node
@@ -213,11 +219,316 @@ class CayMoi(C.Cay):
             a["d_ch"][nc] = np.asarray(s_bd, dtype=np.float32)[cuoi]
             a["chia_ch"][nc] = (max_n[cuoi] / np.maximum(tong_n[cuoi], 1)).astype(np.float32)
             a["doi_q"][nc] = doi
+            a["cach"][nc] = np.asarray(s_con, dtype=np.int32)[cuoi]
             # Q lúc chơi từng nước: xoá đoạn cũ của node rồi ghi Q của search mới nhất
             kc, oc = self._o_cua(nc)
             p["qp"][oc] = np.nan
+            p["dp"][oc] = np.nan
             la_cuoi = np.zeros(so_search, bool)
             la_cuoi[cuoi] = True
             m_t = la_cuoi[t_ls]
             p["qp"][o_cua_t[m_t]] = t_q[m_t]
+            p["dp"][o_cua_t[m_t]] = t_d[m_t]
         return self.n - n0, so_search, so_van
+
+    # ------------------------------------------------------------ giảm (mục 8.1: trọng số làm cũ gamma^tuổi)
+    def giam(self):
+        """Như Cay.giam, thêm: các tổng ván thuần giảm theo gamma (tổng trọng số kết quả, tổng trọng số, số ván hoà) và
+        gamma^2 (tổng bình phương trọng số), nên ván tuổi t có trọng số gamma^t và N hiệu dụng = ws^2 / ws2."""
+        super().giam()
+        a, n = self.a, self.n
+        for k in ("zs", "ws", "ds"):
+            a[k][:n] *= C.GAMMA
+        a["ws2"][:n] *= C.GAMMA * C.GAMMA
+
+    # ------------------------------------------------------------ nhóm và tham số (12.3, 12.7 bước 5)
+    def nhom_cac_node(self):
+        a, n = self.a, self.n
+        return gm.nhom_cua(a["q_ch"][:n].astype(np.float64), a["d_ch"][:n].astype(np.float64),
+                           a["chia_ch"][:n].astype(np.float64), a["doi_q"][:n])
+
+    def do_S(self, so_toi_thieu=200):
+        """S(g) = trung bình (z - q)^2 theo nhóm g, trên node có đúng một ván thuần (N hiệu dụng bằng 1), q là search lúc
+        chơi của chính ván đó (công cụ 2, 12.3). Nhóm có dưới so_toi_thieu node lấy S chung. Trả về (S (SO_NHOM,), số node)."""
+        a, n = self.a, self.n
+        ws = a["ws"][:n].astype(np.float64)
+        ws2 = a["ws2"][:n].astype(np.float64)
+        dung = (a["trang"][:n] == 0) & (a["het"][:n] == 0) & (ws > 1e-9) & (a["doi_q"][:n] >= 0)
+        neff = np.where(ws2 > 0, ws * ws / np.maximum(ws2, 1e-30), 0.0)
+        dung &= neff < 1.0 + 1e-3
+        sg = np.where(a["sau"][:n] % 2 == 1, -1.0, 1.0)
+        x = sg * a["zs"][:n] / np.maximum(ws, 1e-30)
+        sai = (x - a["q_ch"][:n]) ** 2
+        g = self.nhom_cac_node()
+        dem = np.bincount(g[dung], minlength=gm.SO_NHOM).astype(np.float64)
+        tong = np.bincount(g[dung], sai[dung], minlength=gm.SO_NHOM)
+        chung = float(sai[dung].mean()) if dung.any() else 0.3
+        return np.where(dem >= so_toi_thieu, tong / np.maximum(dem, 1), chung), dem
+
+    # ------------------------------------------------------------ G, E và nhãn (12.7)
+    def tinh(self, tham=None):
+        """Tính G (giá trị tổng hợp không có q, gửi lên node cha), E (sai số bình phương của G) cho mọi node sống, và nhãn value
+        có q cho node có mẫu, bằng tổ hợp Gauss-Markov (cay_gm.gm_mang). Mọi phép tính theo mảng cấp node và cấp nhánh rẽ;
+        không có bước nào chạy qua toàn bộ ô pool (khác Cay.tinh). Cần pool gọn (gọi nen trước)."""
+        a, p, n = self.a, self.p, self.n
+        if not self.la_gon():
+            raise RuntimeError("tinh cần pool gọn: gọi nen() trước")
+        if tham is None:
+            S, _ = self.do_S()
+            tham = gm.tham_so_tu_S(S)
+        sau, trang, het = a["sau"][:n], a["trang"][:n], a["het"][:n]
+        sg = np.where(sau % 2 == 1, -1.0, 1.0)
+        ws = a["ws"][:n].astype(np.float64)
+        ws2 = a["ws2"][:n].astype(np.float64)
+        co_p = (ws > 1e-9) & (trang == 0) & (het == 0)
+        neff = np.where(ws2 > 0, ws * ws / np.maximum(ws2, 1e-30), 0.0)
+        g = self.nhom_cac_node()
+        A, B, kap, Gam, eta = (tham[k][g] for k in ("A", "B", "kap", "Gam", "eta"))
+        o, od = tham["o"][g], tham["od"][g]
+        nb = np.where(neff > 0, neff / np.maximum(B, 1e-12), 0.0)
+        xP_w = a["zs"][:n] / np.maximum(ws, 1e-30)                      # góc Trắng
+        dP = a["ds"][:n] / np.maximum(ws, 1e-30)
+        q_ch, d_ch = a["q_ch"][:n].astype(np.float64), a["d_ch"][:n].astype(np.float64)
+        Gv = a["Gw"][:n].astype(np.float64) - a["Gl"][:n]                # góc Trắng
+        Gd = a["Gd"][:n].astype(np.float64)
+        E = a["E"][:n].astype(np.float64)
+        Gv[co_p], Gd[co_p], E[co_p] = xP_w[co_p], dP[co_p], (B / np.maximum(neff, 1e-12))[co_p]
+        la = (trang == 0) & (het > 0)                                     # node kết thúc: kết quả theo luật
+        z = a["z"][:n].astype(np.float64)
+        Gv[la], Gd[la], E[la] = z[la], (z[la] == 0).astype(np.float64), 0.0
+        # nhánh rẽ: con có re = 1, cha có ván thuần và Q lúc chơi của nước đó
+        cha, nuoc = a["cha"][:n], a["nuoc"][:n]
+        con = np.flatnonzero((a["re"][:n] == 1) & (trang < 2) & (cha >= 0))
+        par = cha[con]
+        ok = co_p[par]
+        con, par = con[ok], par[ok]
+        u = np.unique(par)
+        khoa_o, o_o = self._o_cua(u)
+        so = np.argsort(khoa_o)
+        k_e = par.astype(np.int64) * 65536 + nuoc[con]
+        vi = np.minimum(np.searchsorted(khoa_o[so], k_e), max(len(khoa_o) - 1, 0))
+        co_o = (khoa_o[so][vi] == k_e) if len(khoa_o) else np.zeros(len(k_e), bool)
+        slot = o_o[so][vi] if len(khoa_o) else np.zeros(len(k_e), np.int64)
+        Qh, Dh = p["qp"][slot].astype(np.float64), p["dp"][slot].astype(np.float64)
+        ok = co_o & np.isfinite(Qh) & np.isfinite(Dh)
+        con, par, Qh, Dh = con[ok], par[ok], Qh[ok], Dh[ok]
+        so_canh = len(con)
+
+        def bang_cung(sel, ps, idx):
+            """bằng chứng của các nhánh rẽ `sel` của các node cha `ps` (idx: chỉ số của cha trong ps), theo G con hiện có."""
+            c, pa = con[sel], par[sel]
+            xv = sg[pa] * Gv[c] + (q_ch[pa] - Qh[sel]) - o[pa]
+            xd = Gd[c] + (d_ch[pa] - Dh[sel]) - od[pa]
+            return E[c], np.stack([xv, xd], 1)
+
+        dep = sau[par]
+        for L in (np.unique(dep)[::-1] if so_canh else []):             # từ sâu lên nông: G của con phải xong trước cha
+            sel = np.flatnonzero(dep == L)
+            ps, idx = np.unique(par[sel], return_inverse=True)
+            e_E, e_x = bang_cung(sel, ps, idx)
+            x_P = np.stack([sg[ps] * xP_w[ps], dP[ps]], 1)
+            r = gm.gm_mang(len(ps), A[ps], kap[ps], nb[ps], eta[ps], Gam[ps], idx, e_E, e_x, x_P, x_P)
+            Gv[ps], Gd[ps], E[ps] = sg[ps] * r["G"][:, 0], r["G"][:, 1], r["E_G"]
+        # nhãn của node có mẫu
+        chon = np.flatnonzero(co_p & (a["mau_tep"][:n] >= 0) & (a["k"][:n] > 0))
+        pos = np.full(n, -1, np.int64)
+        pos[chon] = np.arange(len(chon))
+        sel = np.flatnonzero(pos[par] >= 0) if so_canh else np.zeros(0, np.int64)
+        idx = pos[par[sel]]
+        e_E, e_x = bang_cung(sel, None, idx) if len(sel) else (np.zeros(0), np.zeros((0, 2)))
+        q_arr = np.stack([q_ch[chon], d_ch[chon]], 1)
+        x_P = np.stack([sg[chon] * xP_w[chon], dP[chon]], 1)
+        r = gm.gm_mang(len(chon), A[chon], kap[chon], nb[chon], eta[chon], Gam[chon], idx, e_E, e_x, q_arr, x_P)
+        v = np.clip(r["nhan"][:, 0], -1, 1)
+        d = np.clip(r["nhan"][:, 1], 0, 1)
+        wdl = np.stack([(1 + v - d) / 2, d, (1 - v - d) / 2], 1).clip(0, 1)
+        wdl /= wdl.sum(1, keepdims=True)
+        # ghi G, E (góc Trắng) về node sống
+        song = trang == 0
+        a["Gw"][:n] = np.where(song, ((1 + Gv - Gd) / 2).clip(0, 1), a["Gw"][:n])
+        a["Gd"][:n] = np.where(song, Gd, a["Gd"][:n])
+        a["Gl"][:n] = np.where(song, ((1 - Gv - Gd) / 2).clip(0, 1), a["Gl"][:n])
+        a["E"][:n] = np.where(song, E, a["E"][:n])
+        self._tam = {"chon": chon, "wdl": wdl, "r": r, "nhom": g, "tham": tham, "so_canh": so_canh}
+        return self._tam
+
+    def nhan(self, so_buoc, tham=None):
+        """Nhãn huấn luyện của mọi node sống đã search, chưa kết thúc và có mặt phẳng (mau.npz): cùng định dạng với Cay.nhan.
+        Value: tổ hợp Gauss-Markov (tinh). Policy: trung bình pi của các lần search (như bản cũ, 12.8)."""
+        t = self.tinh(tham)
+        a, p, n = self.a, self.p, self.n
+        chon, wdl, r = t["chon"], t["wdl"], t["r"]
+        # policy: pi = ns / tổng ns của node, chỉ các ô ns > 0 của node được chọn (pool gọn: đoạn của node i nằm theo thứ tự node)
+        ms, ml = a["ms"][:n].astype(np.int64), a["ml"][:n].astype(np.int64)
+        so_o = self.np_
+        ns = p["ns"][:so_o]
+        tong_n = np.zeros(n)
+        co_ml = ml > 0
+        if so_o:
+            tong_n[co_ml] = np.add.reduceat(ns, ms[co_ml], dtype=np.float64)
+        co_pol = tong_n[chon] > 0
+        chon, wdl = chon[co_pol], wdl[co_pol]
+        la_chon = np.zeros(n, bool)
+        la_chon[chon] = True
+        owner = np.repeat(np.arange(n, dtype=np.int32), ml)
+        dem_moi = np.zeros(n, np.int64)
+        pi2, mv2 = [], []
+        for d0 in range(0, so_o, 1 << 23):
+            sl = slice(d0, min(d0 + (1 << 23), so_o))
+            ow = owner[sl]
+            co = la_chon[ow] & (ns[sl] > 0)
+            pi2.append((ns[sl][co] / np.maximum(tong_n[ow[co]], 1e-12)).astype(np.float32))
+            mv2.append(p["mv"][sl][co])
+            dem_moi += np.bincount(ow[co], minlength=n)
+        del owner
+        pi2 = np.concatenate(pi2) if pi2 else np.zeros(0, np.float32)
+        mv2 = np.concatenate(mv2) if mv2 else np.zeros(0, np.uint16)
+        dem = dem_moi[chon]
+        pol_q = C._pi_uint16(pi2, dem)
+        den = (a["sau"][:n] % 2 == 1)
+        w_hoc = np.ones(len(chon), np.float32)
+        so_buoc = max(int(so_buoc), -(-len(chon) // 1024))
+        ra = {"tep": a["mau_tep"][chon], "hang": a["mau_hang"][chon], "den_di": den[chon].astype(np.uint8),
+              "wdl": wdl.astype(np.float32), "w": w_hoc,
+              "pol_dem": dem.astype(np.uint8 if dem.max(initial=0) < 256 else np.uint16),
+              "pol_mv": mv2.astype(np.uint16), "pol_q": pol_q, "so_buoc": np.int64(so_buoc)}
+        gg = t["nhom"][chon]
+        tk = {"so_mau": int(len(chon)), "so_canh_re": int(t["so_canh"]), "node_hong": int(r["hong"].sum()),
+              "doi": int(self.meta.get("doi", -1)),
+              "lam_q_tb": float(r["lam_q"][co_pol].mean()) if len(chon) else 0.0,
+              "lam_P_tb": float(r["lam_P"][co_pol].mean()) if len(chon) else 0.0,
+              "lam_re_tb": float(r["lam_R"][co_pol].mean()) if len(chon) else 0.0,
+              "E_nhan_tb": float(r["E_nhan"][co_pol].mean()) if len(chon) else 0.0,
+              "S_nhom": [round(float(x), 4) for x in t["tham"]["S"]],
+              "so_node_nhom": np.bincount(gg, minlength=gm.SO_NHOM).tolist()}
+        return ra, tk
+
+    # ------------------------------------------------------------ lập việc cho đời sau (8, 12.9)
+    SE_MUC = 0.2             # sai số chuẩn muốn đạt của w = B/S ở mỗi nhóm (12.9)
+    S_BO_QUA = 0.03          # nhóm có S nhỏ hơn: nhãn sai ít nên không dành cặp ván lặp cho nhóm đó
+    TY_LE_CAP_DUY_TRI = 0.25 # phần trần 20% dành cho cặp ván lặp khi mọi nhóm đã đủ cặp (5% ngân sách)
+    TY_LE_LAP_DON = 0.5      # phần trần còn lại dành cho ván lặp đơn (phần kia cho search lại đơn)
+
+    def lap_viec(self, doi_moi, ngan_sach, rng, tham=None):
+        """Danh sách việc cho đời `doi_moi`: [(loai, node, nuoc ép hoặc None, chi phí ước (lần chạy mạng))] đã xáo.
+        loai "S" = search lại đơn; "G" với nước ép = ván rẽ; "G" không nước ép = ván lặp (cặp hoặc đơn, 12.9).
+        Trần 20% ngân sách chia: cặp ván lặp (tới khi mọi nhóm có đủ cặp cho SE_MUC, rồi TY_LE_CAP_DUY_TRI của trần), phần
+        còn lại chia TY_LE_LAP_DON cho ván lặp đơn (theo mức giảm sai số bình phương của nhãn trên mỗi chi phí) và phần kia cho
+        search lại đơn (thứ tự ưu tiên như mục 8.5). Phần ngân sách còn lại cho ván rẽ (quét như cũ, 6.1 và 6.3)."""
+        a, p, n = self.a, self.p, self.n
+        if tham is None:
+            S, _ = self.do_S()
+            tham = gm.tham_so_tu_S(S)
+        e = float(self.meta.get("evals_moi_search", C.EVALS_MOI_SEARCH))
+        trang, het = a["trang"][:n], a["het"][:n]
+        cha, nuoc = a["cha"][:n], a["nuoc"][:n]
+        song = (trang == 0) & (het == 0) & (a["k"][:n] > 0) & (a["ws"][:n] > 1e-9)
+        cp_van = (a["cach"][:n].astype(np.float64) + 1) * e
+        g = self.nhom_cac_node()
+        tran = C.TRAN_SEARCH_LAI * ngan_sach
+        tat = []
+        da_dung = np.zeros(n, bool)
+        # ---- 1. cặp ván lặp
+        cap_so = np.asarray(self.meta.get("cap_so", [0] * gm.SO_NHOM), dtype=np.float64)
+        S_g = tham["S"]
+        can = np.ceil(2.0 / (self.SE_MUC ** 2 * np.maximum(S_g, 1e-3)))
+        can = np.where(S_g >= self.S_BO_QUA, can, 0.0)
+        con_thieu = np.maximum(can - cap_so, 0.0)
+        ngan_cap = tran if con_thieu.sum() > 0 else self.TY_LE_CAP_DUY_TRI * tran
+        da_cap = 0.0
+        so_cap = 0
+        cap_theo_nhom = np.zeros(gm.SO_NHOM, np.int64)
+        for gi in np.argsort(-S_g):
+            if da_cap >= ngan_cap:
+                break
+            ung = np.flatnonzero(song & (g == gi))
+            if len(ung) == 0:
+                continue
+            # còn thiếu cặp thì chỉ nhóm thiếu được thêm; đủ cả rồi thì mỗi nhóm thêm một phần của số cặp cần (duy trì)
+            muon = int(con_thieu[gi]) if con_thieu.sum() > 0 else int(self.TY_LE_CAP_DUY_TRI * can[gi])
+            rng.shuffle(ung)
+            for s in ung[:max(muon, 0)]:
+                cp = 2 * cp_van[s]
+                if da_cap + cp > ngan_cap:
+                    break
+                tat += [("G", int(s), None, cp_van[s]), ("G", int(s), None, cp_van[s])]
+                da_dung[s] = True
+                da_cap += cp
+                so_cap += 1
+                cap_theo_nhom[gi] += 1
+        # ---- 2. ván lặp đơn (theo mức giảm sai số bình phương của nhãn trên mỗi chi phí)
+        con_tran = max(tran - da_cap, 0.0)
+        ngan_don = self.TY_LE_LAP_DON * con_tran
+        ws = a["ws"][:n].astype(np.float64)
+        ws2 = a["ws2"][:n].astype(np.float64)
+        neff = np.where(ws2 > 0, ws * ws / np.maximum(ws2, 1e-30), 0.0)
+        A, B = tham["A"][g], tham["B"][g]
+        loi = A * A * B / np.maximum((neff * A + B) * ((neff + 1) * A + B), 1e-30)
+        diem = np.where(song & ~da_dung, loi / cp_van, -1.0)
+        da_don = 0.0
+        so_don = 0
+        if ngan_don > 0 and (diem > 0).any():
+            top = np.flatnonzero(diem > 0)
+            top = top[np.argsort(-diem[top])[:int(2 * ngan_don / max(e, 1.0)) + 10]]
+            cum = np.cumsum(cp_van[top])
+            tat += [("G", int(s), None, cp_van[s]) for s in top[cum <= ngan_don]]
+            so_don = int((cum <= ngan_don).sum())
+            da_don = float(cum[so_don - 1]) if so_don else 0.0
+            da_dung[top[:so_don]] = True
+        # ---- 3. search lại đơn (ưu tiên như 8.5: m * dhat / (k + 1))
+        viec_s = []
+        if C.CONG_TAC["search_lai"]:
+            k = np.maximum(a["k"][:n].astype(np.float64), 1e-9)
+            tuoi = doi_moi - a["gsum"][:n] / k
+            dl = self._delta_bang()
+            idx = np.flatnonzero(song & ~da_dung)
+            dhat = np.array([dl(tu, kk) for tu, kk in zip(tuoi[idx], k[idx])])
+            ut = a["m"][:n][idx] * dhat / (k[idx] + 1)
+            gioi = int(max(tran - da_cap - da_don, 0.0) / e)
+            for j in np.argsort(-ut)[:gioi]:
+                s = int(idx[j])
+                if k[s] >= a["m"][s] and tuoi[s] < 1:
+                    continue
+                viec_s.append(s)
+        da_s = len(viec_s) * e
+        # ---- 4. ván rẽ: quét một nước mỗi node theo ns^(1/T), thứ tự theo m (như Cay.lap_viec)
+        ms, ml = a["ms"][:n].astype(np.int64), a["ml"][:n].astype(np.int64)
+        so_o = self.np_
+        owner = np.repeat(np.arange(n, dtype=np.int32), ml)
+        w = np.power(p["ns"][:so_o].astype(np.float64), 1.0 / C.T_QUET)
+        w[~song[owner]] = 0.0
+        del owner
+        co_ml = ml > 0
+        tong = np.zeros(n)
+        tong[co_ml] = np.add.reduceat(w, ms[co_ml])
+        cum_w = np.cumsum(w)
+        dau = np.zeros(n)
+        dau[co_ml] = cum_w[ms[co_ml]] - w[ms[co_ml]]
+        nut = np.flatnonzero(song & (tong > 0))
+        u = dau[nut] + rng.random(len(nut)) * tong[nut]
+        chon = np.minimum(np.searchsorted(cum_w, u, side="right"), len(cum_w) - 1)
+        mv = p["mv"][:so_o][chon].astype(np.int64)
+        del w, cum_w
+        ok_c = (cha >= 0) & (trang < 2)
+        co_con = np.sort(cha[ok_c].astype(np.int64) * 65536 + nuoc[ok_c])
+        khoa = nut.astype(np.int64) * 65536 + mv
+        vi = np.minimum(np.searchsorted(co_con, khoa), max(len(co_con) - 1, 0))
+        da_choi = (co_con[vi] == khoa) if len(co_con) else np.zeros(len(khoa), bool)
+        nd, mvd = nut[~da_choi], mv[~da_choi]
+        if C.CONG_TAC["re_theo_m"] and len(nd):
+            kh = -np.log(1.0 - rng.random(len(nd))) / np.maximum(a["m"][:n][nd].astype(np.float64), 1e-9) ** C.MU_M
+            thu = np.argsort(kh, kind="stable")
+            nd, mvd = nd[thu], mvd[thu]
+        else:
+            thu = rng.permutation(len(nd))
+            nd, mvd = nd[thu], mvd[thu]
+        con_lai = ngan_sach * C.DU_VIEC - da_cap - da_don - da_s
+        cum_cp = np.cumsum(cp_van[nd]) if len(nd) else np.zeros(0)
+        so_re = int(np.searchsorted(cum_cp, con_lai, side="left")) + 1 if len(nd) else 0   # lập tới khi đủ ngân sách (như bản cũ)
+        so_re = min(so_re, len(nd))
+        tat += [("G", int(s), int(m), cp_van[s]) for s, m in zip(nd[:so_re].tolist(), mvd[:so_re].tolist())]
+        tat += [("S", s, None, e) for s in viec_s]
+        order = rng.permutation(len(tat))
+        tat = [tat[i] for i in order]
+        return tat, {"so_diem_re": int(len(nd)), "so_viec_s": len(viec_s), "so_viec_g": int(so_re), "so_cap_lap": so_cap,
+                     "so_lap_don": so_don, "cap_theo_nhom": cap_theo_nhom.tolist(), "con_thieu_cap": int(con_thieu.sum())}
