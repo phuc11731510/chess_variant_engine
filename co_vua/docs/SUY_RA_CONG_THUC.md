@@ -1175,3 +1175,26 @@ Ba hệ quả:
 **Điều 2: nhóm 21 ở đời 0.** Dữ liệu đời 0 của lần chạy 5: 640 ván từ gốc. $q$ của mạng đời 0 gần như hằng (trung bình $+0{,}023$, phương sai 0,008), nên không phân biệt được vị trí nào với vị trí nào. Chỉ có 239 node có từ hai ván thuần trở lên, và tất cả nằm trong 6 nước đầu. Ở đó $B=0{,}66$ và $S=0{,}66$, tức $B/S\approx1{,}0$ và $A\approx0$: vị trí đầu ván chưa mang thông tin gì về kết quả của ván chơi bằng mạng chưa học. Node sâu hơn chưa đo được, và giá trị khởi đầu 0,25 đã chốt. Nếu $B/S$ thật ở node sâu cao hơn nhiều 0,25, nhãn đời 0 đặt quá nhiều trọng số lên một ván. Mã ghi số đo node nhiều ván của đời 0 mới (cột "tham khảo" trong log) để quyết định sau đó.
 
 **Điều 3: $\kappa/S$ đo lại trên cây phát lại.** Phát lại 21 đời của lần chạy 5 bằng mã mới rồi đo theo quy tắc của mã (cha và con đều có đúng một ván thuần, con không có nhánh rẽ bên dưới): $\hat\kappa/S$ ở các lớp $p$ cao là 0,20 tới 0,23, cao hơn 0,13 của 12.14. Chỉ lấy node một ván nên tập đo khác 12.14, chưa tách được mức chênh do tập hay do cách tính nhóm. Nhánh rẽ nhận trung bình 0,15% trọng số trên toàn cây (nhiều node không có nhánh rẽ), nên nhãn gần như không đổi so với $w\,q+(1-w)\,\bar z$ ở phần lớn node.
+
+### 12.16 Điều tìm ra khi chạy thật (lần chạy 6, 23/11)
+
+Số liệu lấy từ `cay/nhat_ky_doi<G>.json` và `nhat_ky_sau_hl<G>.json` trên điện thoại, đời 0 đến đời 3.
+
+**Ván lặp chạy được qua engine thật.** Danh sách việc đời 1 có 649 cặp (1 298 ván). Vòng lặp lập danh sách dư 1,5 lần rồi bỏ phần đuôi, nên khoảng hai phần ba số ván được chơi: gộp đời 1 nhận 857 ván lặp. Nhưng danh sách bị xáo từng việc, nên hai ván của một cặp bị tách ra và chỉ khoảng $(2/3)^2\approx44\%$ số cặp được chơi đủ cả đôi (282 node có đủ hai ván, kỳ vọng 285). Từ danh sách đời 3, mã xáo theo khối: hai ván của một cặp luôn đi liền nhau. Đời 3 có 735 cặp lập, 499 node đủ hai ván (kỳ vọng $\tfrac23\times735=490$).
+
+**$B/S$ đo được cao hơn giá trị khởi đầu 0,25 và khá ổn định giữa các đời.** Số đo theo lớp $p$ (gộp ba nhóm cùng khoảng $p$), cộng dồn cửa sổ 6 đời, sai số chuẩn trong ngoặc:
+
+| Lớp $p$ | đời 1 | đời 2 | đời 3 |
+|---|---|---|---|
+| 3 ($S\approx0{,}04$) | 0 (chưa đủ) | 0,32 (0,14) | 0,40 (0,11) |
+| 4 ($S\approx0{,}27$) | 0,63 (0,11) | 0,43 (0,07) | 0,40 (0,06) |
+| 5 ($S\approx0{,}52$) | 1,00 (0,30) | 0,71 (0,14) | 0,71 (0,10) |
+| 6 ($S\approx0{,}82$) | 0,39 (0,29) | 0,66 (0,13) | 0,70 (0,08) |
+
+Các lớp có $S$ nhỏ hơn 0,03 có $B$ đo được bằng 0 (các cặp ra cùng kết quả). Các node nhiều ván không phải ván lặp (chỉ để tham khảo) cho 0,31 / 0,61 / 0,84 / 0,71 ở đời 3, cùng hướng. Ở nhóm 21 ($q$ của mạng đời 0) số này là 1,65, lớn hơn 1: $B$ lấy ở node nông (nhiều ván đi qua) lớn hơn $S$ lấy ở node một ván, nên không dùng được cho nhóm đó.
+
+**Đổi quy tắc dùng số đo (chủ dự án đồng ý 23/11).** Quy tắc cũ chỉ dùng số đo từ đời 10. Số đo ở đời 1 và 2 cho thấy 0,25 thấp hơn thực tế ở ba trong bốn lớp có $S$ đáng kể, nên đặt `DOI_DUNG_DO = 2`: từ nhãn của đời 3, lớp nào có sai số chuẩn của $B/S$ không quá 0,2 dùng số của chính nó. Tham số này chỉnh qua tệp `phuong_phap_moi` (JSON) mà không cần cài lại mã. Ở nhãn đời 3, trọng số trung bình của $q$ tăng từ 0,25 lên 0,40, trọng số của các ván thuần xuống 0,59.
+
+**Kế hoạch cặp dùng sai số chuẩn thật.** Số cặp cần theo cận xấu nhất $2/(\mathrm{SE}^2S)$ quá thừa: ở lớp 3 đời 3, cận đòi 1 231 cặp trong khi 619 node đã cho sai số chuẩn thật 0,111 (đã đủ), nhưng kế hoạch vẫn dành 13,7 triệu lần chạy mạng cho nó. Bản mới dùng $n_{\text{cần}}=n_{\text{có}}\,(\mathrm{SE}_{\text{thật}}/\mathrm{SE}_{\text{muc}})^2$ khi lớp đủ bậc tự do (sai số chuẩn tỉ lệ $1/\sqrt n$), cận xấu nhất khi chưa đủ. Trên cây thật đời 3, số cặp lập giảm từ 621 xuống 52 (1,7 triệu), và phần dư chuyển sang ván lặp đơn và search lại. Như vậy ước 150 triệu ở 12.15 (theo cận xấu nhất, trên cây đời 20 của lần chạy 5) quá cao: với số đo thật, đo $B$ ở các lớp có $S\ge0{,}03$ đủ chỉ sau 2 đến 3 đời.
+
+**Số khác.** Số node hỏng (ma trận không xác định dương, bỏ nhánh rẽ ở node đó) là 3 478 / 306 / 442 trên 1,02 / 1,55 / 2,06 triệu mẫu ở đời 1 / 2 / 3. $\hat\kappa/S$ ở các nhóm đủ 100 nhánh là 0,06 đến 0,46, cao hơn 0,13 của 12.14 ở đa số nhóm; một phần có thể do mạng chơi ván rẽ đổi giữa hai ván (chỗ hở số 1 ở 12.12). Trọng số trung bình của nhánh rẽ trong nhãn vẫn nhỏ (0,06%, 0,10%, 0,22% ở đời 1 / 2 / 3). Thời gian trên điện thoại ở đời 3 (cây 2,1 triệu node): gộp và tính nhãn 105 giây (gộp 45, tính nhãn 25), lập việc 33 giây chạy nền; huấn luyện FP16 2 009 bước, phần học 151 giây, không bước nào bị bỏ.
