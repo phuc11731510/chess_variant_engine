@@ -661,6 +661,40 @@ class Cay:
             s = int(self.a["cha"][s])
         return ra[::-1]
 
+    def dong_viec(self, tat, lo=4096):
+        """Các dòng của danh sách việc: "S <i> <đường đi>" (search lại) hoặc "G <i> 0 <đường đi> <nước ép>" (ván rẽ), mỗi
+        dòng kết thúc bằng xuống dòng. Chữ y hệt bản viết từng dòng bằng duong() + sang_uci() (29 giây cho 98 nghìn việc trên
+        điện thoại, 23/11), nhưng đường đi của cả lô việc được dựng một lượt bằng mảng: đi ngược từ mọi node lên gốc cùng
+        lúc, ghi nước đi (đã đổi sang chữ UCI, đệm tới 6 byte) từ cuối lô tới đầu, rồi gộp các dấu cách thừa."""
+        import re
+        a, n = self.a, self.n
+        cha, nuoc, sau = a["cha"][:n], a["nuoc"][:n], a["sau"][:n].astype(np.int64)
+        bang = np.full((65536, 6), 32, np.uint8)
+        dung = {}
+        for m in {int(x) for x in nuoc.tolist()} | {int(m) for _, _, m, _ in tat if m is not None}:
+            dung[m] = sang_uci(m).encode()
+            bang[m, :len(dung[m])] = np.frombuffer(dung[m], np.uint8)
+        gop = re.compile(rb" +")
+        ra = []
+        for d0 in range(0, len(tat), lo):
+            nho = tat[d0:d0 + lo]
+            nut = np.array([s for _, s, _, _ in nho], dtype=np.int64)
+            sau_nut = sau[nut]
+            dai = int(sau_nut.max(initial=0))
+            buf = np.full((len(nho), max(dai, 1), 6), 32, np.uint8)
+            hien = nut.copy()
+            for b in range(dai):
+                con = np.flatnonzero(b < sau_nut)                 # việc còn nước để ghi (đi ngược: b = 0 là nước cuối)
+                buf[con, dai - 1 - b] = bang[nuoc[hien[con]]]
+                hien[con] = cha[hien[con]]
+            hang = buf.reshape(len(nho), -1)
+            for j, (loai, s, m, cp) in enumerate(nho):
+                duong = gop.sub(b" ", hang[j].tobytes()).strip()
+                dau = b"S %d" % (d0 + j) if loai == "S" else b"G %d 0" % (d0 + j)
+                tu = ([duong] if duong else []) + ([dung[int(m)]] if m is not None else [])
+                ra.append((dau + b" " + b" ".join(tu) + b"\n").decode())     # như bản cũ: có dấu cách cuối khi đường đi rỗng
+        return ra
+
 
 # ---------------------------------------------------------------- lệnh
 def thu_muc_cay(cach):
@@ -755,10 +789,8 @@ def sau_hl(cach, g, ngan_sach):
     tat, tk = c.lap_viec(g + 1, ngan_sach, rng)
     with open(os.path.join(cach, f"viec_doi{g + 1}.txt.tam"), "w") as f, \
             open(os.path.join(cach, f"viec_doi{g + 1}.chi_phi.tam"), "w") as fc:
-        for i, (loai, s, m, cp) in enumerate(tat):
-            d = " ".join(sang_uci(x) for x in c.duong(s) + ([m] if m is not None else []))
-            f.write(f"S {i} {d}\n" if loai == "S" else f"G {i} 0 {d}\n")
-            fc.write(f"{int(cp)}\n")
+        f.writelines(c.dong_viec(tat))
+        fc.write("".join(f"{int(cp)}\n" for _, _, _, cp in tat))
     for duoi in ("txt", "chi_phi"):
         os.replace(os.path.join(cach, f"viec_doi{g + 1}.{duoi}.tam"), os.path.join(cach, f"viec_doi{g + 1}.{duoi}"))
     with open(os.path.join(cach, f"viec_doi{g + 1}.con_tro"), "w") as f:
