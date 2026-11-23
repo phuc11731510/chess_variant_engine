@@ -709,8 +709,22 @@ class CayMoi(C.Cay):
         tot_l = np.bincount(lop_node[dung], sai[dung], 7)
         chung = float(sai[dung].mean()) if dung.any() else 0.3
         S_l = np.where(cnt_l >= 200, tot_l / np.maximum(cnt_l, 1.0), chung)
-        da_co = self._gop_lop(self.tong_B(doi_moi - 1)["lap"])[5]      # số node có cặp đo được, theo lớp, trong cửa sổ
-        can = np.ceil(2.0 / (self.SE_MUC ** 2 * np.maximum(S_l, 1e-3)))
+        t_l = self._gop_lop(self.tong_B(doi_moi - 1)["lap"])
+        da_co = t_l[5]                                                  # số node có cặp đo được, theo lớp, trong cửa sổ
+        # Số cặp cần có trong cửa sổ để sai số chuẩn của B/S không quá SE_MUC. Cận xấu nhất 2 / (SE^2 S) (từ Var(X) <= 2B,
+        # 12.9) dùng khi lớp chưa đủ bậc tự do để ước sai số chuẩn thật; lớp đã đủ thì dùng sai số chuẩn THẬT đã đo, vì sai số
+        # chuẩn tỉ lệ 1 / sqrt(n): cần n_hiện_có * (SE_thật / SE_MUC)^2 cặp (ít hơn nhiều so với cận: đời 3 lớp 3 cần 1 231
+        # theo cận, trong khi 619 node đã cho SE_thật 0,111, tức đã đủ, mà kế hoạch cũ vẫn dành 13,7 triệu mỗi đời cho nó).
+        S_g, dem_g = self.do_S()
+        S_lop_nhom = self._gop_lop(np.stack([dem_g * S_g, dem_g]))
+        S_lop_nhom = (S_lop_nhom[0] / np.maximum(S_lop_nhom[1], 1e-9))[:7]
+        _, se_l, df_l = self._B_tu_tong(t_l)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            sew = se_l[:7] / np.maximum(S_lop_nhom, 1e-9)
+            do_duoc = (df_l[:7] >= self.DF_B_TOI_THIEU) & np.isfinite(sew)
+            can_xau = np.ceil(2.0 / (self.SE_MUC ** 2 * np.maximum(S_l, 1e-3)))
+            can_do = np.ceil(da_co[:7] * np.where(do_duoc, sew, 0.0) ** 2 / self.SE_MUC ** 2)
+        can = np.where(do_duoc, can_do, can_xau)
         can = np.where(S_l >= self.S_BO_QUA, can, 0.0)
         con_thieu = np.maximum(can - da_co[:7], 0.0)
         ngan_cap = tran if con_thieu.sum() > 0 else self.TY_LE_CAP_DUY_TRI * tran
@@ -817,4 +831,5 @@ class CayMoi(C.Cay):
         return tat, {"so_diem_re": int(len(nd)), "so_viec_s": len(viec_s), "so_viec_g": int(so_re), "so_cap_lap": so_cap,
                      "so_lap_don": so_don, "cap_theo_lop": cap_theo_lop.tolist(), "can_cap_lop": can.astype(int).tolist(),
                      "da_co_cap_lop": da_co[:7].astype(int).tolist(), "con_thieu_cap": int(con_thieu.sum()),
+                     "se_w_lop": np.round(np.nan_to_num(sew, nan=-1.0), 3).tolist(), "can_theo_so_do": do_duoc.tolist(),
                      "chi_phi_cap": int(da_cap), "chi_phi_lap_don": int(da_don), "chi_phi_s": int(da_s)}
