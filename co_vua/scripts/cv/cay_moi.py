@@ -37,6 +37,7 @@ POOL2["dp"] = (np.float32, np.nan)                                            # 
 class CayMoi(C.Cay):
     NODE = NODE2
     POOL = POOL2
+    NHAN_TU_TINH = True        # nhan() tự gọi tinh(): cap_nhat không gọi tinh() riêng
 
     def _tao_con(self, s, m, doi):
         """Tạo node con (s, m); gọi khi chắc chắn chưa có."""
@@ -280,9 +281,8 @@ class CayMoi(C.Cay):
         return gm.nhom_cua(a["q_ch"][:n].astype(np.float64), a["d_ch"][:n].astype(np.float64),
                            a["chia_ch"][:n].astype(np.float64), a["doi_q"][:n])
 
-    def do_S(self, so_toi_thieu=200):
-        """S(g) = trung bình (z - q)^2 theo nhóm g, trên node có đúng một ván thuần (N hiệu dụng bằng 1), q là search lúc
-        chơi của chính ván đó (công cụ 2, 12.3). Nhóm có dưới so_toi_thieu node lấy S chung. Trả về (S (SO_NHOM,), số node)."""
+    def _sai_dung(self):
+        """(dung, sai): dung = node sống có đúng một ván thuần (N hiệu dụng bằng 1) và q lúc chơi; sai = (z - q)^2 của node đó."""
         a, n = self.a, self.n
         ws = a["ws"][:n].astype(np.float64)
         ws2 = a["ws2"][:n].astype(np.float64)
@@ -291,7 +291,12 @@ class CayMoi(C.Cay):
         dung &= neff < 1.0 + 1e-3
         sg = np.where(a["sau"][:n] % 2 == 1, -1.0, 1.0)
         x = sg * a["zs"][:n] / np.maximum(ws, 1e-30)
-        sai = (x - a["q_ch"][:n]) ** 2
+        return dung, (x - a["q_ch"][:n]) ** 2
+
+    def do_S(self, so_toi_thieu=200):
+        """S(g) = trung bình (z - q)^2 theo nhóm g, trên node có đúng một ván thuần (N hiệu dụng bằng 1), q là search lúc
+        chơi của chính ván đó (công cụ 2, 12.3). Nhóm có dưới so_toi_thieu node lấy S chung. Trả về (S (SO_NHOM,), số node)."""
+        dung, sai = self._sai_dung()
         g = self.nhom_cac_node()
         dem = np.bincount(g[dung], minlength=gm.SO_NHOM).astype(np.float64)
         tong = np.bincount(g[dung], sai[dung], minlength=gm.SO_NHOM)
@@ -672,31 +677,35 @@ class CayMoi(C.Cay):
         song = (trang == 0) & (het == 0) & (a["k"][:n] > 0) & (a["ws"][:n] > 1e-9)
         cp_van = (a["cach"][:n].astype(np.float64) + 1) * e
         g = self.nhom_cac_node()
+        song_lap = song & (a["sau"][:n] > 0)         # ván lặp không bắt đầu ở gốc (đó là ván thường, không có đường đi)
         tran = C.TRAN_SEARCH_LAI * ngan_sach
         tat = []
         da_dung = np.zeros(n, bool)
         # ---- 1. cặp ván lặp, lập theo LỚP p (ba nhóm cùng khoảng p gộp lại). Đo từng nhóm riêng cần ~390 triệu lần chạy mạng
         # (9,7 đời dùng cả trần) vì nhóm S nhỏ cần rất nhiều cặp; gộp theo lớp còn ~150 triệu (xem tham_B).
-        S_g, dem_g = self.do_S()
-        S_l = self._gop_lop(np.stack([dem_g * S_g, dem_g]))
-        S_l = S_l[0] / np.maximum(S_l[1], 1e-9)
-        # nhóm dự kiến: node nhóm "q từ mạng đời 0" cũng được xếp theo p, tỉ lệ lượt thăm của q cũ (cặp rơi vào lớp nào là do
-        # lần search mới của chính cặp quyết định, và đó là cái được đếm)
+        # lớp dự kiến của node: node nhóm "q từ mạng đời 0" cũng được xếp theo p và tỉ lệ lượt thăm của q cũ (cặp rơi vào lớp nào
+        # là do lần search mới của chính cặp quyết định, và đó là cái được đếm ở da_co). S của lớp tính trên cùng cách xếp này,
+        # để đời 1 (mọi node đều có q từ mạng đời 0) vẫn lập được cặp.
         g_kd = gm.nhom_cua(a["q_ch"][:n].astype(np.float64), a["d_ch"][:n].astype(np.float64),
                            a["chia_ch"][:n].astype(np.float64), np.ones(n, np.int16))
         lop_node = g_kd // 3
+        dung, sai = self._sai_dung()
+        cnt_l = np.bincount(lop_node[dung], minlength=7).astype(np.float64)
+        tot_l = np.bincount(lop_node[dung], sai[dung], 7)
+        chung = float(sai[dung].mean()) if dung.any() else 0.3
+        S_l = np.where(cnt_l >= 200, tot_l / np.maximum(cnt_l, 1.0), chung)
         da_co = self._gop_lop(self.tong_B(doi_moi - 1)["lap"])[5]      # số node có cặp đo được, theo lớp, trong cửa sổ
-        can = np.ceil(2.0 / (self.SE_MUC ** 2 * np.maximum(S_l[:7], 1e-3)))
-        can = np.where(S_l[:7] >= self.S_BO_QUA, can, 0.0)
+        can = np.ceil(2.0 / (self.SE_MUC ** 2 * np.maximum(S_l, 1e-3)))
+        can = np.where(S_l >= self.S_BO_QUA, can, 0.0)
         con_thieu = np.maximum(can - da_co[:7], 0.0)
         ngan_cap = tran if con_thieu.sum() > 0 else self.TY_LE_CAP_DUY_TRI * tran
         da_cap = 0.0
         so_cap = 0
         cap_theo_lop = np.zeros(7, np.int64)
-        for li in np.argsort(-S_l[:7]):
+        for li in np.argsort(-S_l):
             if da_cap >= ngan_cap:
                 break
-            ung = np.flatnonzero(song & (lop_node == li))
+            ung = np.flatnonzero(song_lap & (lop_node == li))
             if len(ung) == 0:
                 continue
             # còn thiếu cặp thì chỉ lớp thiếu được thêm; đủ cả rồi thì mỗi lớp thêm can / W_B cặp để đo lại B mỗi đời (duy trì)
@@ -719,7 +728,7 @@ class CayMoi(C.Cay):
         neff = np.where(ws2 > 0, ws * ws / np.maximum(ws2, 1e-30), 0.0)
         A, B = tham["A"][g], tham["B"][g]
         loi = A * A * B / np.maximum((neff * A + B) * ((neff + 1) * A + B), 1e-30)
-        diem = np.where(song & ~da_dung, loi / cp_van, -1.0)
+        diem = np.where(song_lap & ~da_dung, loi / cp_van, -1.0)
         da_don = 0.0
         so_don = 0
         if ngan_don > 0 and (diem > 0).any():
