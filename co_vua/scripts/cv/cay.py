@@ -121,11 +121,14 @@ def _pi_uint16(pi, dem, khuc=1 << 22):
 
 
 class Cay:
+    NODE = NODE                  # bảng trường của node / ô pool; lớp con (cay_moi.CayMoi) thêm trường
+    POOL = POOL
+
     def __init__(self):
         self.n = 0
-        self.a = {k: np.full(1024, v, t) for k, (t, v) in NODE.items()}
+        self.a = {k: np.full(1024, v, t) for k, (t, v) in self.NODE.items()}
         self.np_ = 0
-        self.p = {k: np.full(4096, v, t) for k, (t, v) in POOL.items()}
+        self.p = {k: np.full(4096, v, t) for k, (t, v) in self.POOL.items()}
         self.meta = {"doi": -1, "moi_moi_doi": {}, "tep_mau": [], "da_nap": [], "delta": {}, "evals_moi_search": EVALS_MOI_SEARCH,
                      "nhat_ky": []}
         self.con = {}
@@ -134,7 +137,7 @@ class Cay:
     def _them_node(self, k=1):
         if self.n + k > len(self.a["cha"]):
             moi = max(len(self.a["cha"]) * 5 // 4 + 1024, self.n + k)
-            for t, (kieu, v) in NODE.items():
+            for t, (kieu, v) in self.NODE.items():
                 x = np.full(moi, v, kieu)
                 x[:self.n] = self.a[t][:self.n]
                 self.a[t] = x
@@ -145,7 +148,7 @@ class Cay:
     def _them_pool(self, k):
         if self.np_ + k > len(self.p["mv"]):
             moi = max(len(self.p["mv"]) * 5 // 4 + 4096, self.np_ + k)
-            for t, (kieu, v) in POOL.items():
+            for t, (kieu, v) in self.POOL.items():
                 x = np.full(moi, v, kieu)
                 x[:self.np_] = self.p[t][:self.np_]
                 self.p[t] = x
@@ -174,9 +177,9 @@ class Cay:
             return c
         z = np.load(f)
         c.n = len(z["n_cha"])
-        c.a = {k: z[f"n_{k}"] for k in NODE}            # mỗi lần đọc z[...] đã là một mảng mới
+        c.a = {k: z[f"n_{k}"] for k in cls.NODE}            # mỗi lần đọc z[...] đã là một mảng mới
         c.np_ = len(z["p_mv"])
-        c.p = {k: z[f"p_{k}"] for k in POOL}
+        c.p = {k: z[f"p_{k}"] for k in cls.POOL}
         with open(os.path.join(thu_muc, "cay.json"), encoding="utf-8") as fj:
             c.meta = json.load(fj)
         c.meta["tep_mau"] = [t.replace("\\", "/") for t in c.meta["tep_mau"]]   # cây tạo trên Windows (thử)
@@ -204,7 +207,7 @@ class Cay:
             return
         moi = np.full(n, -1, np.int64)
         moi[giu] = np.arange(len(giu))
-        for k in NODE:
+        for k in self.NODE:
             a[k] = a[k][:n][giu]                         # chỉ số mảng đã là bản mới
         a["cha"] = np.where(a["cha"] >= 0, moi[np.maximum(a["cha"], 0)], -1).astype(np.int32)
         del moi
@@ -215,8 +218,8 @@ class Cay:
         dau = np.cumsum(ml) - ml
         nguon = np.arange(tong, dtype=np.int64)
         nguon += np.repeat(a["ms"][:self.n].astype(np.int64) - dau, ml)
-        for k in POOL:                                   # từng mảng một: lúc nào cũng chỉ thêm một mảng mới
-            x = self.p[k][nguon] if tong else np.zeros(1, POOL[k][0])
+        for k in self.POOL:                              # từng mảng một: lúc nào cũng chỉ thêm một mảng mới
+            x = self.p[k][nguon] if tong else np.zeros(1, self.POOL[k][0])
             self.p[k] = x
         del nguon
         self.np_ = tong
@@ -253,7 +256,7 @@ class Cay:
         thieu = mv[~np.isin(mv, cu)]
         if len(thieu):                                   # nới đoạn: chép đoạn cũ + nước mới ra cuối pool
             moi = self._them_pool(ml + len(thieu))
-            for k in POOL:
+            for k in self.POOL:
                 self.p[k][moi:moi + ml] = self.p[k][ms:ms + ml]
             self.p["mv"][moi + ml:moi + ml + len(thieu)] = thieu
             for k in ("ns", "nq", "nd"):
