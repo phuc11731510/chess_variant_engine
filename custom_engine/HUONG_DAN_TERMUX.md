@@ -27,6 +27,7 @@ Có hai cách dùng:
 8. [Tải tệp lên / về](#8-tải-tệp-lên--về)
 9. [Sang đời tiếp theo](#9-sang-đời-tiếp-theo)
    - [9.1. Vòng lặp tự động (mục v)](#91-vòng-lặp-tự-động-mục-v)
+   - [9.1b. Vòng lặp liên tục (mục w)](#91b-vòng-lặp-liên-tục-mục-w-từ-2026-11-24)
 10. [Giữ Termux sống khi tắt màn hình](#10-giữ-termux-sống-khi-tắt-màn-hình)
 11. [Cách B: script tự động](#11-cách-b-script-tự-động)
 12. [Lệnh Colab CLI dùng tay](#12-lệnh-colab-cli-dùng-tay)
@@ -357,6 +358,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
 | 02b | `02b_bien_dich.py` | 1b | biên dịch lại (chỉ khi cần) |
 | 03 | `03_tao_gen0.py` | 2 | tạo mạng đời 0 mới (ghi đè gen0) |
 | 04 | `04_sinh_du_lieu.py` | 3 | sinh dữ liệu (dừng mềm được bằng 09b / vòng lặp tự động) |
+| 04l | `04l_sinh_lien_tuc.py` | 3 | sinh dữ liệu **liên tục** của vòng lặp mục w (mỗi lần chạy một mã RUN riêng, chạy song song được; xem 9.1b) |
 | 05 | `05_xem_log.py` | — | tình trạng ô chạy nền gần nhất: còn chạy hay xong, log cuối |
 | 06 | `06_dong_goi.py` | 4 | gom ván thành zip, tự tải zip về điện thoại |
 | 07 | `07_huan_luyen.py` | 5 | huấn luyện đời sau |
@@ -402,6 +404,7 @@ Danh sách ô, đối chiếu với sổ tay `FairyZero_1.ipynb`:
     t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)
     a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)
     v    Vòng lặp tự động: sinh -> huấn luyện -> lên đời
+    w    Vòng lặp LIÊN TỤC: engine chơi mãi, huấn luyện chạy chồng (không chạy cùng v)
     q    Thoát
    --------------------------------------
     Nhiều ô liền nhau: gõ cách nhau, vd: 01 02
@@ -870,6 +873,50 @@ lại → tổng = số lớn nhất trong tên `games_genG_<số>.zip`, sinh ti
 
 > Các gói lẻ `games_genG_<số>.zip` vẫn giữ sau khi gộp — xoá tay khi không cần. `games_genG.zip` (không
 > số) chỉ dành cho gói gộp; tệp cũ trùng tên thì đổi tên trước.
+
+---
+
+### 9.1b. Vòng lặp LIÊN TỤC (mục w, từ 2026-11-24)
+
+Khác mục **v** ở chỗ **không còn "hết một đời rồi mới huấn luyện"**: engine chơi mãi trên mọi máy, huấn luyện chạy chồng lên, các
+máy khác vẫn sinh dữ liệu suốt lúc đó (đo trên log đợt 22–23/11: 24,6% thời gian cũ là chờ nhau). Mở bằng menu **`w`** hoặc **`fz lien_tuc`**.
+**Không chạy cùng lúc với `v`** (vòng lặp mới từ chối nếu còn cửa sổ của vòng lặp cũ).
+
+**Cách chạy**
+
+- Mỗi cửa sổ Termux = một máy của một tài khoản như cũ (số cửa sổ tuỳ ý). Mỗi máy chạy **ô 04l** (engine với mạng `GEN_CURRENT`): nó chơi mãi,
+  chỉ dừng khi hết hạn mức T4, có lệnh dừng, hoặc có mạng mới (xem dưới). Máy **không bị trả để chờ nhau**; chỉ trả khi hết hạn mức (còn <
+  20 phút sau khi trừ phần chừa) rồi xin máy tài khoản khác.
+- **Dữ liệu đi theo gói nhỏ.** Cứ mỗi 50 ván mới của một máy (`LT_PACK_VAN`), cửa sổ ngắt luồng log một lúc, chạy `python/goi_van.py pack` trên máy
+  (gom các ván **đã xong** — engine ghi `.xz.tmp` rồi mới đổi tên nên gom lúc đang chạy là an toàn), tải gói về
+  `Download/FairyZero/goi/goi_<số thứ tự>_n<mạng>_<số ván>_<số thế>.zip` rồi đánh dấu đã gửi. Engine không bị dừng.
+- **Huấn luyện** khi không có lượt nào đang chạy **và** số ván mới ≥ số bạn đặt (mặc định 1000): *ván mới* = ván trong các gói có số thứ tự lớn hơn
+  mốc (`~/.fz_tk/.tu_dong/.lt_moc` = gói cuối cùng lúc lượt trước **bắt đầu**) cộng ván các máy chưa kịp gửi. Bộ đếm **không tính lại khi đổi mạng**.
+  Cửa sổ nào thấy đủ điều kiện, giữ được khoá (`lt_hl/`) và máy còn ≥ 28 phút T4 thì làm: (1) yêu cầu mọi máy gửi gói **ngay** (tối đa 120 giây),
+  (2) dừng engine của chính nó (ván dở chơi nốt, ≤ 8 phút), (3) lấy **cửa sổ huấn luyện = các gói mới nhất cho tới khi đủ ~625.447 thế**
+  (đặt lúc bắt đầu), chỉ tải lên máy những gói máy chưa có, (4) chạy ô 07 thật với `DATA` = danh sách gói đó, (5) tải mạng mới về, đưa lên
+  GitHub (kiểm sha256), `GEN_CURRENT + 1`, dọn gói cũ. Xong thì chính máy đó chạy tiếp engine bằng mạng mới.
+- **Đổi mạng:** các cửa sổ khác thấy `GEN_CURRENT` đổi → tải `gen<N>.pt` từ Release và chuyển `.fzw` (~20 giây, engine cũ vẫn chạy), khởi động **engine mới**
+  (`04_<mã mới>`) ngay, rồi dừng mềm engine cũ (chơi nốt ván dở 1,5–3,5 phút). **Hai tiến trình engine cùng một máy** (RAM ~8,4 GB trong 12,9 GB). Ván của
+  engine cũ được gom ở lần gửi gói kế tiếp (gói ghi đúng mạng đã chơi).
+- **Arena:** như cũ (hỏi dãy đời lúc bắt đầu). Đời mới nằm trong dãy thì mọi cửa sổ **dừng sinh dữ liệu**, gửi gói, đấu arena rồi sinh tiếp bằng mạng mới.
+
+**Chuẩn bị / chuyển từ vòng lặp cũ**
+
+1. Dừng mềm vòng lặp cũ (`fz dung`), đợi mọi cửa sổ trả máy và thoát. **Đừng** mở `w` khi còn cửa sổ `v`.
+2. `bash ~/lay_ve.sh` (tải thêm `~/fz_lien_tuc.sh`, ô `04l_sinh_lien_tuc.py`, `fz_tu_dong.py`/`fz_may.py` bản mới; ô bạn đã sửa được giữ).
+3. `fz` → **`w`** (hoặc `fz lien_tuc`) ở mỗi cửa sổ. Lần đầu nó hỏi: *số ván mới mỗi lượt huấn luyện* (1000), *cửa sổ huấn luyện: số thế* (625447), số phút chừa,
+   dãy đời arena; rồi tự **nhập** thư mục `games_gen<k>/` của 4 đời gần nhất thành 4 gói làm cửa sổ ban đầu (mốc đặt ở gói cuối: dữ liệu cũ tính là cũ).
+4. Hai thư mục `games_gen…` cũ vẫn nằm đó; `fz_tu_dong.py don_dep` (chạy lúc bắt đầu) dọn chúng theo cửa sổ 4 đời như trước.
+
+**Dừng:** `fz dung` hoặc Ctrl+C → `s` (cả vòng lặp: dừng engine, gom nốt, trả máy, thoát; đang huấn luyện thì làm xong đã) · `d` riêng cửa sổ này · `q` thoát nhưng máy **vẫn chạy**
+(ván chưa gửi chỉ an toàn khi Colab chưa thu hồi; mở lại `w` sẽ nhận lại máy, dừng mềm engine còn chạy, gom ván rồi sinh tiếp).
+
+**Mất máy giữa chừng:** mất tối đa số ván chưa gửi (< 50 ván/máy) cộng ván đang chơi dở; cửa sổ xin máy khác ngay. Mất điện thoại/Termux bị giết: cùng cách như `v`.
+
+**Thử mô phỏng:** `custom_engine/scripts/thu_lien_tuc/chay_thu.sh [co_ban|arena|mat_may]` (WSL, root) chạy **đúng mã thật** của vòng lặp với máy Colab / GitHub / engine **giả**,
+rồi đối chiếu sổ cái của engine giả với các gói trên điện thoại giả: mỗi ván sinh ra phải về đúng một lần. `scripts/thu_lien_tuc_t4.py` đo trên T4 thật hai engine cùng lúc và
+huấn luyện chồng engine (RAM, nps, thời gian).
 
 ---
 

@@ -235,10 +235,10 @@ def test_lay_ve_sh(tmp):
 
     try:
         rc, out = lay()
-        n_cells = len("00_cau_hinh 01_kiem_gpu 02_khoi_dong 02b_bien_dich 02c_chuan_bi_huan_luyen 03_tao_gen0 04_sinh_du_lieu "
+        n_cells = len("00_cau_hinh 01_kiem_gpu 02_khoi_dong 02b_bien_dich 02c_chuan_bi_huan_luyen 03_tao_gen0 04_sinh_du_lieu 04l_sinh_lien_tuc "
                       "05_xem_log 06_dong_goi 07_huan_luyen 08_arena 09_dung_viec_nen 09b_dung_mem".split())
         check(rc == 0 and out.count("[tai]") >= n_cells, f"first run: exit {rc}, the cells and helper files are downloaded")
-        check(all(os.path.exists(os.path.join(home, n)) for n in ("fz_menu.sh", "fz_nhat_ky.py", "fz_lay_ve.py", "fz_tu_dong.sh", "fz_may.py")),
+        check(all(os.path.exists(os.path.join(home, n)) for n in ("fz_menu.sh", "fz_nhat_ky.py", "fz_lay_ve.py", "fz_tu_dong.sh", "fz_lien_tuc.sh", "fz_may.py")),
               "...menu, window logger, updater and the loop scripts are in the home directory")
         check(len(os.listdir(os.path.join(home, ".fz_lay_ve", "co_so"))) == n_cells, f"...the base of all {n_cells} cells is remembered")
         rc, out = lay()
@@ -253,7 +253,7 @@ def test_lay_ve_sh(tmp):
               "08 changed upstream: 'lay_ve.sh' alone brings it")
         t = doc(os.path.join(o, "04_sinh_du_lieu.py"))
         check("[tron]" in out and "GAMES = 123" in t and t.rstrip().endswith("# upstream 04"), "04: the user's GAMES = 123 is kept and the upstream change arrives")
-        check("[o lenh] 11 =, 1 moi, 1 tron" in out or ("1 moi" in out and "1 tron" in out), "the summary counts exactly those two cells")
+        check("[o lenh] 12 =, 1 moi, 1 tron" in out or ("1 moi" in out and "1 tron" in out), "the summary counts exactly those two cells")
 
         # --xem writes nothing and does not run the rest of the script
         ghi(os.path.join(repo, "08_arena.py"), doc(os.path.join(repo, "08_arena.py")) + "# one more\n")

@@ -18,7 +18,7 @@ else
   [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || SHA=main
   URL=https://raw.githubusercontent.com/$REPO/$SHA/custom_engine/scripts/colab_cells
 fi
-CELLS="00_cau_hinh 01_kiem_gpu 02_khoi_dong 02b_bien_dich 02c_chuan_bi_huan_luyen 03_tao_gen0 04_sinh_du_lieu
+CELLS="00_cau_hinh 01_kiem_gpu 02_khoi_dong 02b_bien_dich 02c_chuan_bi_huan_luyen 03_tao_gen0 04_sinh_du_lieu 04l_sinh_lien_tuc
 05_xem_log 06_dong_goi 07_huan_luyen 08_arena 09_dung_viec_nen 09b_dung_mem"
 DIR=$HOME/storage/downloads/FairyZero/o_lenh
 
@@ -84,6 +84,7 @@ curl -fsSL -o ~/fz_colab.py "$URL/fz_colab.py" && echo "[tai]        ~/fz_colab.
 curl -fsSL -o ~/fz_chuyen.py "$URL/fz_chuyen.py" && echo "[tai]        ~/fz_chuyen.py"
 curl -fsSL -o ~/fz_tu_dong.sh "$URL/fz_tu_dong.sh" && echo "[tai]        ~/fz_tu_dong.sh"
 curl -fsSL -o ~/fz_tu_dong.py "$URL/fz_tu_dong.py" && echo "[tai]        ~/fz_tu_dong.py"
+curl -fsSL -o ~/fz_lien_tuc.sh "$URL/fz_lien_tuc.sh" && echo "[tai]        ~/fz_lien_tuc.sh (vong lap lien tuc: menu w)"
 curl -fsSL -o ~/fz_nhat_ky.py "$URL/fz_nhat_ky.py" && echo "[tai]        ~/fz_nhat_ky.py (nhat ky tung cua so -> ~/fz_nhat_ky/)"
 
 # Thay hai dong cu (neu co) trong ~/.bashrc.
