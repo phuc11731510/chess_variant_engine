@@ -1,0 +1,23 @@
+#!/bin/bash
+# gh GIA: "Release NN_Model" la thu muc $FAKE_RELEASE. Chi cac lenh ma td_len_github / td_kiem_len / td_don_dep dung.
+R=${FAKE_RELEASE:-/tmp/fc/release}
+mkdir -p "$R"
+case "$1" in
+  auth) exit 0 ;;
+  api)
+    shift
+    case "$*" in
+      *"releases/tags/"*) echo 4242 ;;
+      *"/assets"*)
+        for f in "$R"/*; do
+          [ -f "$f" ] || continue
+          printf '%s\t%s\tsha256:%s\n' "$(basename "$f")" "$(stat -c %s "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"
+        done ;;
+      *) exit 1 ;;
+    esac ;;
+  release)
+    # gh release upload TAG FILE --clobber -R REPO
+    [ "$2" = upload ] || exit 1
+    cp -f "$4" "$R/$(basename "$4")" ;;
+  *) exit 1 ;;
+esac

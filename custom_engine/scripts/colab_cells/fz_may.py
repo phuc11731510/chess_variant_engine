@@ -14,6 +14,12 @@ chay gi.
               (n: chi in n dong cuoi roi theo tiep -- dung khi noi lai sau rot mang)
 O 05, 09 cung doc tep nay (trang_thai, dung_o).
 
+O SINH DU LIEU LIEN TUC (2026-11-24, vong lap lien tuc fz_lien_tuc.sh): o co ten "04_<run>" (cell 04l, moi lan chay engine mot <run>) KHONG
+chiu khoa "mot o chay nen moi may" va KHONG ghi dang_chay: luc doi mang, tien trinh engine moi (04_<run2>) chay trong khi tien trinh cu
+(04_<run1>) choi not van do roi thoat -- hai tien trinh cung luc tren mot may. Cac o khac (02, 06, 07, 08...) giu quy tac cu.
+  - qua ssh:  python3 fz_may.py sinh_dang_chay   -> moi o 04_* con chay: "FZ_SINH <o> <pid>"; cuoi cung "FZ_SINH_XONG"
+Bien moi truong de thu tren may khac Colab: FZ_LOG_DIR (mac dinh /content/fz_log), FZ_IPY (lenh IPython), FZ_CWD (thu muc chay o, mac dinh /content).
+
 Trang thai mot o chay nen (trang_thai) -- khong doan theo thoi gian hay noi dung log:
   xong  co tep <o>.rc: vo bash boc o ghi ma thoat vao do NGAY KHI IPython chay o ket thuc
         (ghi sau dong "[fz] o .. xong" cua log, ghi qua tep tam + mv nen khong bao gio doc do dang).
@@ -31,8 +37,15 @@ import sys
 import threading
 import time
 
-D = "/content/fz_log"
+D = os.environ.get("FZ_LOG_DIR", "/content/fz_log")
 ENV = f"{D}/env.json"
+IPY = os.environ.get("FZ_IPY", "python3 -m IPython --no-banner --colors=NoColor")
+CWD = os.environ.get("FZ_CWD", "/content")
+
+
+def la_o_sinh(o):
+    """O sinh du lieu lien tuc (04_<run>): chay song song duoc, khong qua khoa "mot o moi may"."""
+    return o.startswith("04_")
 
 
 def moi_truong():
@@ -75,14 +88,22 @@ def khoi_dong(o, ma_b64, ep=False):
     """Chay o (ma IPython, base64) nen trong nhom tien trinh rieng, log vao <o>.log."""
     os.makedirs(D, exist_ok=True)
     cu, pid_cu = o_gan_nhat()
-    if cu and not ep and trang_thai(cu, pid_cu)[0] == "chay":
+    if cu and not ep and not la_o_sinh(o) and trang_thai(cu, pid_cu)[0] == "chay":
         print(f"FZ_BAN={cu}")
         return
+    if la_o_sinh(o):
+        try:
+            pid_o = open(f"{D}/{o}.pid").read().strip()
+        except OSError:
+            pid_o = "0"
+        if trang_thai(o, pid_o)[0] == "chay":
+            print(f"FZ_BAN={o}")      # cung mot <run> khong chay hai lan
+            return
     p, log, rc = f"{D}/{o}.ipy", f"{D}/{o}.log", f"{D}/{o}.rc"
     if os.path.exists(rc):
         os.remove(rc)
     open(p, "w").write(base64.b64decode(ma_b64).decode())
-    lenh = (f"cd /content && stdbuf -oL -eL python3 -m IPython --no-banner --colors=NoColor {p}; "
+    lenh = (f"cd {CWD} && stdbuf -oL -eL {IPY} {p}; "
             f"rc=$?; echo \"[fz] o {o} xong $(date +%H:%M:%S), ma thoat $rc\"; "
             f"echo $rc > {rc}.tmp && mv {rc}.tmp {rc}")
     with open(log, "w") as f:
@@ -95,7 +116,9 @@ def khoi_dong(o, ma_b64, ep=False):
     # ngay khi o thoat, de o khong thanh zombie. Qua ssh: tien trinh nay thoat ngay, o thanh con
     # cua init. trang_thai() khong dua vao viec nay -- day chi la don dep dung cach.
     threading.Thread(target=pr.wait, daemon=True).start()
-    open(f"{D}/dang_chay", "w").write(f"{o} {pr.pid}\n")
+    open(f"{D}/{o}.pid", "w").write(f"{pr.pid}\n")
+    if not la_o_sinh(o):
+        open(f"{D}/dang_chay", "w").write(f"{o} {pr.pid}\n")
     print(f"FZ_PID={pr.pid}")
 
 
@@ -172,13 +195,31 @@ def chay_nhanh(o, ma_b64):
     p = f"{D}/{o}.nhanh.ipy"
     with open(p, "w") as f:
         f.write(base64.b64decode(ma_b64).decode())
-    os.chdir("/content")
+    os.chdir(CWD)
     sys.stdout.flush()
-    os.execvpe("python3", ["python3", "-m", "IPython", "--no-banner", "--colors=NoColor", p],
-               moi_truong())
+    os.execvpe("bash", ["bash", "-c", f"exec {IPY} {p}"], moi_truong())
+
+
+def sinh_dang_chay():
+    """Moi o sinh du lieu lien tuc (04_*) con chay tren may nay: "FZ_SINH <o> <pid>" (cu nhat truoc)."""
+    ds = sorted(os.listdir(D), key=lambda t: os.path.getmtime(f"{D}/{t}")) if os.path.isdir(D) else []
+    for p in ds:
+        if not (p.startswith("04_") and p.endswith(".pid")):
+            continue
+        o = p[:-4]
+        try:
+            pid = open(f"{D}/{p}").read().strip()
+        except OSError:
+            continue
+        if trang_thai(o, pid)[0] == "chay":
+            print(f"FZ_SINH {o} {pid}")
+    print("FZ_SINH_XONG")
 
 
 def _lenh(a):
+    if a == ["sinh_dang_chay"]:
+        sinh_dang_chay()
+        return 0
     if len(a) in (3, 4) and a[0] == "theo_doi":
         return theo_doi(a[1], a[2], int(a[3]) if len(a) == 4 else None)
     if len(a) == 3 and a[0] == "trang_thai":

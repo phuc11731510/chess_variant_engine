@@ -1,0 +1,14 @@
+#!/bin/bash
+# ssh GIA cho bo thu vong lap lien tuc: chay lenh ngay trong khong gian ten (namespace) cua cua so = "may Colab" cua no (/content rieng).
+# Giong ssh that: ssh [-o X]... host lenh...   (stdin duoc chuyen tiep). May chua duoc xin (khong co /content/.maychu) hoac bi danh dau
+# mat (/content/.mat) thi ma thoat 255 nhu ssh khong noi duoc.
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) shift 2 ;;
+    -*) shift ;;
+    *) break ;;
+  esac
+done
+shift   # host
+[ -e /content/.maychu ] && [ ! -e /content/.mat ] || { echo "ssh: khong noi duoc (may khong con)" >&2; exit 255; }
+exec bash -c "$*"

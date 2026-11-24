@@ -170,13 +170,15 @@ LE=                                   # `fz_menu.sh [@tk] --tai-len <tep>`: moc 
 [ "${1:-}" = --tai-len ] && LE=1
 TUDONG=                               # `fz tu_dong`: vong lap tu dong (tu chon tai khoan -- khong hoi trung)
 [ "${1:-}" = tu_dong ] && TUDONG=1
+LIENTUC=                              # `fz lien_tuc`: vong lap LIEN TUC (engine choi mai, huan luyen chay chong len; fz_lien_tuc.sh)
+[ "${1:-}" = lien_tuc ] && LIENTUC=1
 # `fz dung`: dung mem MOI cua so vong lap tu dong tren dien thoai nay (go o bat ky cua so nao).
 if [ "${1:-}" = dung ]; then
   mkdir -p "$TKG/.tu_dong" && : > "$TKG/.tu_dong/dung_tay"
   echo "[đã yêu cầu dừng mềm] Mọi cửa sổ vòng lặp: chơi nốt ván dở, gom, tải về, trả máy rồi thoát."
   exit 0
 fi
-[ -n "$LE$TUDONG" ] || hoi_trung "$TK" "$S" || exit 1
+[ -n "$LE$TUDONG$LIENTUC" ] || hoi_trung "$TK" "$S" || exit 1
 dat_tk "$TK"
 [ -n "$LE" ] || ghi_cua_so
 # fz_colab.py = Colab CLI da sua loi lam moi token (invalid_scope -> doi dang nhap lai moi gio). KHONG_HOI=1:
@@ -1476,8 +1478,21 @@ tu_dong() {
   ghi_cua_so      # ve menu: cua so nay dung lai tai khoan dang dat
 }
 
+# Muc w / `fz lien_tuc`: vong lap LIEN TUC (~/fz_lien_tuc.sh, dung lai ham cua ~/fz_tu_dong.sh). Khong chay cung luc voi muc v.
+lien_tuc() {
+  da_giao && return
+  [ -f ~/fz_tu_dong.sh ] && [ -f ~/fz_lien_tuc.sh ] || { echo "[!] Thiếu ~/fz_tu_dong.sh hoặc ~/fz_lien_tuc.sh -- chạy: bash ~/lay_ve.sh"; return; }
+  # shellcheck source=/dev/null
+  source ~/fz_tu_dong.sh
+  # shellcheck source=/dev/null
+  source ~/fz_lien_tuc.sh
+  lt_vong
+  ghi_cua_so
+}
+
 if [ -n "$LE" ]; then tai_len "$2" "${3:-}"; exit; fi
 if [ -n "$TUDONG" ]; then tu_dong; exit; fi
+if [ -n "$LIENTUC" ]; then lien_tuc; exit; fi
 if [ $# -gt 0 ]; then chay_cac_o "$@"; exit; fi
 
 # Mo menu: may cua cua so nay con thi bao dam tien trinh giu may (~/fz_giu_may.py) dang chay --
@@ -1518,6 +1533,7 @@ while true; do
   echo " t    Trả máy -- chọn trong mọi máy đang giữ (XOÁ /content)"
   echo " a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)"
   echo " v    Vòng lặp tự động: sinh -> huấn luyện -> lên đời"
+  echo " w    Vòng lặp LIÊN TỤC: engine chơi mãi, huấn luyện chạy chồng (không chạy cùng v)"
   echo " z    Chuyển sang máy khác: xuất / nhập ghế lái (tài khoản, hạn mức, vòng lặp, dữ liệu)"
   echo " q    Thoát"
   echo "--------------------------------------"
@@ -1540,6 +1556,7 @@ while true; do
   h|H) han_muc; dung; continue ;;
   a|A) tai_khoan; continue ;;
   v|V) tu_dong; dung; continue ;;
+  w|W) lien_tuc; dung; continue ;;
   t|T) tra_may; continue ;;
   p|P) chon_may; continue ;;
   g|G) doi_doi; dung; continue ;;
