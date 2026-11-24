@@ -16,9 +16,10 @@
 # Đo trên 1013 ván đời 24: nước kém hơn 70 Elo chiếm 5,2% số nước tìm đầy đủ và gây ~46% số điểm kỳ vọng bị bỏ đi do
 # bốc lệch. --temp-elo-cutoff 0 (hoặc ELO_CAT = 0) = tắt. Số lượt thăm là mức
 # SÀN: một lượt tìm kiếm dừng sau lô lá cuối (tối đa +31 với minibatch-size=32), như lc0.
-# Thế khởi đầu: MỖI VÁN một thế ngẫu nhiên (python/sinh_the_khoi_dau.py: Tốt và Sergeant cố định, 18 quân
-# còn lại xếp ngẫu nhiên, an toàn hai nước), sinh mới ở mỗi lần chạy ô (hạt giống ngẫu nhiên nên các máy
-# Colab khác nhau không trùng thế).
+# Thế khởi đầu: MỖI VÁN một thế ngẫu nhiên (python/sinh_the_khoi_dau.py, luật 2026-11-24: hàng 3 toàn Tốt, hàng 2
+# có 5 Sergeant theo 1 trong 6 cấu hình, 15 quân còn lại gồm 10 quân cố định + 4 trong 8 quân nhảy + 1 quân thêm
+# xếp ngẫu nhiên, Hoàng gia chỉ ở hàng 1, an toàn hai nước), sinh mới ở mỗi lần chạy ô (hạt giống ngẫu nhiên nên
+# các máy Colab khác nhau không trùng thế).
 # Đo: cấu hình cũ (4 ván, batch 16) 2.766 nps -> 4.049 nps. 24/32 ván không hơn mà phần đuôi dừng mềm
 # dài ra; va chạm 1/1 và tắt out-of-order-eval (như lc0) thì chậm hơn trên máy này -> giữ mặc định.
 # Cache NN 2.000.000 mục (--search-opt nn-cache-size=2000000, như mặc định self-play của lc0; mặc định

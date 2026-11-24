@@ -4,8 +4,10 @@
   py -3 test_xem_du_lieu.py                      # không cần engine
   FZ_ENGINE=...\\custom_engine.exe py -3 test_xem_du_lieu.py   # thêm: so thế cuối và kết quả với chính engine
 
-Ba ván thật làm mẫu trong mau_van/ (lấy từ dữ liệu đời 1, đã kiểm bằng engine): một có ăn qua đường, một có phong cấp,
-một thắng bằng 7 lần chiếu; mau_van/mong_doi.json giữ thế đầu, dãy nước, bàn cờ cuối và lý do kết thúc đã kiểm.
+Ba ván thật làm mẫu trong mau_van/ (đã kiểm bằng engine): một có ăn qua đường, một có phong cấp, một thắng bằng 7 lần
+chiếu; mau_van/mong_doi.json giữ thế đầu, dãy nước, bàn cờ cuối và lý do kết thúc đã kiểm. Hai ván lấy từ dữ liệu đời 1;
+van_phong_cap.xz lấy từ dữ liệu đời 54 (2026-11-24, thay ván cũ có phong cấp Tượng ở hàng 3 mà luật mới không cho: hàng 8/3
+chỉ còn Mã, Centaur, Alibaba, Grasshopper), thắng bằng 8 lần chiếu, có phong cấp Grasshopper ở hàng 8.
 """
 import json
 import os
@@ -125,7 +127,7 @@ def test_xuat_va_cli():
     check(tsv[0].split("\t") == list(x.CAC_COT) and len(tsv) == 4, "chi_muc.tsv: tiêu đề + 3 ván")
     cot = [l.split("\t") for l in tsv[1:]]
     check(all(len(c) == len(x.CAC_COT) for c in cot), "mỗi dòng đủ cột")
-    check(sorted(c[3] for c in cot) == sorted(["B", "W", "W"]), "cột kết quả: 2 Trắng thắng, 1 Đen thắng")
+    check(sorted(c[3] for c in cot) == sorted(["B", "B", "W"]), "cột kết quả: 1 Trắng thắng, 2 Đen thắng")
     check(all(os.path.exists(os.path.join(out, c[1])) for c in cot), "mỗi ván có tệp nhật ký")
     r2 = subprocess.run([sys.executable, os.path.join(HERE, "xem_du_lieu.py"), MAU, "--xuat", out],
                         capture_output=True, text=True, encoding="utf-8")

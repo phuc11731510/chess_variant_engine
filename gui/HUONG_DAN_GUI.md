@@ -208,7 +208,7 @@ gui/
 | Chọn quân được nhưng đi 1 nước rồi **kẹt** | **Thiếu `--model`** → engine không nghĩ được. Thêm `--model "...onnx"`. |
 | Dòng chữ **cam** ở đáy cửa sổ | Engine không khởi động (sai đường dẫn exe / thiếu `.dll` của engine). Kiểm tra `--engine` và các `.dll` cạnh nó. |
 | Muốn dùng **GPU** | Dùng bản engine **`build-dml`** + `--provider dml`. |
-| Bảng phong cấp ra sai quân | Bảng theo luật hiện tại: `q r m v c g y n b` (hàng 9), `n b y c g` (hàng 8, tuỳ chọn). |
+| Bảng phong cấp ra sai quân | Bảng theo luật hiện tại: `q r m v c g y n b` (hàng 9), `n m y g` (hàng 8, tuỳ chọn; từ 2026-11-24, trước đó `n b y c g`). |
 | Đổi SVG quân nhưng app vẫn ảnh cũ | Chưa chạy `dart run tool/flatten_svgs.dart` (hoặc chưa build lại `flutter build windows --release`). |
 | Xem lại dữ liệu huấn luyện báo "Nước thứ N không hợp lệ" | Engine `build-dml\custom_engine.exe` là bản cũ: từ 2026-11-21 engine ghi đúng chữ cái phong cấp (`n b r q m v y c g`); bản trước in 4 loại phong cấp thành nước trơn và nhầm chữ `v` / `y`. Dựng lại: `ninja -C build-dml`. |
 | Quân hiện trống / không hiện | SVG còn `<style>` (chưa làm phẳng): `flutter test test/piece_assets_test.dart` báo tệp nào. |

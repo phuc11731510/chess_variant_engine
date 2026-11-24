@@ -576,10 +576,10 @@ void run_ep_tests() {
             std::exit(1);
         }
 
-        std::string m2_str = "d7d8c";  // straight capture, promote to Cannon (rank 8: n b y c g)
+        std::string m2_str = "d7d8g";  // straight capture, promote to Grasshopper (rank 8: n m y g)
         Move m2 = UCI::to_move(pos, m2_str);
         if (m2 == MOVE_NONE || type_of(m2) != EN_PASSANT) {
-            std::cerr << "[FAIL] d7d8c not recognized as a legal EN_PASSANT move after real play "
+            std::cerr << "[FAIL] d7d8g not recognized as a legal EN_PASSANT move after real play "
                          "(got type=" << (m2 == MOVE_NONE ? -1 : (int)type_of(m2)) << ")" << std::endl;
             std::exit(1);
         }
@@ -594,14 +594,14 @@ void run_ep_tests() {
                          "gone." << std::endl;
             std::exit(1);
         }
-        if (type_of(pos.piece_on(d8)) != CUSTOM_PIECE_6 || color_of(pos.piece_on(d8)) != WHITE) {
-            std::cerr << "[FAIL] d8 does not hold a White Cannon after d7d8c e.p." << std::endl;
+        if (type_of(pos.piece_on(d8)) != CUSTOM_PIECE_7 || color_of(pos.piece_on(d8)) != WHITE) {
+            std::cerr << "[FAIL] d8 does not hold a White Grasshopper after d7d8g e.p." << std::endl;
             std::exit(1);
         }
         std::cout << "  [OK] real do_move marks BOTH c7 and d8 in epSquares after the diagonal "
                      "double-step (not just the midpoint)" << std::endl;
         std::cout << "  [OK] capture_square(d8) = c7, resolved correctly from real play" << std::endl;
-        std::cout << "  [OK] Black Sergeant actually removed from c7; White Cannon actually on d8"
+        std::cout << "  [OK] Black Sergeant actually removed from c7; White Grasshopper actually on d8"
                   << std::endl;
         std::cout << "[PASS] Sergeant straight EP+Promotion real-play end-to-end test passed!" << std::endl;
     }
