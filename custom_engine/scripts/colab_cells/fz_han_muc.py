@@ -83,6 +83,17 @@ def bi_tu_choi(ch):
     return bool(h) and (h >= ch.get("luc", 0) or "con_khi_tu_choi" in ch)
 
 
+# Bị từ chối T4 khi hạn mức còn từ chừng này giờ T4 trở lên = Colab TẠM hết T4 (hoặc treo), KHÔNG phải hết hạn mức (cùng ngưỡng với
+# fz_tu_dong.py GIO_TU_CHOI_TAM: vòng lặp vẫn xin tài khoản đó). 2026-11-24: tranlongn28 bị 412 lúc còn 3 giờ 31 phút, `h` in "HẾT",
+# vậy mà bấm m vẫn mượn được -- nhãn HẾT sai.
+GIO_TU_CHOI_TAM = 2.0
+
+
+def tam_thoi(ch):
+    c = ch.get("con_khi_tu_choi")
+    return c is not None and c / 1000 / T4_UOC_TINH >= GIO_TU_CHOI_TAM
+
+
 def tom_tat(ch, bay_gio=None):
     """Một dòng: hạn mức lúc chụp + giờ nạp lại (hoặc 'đã tới giờ nạp lại')."""
     if not ch:
@@ -93,6 +104,9 @@ def tom_tat(ch, bay_gio=None):
     qua_nap = bool(nap) and now >= nap and ch.get("luc", 0) < nap and not ch.get("het_luc", 0) >= nap
     if qua_nap:
         dau = "ĐÃ TỚI giờ nạp lại -- có lẽ đã có hạn mức mới"
+    elif bi_tu_choi(ch) and tam_thoi(ch):
+        dau = (f"T4 bị từ chối lúc {luc(ch['het_luc'])} nhưng hạn mức còn ≈ {gio_phut(ch['con_khi_tu_choi'] / 1000 / T4_UOC_TINH)} T4 "
+               "-> Colab tạm hết T4 / treo, KHÔNG phải hết hạn mức (thử lại sau là được)")
     elif bi_tu_choi(ch):
         dau = f"HẾT (xin T4 bị từ chối lúc {luc(ch['het_luc'])}" + (
             f", khi còn ≈ {gio_phut(ch['con_khi_tu_choi'] / 1000 / T4_UOC_TINH)}" if ch.get("con_khi_tu_choi") is not None else "") + ")"
@@ -138,7 +152,10 @@ def khoi(ch, bay_gio=None, lui="   "):
         dong.append(lui + mau(LAM, "ĐÃ TỚI giờ nạp lại"))
         dong.append(lui + mau(MO, f"lúc {luc(nap)} · h -> d xem mới"))
         return dong
-    if bi_tu_choi(ch):
+    if bi_tu_choi(ch) and tam_thoi(ch):
+        dong.append(lui + mau(VANG, "T4 từ chối ") + luc(ch["het_luc"]))
+        dong.append(lui + mau(MO, f"nhưng còn ≈ {gp(ch['con_khi_tu_choi'] / 1000 / T4_UOC_TINH)}: Colab tạm hết T4"))
+    elif bi_tu_choi(ch):
         dong.append(lui + mau(DO, "HẾT") + mau(MO, f"  T4 bị từ chối {luc(ch['het_luc'])}"))
     elif ch.get("con") is not None:
         ccu = ch["con"] / 1000
@@ -155,6 +172,13 @@ def khoi(ch, bay_gio=None, lui="   "):
     return dong
 
 
+if "--het-xoa" in sys.argv:     # xin T4 vừa ĐƯỢC cấp (menu.sh xin_may): xoá dấu "bị từ chối" cũ (không hỏi mạng)
+    _ch = doc_chup()
+    if _ch and ("het_luc" in _ch or "con_khi_tu_choi" in _ch):
+        _ch.pop("het_luc", None)
+        _ch.pop("con_khi_tu_choi", None)
+        ghi_chup(_ch)
+    sys.exit(0)
 if "--dong" in sys.argv:        # không hỏi mạng
     print(tom_tat(doc_chup()))
     sys.exit(0)
@@ -247,7 +271,9 @@ nap = q.get("nextRefillTimestampSec")
 _moi = {"luc": int(time.time()), "con": None if tok is None else int(tok),
         "nap_lai": int(nap) if nap else None, "tieu": rate, "so_may": so_may}
 _cu = doc_chup() or {}
-if _cu.get("het_luc") and time.time() - _cu["het_luc"] <= TU_CHOI_GAN:   # đọc ngay sau khi T4 bị từ chối
+# Đang giữ một máy GPU (tiêu >= 0,5 đơn vị/giờ, hoặc menu báo T4) = T4 vừa được cấp: dấu "bị từ chối" cũ hết đúng, không giữ lại.
+_giu_gpu = bool(so_may) and (rate >= 0.5 or ("T4" in may.upper()))
+if _cu.get("het_luc") and time.time() - _cu["het_luc"] <= TU_CHOI_GAN and not _giu_gpu:   # đọc ngay sau khi T4 bị từ chối
     _moi["het_luc"] = _cu["het_luc"]
     _moi["con_khi_tu_choi"] = _moi["con"]
 ghi_chup(_moi)

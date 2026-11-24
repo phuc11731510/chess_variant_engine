@@ -30,7 +30,14 @@ LT_PACK_VAN=${LT_PACK_VAN:-50}     # moi may gui goi sau moi chung nay van moi
 LT_THE_MAC_DINH=625447             # so the cua cua so huan luyen (chu du an chon 2026-11-24; tham so, chinh luc bat dau)
 LT_CHO_DUOI=${LT_CHO_DUOI:-1}      # 1 = huan luyen chi bat dau sau khi engine cua may huan luyen choi not van do (RAM: engine ~4,2 GB + huan luyen)
 LT_O=; LT_RUN=; LT_PID=; LT_NET=; LT_VAN=0; LT_DA_GOI=0; LT_SK=; LT_CRASH=0
+LT_T_BD=0                          # luc (giay epoch) cua so nay BAT DAU chay vong lap (sau khi tra loi het cau hoi); 0 = chua biet
 
+# LENH DUNG CHUNG (tep $TD_DUNG, do `fz dung` / Ctrl+C -> s tao) CHI co hieu luc voi cua so da chay TRUOC luc tao tep. Truoc day cua so MOI mo
+# trong luc cua so cu con dang tat (vd cua so cu dang huan luyen, `fz dung` doi no xong) thay tep dung cu -> tu dung ngay sau khi tra loi
+# "Enter = bat dau" (2026-11-24 15:10, cua so 17945). Tep cu hon luc cua so bat dau bi bo qua. Ghi de ham cung ten cua fz_tu_dong.sh (vong lap cu
+# khong doi): menu.sh nap fz_tu_dong.sh roi moi nap tep nay.
+lt_dung_hieu_luc() { [ -f "$TD_DUNG" ] && [ "$(stat -c %Y "$TD_DUNG" 2>/dev/null || echo 0)" -ge "${LT_T_BD:-0}" ]; }
+td_dung_ca() { lt_dung_hieu_luc || [ -f "$TD_DUNG_RIENG" ]; }
 lt_moc() { local n; n=$(cat "$LT_MOC_F" 2>/dev/null); [[ "$n" =~ ^[0-9]+$ ]] && echo $((10#$n)) || echo 0; }
 lt_the() { local n; n=$(cat "$LT_THE_F" 2>/dev/null); [[ "$n" =~ ^[0-9]+$ ]] && echo $((10#$n)) || echo $LT_THE_MAC_DINH; }
 lt_yc() { local n; n=$(cut -d' ' -f1 "$LT_YC_F" 2>/dev/null); [[ "$n" =~ ^[0-9]+$ ]] && echo $((10#$n)) || echo 0; }
@@ -266,6 +273,9 @@ lt_nap_lai() {
     fi
     LT_NAP_M[$f]=$m
   done
+  # fz_lien_tuc.sh nap sau cung: ham no GHI DE ham cung ten cua fz_tu_dong.sh (td_dung_ca) phai thang du tep nao vua doi.
+  ham=$(lt_trich_ham "$HOME/fz_lien_tuc.sh")
+  [ -n "$ham" ] && bash -n <<<"$ham" 2>/dev/null && eval "$ham"
   return 0
 }
 
@@ -636,6 +646,7 @@ lt_bat_dau() {
   [ -z "$x" ] || return 1
   td_don_dep "$g"
   [ ${#khac[@]} -eq 0 ] && rm -f "$TD_DUNG" "$TD_XIN_SAU" "$LT_YC_F"
+  LT_T_BD=$(date +%s)
   return 0
 }
 lt_vong() {
@@ -661,16 +672,16 @@ lt_vong_chinh() {
     lt_nap_lai
     if [ $NGAT = 1 ]; then td_hoi_ngat; [ $TD_THOAT = 1 ] && break; fi
     g=$(td_gen)
-    if [ "${g:-0}" -ge "$TD_GEN_CUOI" ] && [ ! -f "$TD_DUNG" ]; then
+    if [ "${g:-0}" -ge "$TD_GEN_CUOI" ] && ! lt_dung_hieu_luc; then
       td_in "${M_VANG}đã tới đời $g (giới hạn $TD_GEN_CUOI)${M_HET}: Release GitHub chứa tối đa $TD_REL_TOI_DA tệp -> dừng vòng lặp"
       : > "$TD_DUNG"
     fi
     if td_dung_ca && [ "$TD_VAI" != huan_luyen ]; then
-      if [ -f "$TD_DUNG" ]; then td_in "dừng mềm: trả máy, thoát vòng lặp"
+      if lt_dung_hieu_luc; then td_in "dừng mềm: trả máy, thoát vòng lặp"
       else td_in "dừng mềm RIÊNG cửa sổ này: trả máy, thoát (cửa sổ khác vẫn chạy)"; fi
       if [ $TD_CO_MAY = 1 ]; then lt_ket_may; fi
       local ds=()
-      while [ -f "$TD_DUNG" ]; do
+      while lt_dung_hieu_luc; do
         td_khoa_chon; td_ds_tk
         if ! td_nhan_lai; then td_mo_khoa_chon; break; fi
         td_mo_khoa_chon

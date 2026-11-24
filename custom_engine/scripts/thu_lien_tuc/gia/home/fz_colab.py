@@ -52,6 +52,10 @@ if cmd == "new":
         print("[colab] Creating session 'fz'...", flush=True)
         if os.fork() == 0:                    # may chu cap may muon, sau khi lenh cua ta da bi giet
             os.setsid()
+            _fd = os.open(os.devnull, os.O_RDWR)      # khong giu ong dau ra cua `$(...)` cua nguoi goi (neu giu, nguoi goi phai doi het thoi gian cho)
+            os.dup2(_fd, 0)
+            os.dup2(_fd, 1)
+            os.dup2(_fd, 2)
             time.sleep(float(os.environ.get("FAKE_GRANT_LATE", "3")))
             rr = load()
             rr["?"] = {"ep": f"gpu-orphan-{acc}", "hw": "T4"}
