@@ -20,10 +20,18 @@ const String _sourceFile = 'nguon.txt';
 /// thúc), 'process:<đường dẫn engine>' = engine chạy riêng (máy tính, kiểm thử).
 typedef OracleKind = String;
 
-Future<FinalOracle?> _openOracle(OracleKind kind) async {
-  if (kind == 'ffi') return FfiFinalOracle();
+Future<FinalOracle?> _openOracle(OracleKind kind, {bool backup = false}) async {
+  if (kind == 'ffi') {
+    // [1] = luật trước 2026-11-24 (libfzcu.so), xem RuleSetSwitcher.
+    return backup ? FfiFinalOracle(libName: 'libfzcu.so') : FfiFinalOracle();
+  }
   if (kind.startsWith('process:')) {
-    return ProcessFinalOracle.start(kind.substring(8));
+    // 'process:<engine>' hoặc 'process:<engine>|<engine luật dự phòng>'.
+    final parts = kind.substring(8).split('|');
+    if (backup) {
+      return parts.length > 1 ? ProcessFinalOracle.start(parts[1]) : null;
+    }
+    return ProcessFinalOracle.start(parts[0]);
   }
   return null;
 }
@@ -153,12 +161,22 @@ Future<void> _run(_Job job) async {
       oracle =
           null; // engine không nạp được: vẫn có bảng ván, chỉ thiếu lý do kết thúc
     }
+    FinalOracle? oracle2;
+    if (oracle != null) {
+      try {
+        oracle2 = await _openOracle(job.oracle, backup: true);
+      } catch (_) {
+        oracle2 = null; // không có bộ luật dự phòng: ván lệch luật báo "lệch engine" như trước
+      }
+    }
     final reader = GameReader();
     final rows = <IndexRow>[];
     var last = 0;
     try {
       for (int i = 0; i < ds.length; i++) {
-        rows.add(await indexRowOf(i, ds.length, ds[i], reader, oracle));
+        rows.add(
+          await indexRowOf(i, ds.length, ds[i], reader, oracle, oracle2: oracle2),
+        );
         final now = DateTime.now().millisecondsSinceEpoch;
         if (now - last > 150 || i + 1 == ds.length) {
           last = now;
@@ -167,6 +185,7 @@ Future<void> _run(_Job job) async {
       }
     } finally {
       await oracle?.close();
+      await oracle2?.close();
     }
     // Nhật ký cũ (đánh số theo nguồn cũ) không còn khớp: xoá trước khi ghi chỉ mục mới.
     for (final e in dir.listSync()) {

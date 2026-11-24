@@ -116,14 +116,23 @@ void main() {
   );
 
   testWidgets(
-    'cảm ứng, màn hình dọc: cả hai bảng là ngăn kéo; vuốt ngang trên bàn lướt nước',
+    'cảm ứng, màn hình dọc cao: bảng tìm kiếm nằm DƯỚI bàn, danh sách ván là ngăn kéo; vuốt ngang trên bàn lướt nước',
     (tester) async {
       final prepared = <int>[];
       final dir = _lib();
       await _pump(tester, const Size(800, 1340), dir, prepared);
-      expect(find.byType(SearchPanel), findsNothing);
-      expect(find.byIcon(Icons.analytics_outlined), findsOneWidget);
+      expect(find.byType(SearchPanel), findsOneWidget);
+      expect(find.byIcon(Icons.analytics_outlined), findsNothing);
       expect(find.text('Ván'), findsOneWidget);
+      final board = tester.getRect(find.byType(AspectRatio).first);
+      final panel = tester.getRect(find.byType(SearchPanel));
+      expect(
+        panel.top,
+        greaterThanOrEqualTo(board.bottom),
+        reason: 'bảng nằm phía dưới bàn',
+      );
+      expect(panel.height, greaterThan(170));
+      expect(board.top, lessThan(120), reason: 'bàn sát phía trên (dưới thanh công cụ)');
 
       expect(find.textContaining('nửa nước 0/3'), findsOneWidget);
       // Vuốt sang trái = tiến một nước; sang phải = lùi.
@@ -141,14 +150,20 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('nửa nước 0/3'), findsOneWidget);
+    },
+  );
 
+  testWidgets(
+    'cảm ứng, màn hình dọc thấp (không đủ chỗ dưới bàn): bảng tìm kiếm là ngăn kéo bên phải',
+    (tester) async {
+      final prepared = <int>[];
+      final dir = _lib();
+      await _pump(tester, const Size(800, 900), dir, prepared);
+      expect(find.byType(SearchPanel), findsNothing);
+      expect(find.byIcon(Icons.analytics_outlined), findsOneWidget);
       await tester.tap(find.byIcon(Icons.analytics_outlined));
       await tester.pumpAndSettle();
-      expect(
-        find.byType(SearchPanel),
-        findsOneWidget,
-        reason: 'ngăn kéo bên phải',
-      );
+      expect(find.byType(SearchPanel), findsOneWidget);
     },
   );
 

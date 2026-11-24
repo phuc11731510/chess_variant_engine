@@ -253,3 +253,22 @@ adb install -r build\app\outputs\flutter-apk\app-release.apk
 **Đổi luật / bộ quân thì chạy lại `dung_engine_android.ps1` rồi dựng lại APK**: app dùng engine trong tiến trình để kiểm
 nước đi và dựng FEN, bản `.so` cũ = luật cũ (bản tháng 6 còn bộ quân và luật chiếu cũ nên mọi ván mới đều "không hợp lệ").
 Đổi định dạng dữ liệu huấn luyện (`trainingdata_v6.py`) thì sửa `lib/data/v6_game.dart` và chạy lại bài so với Python.
+
+**Hai bộ luật trong một app (2026-11-24).** Luật phong cấp hàng 8/3 đổi ngày 2026-11-24 (`n b y c g` thành `n m y g`) nên ván
+của các đời trước có nước mà engine mới cấm (phong Tượng / Pháo ở hàng 8/3, ~14% ván đời 54) và ván luật mới có nước mà engine
+cũ cấm (phong Centaur). Hai tập này không giao nhau, nên app mang CẢ HAI engine: `libfairyzero.so` (luật hiện tại) và
+`libfzcu.so` (luật trước 2026-11-24; là bản dựng cũ đổi SONAME để hai thư viện cùng nạp được; bản sao lưu ở
+`ban_linux\android\libfzcu.so`, vì `*.so` không nằm trong git; dựng lại từ commit `744dceb` bằng `dung_engine_android.ps1` ở
+worktree đó rồi đổi chuỗi SONAME `libfairyzero.so` thành `libfzcu.so` (ngắn hơn, chèn byte 0 cho đủ độ dài)). Chỉ mục thế
+cuối (`generation_cache.dart`): hỏi engine mới, nếu thế cuối lệch bản ghi thì hỏi engine cũ. Màn hình xem ván
+(`GameController.initReplay` + `RuleSetSwitcher`, `NativeFfiEngine.switchRuleSet`): gặp nước "không hợp lệ" thì đổi sang bộ
+luật kia và phát lại từ đầu một lần; engine giữ bộ luật vừa dùng cho ván kế tiếp. Khi không còn ván đời cũ nào cần xem thì
+xoá `libfzcu.so` (app vẫn chạy: không có thư viện kia thì không đổi luật).
+
+**Bảng tìm kiếm trên điện thoại (2026-11-24).** Màn hình dọc: bàn rộng hết bề ngang sát phía trên, bảng tìm kiếm nằm ngay
+dưới thanh nước đi (khi còn từ 170 dp chiều cao; thấp hơn thì là ngăn kéo bên phải như trước). Màn hình ngang: cạnh bàn.
+Bảng tự thu nhỏ vừa bề ngang (không còn tràn cột Q Trắng khi xoay ngang hoặc cỡ chữ hệ thống lớn); cột P / Pnet chỉ hiện khi
+nhật ký có (dữ liệu huấn luyện không lưu prior); bảng nằm ngay dưới dòng tổng, các ghi chú xuống dưới; liệt kê MỌI nước có
+lượt thăm (`nhatKy(..., tatCaNuocCoLuot: true)`, chỉ ở Android; bản Python và bài so byte vẫn 8 nước). **Q chỉ có ở nước đã đi
+và nước nhiều lượt nhất**: bản ghi huấn luyện chỉ lưu `played_q`, `best_q`, `root_q` và phân bố lượt thăm, không lưu Q của nước khác
+(chủ dự án đồng ý để vậy, 2026-11-24).

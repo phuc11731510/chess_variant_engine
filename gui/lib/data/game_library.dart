@@ -126,6 +126,7 @@ String _cut80(String s) {
 }
 
 /// Dòng chỉ mục của ván thứ [i]: giải mã, kiểm, hỏi [oracle] thế cuối (null = không biết lý do kết thúc).
+/// [oracle2]: bộ luật dự phòng, chỉ hỏi khi thế cuối của [oracle] lệch bản ghi.
 /// [log] (nếu có) nhận văn bản nhật ký của ván (cho kiểm thử ghi đủ mọi tệp).
 Future<IndexRow> indexRowOf(
   int i,
@@ -133,6 +134,7 @@ Future<IndexRow> indexRowOf(
   GameSource g,
   GameReader reader,
   FinalOracle? oracle, {
+  FinalOracle? oracle2,
   void Function(String log)? log,
 }) async {
   final tenLog = tenLogOf(i);
@@ -161,8 +163,17 @@ Future<IndexRow> indexRowOf(
   var ghiChu = '';
   var ly = 'unknown';
   if (oracle != null) {
-    final fi = await oracle.query(v.fen, v.nuoc);
-    final cuoiEngine = fi.fen.trim().split(RegExp(r'\s+'))[0];
+    var fi = await oracle.query(v.fen, v.nuoc);
+    var cuoiEngine = fi.fen.trim().split(RegExp(r'\s+'))[0];
+    if (cuoiEngine != cuoi && oracle2 != null) {
+      // Thế cuối lệch: có thể ván có nước mà luật của [oracle] cấm (ván đời luật cũ / mới); thử bộ luật kia.
+      final fi2 = await oracle2.query(v.fen, v.nuoc);
+      final cuoi2 = fi2.fen.trim().split(RegExp(r'\s+'))[0];
+      if (cuoi2 == cuoi) {
+        fi = fi2;
+        cuoiEngine = cuoi2;
+      }
+    }
     ly = lyDo(fi.fen, fi.result, fi.legalCount, v.nuoc.length, ma);
     if (cuoiEngine != cuoi) ghiChu = 'ban co cuoi lech engine';
     final kqMa = const {'white': 'W', 'black': 'B', 'draw': 'D'}[fi.result];
@@ -182,4 +193,4 @@ String indexTsv(List<IndexRow> rows) =>
 
 /// Nhật ký của MỘT ván (để mở ván khi cần, không phải ghi cả đời dữ liệu ra đĩa).
 String logOf(GameSource g, int i, int total, GameReader reader) =>
-    nhatKy(reader.read(g), soVan: i, tong: total);
+    nhatKy(reader.read(g), soVan: i, tong: total, tatCaNuocCoLuot: true);

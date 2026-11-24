@@ -18,12 +18,34 @@ position startpos
     c2c4 N 100 P 0.2 Q -0.10
 ''';
 
-Widget _panel({required double exponent, ValueChanged<double>? onChanged}) {
-  final rec = SearchRecord.parseLog(_log)[0]!;
+// Nhật ký dựng từ dữ liệu huấn luyện: không có P / Pnet, Q chỉ có ở nước đã đi và nước nhiều lượt nhất.
+const _logHuanLuyen = '''
+--- nửa nước 1 (trắng đi) → e2e4
+position startpos
+  depth 1 seldepth 1 multipv 1 wdl 500 0 500 nodes 1000 nps 0 time 0 pv e2e4
+    e2e4 N 600 Q 0.1000
+    d2d4 N 300
+    c2c4 N 90
+    b2b4 N 9
+''';
+
+Widget _panel({
+  required double exponent,
+  ValueChanged<double>? onChanged,
+  String log = _log,
+  double width = 520,
+  bool compact = false,
+  double textScale = 1,
+}) {
+  final rec = SearchRecord.parseLog(log)[0]!;
   return MaterialApp(
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+      child: child!,
+    ),
     home: Scaffold(
       body: SizedBox(
-        width: 520,
+        width: width,
         height: 700,
         child: SearchPanel(
           record: rec,
@@ -32,6 +54,7 @@ Widget _panel({required double exponent, ValueChanged<double>? onChanged}) {
           whiteMoved: true,
           exponent: exponent,
           onExponentChanged: onChanged,
+          compact: compact,
         ),
       ),
     ),
@@ -61,6 +84,31 @@ void main() {
     final w = [for (final n in [600, 300, 100]) math.pow(n / 600, 2)];
     final tot = w.reduce((a, b) => a + b);
     expect(s2[1], closeTo(w[1] / tot, 1e-12));
+  });
+
+  testWidgets('dữ liệu huấn luyện: không có cột P / Pnet (trống), có đủ mọi nước có lượt thăm và cột Q Trắng', (tester) async {
+    await tester.pumpWidget(_panel(exponent: 1, log: _logHuanLuyen));
+    expect(find.textContaining('Pnet'), findsNothing);
+    expect(find.textContaining('Q Trắng'), findsOneWidget);
+    for (final mv in ['e2e4', 'd2d4', 'c2c4', 'b2b4']) {
+      expect(find.textContaining(mv), findsWidgets, reason: 'nước $mv có trong bảng');
+    }
+    expect(find.textContaining('+0.100'), findsOneWidget, reason: 'Q của nước đã đi, phía Trắng');
+    expect(find.textContaining('chỉ lưu Q của nước đã đi'), findsOneWidget);
+  });
+
+  testWidgets('bảng hẹp (điện thoại xoay ngang, cỡ chữ lớn): cột Q Trắng nằm trong bảng, không tràn', (tester) async {
+    for (final scale in [1.0, 1.4]) {
+      for (final exponent in [1.0, 2.0]) {
+        for (final log in [_log, _logHuanLuyen]) {
+          await tester.pumpWidget(_panel(exponent: exponent, log: log, width: 250, compact: true, textScale: scale));
+          expect(tester.takeException(), isNull, reason: 'không tràn (scale $scale, e $exponent)');
+          final q = tester.getRect(find.textContaining('Q Trắng'));
+          expect(q.right, lessThanOrEqualTo(250.0 + 0.5), reason: 'cột Q Trắng trong bảng (scale $scale, e $exponent)');
+          expect(q.left, greaterThanOrEqualTo(0));
+        }
+      }
+    }
   });
 
   testWidgets('chỉ cột %N khi chưa chọn nhiệt độ; không có cột %N^e', (tester) async {
