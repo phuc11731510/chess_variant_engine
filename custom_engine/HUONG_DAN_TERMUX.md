@@ -901,6 +901,20 @@ máy khác vẫn sinh dữ liệu suốt lúc đó (đo trên log đợt 22–23
   engine cũ được gom ở lần gửi gói kế tiếp (gói ghi đúng mạng đã chơi).
 - **Arena:** như cũ (hỏi dãy đời lúc bắt đầu). Đời mới nằm trong dãy thì mọi cửa sổ **dừng sinh dữ liệu**, gửi gói, đấu arena rồi sinh tiếp bằng mạng mới.
 
+**Số đo trên T4 thật (2026-11-24, `scripts/thu_lien_tuc_t4.py`, cửa sổ 627.180 thế):**
+
+| Việc | Kết quả |
+|---|---|
+| Hai engine cùng một máy (mạng cũ + mạng mới) | RAM đỉnh 9,1 GB trên 13 GB; mỗi engine ~5,8k nps, **tổng ~11,6k nps** (một engine một mình ~12,6k): đổi mạng không mất công suất |
+| Engine mới tới nhịp đầu tiên | ~70 giây (trong lúc đó engine cũ vẫn chạy) |
+| Engine cũ chơi nốt ván dở sau khi dừng mềm | 93 giây |
+| Gom gói khi engine đang chạy | zip hợp lệ, số ván khớp, gửi lại sau khi đánh dấu không trùng |
+| Huấn luyện **một mình** (cửa sổ 627.180 thế) | **527 giây (8,8 phút)**, RAM đỉnh 5,9 GB |
+| Huấn luyện **chồng lên engine đang chạy** | 1106 giây (18,4 phút), engine chậm đi 33% (9,4k → 6,3k nps), RAM đỉnh 10 GB |
+
+Vì chồng lên engine làm huấn luyện chậm gấp 2,1 lần và mạng mới ra muộn thêm ~10 phút mà không được thêm dữ liệu đáng kể, máy huấn luyện **chờ engine của chính nó chơi nốt
+ván dở (~1,5 phút) rồi huấn luyện một mình** (`LT_CHO_DUOI=1`, mặc định). Các máy còn lại không dừng.
+
 **Chuẩn bị / chuyển từ vòng lặp cũ**
 
 1. Dừng mềm vòng lặp cũ (`fz dung`), đợi mọi cửa sổ trả máy và thoát. **Đừng** mở `w` khi còn cửa sổ `v`.
