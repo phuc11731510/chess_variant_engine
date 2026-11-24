@@ -11,4 +11,11 @@ while [ $# -gt 0 ]; do
 done
 shift   # host
 [ -e /content/.maychu ] && [ ! -e /content/.mat ] || { echo "ssh: khong noi duoc (may khong con)" >&2; exit 255; }
+# Mo phong 429 "Already-active SSH session" (Colab chua giai phong phien ssh cu sau mot lan dut): tep $FAKE_DIR/loi429 (so lan, cho lenh hoi danh sach
+# goi tren may) va $FAKE_DIR/loi429_tar (so lan, cho luong tar dua goi len: doc mot phan du lieu roi bi tu choi giua chung).
+tru() { local f=${FAKE_DIR:-/tmp/fc}/$1 n; [ -f "$f" ] || return 1; n=$(cat "$f"); [ "${n:-0}" -gt 0 ] || return 1; echo $((n - 1)) > "$f"; }
+case "$*" in
+  *"tar xf"*)       tru loi429_tar && { head -c 30000 > /dev/null; echo "[colab] Already-active SSH session (HTTP 429): another \`colab ssh\` is connected to this runtime. Disconnect it and retry." >&2; exit 255; } ;;
+  *"FZ_LIET_XONG"*) tru loi429     && { echo "[colab] Already-active SSH session (HTTP 429): another \`colab ssh\` is connected to this runtime. Disconnect it and retry." >&2; exit 255; } ;;
+esac
 exec bash -c "$*"

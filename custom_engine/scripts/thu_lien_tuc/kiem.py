@@ -96,6 +96,11 @@ for k in (1, 2):
     check("vòng lặp liên tục đã dừng" in log or "thoát" in log, f"cua so {k} thoat sach")
     logs.append(log)
 check(bad == 0, "log khong co loi bash / python")
+if kb == "len_loi":
+    tong = "\n".join(logs)
+    check("Colab từ chối ssh mới (429" in tong, "co gap loi 429 (mo phong) va nhan ra")
+    check("bỏ lượt huấn luyện" not in tong, "KHONG bo luot huan luyen vi loi tai goi")
+    check(tong.count("gói) lên máy bằng một luồng") + tong.count("lên máy bằng một luồng") >= 2, "tai goi bang luong tar, thu lai sau khi bi dut")
 if kb == "nap_lai":
     tong = "\n".join(logs)
     check("đã nạp lại mã mới" in tong, "cua so bao da nap lai ma moi (khong mo lai cua so)")
