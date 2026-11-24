@@ -223,11 +223,58 @@ lt_ket_may() {
   LT_O=; LT_RUN=; LT_PID=; LT_NET=
 }
 
+# ---------------- Tu nap lai ma moi (2026-11-24) ----------------
+# Cua so chay hang gio, nen cap nhat ~/fz_menu.sh, ~/fz_tu_dong.sh, ~/fz_lien_tuc.sh (lay_ve.sh, hoac Claude cai qua ssh) KHONG bat buoc phai mo
+# lai cua so: moi LT_NAP_GIAY giay (mac dinh 60) cua so xem ngay sua tep; doi thi nap lai CAC HAM va cac bien moi CHUA co -- khong dong vao bien
+# trang thai dang chay (may dang giu, engine dang chay, ...). Ma moi co loi cu phap thi giu ban dang chay (bao mot lan). Ham dang chay do chay
+# not ban cu (bash sao than ham truoc khi chay), lan goi sau dung ban moi. Cac o (04l, 07, 08...) va python/*.py von doc lai moi lan chay.
+# KHONG nap lai duoc: doi y nghia mot bien dang dung / doi cau truc tep trang thai -- khi do mo lai cua so.
+declare -gA LT_NAP_M=()
+LT_NAP_F=("$HOME/fz_menu.sh" "$HOME/fz_tu_dong.sh" "$HOME/fz_lien_tuc.sh")
+LT_NAP_T=$SECONDS
+for _f in "${LT_NAP_F[@]}"; do LT_NAP_M[$_f]=$(stat -c %Y "$_f" 2>/dev/null); done; unset _f
+# In ra cac ham cap cao nhat (cot 0: `ten() {` ... `}` o cot 0, hoac mot dong) cua tep $1.
+lt_trich_ham() {
+  awk '
+    /^[A-Za-z_][A-Za-z0-9_]*\(\)[ \t]*\{/ {
+      print; l = $0; sub(/[ \t]+#.*$/, "", l)
+      dang = (l ~ /\}[ \t]*$/) ? 0 : 1
+      next }
+    dang { print; if ($0 ~ /^\}[ \t]*$/) dang = 0 }
+  ' "$1"
+}
+lt_nap_lai() {
+  local f m ham l n moi=()
+  for f in "${LT_NAP_F[@]}"; do
+    m=$(stat -c %Y "$f" 2>/dev/null) || continue
+    [ "$m" = "${LT_NAP_M[$f]:-}" ] || moi+=("$f")
+  done
+  [ ${#moi[@]} -gt 0 ] || return 0
+  sleep 3                                  # tep co the dang duoc ghi (curl -o): doi no on dinh roi moi doc
+  for f in "${moi[@]}"; do
+    m=$(stat -c %Y "$f" 2>/dev/null) || continue
+    ham=$(lt_trich_ham "$f")
+    if [ -n "$ham" ] && bash -n <<<"$ham" 2>/dev/null; then
+      while IFS= read -r l; do                # bien cap cao viet hoa MOI (chua co): dat gia tri mac dinh cua ban moi
+        n=${l%%=*}
+        [ -z "${!n+x}" ] && eval "$l"
+      done < <(grep -E '^[A-Z][A-Z0-9_]*=' "$f")
+      eval "$ham"
+      td_in "${M_XANH}đã nạp lại mã mới${M_HET} từ ${f##*/} (không cần mở lại cửa sổ)"
+    else
+      td_in "${M_DO}[!] mã mới trong ${f##*/} có lỗi cú pháp -- giữ bản đang chạy${M_HET} (sửa tệp là tự nạp lại)"
+    fi
+    LT_NAP_M[$f]=$m
+  done
+  return 0
+}
+
 # ---------------- Su kien (chi doc tep tren dien thoai, khong ssh) ----------------
 LT_GOI_T=-999; LT_HL_T=-999; LT_NGHI_RIENG=-9999
 lt_su_kien() {
   local yc dv
   LT_SK=
+  if [ $((SECONDS - LT_NAP_T)) -ge "${LT_NAP_GIAY:-60}" ]; then LT_NAP_T=$SECONDS; lt_nap_lai; fi
   if td_dung_ca; then LT_SK=dung; return 0; fi
   if [ "$(td_gen)" != "$LT_NET" ]; then LT_SK=mang; return 0; fi
   yc=$(lt_yc); dv=$(td_doc "$TD_W" phuc_vu)
@@ -416,6 +463,7 @@ lt_hl_den_luot_khoa() {
 lt_sinh() {
   local rc them="" g
   while :; do
+    lt_nap_lai
     [ $TD_THOAT = 1 ] && return 0
     if td_dung_ca && [ "$TD_VAI" != huan_luyen ]; then lt_ket_may; return 0; fi
     g=$(td_gen)
@@ -561,6 +609,7 @@ lt_vong_chinh() {
   td_ranh
   td_ghi lt=1 gen="$(td_gen)" buoc=xin van=0 da_goi=0 phuc_vu="$(lt_yc)"
   while [ $TD_THOAT = 0 ] && [ $TD_LOI = 0 ]; do
+    lt_nap_lai
     if [ $NGAT = 1 ]; then td_hoi_ngat; [ $TD_THOAT = 1 ] && break; fi
     g=$(td_gen)
     if [ "${g:-0}" -ge "$TD_GEN_CUOI" ] && [ ! -f "$TD_DUNG" ]; then
