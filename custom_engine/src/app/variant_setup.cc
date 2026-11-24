@@ -89,8 +89,9 @@ void init_engine_globals() {
 //   * an e.p. capture that lands in the promotion zone promotes (rank 8: a choice): movegen.cpp +
 //     position.cpp;
 //   * the two tiers of promotion (optionalPromotionRegion / optionalPromotionPieceTypes, added to this
-//     Fairy-Stockfish copy): rank 8 (Black: 3) a pawn or Sergeant may stay or become n y g b c, rank 9
-//     (Black: 2) it must become one of the nine.
+//     Fairy-Stockfish copy): rank 8 (Black: 3) a pawn or Sergeant may stay or become n m y g (Knight,
+//     Centaur, Alibaba, Grasshopper; since 2026-11-24, before that n b y c g), rank 9 (Black: 2) it must
+//     become one of the nine.
 // `k` is the royal piece ("Hoang gia"): it moves or captures one square in any direction, and in the
 // outer ring of the 5x5 around it only MOVES (never captures) where not blocked (Fairy-Stockfish requires
 // the royal piece to use the king slot). The other pieces are custom pieces: their NUMBERS are the plane
@@ -131,7 +132,7 @@ promotionRegionWhite = *8 *9
 promotionRegionBlack = *3 *2
 optionalPromotionRegionWhite = *8
 optionalPromotionRegionBlack = *3
-optionalPromotionPieceTypes = n b y c g
+optionalPromotionPieceTypes = n m y g
 mandatoryPawnPromotion = true
 promotionPieceTypes = n b r q m v y c g
 castling = false

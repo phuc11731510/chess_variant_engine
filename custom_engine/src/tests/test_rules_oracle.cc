@@ -52,7 +52,7 @@
 //      Sergeant moving onto that square always captures (there is no quiet
 //      alternative); a Pawn pushing straight onto it does not capture.
 //   Promotion (P and S, two tiers): reaching rank 8 (Black: 3) the piece may stay as it is
-//      or become N, B, Y, C or G; reaching rank 9 (Black: 2) it must become one of
+//      or become N, M, Y or G; reaching rank 9 (Black: 2) it must become one of
 //      N, B, R, Q, M, V, Y, C, G. This includes captures and en-passant captures.
 //   No castling.
 //   Checks: after each move, every piece of the mover that attacks the
@@ -92,7 +92,7 @@ const int kDabbaba[4][2] = {{0, 2}, {2, 0}, {0, -2}, {-2, 0}};
 const int kOrth[4][2] = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}};
 const int kDiag[4][2] = {{1, 1}, {1, -1}, {-1, -1}, {-1, 1}};
 const int8_t kPromosAll[9] = {N_, B_, R_, Q_, M_, V_, Y_, C_, G_};   // rank 9 (Black 2): compulsory
-const int8_t kPromosOpt[5] = {N_, B_, Y_, C_, G_};                   // rank 8 (Black 3): a choice
+const int8_t kPromosOpt[4] = {N_, M_, Y_, G_};                       // rank 8 (Black 3): a choice (since 2026-11-24)
 
 struct OState {
     int8_t b[100];

@@ -5,8 +5,9 @@ Bản mô tả luật **đã cài vào engine ngày 2026-11-16** (luật mới c
 để kiểm chứng nằm ở `src/tests/test_rules_oracle.cc` (`custom_engine --audit-rules`). Đổi luật thì phải sửa **cả ba chỗ**:
 tệp này, `variant_setup.cc` (hoặc code FSF nếu luật không diễn đạt được bằng INI) và oracle.
 
-**Thế cờ đầu chưa chốt**: `ChessBoard::kStartposFen` (`src/lczero_chess/chess/board.cc`) là thế **tạm**, là thế cũ với Archbishop
-(cột c) và Chancellor (cột h) thay bằng Pháo `c` và Grasshopper `g`. Chủ dự án sẽ chọn thế thật sau; chỉ cần sửa một dòng đó.
+**Thế cờ đầu:** mọi ván của vòng lặp bắt đầu từ thế ngẫu nhiên do `python/sinh_the_khoi_dau.py` sinh (mục "Thế khởi đầu ngẫu nhiên" dưới đây).
+`ChessBoard::kStartposFen` (`src/lczero_chess/chess/board.cc`) vẫn là thế **tạm**, là thế cũ với Archbishop (cột c) và Chancellor (cột h)
+thay bằng Pháo `c` và Grasshopper `g`; chỉ dùng khi không đưa `--start-fen`.
 
 ## Quân cờ
 
@@ -35,7 +36,9 @@ Mã, Tượng, Xe, Hậu, Centaur, wildebeest, Alibaba, Pháo, Grasshopper.
 
 - Bàn 10×10 (cột a–j, hàng 1–10). Trắng đi trước. **Không có nhập thành.**
 - **Phong cấp hai tầng** (Tốt và Sergeant; Đen đối xứng: hàng 3 thay hàng 8, hàng 2 thay hàng 9):
-  - **Hàng 8:** tuỳ chọn: đứng lại làm Tốt/Sergeant, hoặc phong thành **Mã, Tượng, Alibaba, Pháo, Grasshopper** (`n b y c g`).
+  - **Hàng 8:** tuỳ chọn: đứng lại làm Tốt/Sergeant, hoặc phong thành **Mã, Centaur, Alibaba, Grasshopper** (`n m y g`). Từ 2026-11-24;
+    trước đó là Mã, Tượng, Alibaba, Pháo, Grasshopper (`n b y c g`), nên ván của các đời tới 54 có phong Tượng / Pháo ở hàng 8 (Đen 3) mà luật hiện
+    tại không cho (engine mới không phát lại được những ván đó). Hậu, Xe, Tượng, wildebeest, Pháo chỉ có từ hàng 9.
   - **Hàng 9:** bắt buộc, thành một trong 9 quân (`n b r q m v y c g`). Không bao giờ tới hàng 10.
   - Mọi cách tới ô đó đều áp dụng: đi thẳng, ăn chéo, bước đôi, ăn ep.
 - **Đếm chiếu:** mỗi quân đang chiếu Hoàng gia đối phương sau một nước tính 1 lần chiếu, nên **chiếu đôi = 2, chiếu ba = 3** (có
@@ -59,7 +62,7 @@ Mã, Tượng, Xe, Hậu, Centaur, wildebeest, Alibaba, Pháo, Grasshopper.
    chéo của Sergeant) là nước đi thường, không ăn.
 3. **Quân bị ăn ep có thể cách quân ăn hai cột.** Ví dụ Sergeant đen e9→c7 (chéo, qua d8); Tốt trắng e7 ăn chéo sang d8 và **quân ở c7** bị bắt.
 4. Ăn ep chỉ được ở **nước ngay sau** bước đôi. Engine ghi ô ep sau mọi bước đôi, kể cả khi không ai ăn được.
-5. **Ăn ep rơi vào hàng phong cấp:** ở hàng 8 (Đen 3) là một lựa chọn như mọi nước tới đó (đứng lại, hoặc `n b y c g`); ở hàng 9 (Đen 2) bắt buộc phong cấp
+5. **Ăn ep rơi vào hàng phong cấp:** ở hàng 8 (Đen 3) là một lựa chọn như mọi nước tới đó (đứng lại, hoặc `n m y g`); ở hàng 9 (Đen 2) bắt buộc phong cấp
    thành 1 trong 9 quân. Với Sergeant bước đôi từ hàng 2/9 (qua hàng 8/3) và hàng 1/10 (qua hàng 9/2).
 6. **Hoàng gia không được đứng ở ô bị tấn công** (ô bị **ăn** được; ô viền 5×5 của Hoàng gia khác không tính). Hai Hoàng gia không thể đứng trong viền 3×3
    của nhau, nhưng đứng cách 2 ô thì được.
@@ -71,7 +74,7 @@ Mã, Tượng, Xe, Hậu, Centaur, wildebeest, Alibaba, Pháo, Grasshopper.
 Một nước viết `<ô đi><ô đến>[chữ quân]`:
 - ô = chữ cột `a`–`j` và hàng `1`–`10` (hàng 10 viết hai chữ số, ví dụ `a1a10`);
 - chữ quân chỉ có khi **phong cấp** (kể cả ăn ep phong cấp), là một trong `n b r q m v y c g` (chữ thường, cùng chữ với quân trên bàn);
-- Tốt/Sergeant lên hàng 8 (Đen 3) mà **không phong cấp** thì **không có chữ**: `e7e8`; phong cấp thì có: `e7e8c`. Lên hàng 9 (Đen 2) luôn có chữ: `e8e9c`;
+- Tốt/Sergeant lên hàng 8 (Đen 3) mà **không phong cấp** thì **không có chữ**: `e7e8`; phong cấp thì có: `e7e8g`. Lên hàng 9 (Đen 2) luôn có chữ: `e8e9c`;
 - các chữ `b`, `c`, `g` cũng là tên cột nhưng chữ quân luôn đứng **sau số hàng của ô đến**, nên `e8e9c` đọc được duy nhất (ô e8, ô e9, quân c);
 - mọi nước dùng đúng tọa độ **thật** của bàn (không lật cho Đen); engine lật nội bộ.
 
@@ -95,15 +98,38 @@ Toàn bộ con số nằm ở `src/lczero_chess/chess/nn_layout.h` (nguồn chí
 - Hình học nước đi không đổi: nước của Hoàng gia (viền 5×5), Pháo, Grasshopper, Alibaba, Centaur đều rơi vào các loại trượt / Mã / Lạc đà sẵn có. Nước Tốt đi lên hàng 8 **không phong cấp** dùng ô nước thường (trước đây không bao giờ xuất hiện), nên không đụng ô phong cấp.
 - `EncoderCoversVariant` (encoder.cc) kiểm mọi quân và mọi quân phong cấp của luật có chỗ trong mạng; `setup_custom_variant()` gọi nó và thoát nếu thiếu. Một quân hay quân phong cấp chưa có chỗ trong mạng thì engine thoát ngay lúc khởi động thay vì để quân biến mất khỏi đầu vào.
 - **Lịch sử ở đầu ván (2026-11-20):** mạng và bản ghi mã hoá bằng `FillEmptyHistory::ALWAYS` (kiểu lc0): mỗi bàn lịch sử chưa có (7 bàn trước nước đầu tiên, 6 bàn trước nước thứ hai...) là bản sao của **thế đầu ván**, với mọi ván và mọi thế xuất phát; trước đó là `FEN_ONLY` nên ván bắt đầu từ thế xuất phát của biến thể có các bàn rỗng.
-- **Thế khởi đầu ngẫu nhiên:** `python/sinh_the_khoi_dau.py` (xem Walkthrough) sinh tệp FEN cho `--start-fen`; `ChessBoard::kStartposFen` vẫn là thế tạm.
+- **Thế khởi đầu ngẫu nhiên:** `python/sinh_the_khoi_dau.py` sinh tệp FEN cho `--start-fen`; `ChessBoard::kStartposFen` vẫn là thế tạm
+  (thế cũ, không còn là loại thế mà bộ sinh tạo ra).
 - Dữ liệu và mạng của các đời trước **không đọc được** (`KNOWN_VERSIONS = (7,)`). `python/chuyen_v6.py` (đổi dữ liệu cũ sang container) hết tác dụng.
+
+## Thế khởi đầu ngẫu nhiên (từ 2026-11-24)
+
+Mỗi bên 30 quân; Đen đối xứng theo hàng (hàng 3 là hàng 8, hàng 2 là hàng 9, hàng 1 là hàng 10), bốc độc lập với Trắng.
+
+- **Hàng 3: 10 Tốt**, cố định.
+- **Hàng 2: 5 Sergeant** theo một trong 6 cấu hình bốc đều (`S` Sergeant, `1` ô dành cho quân khác): `S1S1S1S1S1`, `1SS1S1S1S1`, `1S1SS1S1S1`,
+  `1S1S1SS1S1`, `1S1S1S1SS1`, `1S1S1S1S1S`.
+- **15 quân còn lại** xếp vào 10 ô hàng 1 và 5 ô quân của hàng 2: Hoàng gia, 2 Mã, 2 Xe, Hậu, 2 Tượng, 2 Centaur (10 quân luôn có)
+  + **4 quân nhảy** + **1 quân thêm**. 4 quân nhảy: bốc 4 quân trong 8 quân (2 wildebeest, 2 Alibaba, 2 Pháo, 2 Grasshopper) giữ lại, thuần tuý
+  4 trong 8 quân chứ không xét loại, nên có thể mất cả hai Pháo hoặc giữ đủ bốn loại. Quân thêm: bốc đều một trong Hậu, Tượng, Xe, Centaur.
+  Bộ quân (4 quân nhảy giữ lại + quân thêm) bốc **một lần cho cả thế**, hai bên cùng bộ quân, chỉ khác cách xếp (76 bộ khác nhau; hằng
+  `CUNG_BO_QUAN` của bộ sinh).
+- **Ràng buộc an toàn** (của chủ dự án, như trước): nếu một bên đi hai nước bất kỳ mà bên kia đứng yên thì không ăn được quân nào (kể cả nước
+  đầu); kiểm cho cả hai bên. **Ràng buộc vị trí mới:** Hoàng gia chỉ ở hàng 1 (Đen: hàng 10).
+- Hệ quả của hàng 3 kín Tốt (suy luận rồi kiểm bằng bộ kiểm hai nước, `sinh_the_khoi_dau.py --kiem-lai-bang`, cả 6 cấu hình): ở 5 ô quân của hàng 2 không được
+  đứng Pháo, Grasshopper, wildebeest (hoặc Hoàng gia); Tượng và Hậu chỉ đứng được ở cột e, f (mỗi cấu hình có đúng một ô quân ở cột e hoặc f); Pháo ở
+  hàng 1 không đứng ngay dưới Mã hoặc Alibaba của hàng 2. Hàng 1 không còn ràng buộc nào khác.
+- Cách xếp của một bên được bốc **đều trên mọi cách xếp hợp lệ** (đếm chính xác, không thử đi thử lại): từ 29,5 triệu đến 914 triệu cách mỗi
+  bên mỗi cấu hình Sergeant, tuỳ bộ quân; khoảng 67 bit cả thế (`--thong-ke`). 2000 thế sinh trong 0,3 giây trong Python.
+- Thế của các đời trước (hàng 3 chỉ 8 Tốt ở cột b..i, 4 Sergeant ở b d g i, 18 quân xếp ngẫu nhiên vào 18 ô còn lại) là luật cũ của bộ sinh;
+  dữ liệu đời 0 đến 54 sinh từ đó.
 
 
 ## Trạng thái cài đặt (2026-11-16, nhánh `luat-moi`)
 
 Đã làm và có test (`custom_engine --test-*`, `--audit-rules`, `--audit-generation`, `fz_test` đều qua): luật và mọi quân ở trên, phong cấp hai tầng,
 đếm chiếu (N = 8 từ 2026-11-22, chiếu ba), không nhập thành, ký hiệu nước đi, bộ mã hoá (204 plane, 11500 policy), bản ghi huấn luyện version 7.
-Chưa làm: thế cờ đầu thật (chủ dự án chọn), GUI, mạng mới (cần huấn luyện từ đầu; `--test-selfplay` / `--test-mcts` cần một tệp
+Chưa làm (tại thời điểm 2026-11-16; thế cờ đầu đã chọn: xem mục "Thế khởi đầu ngẫu nhiên"): GUI, mạng mới (cần huấn luyện từ đầu; `--test-selfplay` / `--test-mcts` cần một tệp
 `.onnx` đúng cỡ vào/ra mới), và các tài liệu khác (`HUONG_DAN*.md`) còn nói tới luật cũ.
 
 ## Chỉnh sửa riêng trong mã Fairy-Stockfish (`src/chess/`)
@@ -175,7 +201,7 @@ Mọi thứ dưới đây bọc trong `#ifdef LCZERO_MCTS` / `#ifndef LCZERO_MCT
 14. **Phát hiện thả quân** trong `do_move`: điều kiện `st->materialKey != previous->materialKey` đổi
     thành `type_of(st->move) == DROP` (vì không còn `materialKey`).
 
-15. **Phong cấp hai tầng** (`variant.h`, `parser.cpp`, `variant.cpp`, `position.h`, `movegen.cpp`, `position.cpp`; test trong `test_rules.cc`). Thêm hai tuỳ chọn INI: `optionalPromotionRegion{White,Black}` (tầng tuỳ chọn, tập con của `promotionRegion`) và `optionalPromotionPieceTypes` (quân được phong ở tầng đó; bỏ trống thì như `promotionPieceTypes`). Ở tầng tuỳ chọn Tốt/Sergeant được đứng lại hoặc phong; phần còn lại của vùng phong cấp theo `mandatoryPawnPromotion` và `promotionPieceTypes` như cũ. Luật dự định: `promotionRegionWhite = *8 *9`, `optionalPromotionRegionWhite = *8`, `optionalPromotionPieceTypes = n y g b c`, `promotionPieceTypes` = 9 quân. Mặc định (không khai báo) hành vi **y hệt trước**: mọi test cũ vẫn qua. Cách làm: `Position::compulsory_promotion_zone`, `optional_promotion_zone`, `promotion_piece_types(c, ô)`; trong `movegen.cpp` một hàm chung `make_promotions_to<>` dùng cho Tốt, quân kiểu Tốt (Sergeant), ăn ep kèm phong cấp; nước ep rơi vào tầng tuỳ chọn sinh thêm nước ep thường. Chi phí: một phép AND với bitboard rỗng mỗi lần sinh nước Tốt/ô phong cấp, không đổi gì ở đường nóng khác. Test: Tốt, Sergeant, ăn quân, ep (hàng 8 và 9), hai màu, do/undo, `pseudo_legal`.
+15. **Phong cấp hai tầng** (`variant.h`, `parser.cpp`, `variant.cpp`, `position.h`, `movegen.cpp`, `position.cpp`; test trong `test_rules.cc`). Thêm hai tuỳ chọn INI: `optionalPromotionRegion{White,Black}` (tầng tuỳ chọn, tập con của `promotionRegion`) và `optionalPromotionPieceTypes` (quân được phong ở tầng đó; bỏ trống thì như `promotionPieceTypes`). Ở tầng tuỳ chọn Tốt/Sergeant được đứng lại hoặc phong; phần còn lại của vùng phong cấp theo `mandatoryPawnPromotion` và `promotionPieceTypes` như cũ. Luật dự định: `promotionRegionWhite = *8 *9`, `optionalPromotionRegionWhite = *8`, `optionalPromotionPieceTypes = n m y g` (đến 2026-11-23: `n y g b c`), `promotionPieceTypes` = 9 quân. Mặc định (không khai báo) hành vi **y hệt trước**: mọi test cũ vẫn qua. Cách làm: `Position::compulsory_promotion_zone`, `optional_promotion_zone`, `promotion_piece_types(c, ô)`; trong `movegen.cpp` một hàm chung `make_promotions_to<>` dùng cho Tốt, quân kiểu Tốt (Sergeant), ăn ep kèm phong cấp; nước ep rơi vào tầng tuỳ chọn sinh thêm nước ep thường. Chi phí: một phép AND với bitboard rỗng mỗi lần sinh nước Tốt/ô phong cấp, không đổi gì ở đường nóng khác. Test: Tốt, Sergeant, ăn quân, ep (hàng 8 và 9), hai màu, do/undo, `pseudo_legal`.
 
 ### D. Khi hợp nhất với FSF mới
 

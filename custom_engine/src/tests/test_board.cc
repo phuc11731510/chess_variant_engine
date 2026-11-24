@@ -425,8 +425,9 @@ void run_board_tests() {
             expect("royal e5, own pawn f5: g5, g4, g6 blocked", "9k/10/10/10/10/4KP4/10/10/10/10 w - - 7+7 0 1", "e5", want);
         }
 
-        // A pawn reaching rank 8 stays (e7e8) or becomes n y g b c; reaching rank 9 it must become one of the nine.
-        const std::string rank8 = "bcgny", rank9 = "bcgmnqrvy";
+        // A pawn reaching rank 8 stays (e7e8) or becomes n m y g (since 2026-11-24; before that n b y c g); reaching
+        // rank 9 it must become one of the nine.
+        const std::string rank8 = "gmny", rank9 = "bcgmnqrvy";
         expect("pawn e7: rank 8 is a choice", "9k/10/10/4P5/10/10/10/10/10/K9 w - - 7+7 0 1", "e7",
                cat({"e7e8"}, with("e7e8", rank8)));
         expect("pawn e8: rank 9 is compulsory", "9k/10/4P5/10/10/10/10/10/10/K9 w - - 7+7 0 1", "e8", with("e8e9", rank9));
@@ -434,6 +435,7 @@ void run_board_tests() {
         expect("black pawn e4: rank 3 is a choice", "k9/10/10/10/10/10/4p5/10/10/K9 b - - 7+7 0 1", "e4",
                cat({"e4e3"}, with("e4e3", rank8)));
         expect("black pawn e3: rank 2 is compulsory", "k9/10/10/10/10/10/10/4p5/10/K9 b - - 7+7 0 1", "e3", with("e3e2", rank9));
+        // Rank 8 does NOT offer the Bishop (b), Rook, Queen, wildebeest or Cannon (c): those come only on rank 9.
         // A capture onto the promotion rank is written the same way, and the letters b, c, g (also file letters) stay unambiguous.
         expect("pawn e7 x d8 and push", "9k/10/3r6/4P5/10/10/10/10/10/K9 w - - 7+7 0 1", "e7",
                cat(cat({"e7e8", "e7d8"}, with("e7e8", rank8)), with("e7d8", rank8)));

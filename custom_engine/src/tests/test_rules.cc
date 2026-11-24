@@ -67,7 +67,7 @@ void run_rules_tests() {
     // commit 52439cc): a check the PRE-promotion pawn geometrically could not
     // give. White pawn e7 x d7 e.p. (Black just double-stepped d9-d7 through
     // d8), landing on d8 -- a White promotion-zone square -- and promoting to
-    // Alibaba (rank 8 allows n b y c g; the Alibaba leaps 2 squares straight). A plain pawn on d8 attacks c9/e9, NOT d10, so the check on
+    // Alibaba (rank 8 allows n m y g; the Alibaba leaps 2 squares straight). A plain pawn on d8 attacks c9/e9, NOT d10, so the check on
     // the Black king (d10) exists ONLY via the promoted
     // Alibaba. checksRemaining[WHITE] starts at 1: if gives_check() ever stops
     // special-casing ep+promo, this check goes undetected, the counter does not

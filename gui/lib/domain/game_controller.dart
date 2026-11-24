@@ -280,7 +280,7 @@ class GameController extends ChangeNotifier {
 
   // --- nội bộ ---
 
-  // Quân được phong (hàng 9 bắt buộc: n b r q m v y c g; hàng 8 tuỳ chọn: n b y c g),
+  // Quân được phong (hàng 9 bắt buộc: n b r q m v y c g; hàng 8 tuỳ chọn: n m y g),
   // xếp từ mạnh đến yếu để hiển thị bảng chọn phong cấp.
   static const _promoOrder = ['q', 'r', 'm', 'v', 'c', 'g', 'y', 'n', 'b'];
 
