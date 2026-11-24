@@ -359,27 +359,70 @@ lt_xem() {
 }
 
 # ---------------- Huan luyen (chay chong len sinh du lieu cua cac may khac) ----------------
+# Cac goi ($@ = ten tep trong $LT_GOI) ma may CHUA co du: khac ten hoac khac kich thuoc (tar bi dut giua chung de lai tep cut). In ten, moi dong
+# mot goi. Ma 2 = khong hoi duoc may (ssh loi / Colab tu choi 429).
+lt_goi_thieu() {
+  local out x s
+  out=$(ssh_colab "mkdir -p /content/goi; cd /content/goi && { stat -c '%n %s' *.zip 2>/dev/null; echo FZ_LIET_XONG; }" 2>"$TD/.loi_ssh_$$")
+  grep -q FZ_LIET_XONG <<<"$out" || return 2
+  for x in "$@"; do
+    s=$(stat -c %s "$LT_GOI/$x" 2>/dev/null)
+    grep -qxF "$x $s" <<<"$out" || echo "$x"
+  done
+  return 0
+}
+# Dua cac goi len may bang MOT luong tar qua MOT ssh. Truoc day moi goi mot ssh rieng: 25 goi mat ~3 phut (moi lan bat tay ssh ~5 giay), va mot lan
+# dut giua chung (2026-11-24 14:41, tai khoan luubi: toc do roi xuong ~1 KB/s) khien Colab tu choi MOI ssh moi voi 429 "Already-active SSH session"
+# vai phut (phien cu chua duoc giai phong) -> ba lan thu cach nhau 5 giay deu hong -> bo ca luot huan luyen. Nay: toi 7 vong; moi vong hoi may con
+# thieu goi nao roi chi gui phan do; 429 thi cho LT_CHO_429 (mac dinh 30) giay x so vong, loi khac cho 10 giay. 0 = may da co du.
+lt_len_goi() {
+  local err=$TD/.loi_ssh_$$ i thieu out rc tong x cho
+  for i in 1 2 3 4 5 6 7; do
+    out=$(lt_goi_thieu "$@"); rc=$?
+    if [ $rc = 0 ]; then
+      mapfile -t thieu <<<"$out"
+      [ -z "${thieu[0]:-}" ] && { rm -f "$err"; return 0; }
+      [ $i = 7 ] && break
+      tong=0
+      for x in "${thieu[@]}"; do tong=$((tong + $(stat -c %s "$LT_GOI/$x"))); done
+      td_in "tải ${#thieu[@]} gói ($((tong / 1024)) KB) lên máy bằng một luồng (vòng $i)"
+      if command -v pv >/dev/null; then
+        ( cd "$LT_GOI" && tar cf - "${thieu[@]}" ) | pv -s "$tong" | ssh_colab "mkdir -p /content/goi && tar xf - -C /content/goi" 2>"$err"
+      else
+        ( cd "$LT_GOI" && tar cf - "${thieu[@]}" ) | ssh_colab "mkdir -p /content/goi && tar xf - -C /content/goi" 2>"$err"
+      fi
+      continue                       # vong sau hoi lai may de kiem tra (khong tin ma thoat cua duong ong)
+    fi
+    [ $i = 7 ] && break
+    if grep -q -E 'Already-active SSH session|HTTP 429' "$err" "$TD/.loi_ssh_$$" 2>/dev/null; then
+      cho=$(( ${LT_CHO_429:-30} * i ))
+      td_in "${M_VANG}Colab từ chối ssh mới (429: phiên ssh cũ chưa được giải phóng)${M_HET} -- chờ $cho giây rồi thử lại (vòng $i/6)"
+    else
+      cho=10
+      td_in "${M_VANG}chưa hỏi được máy qua ssh${M_HET} -- chờ $cho giây rồi thử lại (vòng $i/6)"
+    fi
+    td_ngu "$cho" || return 1
+  done
+  rm -f "$err"
+  return 1
+}
 # Tai len may cac goi cua cua so huan luyen ma may chua co; xoa goi thua. In danh sach (cach nhau dau phay) ra bien LT_DATA.
 lt_len_cua_so() {
-  local the ds ten co x tong
+  local the ds ten tong
   the=$(lt_the)
   ds=$(python ~/fz_tu_dong.py cua_so "$TAI" "$the")
   tong=$(grep '^FZ_CUA_SO' <<<"$ds")
   mapfile -t ten < <(sed -n 's/^GOI //p' <<<"$ds")
   if [ ${#ten[@]} -eq 0 ]; then td_in "${M_DO}[!] chưa có gói ván nào cho cửa sổ huấn luyện${M_HET}"; return 1; fi
   td_in "cửa sổ huấn luyện: ${tong#FZ_CUA_SO } (gói, ván, thế, mạng nhỏ nhất-lớn nhất)"
-  co=$(ssh_colab "mkdir -p /content/goi; ls /content/goi" 2>/dev/null)
-  for x in "${ten[@]}"; do
-    grep -qxF "$x" <<<"$co" && continue
-    tai_len "$LT_GOI/$x" "/content/goi/$x" >/dev/null || { td_in "${M_VANG}[!] chưa tải được gói $x lên máy${M_HET}"; return 1; }
-  done
+  lt_len_goi "${ten[@]}" || { td_in "${M_VANG}[!] chưa tải đủ gói lên máy${M_HET}"; return 1; }
   ssh_colab "cd /content/goi && for f in *.zip; do case ' ${ten[*]} ' in *\" \$f \"*) ;; *) rm -f \"\$f\" ;; esac; done" >/dev/null 2>&1
   LT_DATA=$(printf '/content/goi/%s,' "${ten[@]}"); LT_DATA=${LT_DATA%,}
   return 0
 }
 # Cua so nay huan luyen luot moi. Goi khi lt_hl_den_luot dung. Tra 0 = xong (ke ca loi, da tra khoa); 3 = mat may; 4 = q.
 lt_huan_luyen() {
-  local g n yc t0 w cho moc_cu seq van the h rc loi=0 f hl
+  local g n yc t0 w cho moc_cu seq van the h rc loi=0 f hl loi_len=0 bu_nghi=0
   g=$(td_gen); n=$((g + 1))
   lt_hl_lay || return 0
   moc_cu=$(lt_moc)
@@ -422,7 +465,13 @@ lt_huan_luyen() {
   while :; do
     td_chuan_bi "$g" pt; rc=$?
     case $rc in 0) ;; 2) loi=1; break ;; 3) lt_hl_tra; TD_VAI=; td_mat_may; lt_ghi_tep "$LT_MOC_F" "$moc_cu"; return 3 ;; 4) lt_hl_tra; TD_VAI=; return 4 ;; *) td_ngu 30 || { lt_hl_tra; TD_VAI=; return 4; }; continue ;; esac
-    lt_len_cua_so || { loi=1; break; }
+    if ! lt_len_cua_so; then
+      loi_len=$((loi_len + 1))
+      if [ $loi_len -ge 3 ]; then loi=1; bu_nghi=420; break; fi
+      td_in "${M_VANG}tải gói lên máy lỗi${M_HET} -- thử lại sau 60 giây ($loi_len/3)"
+      td_ngu 60 || { lt_hl_tra; TD_VAI=; return 4; }
+      continue
+    fi
     f=$TD/o_$$/07_hl.py
     mkdir -p "$TD/o_$$"
     sed -E "s#^DATA = .*#DATA = \"$LT_DATA\"#" "$(ls "$D"/07_*.py | head -1)" > "$f"
@@ -439,8 +488,8 @@ lt_huan_luyen() {
     td_in "huấn luyện chưa ra mạng -- thử lại"; loi=0
   done
   if [ $loi = 1 ] || ! td_co_mang "$n"; then
-    td_in "${M_DO}[!] bỏ lượt huấn luyện đời $n${M_HET} -- ván vẫn giữ, thử lại sau 10 phút"
-    lt_ghi_tep "$LT_MOC_F" "$moc_cu"; lt_ghi_tep "$LT_NGHI_F" "$(date +%s)"
+    td_in "${M_DO}[!] bỏ lượt huấn luyện đời $n${M_HET} -- ván vẫn giữ, thử lại sau $(( (600 - bu_nghi) / 60 )) phút"
+    lt_ghi_tep "$LT_MOC_F" "$moc_cu"; lt_ghi_tep "$LT_NGHI_F" "$(( $(date +%s) - bu_nghi ))"
     lt_hl_tra; TD_VAI=; return 0
   fi
   td_len_github "$n" || { lt_hl_tra; TD_VAI=; return 0; }
