@@ -3,12 +3,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../data/game_library.dart' show groupSource;
 import '../data/generation_cache.dart';
 import '../platform/android_paths.dart';
 
-/// Màn hình đầu của app Android: các đời dữ liệu huấn luyện tìm thấy trên máy (vòng lặp Termux ghi vào
-/// `Download/FairyZero/games_genN`), bấm một đời để xem các ván trong đó. Lần đầu mỗi đời được đổi sang bảng ván
-/// (vài chục giây, có thanh tiến độ); các lần sau mở ngay.
+/// Màn hình đầu của app Android: các đời dữ liệu huấn luyện tìm thấy trên máy, bấm một đời để xem các ván trong đó.
+/// Có hai kiểu dữ liệu do vòng lặp Termux ghi vào `Download/FairyZero`:
+///  - vòng lặp theo đời (menu `v`): thư mục (hoặc gói zip) `games_genN`;
+///  - vòng lặp LIÊN TỤC (menu `w`): nhiều gói nhỏ `goi/goi_<số thứ tự>_n<đời mạng>_<ván>_<thế>.zip`, mỗi gói chứa ván của
+///    MỘT đời mạng (do vài máy Colab sinh liên tục), nên app gom các gói cùng `n<đời>` thành một "Đời N".
+/// Lần đầu mỗi đời được đổi sang bảng ván (vài chục giây, có thanh tiến độ); các lần sau mở ngay.
 class AndroidHome extends StatefulWidget {
   /// Màn hình xem ván của một đời dữ liệu đã đổi trong [cacheDir] (main.dart dựng BoardScreen).
   final Widget Function(String cacheDir) openViewer;
@@ -22,10 +26,11 @@ class _Source {
   final String name;
   final String path;
   final bool isZip;
-  final int? games; // số ván (thư mục); null với gói zip
+  final int? games; // số ván (thư mục / nhóm gói); null với gói zip
   final DateTime modified;
   final int? gen;
   bool cached;
+  final int? packages; // số gói của một đời trong goi/ (nhóm); null với nguồn khác
   _Source(
     this.name,
     this.path,
@@ -33,8 +38,9 @@ class _Source {
     this.games,
     this.modified,
     this.gen,
-    this.cached,
-  );
+    this.cached, {
+    this.packages,
+  });
 
   String get title => gen != null && !isZip ? 'Đời $gen' : name;
 }
@@ -144,6 +150,7 @@ class _AndroidHomeState extends State<AndroidHome> with WidgetsBindingObserver {
               );
             }
           }
+          _scanPackages(root, out);
         }
       } on Exception catch (e) {
         err = 'Không đọc được $root: $e';
@@ -166,6 +173,44 @@ class _AndroidHomeState extends State<AndroidHome> with WidgetsBindingObserver {
       _error = err;
       _loading = false;
     });
+  }
+
+  /// Gói của vòng lặp liên tục: `goi/goi_<số thứ tự>_n<đời mạng>_<số ván>_<số thế>.zip` (hoặc nằm thẳng trong [root] nếu
+  /// người dùng trỏ app vào chính thư mục `goi`). Gom các gói cùng đời mạng thành một nguồn (nhóm tệp, xem
+  /// [groupSource]); số ván lấy từ tên gói nên không phải mở gói để đếm.
+  void _scanPackages(String root, List<_Source> out) {
+    final re = RegExp(r'^goi_(\d+)_n(\d+)_(\d+)_(\d+)\.zip$');
+    final byNet = <int, List<File>>{};
+    final games = <int, int>{};
+    final newest = <int, DateTime>{};
+    for (final d in [Directory('$root/goi'), Directory(root)]) {
+      if (!d.existsSync()) continue;
+      for (final e in d.listSync(followLinks: false)) {
+        if (e is! File) continue;
+        final m = re.firstMatch(e.path.split('/').last);
+        if (m == null) continue;
+        final net = int.parse(m.group(2)!);
+        byNet.putIfAbsent(net, () => []).add(e);
+        games[net] = (games[net] ?? 0) + int.parse(m.group(3)!);
+        final t = e.statSync().modified;
+        if (newest[net] == null || t.isAfter(newest[net]!)) newest[net] = t;
+      }
+    }
+    for (final net in byNet.keys) {
+      final files = byNet[net]!.map((f) => f.path).toList()..sort();
+      out.add(
+        _Source(
+          'goi_n$net',
+          groupSource(files),
+          false,
+          games[net],
+          newest[net]!,
+          net,
+          false,
+          packages: files.length,
+        ),
+      );
+    }
   }
 
   Future<void> _open(_Source s) async {
@@ -292,8 +337,8 @@ class _AndroidHomeState extends State<AndroidHome> with WidgetsBindingObserver {
                 if (_access && _error != null) _note(_error!),
                 if (_access && _error == null && _sources.isEmpty)
                   _note(
-                    'Chưa thấy đời dữ liệu nào (games_genN) trong thư mục này. Vòng lặp Termux ghi vào '
-                    'Download/FairyZero; có thể đổi thư mục ở menu ⋮.',
+                    'Chưa thấy đời dữ liệu nào (games_genN, hoặc các gói goi/goi_*.zip của vòng lặp liên tục) '
+                    'trong thư mục này. Vòng lặp Termux ghi vào Download/FairyZero; có thể đổi thư mục ở menu ⋮.',
                   ),
                 for (final s in _sources) _tile(s),
               ],
@@ -335,7 +380,7 @@ class _AndroidHomeState extends State<AndroidHome> with WidgetsBindingObserver {
   Widget _tile(_Source s) {
     final sub = s.isZip
         ? 'gói zip · ${_when(s.modified)}'
-        : '${s.games} ván · ${_when(s.modified)}${s.cached ? ' · đã đổi' : ''}';
+        : '${s.games} ván${s.packages != null ? ' · ${s.packages} gói' : ''} · ${_when(s.modified)}${s.cached ? ' · đã đổi' : ''}';
     return Card(
       color: const Color(0xFF3A3835),
       child: ListTile(

@@ -27,10 +27,29 @@ class GameSource {
 
 bool _isGameName(String n) => gameExts.any(n.endsWith);
 
+/// Nguồn là một NHÓM tệp (vd các gói `goi/goi_<số>_n<đời>_*.zip` của vòng lặp liên tục: mỗi đời mạng nằm rải trong nhiều
+/// gói nhỏ): chuỗi bắt đầu bằng [groupPrefix], sau đó là đường dẫn từng tệp, mỗi tệp một dòng.
+const String groupPrefix = '@nhom:';
+
+String groupSource(List<String> files) => '$groupPrefix${files.join('\n')}';
+
+bool isGroupSource(String source) => source.startsWith(groupPrefix);
+
+List<String> groupFiles(String source) => source
+    .substring(groupPrefix.length)
+    .split('\n')
+    .where((p) => p.isNotEmpty)
+    .toList();
+
 /// Liệt kê ván của [source]. Ném [FileSystemException] nếu không có.
 List<GameSource> listGames(String source) {
   final files = <String>[];
-  if (FileSystemEntity.isDirectorySync(source)) {
+  if (isGroupSource(source)) {
+    // Gói đã bị vòng lặp dọn (hoặc đang được thay) giữa lúc quét và lúc mở: bỏ qua, các gói còn lại vẫn xem được.
+    for (final p in groupFiles(source)) {
+      if (FileSystemEntity.isFileSync(p)) files.add(p);
+    }
+  } else if (FileSystemEntity.isDirectorySync(source)) {
     for (final e in Directory(
       source,
     ).listSync(recursive: true, followLinks: false)) {
@@ -47,7 +66,14 @@ List<GameSource> listGames(String source) {
   final out = <GameSource>[];
   for (final f in files) {
     if (f.endsWith('.zip')) {
-      final arch = ZipDecoder().decodeBytes(File(f).readAsBytesSync());
+      final Archive arch;
+      try {
+        arch = ZipDecoder().decodeBytes(File(f).readAsBytesSync());
+      } catch (_) {
+        // Gói hỏng / đang bị ghi dở: bỏ qua gói này, không làm hỏng cả đời dữ liệu.
+        if (isGroupSource(source)) continue;
+        rethrow;
+      }
       for (final m in arch) {
         if (m.isFile && _isGameName(m.name)) out.add(GameSource(f, m.name));
       }
