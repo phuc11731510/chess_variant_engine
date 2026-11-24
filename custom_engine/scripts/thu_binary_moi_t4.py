@@ -15,6 +15,7 @@ import time
 
 ASSET = "custom_engine_thu"
 SHA = "d0437008f196537033cb4dfbf67b88f5027fb85584d0e308cd957073e7feba9d"
+BR = "main"   # nhanh lay ma python (bo sinh the...): dat "luat-moi" khi thu binary cua luat chua dua len main
 REPO = "https://github.com/phuc11731510/chess_variant_engine"
 REL = REPO + "/releases/download/v3.0.0"
 REL_NN = REPO + "/releases/download/NN_Model"
@@ -43,7 +44,7 @@ def ket(ten, ok, note=""):
 
 
 log("1. ma (clone thua) + binary + ONNX Runtime gon qua colab_quickstart.sh")
-sh(f"cd {C} && rm -rf chess_variant_engine && timeout 120 git clone -q --depth 1 --filter=blob:none --sparse -b main {REPO}.git "
+sh(f"cd {C} && rm -rf chess_variant_engine && timeout 120 git clone -q --depth 1 --filter=blob:none --sparse -b {BR} {REPO}.git "
    f"chess_variant_engine && cd chess_variant_engine && git sparse-checkout set custom_engine", timeout=200)
 rc, out = sh(f"BIN_URL={REL}/{ASSET} bash {E}/scripts/colab_quickstart.sh 2>&1 | tail -n 6", timeout=700)
 print(out, flush=True)
@@ -64,13 +65,15 @@ for g in (16, 17):
     sh(f"python3 {E}/python/lay_mang.py onnx {C}/gen{g}.onnx --rel {REL_NN} --fp16 2>&1 | tail -n 1", timeout=900)
 ok_net = all(os.path.exists(f"{C}/gen{g}.onnx") for g in (16, 17))
 ket("mang gen16 + gen17", ok_net)
+rc, out = sh(f"python3 {E}/python/lay_mang.py fzw {C}/gen17.fzw --rel {REL_NN} 2>&1 | tail -n 2", timeout=600)
+ket("gen17.fzw (bo chay mang CUDA rieng)", os.path.exists(f"{C}/gen17.fzw") and rc == 0)
 
-log("4. tu dau 90 s (16 van song song, cuda, cờ như ô 04)")
+log("4. tu dau 90 s (16 van song song, fzcuda, co nhu o 04, co loai nuoc sai 70,44 Elo)")
 sh(f"python3 {E}/python/sinh_the_khoi_dau.py --n 48 --out {C}/book.txt", timeout=60)
 cmd = (f"cd {C} && rm -rf sp_out && bash {E}/run.sh --selfplay --games 48 --max-seconds 90 --visits 800 --max-moves 400 --fast-visits 200 "
-       f"--fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 --temperature 0.5 --start-fen {C}/book.txt --parallel 16 --provider cuda "
+       f"--fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 --temperature 0.5 --start-fen {C}/book.txt --parallel 16 --provider fzcuda "
        f"--fixed-batch 64 --batch-aggregate --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 "
-       f"--search-opt nn-cache-size=2000000 --weights {C}/gen17.onnx --out {C}/sp_out --extra-batches 16,32,48")
+       f"--search-opt nn-cache-size=2000000 --weights {C}/gen17.fzw --out {C}/sp_out --temp-elo-cutoff 70.44")
 rc, out = sh(cmd, timeout=420)
 nh = re.findall(r"\[nhip\] t=(\d+)s\s+(\d+) van dang chay\s+(\d+) nps\s+(\d+) eval/s", out)
 nps = [int(x[2]) for x in nh if int(x[0]) >= 60]
@@ -80,8 +83,38 @@ ket("tu dau chay xong, khong Abort", rc == 0 and "terminate called" not in out a
     f"ma thoat {rc}; nhip={len(nh)}; nps (t>=60s) {nps}; ven choi xong {len(games)}; eval/playout {ev.group(1) if ev else '?'}")
 if rc != 0 or not nh:
     print(out[-1500:], flush=True)
-ket("nps tu dau >= 5500 (ban cu o cung dieu kien ~6400)", bool(nps) and sum(nps) / len(nps) >= 5500,
+ket("nps tu dau >= 9000 (fzcuda, ban cu o cung dieu kien ~12600)", bool(nps) and sum(nps) / len(nps) >= 9000,
     f"{sum(nps) / len(nps):.0f}" if nps else "khong co so")
+
+log("4b. luat 2026-11-24 trong van that: the khoi dau (hang 3 / 8 toan Tot, 5 Sergeant hang 2 / 9, 30 quan moi ben) va phong cap hang 8 / 3 chi n m y g")
+CHECK_LUAT = r'''
+import sys, glob
+sys.path.insert(0, sys.argv[1] + "/python")
+import xem_du_lieu as xd
+ds = xd.liet_ke_van(sys.argv[2])
+bad = []; n_promo8 = 0
+for e in ds:
+    v = xd.doc_van(e)
+    rows = v.fen.split()[0].split("/")            # hang 10 ... hang 1
+    pawns3 = rows[7] == "PPPPPPPPPP"; pawns8 = rows[2] == "pppppppppp"
+    s2 = rows[8].count("S") == 5; s9 = rows[1].count("s") == 5
+    n30 = sum(c.isalpha() and c.isupper() for c in v.fen.split()[0]) == 30 and sum(c.isalpha() and c.islower() for c in v.fen.split()[0]) == 30
+    ks = rows[9].count("K") == 1 and rows[0].count("k") == 1
+    if not (pawns3 and pawns8 and s2 and s9 and n30 and ks):
+        bad.append((xd.ten_van(e), "the khoi dau"))
+    for mv in v.nuoc:
+        fr, to, pr = xd.tach_nuoc(mv)
+        if pr and to // 10 in (7, 2):
+            n_promo8 += 1
+            if pr not in "nmyg":
+                bad.append((xd.ten_van(e), mv))
+print("VANS", len(ds), "PROMO8", n_promo8, "BAD", bad[:5])
+sys.exit(1 if bad or not ds else 0)
+'''
+open(f"{C}/check_luat.py", "w", encoding="utf-8").write(CHECK_LUAT)
+rc, out = sh(f"python3 {C}/check_luat.py {E} {C}/sp_out 2>&1 | tail -n 5", timeout=300)
+print(out, flush=True)
+ket("van that theo luat moi (the khoi dau, phong cap hang 8 chi n m y g)", "VANS" in out and "BAD []" in out)
 
 log("5. doc lai van tu dau (xem_du_lieu --kiem)")
 if games:
