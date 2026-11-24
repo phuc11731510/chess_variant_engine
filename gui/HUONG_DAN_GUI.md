@@ -222,6 +222,15 @@ App Android **"FairyZero Xem ván"** (gói `vn.fairyzero.xem`) đọc thẳng d�
 `Download/FairyZero/games_genN` (cả gói `.zip`), không cần chuyển về máy tính và không cần Python. Chỉ để XEM
 (bàn cờ, thanh nước đi, bảng chọn ván, bảng tìm kiếm N / %N / Q); không chơi với máy.
 
+**Hai kiểu dữ liệu (2026-11-24).** Vòng lặp theo đời (menu `v`) ghi `games_genN`. Vòng lặp LIÊN TỤC (menu `w`) không có
+`games_genN` nữa: mỗi máy Colab gửi các gói nhỏ `Download/FairyZero/goi/goi_<số thứ tự>_n<đời mạng>_<số ván>_<số thế>.zip`
+(mỗi gói chứa ván của MỘT đời mạng, thành viên `games_gen<N>/...xz`). App quét cả `goi/`, gom mọi gói cùng `n<đời>` thành một
+"Đời N" (dòng phụ: số ván, số gói, giờ gói mới nhất); thứ tự ván = thứ tự tên gói. Nhóm gói là một nguồn riêng
+(`groupSource` trong `lib/data/game_library.dart`, dấu vân tay chỉ dựa vào tên / kích thước / giờ sửa nên quét nhanh); gói
+hỏng hoặc đã bị vòng lặp dọn giữa chừng thì bị bỏ qua. Đời mạng mới nhất còn nhận thêm gói nên mỗi lần mở lại phải đổi lại
+(~10 giây cho 1000 ván); các đời cũ mở ngay. Vòng lặp chỉ giữ gói đủ cho cửa sổ huấn luyện (khoảng 1,5 lần), nên các đời xa
+sẽ biến mất khỏi danh sách theo thời gian. Bài thử: `flutter test test/goi_nhom_test.dart`.
+
 **Cách dùng.** Mở app → danh sách các đời dữ liệu (mới nhất trên cùng) → bấm một đời. Lần đầu mỗi đời được đổi sang bảng
 ván (~10 giây cho 1000 ván, có thanh tiến độ; kết quả lưu đệm trong thư mục riêng của app); các lần sau mở ngay. Đời đang
 được vòng lặp ghi thêm ván thì lần mở sau đổi lại (nguồn đã đổi). Trên màn hình xem: nút **Ván** (ngăn kéo trái) = bảng chọn

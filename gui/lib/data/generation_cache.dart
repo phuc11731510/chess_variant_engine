@@ -39,6 +39,7 @@ Future<FinalOracle?> _openOracle(OracleKind kind, {bool backup = false}) async {
 /// Dấu vân tay của nguồn: số ván + tổng kích thước + thời điểm sửa mới nhất của các tệp. Đổi (vòng lặp ghi thêm ván,
 /// gói zip được thay) thì chỉ mục cũ không còn đúng và phải làm lại.
 String fingerprint(String source, List<GameSource> ds) {
+  if (isGroupSource(source)) return groupFingerprint(groupFiles(source));
   var bytes = 0;
   var newest = 0;
   final seen = <String>{};
@@ -52,12 +53,38 @@ String fingerprint(String source, List<GameSource> ds) {
   return 'v1|${ds.length}|$bytes|$newest';
 }
 
+/// Dấu vân tay của một NHÓM tệp (các gói của một đời mạng): chỉ dựa vào tên, kích thước và giờ sửa, KHÔNG mở gói, nên
+/// quét màn hình đầu nhanh dù có hàng chục gói. Thêm gói mới (vòng lặp vẫn đang sinh ván của mạng mới nhất), dọn gói
+/// cũ hoặc thay gói đều làm dấu đổi.
+String groupFingerprint(List<String> files) {
+  var bytes = 0;
+  var newest = 0;
+  var n = 0;
+  var h = 0;
+  for (final p in files) {
+    final st = File(p).statSync();
+    if (st.type == FileSystemEntityType.notFound) continue;
+    n++;
+    bytes += st.size;
+    final m = st.modified.millisecondsSinceEpoch;
+    if (m > newest) newest = m;
+    // Tên tệp cũng góp vào dấu (gói thay bằng gói khác cùng kích thước vẫn khác tên).
+    for (final c in p.split(RegExp(r'[\\/]')).last.codeUnits) {
+      h = (h * 31 + c) & 0x3fffffff;
+    }
+  }
+  return 'g1|$n|$bytes|$newest|$h';
+}
+
 /// Chỉ mục trong [cacheDir] còn đúng với [source] không (cùng dấu vân tay)?
 bool isCurrent(String source, String cacheDir) {
   try {
     final f = File('$cacheDir/$_sourceFile');
     if (!f.existsSync() || !File('$cacheDir/$_indexFile').existsSync()) {
       return false;
+    }
+    if (isGroupSource(source)) {
+      return f.readAsLinesSync().first == groupFingerprint(groupFiles(source));
     }
     return f.readAsLinesSync().first == fingerprint(source, listGames(source));
   } on Exception {
