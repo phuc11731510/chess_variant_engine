@@ -96,6 +96,13 @@ for k in (1, 2):
     check("vòng lặp liên tục đã dừng" in log or "thoát" in log, f"cua so {k} thoat sach")
     logs.append(log)
 check(bad == 0, "log khong co loi bash / python")
+if kb == "nap_lai":
+    tong = "\n".join(logs)
+    check("đã nạp lại mã mới" in tong, "cua so bao da nap lai ma moi (khong mo lai cua so)")
+    sau = tong.split("đã nạp lại mã mới", 1)[1] if "đã nạp lại mã mới" in tong else ""
+    check("[v2]" in sau, "sau khi nap, ham gui goi dung ban moi ('[v2]' trong thong bao gui goi)")
+    check("có lỗi cú pháp" in tong, "ban co loi cu phap bi tu choi, vong lap giu ban dang chay")
+    check("[v2]" in tong.split("có lỗi cú pháp", 1)[-1] if "có lỗi cú pháp" in tong else False, "...va van chay tiep sau ban hong (con gui goi ban '[v2]')")
 if kb == "xin_treo":
     check(any("Xin máy quá giờ" in l for l in logs), "lenh xin het gio duoc bao la het gio (khong phai 'may da duoc cap')")
     check(not any("máy của acc" in l and "đã mất" in l for l in logs), "KHONG bao 'may da mat' sai khi chua tung co may")

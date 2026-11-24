@@ -6,7 +6,9 @@
 # /content rieng), gh (Release = thu muc), engine (chep van mau that, toc do FAKE_RATE), o 02 / 02c / 07 / 08 (gia, nhanh).
 # Hai cua so (hai tai khoan acc1, acc2) cung chay nhu hai cua so Termux that (chung HOME, chung ~/.fz_tk).
 #
-#   bash chay_thu.sh [co ban]      co ban: co_ban (mac dinh) | arena | mat_may | xin_treo
+#   bash chay_thu.sh [co ban]      co ban: co_ban (mac dinh) | arena | mat_may | xin_treo | nap_lai
+#     nap_lai: giua luc chay, ~/fz_lien_tuc.sh tren "dien thoai" bi THAY (nguyen tu, nhu lay_ve / Claude cai): cua so phai tu nap lai ham moi
+#     (khong dong den engine / may dang chay, khong mat van), roi mot ban moi co LOI CU PHAP phai bi tu choi ma van chay tiep.
 #     xin_treo: lenh xin may cua acc1 BI TREO (het gio) roi may chu cap may muon cho phien khong ten -- tai hien loi 2026-11-24 do tren dien thoai
 #     (`colab status` thoat ma 0 khi khong co phien -> vong lap tuong da co may -> bao "may da mat"; may mo coi an han muc).
 #   MENU_SRC=<tep menu.sh khac>  thu voi ban menu.sh khac (vd ban cu lay tu git de THAY loi tai hien)
@@ -59,6 +61,7 @@ mk_cua_so() {   # $1 = k (1, 2)
     mount --bind $W/w$k /content
     export HOME=$H PATH=$GIA/bin:\$PATH TERM=dumb NO_COLOR=1 FZ_KHONG_NHAT_KY=1 PYTHONPATH=$GIA/pylib FAKE_DIR=$W
     [ "$KB" = xin_treo ] && export FZ_XIN_TO=4 FZ_XIN_CHO=8 FAKE_GRANT_LATE=3
+    [ "$KB" = nap_lai ] && export LT_NAP_GIAY=8
     cd $H
     exec bash $H/fz_menu.sh lien_tuc
   " <<<"$TRA_LOI" > "$W/log_w$k.txt" 2>&1 &
@@ -68,6 +71,18 @@ echo "== kich ban: $KB =="
 mk_cua_so 1
 sleep 3
 mk_cua_so 2
+if [ "$KB" = nap_lai ]; then
+  # Thay ~/fz_lien_tuc.sh NGUYEN TU (ghi tep moi roi mv: nhu lay_ve / cai qua ssh) khi cac cua so dang chay.
+  thay() { local f=$H/fz_lien_tuc.sh; "$@" < "$f" > "$f.moi" && mv "$f.moi" "$f"; }
+  (
+    sleep 25
+    thay sed 's/td_in "gửi $n gói (/td_in "gửi $n gói [v2] (/'
+    sleep 45
+    thay sed '$a\
+lt_hong() {\
+  echo "ham dang do, khong dong"'
+  ) &
+fi
 
 # ---- cho cac moc ----
 doc_gen() { sed -n 's/^GEN_CURRENT = \([0-9]*\).*/\1/p' "$O/00_cau_hinh.py" | head -1; }
@@ -75,6 +90,7 @@ dem_goi() { ls "$TAI"/goi/goi_*.zip 2>/dev/null | wc -l; }
 T0=$(date +%s)
 muc_tieu_gen=$((GEN0 + 2))
 [ "$KB" = arena ] && muc_tieu_gen=$((GEN0 + 4))
+[ "$KB" = nap_lai ] && muc_tieu_gen=$((GEN0 + 4))
 while :; do
   g=$(doc_gen)
   [ "${g:-0}" -ge "$muc_tieu_gen" ] && break
