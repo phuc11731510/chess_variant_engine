@@ -96,6 +96,14 @@ for k in (1, 2):
     check("vòng lặp liên tục đã dừng" in log or "thoát" in log, f"cua so {k} thoat sach")
     logs.append(log)
 check(bad == 0, "log khong co loi bash / python")
+if kb == "xin_muon":
+    nk = open(f"{H}/.fz_tk/.tu_dong/nhat_ky.txt", encoding="utf-8", errors="replace").read() if os.path.exists(f"{H}/.fz_tk/.tu_dong/nhat_ky.txt") else ""
+    check("Xin máy quá giờ" in "\n".join(logs), "xin het gio duoc nhan ra")
+    check("muộn (sau khi ta bỏ yêu cầu) -> trả máy đó" in nk, "quet muon chay nen da tra may cap cham (ghi trong nhat ky vong lap)")
+if kb == "dung_cu":
+    for i, l in enumerate(logs, 1):
+        a, b = l.find("04l trên"), l.find("dừng mềm")
+        check(a != -1 and (b == -1 or a < b), f"cua so {i}: van chay engine (04l) truoc khi co lenh dung that, KHONG tu dung vi tep dung cu")
 if kb == "len_loi":
     tong = "\n".join(logs)
     check("Colab từ chối ssh mới (429" in tong, "co gap loi 429 (mo phong) va nhan ra")

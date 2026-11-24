@@ -1005,6 +1005,21 @@ ds_ep_may() {
   KHONG_HOI=1 COLAB_TO=60 colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]' |
     while IFS= read -r x; do x=${x#*] }; echo "${x%% *}"; done
 }
+# Quet MUON (chay nen): may chu co the cap may cham hon ca khoang cho cua xin_may (2026-11-24: nguoi dung mo fz thay tai khoan van con mot T4). Sau
+# FZ_XIN_CHO2 giay (mac dinh 100) tra cac phien KHONG TEN "[?]" MOI xuat hien (khong co trong danh sach endpoint $1 luc truoc khi xin) CUA TAI KHOAN NAY
+# (TKH da co trong ban sao tien trinh con) -- khong dung toi may CO TEN (may nguoi dung tu xin bang m, may cua vong lap). Ghi vao nhat ky vong lap.
+xin_quet_muon() {
+  local truoc=$1 x ep
+  (
+    sleep "${FZ_XIN_CHO2:-100}"
+    while IFS= read -r x; do
+      ep=${x#*] }; ep=${ep%% *}
+      [ -n "$ep" ] && ! grep -qxF "$ep" <<<"$truoc" || continue
+      printf '%s %s %s\n' "$$" "$(date '+%d/%m %H:%M:%S')" "[!] máy chủ cấp T4 $ep muộn (sau khi ta bỏ yêu cầu) -> trả máy đó" >> "$TKG/.tu_dong/nhat_ky.txt" 2>/dev/null
+      tra_mot "$x"
+    done < <(KHONG_HOI=1 COLAB_TO=60 colab sessions 2>/dev/null | grep '^\[?\]')
+  ) >/dev/null 2>&1 &
+}
 xin_may() {
   local out rc loi truoc x ep
   # May tai khoan dang giu TRUOC khi xin: lenh xin bao loi ma co may moi -> may do la cua lan xin nay (xem duoi).
@@ -1015,6 +1030,7 @@ xin_may() {
   grep '^\[colab\]' <<<"$out"
   if [ $rc = 0 ] && colab status -s "$S" 2>/dev/null; then
     kiem_may >/dev/null
+    [ -f ~/fz_han_muc.py ] && py_colab ~/fz_han_muc.py --het-xoa     # T4 vua duoc cap: xoa dau 'bi tu choi' cu (h khong con in HET)
     chup_han_muc "$TK" &          # dang giu may -> may chu tra han muc: chup nen
     return 0
   fi
@@ -1024,6 +1040,7 @@ xin_may() {
   if [ $rc != 0 ] && KHONG_HOI=1 COLAB_TO=60 colab status -s "$S" >/dev/null 2>&1; then
     echo "${M_VANG}[!] Lệnh xin báo lỗi nhưng máy đã được cấp và dùng được -> dùng máy này${M_HET}"
     kiem_may >/dev/null
+    [ -f ~/fz_han_muc.py ] && py_colab ~/fz_han_muc.py --het-xoa
     chup_han_muc "$TK" &
     return 0
   fi
@@ -1032,6 +1049,7 @@ xin_may() {
   if [ $rc = 124 ]; then
     echo "${M_VANG}[!] Xin máy quá giờ -- chờ ${FZ_XIN_CHO:-30} giây xem máy chủ có cấp muộn không (nếu có thì trả ngay)${M_HET}"
     sleep "${FZ_XIN_CHO:-30}"
+    xin_quet_muon "$truoc"
   fi
   while IFS= read -r x; do
     ep=${x#*] }; ep=${ep%% *}
