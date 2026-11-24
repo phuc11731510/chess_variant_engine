@@ -491,6 +491,15 @@ lt_huan_luyen() {
     case $rc in 3) lt_hl_tra; TD_VAI=; td_mat_may; lt_ghi_tep "$LT_MOC_F" "$moc_cu"; return 3 ;; 4) lt_hl_tra; TD_VAI=; return 4 ;; esac
     td_don_mang_cu "$n"
     tai_theo_o 07
+    # KHONG doc duoc log o 07 (ssh loi / Colab tu choi 429) khac voi "huan luyen khong ra mang": mang co the DA xong tren may (2026-11-24 17:23: gen65 xong, doc log
+    # bi 429, vong lap huan luyen lai tu dau, mat 11 phut). Doc lai (toi 3 lan cach 60 giay) truoc khi nghi la huan luyen hong.
+    for k in 1 2 3; do
+      td_co_mang "$n" && break
+      [ "${TAI_DOC_LOI:-0}" = 1 ] && td_con_may || break
+      td_in "${M_VANG}chưa đọc được log ô 07${M_HET} (ssh) -- mạng có thể đã xong, đọc lại sau ${LT_CHO_DOC:-60} giây ($k/3), KHÔNG huấn luyện lại"
+      td_ngu "${LT_CHO_DOC:-60}" || { lt_hl_tra; TD_VAI=; return 4; }
+      tai_theo_o 07
+    done
     td_co_mang "$n" && break
     td_con_may || { lt_hl_tra; TD_VAI=; td_mat_may; lt_ghi_tep "$LT_MOC_F" "$moc_cu"; return 3; }
     loi=$((loi + 1))

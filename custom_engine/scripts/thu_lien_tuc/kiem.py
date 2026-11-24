@@ -1,6 +1,7 @@
 """kiem.py -- kiem ket qua cua chay_thu.sh (bo thu vong lap lien tuc bang may Colab gia).
 Doi chieu SO CAI cua engine gia (/tmp/fc/ledger: moi van xong mot dong) voi cac GOI tren "dien thoai": moi van phai ve dung MOT lan
 (khong mat, khong trung) -- tru kich ban mat_may, noi van chua gui luc mat may duoc phep mat."""
+import collections
 import glob
 import json
 import os
@@ -109,6 +110,13 @@ if kb == "len_loi":
     check("Colab từ chối ssh mới (429" in tong, "co gap loi 429 (mo phong) va nhan ra")
     check("bỏ lượt huấn luyện" not in tong, "KHONG bo luot huan luyen vi loi tai goi")
     check(tong.count("gói) lên máy bằng một luồng") + tong.count("lên máy bằng một luồng") >= 2, "tai goi bang luong tar, thu lai sau khi bi dut")
+if kb == "doc_429":
+    tong = "\n".join(logs)
+    check("Colab từ chối ssh mới (429: phiên ssh trước chưa được giải phóng)" in tong, "co gap 429 khi doc log o 07 (mo phong) va nhan ra")
+    check("KHÔNG huấn luyện lại" in tong, "het luot thu trong tai_theo_o thi vong lap con doc lai (khong coi la huan luyen hong)")
+    check("huấn luyện chưa ra mạng" not in tong and "bỏ lượt huấn luyện" not in tong, "KHONG huan luyen lai / bo luot vi loi doc log")
+    dem = collections.Counter((t[1], t[2]) for t in bd)
+    check(all(v == 1 for v in dem.values()) and len(dem) >= 1, f"moi doi chi huan luyen MOT lan: {dict(dem)}")
 if kb == "nap_lai":
     tong = "\n".join(logs)
     check("đã nạp lại mã mới" in tong, "cua so bao da nap lai ma moi (khong mo lai cua so)")
