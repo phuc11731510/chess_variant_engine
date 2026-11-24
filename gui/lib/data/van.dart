@@ -360,12 +360,16 @@ String fmt4(double v) {
 }
 
 /// Văn bản nhật ký của ván: tiêu đề, rồi mỗi nửa nước một mục (xem `SelfPlayLog` trong GUI).
-String nhatKy(Van van, {int? soVan, int? tong}) {
+/// [tatCaNuocCoLuot]: liệt kê MỌI nước có lượt thăm (không chỉ [topUngVien] nước nhiều nhất). Mặc định false để
+/// giống từng byte `xem_du_lieu.py`; app Android bật để xem đủ các nước. Q vẫn chỉ có cho nước đã đi và nước tốt
+/// nhất: bản ghi huấn luyện không lưu Q của nước nào khác.
+String nhatKy(Van van, {int? soVan, int? tong, bool tatCaNuocCoLuot = false}) {
   final nhan = soVan != null ? ' · ván $soVan/$tong' : '';
   final out = StringBuffer();
   out.write(
     '# dữ liệu huấn luyện · ${van.ten}$nhan · ${van.nuoc.length} nửa nước · ${van.ketQua()} '
-    '(mỗi nước: số lượt thăm N của $topUngVien nước nhiều nhất; Q chỉ có cho nước đã đi và nước tốt nhất)\n',
+    '(mỗi nước: số lượt thăm N của ${tatCaNuocCoLuot ? 'mọi nước có lượt thăm' : '$topUngVien nước nhiều nhất'}; '
+    'Q chỉ có cho nước đã đi và nước tốt nhất)\n',
   );
   for (int k = 0; k < van.recs.length; k++) {
     final rec = van.recs[k];
@@ -397,7 +401,8 @@ String nhatKy(Van van, {int? soVan, int? tong}) {
     final daDi = rec.playedIdx;
     for (int j = 0; j < ung.length; j++) {
       final u = ung[j];
-      if (!(j < topUngVien || u.i == daDi)) continue;
+      final giu = tatCaNuocCoLuot ? (j < topUngVien || u.n > 0) : j < topUngVien;
+      if (!(giu || u.i == daDi)) continue;
       String q = '';
       if (u.i == rec.playedIdx) {
         q = ' Q ${fmt4(rec.playedQ)}';

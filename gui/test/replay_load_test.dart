@@ -37,7 +37,48 @@ class ReplayEngine implements EngineService {
   Future<void> dispose() async {}
 }
 
+/// Engine giả có hai bộ luật (như libfairyzero.so / libfzcu.so trên Android): mỗi bộ luật có tập nước hợp lệ riêng.
+class TwoRuleEngine extends ReplayEngine implements RuleSetSwitcher {
+  final List<Set<String>> rules;
+  int idx = 0;
+  int switches = 0;
+  TwoRuleEngine(this.rules) : super({});
+  @override
+  Future<List<String>> legalMoves() async => rules[idx].toList();
+  @override
+  Future<bool> switchRuleSet() async {
+    idx = (idx + 1) % rules.length;
+    switches++;
+    played = 0;
+    return true;
+  }
+}
+
 void main() {
+  test('GameController xem lại: nước mà luật hiện tại cấm thì thử bộ luật kia một lần (ván đời luật cũ / mới)', () async {
+    // Ván cần bộ luật [1] (nước 'c8c10b' chỉ hợp lệ ở đó); ván kế tiếp lại cần bộ luật [0]: engine xoay lại.
+    final eng = TwoRuleEngine([
+      {'e3e5', 'b8b6', 'x1x2'},
+      {'e3e5', 'b8b6', 'c8c10b'},
+    ]);
+    final c = GameController(engine: eng, humanIsWhite: true, replay: true);
+    await c.initReplay(['e3e5', 'b8b6', 'c8c10b']);
+    expect(c.moves, ['e3e5', 'b8b6', 'c8c10b']);
+    expect(c.status, isNull);
+    expect(eng.switches, 1);
+    expect(c.fens.length, 4, reason: 'thế dựng lại từ đầu, không lẫn thế của lần thử đầu');
+    await c.initReplay(['e3e5', 'b8b6', 'x1x2']);
+    expect(c.moves, ['e3e5', 'b8b6', 'x1x2']);
+    expect(c.status, isNull);
+    expect(eng.switches, 2);
+    // Cả hai bộ luật đều từ chối: chỉ thử một lần rồi báo lỗi như thường.
+    await c.initReplay(['e3e5', 'zzzz']);
+    expect(c.moves, ['e3e5']);
+    expect(c.status, contains('không hợp lệ'));
+    expect(eng.switches, 3);
+    c.dispose();
+  });
+
   test('parseReplay: nhật ký tự đấu -> lệnh position cuối + nước của mục cuối', () {
     const log = '''
 # tự đấu 2026-10-20 · model gen92

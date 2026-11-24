@@ -11,6 +11,15 @@ abstract interface class SearchLogSource {
   SearchRecord? get lastSearch;
 }
 
+/// Engine có thêm một bộ luật dự phòng (Android: `libfzcu.so` = luật trước 2026-11-24, phong cấp hàng 8 là
+/// Mã, Tượng, Alibaba, Pháo, Grasshopper). Ván của các đời cũ có nước mà luật mới cấm (phong Tượng / Pháo ở hàng 8),
+/// ván mới có nước mà luật cũ cấm (phong Centaur ở hàng 8); hai tập này không giao nhau nên mỗi ván phát lại được
+/// bằng đúng một trong hai bộ. GUI hỏi bằng `engine is RuleSetSwitcher`.
+abstract interface class RuleSetSwitcher {
+  /// Đổi sang bộ luật kia (xoay vòng). False nếu không có bộ luật dự phòng (không đổi gì).
+  Future<bool> switchRuleSet();
+}
+
 /// Giao diện trừu tượng tới "bộ não" engine.
 ///
 /// Tách khỏi cách hiện thực để: (1) desktop dùng [EngineService] qua tiến trình

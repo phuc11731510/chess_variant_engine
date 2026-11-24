@@ -26,7 +26,7 @@ typedef _FzDestroyD = void Function(Pointer<Void>);
 /// đợi và ta DRAIN bằng `fz_poll` định kỳ qua một [Timer].
 ///
 /// Giao thức UCI trao đổi GIỐNG HỆT [UciProcessEngine]; chỉ lớp truyền tải đổi.
-class NativeFfiEngine implements EngineService {
+class NativeFfiEngine implements EngineService, RuleSetSwitcher {
   final LaunchConfig config;
   final bool verbose;
 
@@ -40,18 +40,22 @@ class NativeFfiEngine implements EngineService {
   /// Kênh hỏi đường dẫn hệ thống (xem MainActivity.kt).
   static const MethodChannel _paths = MethodChannel('fairyzero/paths');
 
-  late final DynamicLibrary _lib;
-  late final _FzCreateD _fzCreate;
-  late final _FzSendD _fzSend;
-  late final _FzPollD _fzPoll;
-  late final _FzDestroyD _fzDestroy;
+  /// Thư viện của từng bộ luật: [0] luật hiện tại, [1] luật trước 2026-11-24 (xem [RuleSetSwitcher]).
+  static const List<String> _libNames = ['libfairyzero.so', 'libfzcu.so'];
+  int _libIdx = 0;
+
+  late DynamicLibrary _lib;
+  late _FzCreateD _fzCreate;
+  late _FzSendD _fzSend;
+  late _FzPollD _fzPoll;
+  late _FzDestroyD _fzDestroy;
 
   Pointer<Void> _handle = nullptr;
   bool _started = false;
 
   // Buffer tái sử dụng cho fz_poll (một dòng UCI; legalmoves có thể dài).
   static const int _bufCap = 65536;
-  late final Pointer<Uint8> _buf;
+  late Pointer<Uint8> _buf;
 
   // Lịch sử nước tính từ thế gốc — gửi lại đầy đủ để engine tái dùng cây.
   final List<String> _moves = [];
@@ -231,10 +235,27 @@ class NativeFfiEngine implements EngineService {
     _pending.clear();
   }
 
+  @override
+  Future<bool> switchRuleSet() async {
+    // Chỉ khi xem lại ván (không mạng, không tìm kiếm) và máy có thư viện luật kia.
+    if (!rulesOnly || !Platform.isAndroid) return false;
+    final next = (_libIdx + 1) % _libNames.length;
+    if (next == _libIdx) return false;
+    try {
+      DynamicLibrary.open(_libNames[next]);
+    } catch (_) {
+      return false;
+    }
+    await dispose();
+    _libIdx = next;
+    await start();
+    return true;
+  }
+
   // ----------------- nội bộ -----------------
 
   DynamicLibrary _openLib() {
-    if (Platform.isAndroid) return DynamicLibrary.open('libfairyzero.so');
+    if (Platform.isAndroid) return DynamicLibrary.open(_libNames[_libIdx]);
     // iOS: liên kết tĩnh vào tiến trình (chưa hỗ trợ ở M4).
     return DynamicLibrary.process();
   }

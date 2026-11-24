@@ -115,6 +115,10 @@ class _BoardScreenState extends State<BoardScreen> {
 
   /// Bảng tìm kiếm chỉ hiện khi cửa sổ đủ rộng: phần rộng hơn chiều cao (bàn vuông) >= mức này.
   static const _minSearchWidth = 300.0;
+
+  /// Màn hình dọc (cảm ứng): bàn rộng hết bề ngang; phần cao còn lại phía dưới bàn (sau thanh nước đi) từ mức này
+  /// trở lên thì đặt bảng tìm kiếm ở đó thay vì ngăn kéo.
+  static const _minSearchHeight = 170.0;
   static const _maxSearchWidth = 520.0;
 
   @override
@@ -267,6 +271,7 @@ class _BoardScreenState extends State<BoardScreen> {
       ply: ply,
       played: ply == 0 ? null : controller.moves[ply - 1],
       whiteMoved: ply == 0 || controller.whiteMovedAt(ply - 1),
+      compact: widget.touchUi ?? Platform.isAndroid,
     );
   }
 
@@ -548,9 +553,17 @@ class _BoardScreenState extends State<BoardScreen> {
                   final searchW = (spare - (pickerInline ? _pickerWidth : 0.0))
                       .clamp(0.0, _maxSearchWidth)
                       .toDouble();
-                  final searchInline =
+                  final searchBeside =
                       _showSearch && searchW >= _minSearchWidth;
-                  final boardArea = searchInline
+                  // Màn hình dọc: bàn vuông rộng hết bề ngang, bảng tìm kiếm ở khoảng trống phía dưới bàn.
+                  final searchBelow =
+                      touch &&
+                      !searchBeside &&
+                      _showSearch &&
+                      box.maxHeight - tb - _stripHeight - box.maxWidth >=
+                          _minSearchHeight;
+                  final searchInline = searchBeside || searchBelow;
+                  final boardArea = searchBeside
                       ? Row(
                           children: [
                             Expanded(child: stack),
@@ -558,22 +571,26 @@ class _BoardScreenState extends State<BoardScreen> {
                           ],
                         )
                       : stack;
-                  final main = Column(
-                    children: [
-                      Expanded(child: boardArea),
-                      MoveStrip(
-                        moves: controller.moves,
-                        shownPly: controller.shownPly,
-                        live: !controller.inReview,
-                        checks: controller.checksGiven,
-                        onSelect: controller.goToPly,
-                        onFirst: controller.goStart,
-                        onPrev: controller.stepBack,
-                        onNext: controller.stepForward,
-                        onLast: controller.goLive,
-                      ),
-                    ],
+                  final strip = MoveStrip(
+                    moves: controller.moves,
+                    shownPly: controller.shownPly,
+                    live: !controller.inReview,
+                    checks: controller.checksGiven,
+                    onSelect: controller.goToPly,
+                    onFirst: controller.goStart,
+                    onPrev: controller.stepBack,
+                    onNext: controller.stepForward,
+                    onLast: controller.goLive,
                   );
+                  final main = searchBelow
+                      ? Column(
+                          children: [
+                            SizedBox(height: box.maxWidth, child: stack),
+                            strip,
+                            Expanded(child: _searchPanel()),
+                          ],
+                        )
+                      : Column(children: [Expanded(child: boardArea), strip]);
                   final body = pickerInline
                       ? Row(
                           children: [

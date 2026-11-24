@@ -69,6 +69,9 @@ class SearchPanel extends StatefulWidget {
   final double exponent;
   final ValueChanged<double>? onExponentChanged;
 
+  /// Màn hình cảm ứng (bảng nằm dưới bàn hoặc cạnh bàn, chỗ ít): bỏ các ghi chú dài, chỉ giữ ghi chú cần thiết.
+  final bool compact;
+
   const SearchPanel({
     super.key,
     required this.record,
@@ -77,6 +80,7 @@ class SearchPanel extends StatefulWidget {
     required this.whiteMoved,
     this.exponent = 1,
     this.onExponentChanged,
+    this.compact = false,
   });
 
   @override
@@ -94,6 +98,10 @@ class _SearchPanelState extends State<SearchPanel> {
 
   // Độ rộng (số ký tự) từng cột: bảng dùng chữ đơn cách nên tiêu đề và dòng thẳng hàng.
   static const _wMove = 7, _wN = 6, _wPct = 8, _wP = 7, _wPnet = 7, _wQ = 8;
+
+  /// Kiểu chữ của bảng các nước: cảm ứng (chỗ rộng, màn hình xem gần) chữ to hơn; bảng tự thu nhỏ khi chỗ hẹp.
+  TextStyle get _ms =>
+      widget.compact ? _mono.copyWith(fontSize: 14) : _mono;
 
   final LayerLink _link = LayerLink();
   OverlayEntry? _menu;
@@ -228,11 +236,21 @@ class _SearchPanelState extends State<SearchPanel> {
 
   Widget _cell(String text, int width, {bool right = true}) => Text(
     right ? text.padLeft(width) : text.padRight(width),
-    style: _mono.copyWith(color: Colors.white54),
+    style: _ms.copyWith(color: Colors.white54),
   );
 
-  Widget _headerRow() {
-    final hov = _mono.copyWith(
+  /// Chữ từng ô của dòng tiêu đề, đúng thứ tự trong [_headerRow], để đo bề rộng.
+  List<String> _headerCells(bool prior) => [
+    'Nước'.padRight(_wMove),
+    'N'.padLeft(_wN),
+    '%N'.padLeft(_wPct),
+    if (_extra) TempChoice(widget.exponent, '').header.padLeft(_wPct),
+    if (prior) ...['P'.padLeft(_wP), 'Pnet'.padLeft(_wPnet)],
+    'Q Trắng'.padLeft(_wQ),
+  ];
+
+  Widget _headerRow(bool prior) {
+    final hov = _ms.copyWith(
       color: Colors.amber,
       decoration: TextDecoration.underline,
       decorationStyle: TextDecorationStyle.dotted,
@@ -265,12 +283,59 @@ class _SearchPanelState extends State<SearchPanel> {
           Text(
             TempChoice(widget.exponent, '').header.padLeft(_wPct),
             key: const ValueKey('tieu_de_pct_nt'),
-            style: _mono.copyWith(color: Colors.amber),
+            style: _ms.copyWith(color: Colors.amber),
           ),
-        _cell('P', _wP),
-        _cell('Pnet', _wPnet),
+        if (prior) ...[_cell('P', _wP), _cell('Pnet', _wPnet)],
         _cell('Q Trắng', _wQ),
       ],
+    );
+  }
+
+  /// Bảng các nước: tiêu đề + mỗi nước một dòng chữ đơn cách. Cả bảng được thu nhỏ vừa bề ngang của bảng khi chỗ hẹp
+  /// (màn hình điện thoại xoay ngang, cỡ chữ hệ thống lớn) thay vì tràn ra ngoài; cột P / Pnet chỉ hiện khi nhật ký
+  /// có (dữ liệu huấn luyện không lưu prior).
+  Widget _table(List<SearchCandidate> cands, int? nodes, bool prior) {
+    final shares = temperatureShares([
+      for (final c in cands) c.n,
+    ], widget.exponent);
+    // Bề rộng = dòng dài nhất (tiêu đề hoặc một nước) đo đúng bằng kiểu chữ và cỡ chữ hệ thống đang dùng.
+    final lines = [
+      for (int i = 0; i < cands.length; i++)
+        _lineOf(cands[i], nodes, _extra ? shares[i] : null, prior),
+    ];
+    final scaler = MediaQuery.textScalerOf(context);
+    // Kiểu chữ THỰC của các ô: _mono hợp với kiểu mặc định của giao diện (có thể thêm giãn chữ, vd Material 0,25 px
+    // mỗi ký tự), nếu đo bằng _mono trơn thì bảng bị tính hẹp hơn thật và vẫn tràn.
+    final style = DefaultTextStyle.of(context).style.merge(_ms);
+    double measure(String s) {
+      final tp = TextPainter(
+        text: TextSpan(text: s, style: style),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      return tp.width;
+    }
+
+    // Tiêu đề là một hàng các ô riêng nên cộng bề rộng từng ô; mỗi nước là một chuỗi.
+    var width = _headerCells(prior).fold(0.0, (a, s) => a + measure(s));
+    for (final s in lines) {
+      final w = measure(s);
+      if (w > width) width = w;
+    }
+    width += 8;
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: width,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _headerRow(prior),
+            for (int i = 0; i < cands.length; i++) _row(cands[i], lines[i]),
+          ],
+        ),
+      ),
     );
   }
 
@@ -319,22 +384,47 @@ class _SearchPanelState extends State<SearchPanel> {
           ),
         );
       }
+      final cands = rec.candidates;
+      final prior = cands.any((c) => c.p != null || c.pnet != null);
+      // Bảng các nước ngay dưới dòng tổng (chỗ ít, màn hình dọc: số liệu phải thấy ngay); các ghi chú xuống dưới bảng.
+      children.add(const SizedBox(height: 4));
+      children.add(_table(cands, nodes, prior));
+      if (played != null && !cands.any((c) => c.move == played)) {
+        children.add(
+          _note(
+            'Nước đã đi ($played) không nằm trong các nước engine liệt kê.',
+          ),
+        );
+      }
+      children.add(const SizedBox(height: 6));
       children.add(
         _note(
           'Q, cp theo phía TRẮNG: dương = Trắng có lợi '
           '(engine in theo phía bên đi; bản gốc ở cuối bảng).',
         ),
       );
+      if (!prior) {
+        // Nhật ký dựng từ dữ liệu huấn luyện: bản ghi chỉ lưu Q của hai nước.
+        children.add(
+          _note(
+            'Dữ liệu huấn luyện chỉ lưu Q của nước đã đi và nước nhiều lượt nhất; '
+            'các nước khác chỉ có số lượt thăm N.',
+          ),
+        );
+      } else if (!widget.compact) {
+        children.add(
+          _note(
+            'P = prior trong cây (tự đấu: 0.75·mạng + 0.25·nhiễu Dirichlet ở gốc); '
+            'Pnet = prior thô của mạng, trước nhiễu.',
+          ),
+        );
+      }
       children.add(
         _note(
-          'P = prior trong cây (tự đấu: 0.75·mạng + 0.25·nhiễu Dirichlet ở gốc); '
-          'Pnet = prior thô của mạng, trước nhiễu.',
-        ),
-      );
-      children.add(
-        _note(
-          'Rê chuột (hoặc chạm) vào tiêu đề %N để chọn nhiệt độ: thêm cột %N^e = xác suất engine chọn '
-          'từng nước khi áp nhiệt độ T = 1/e (vd %N^2 là T = 0,5).',
+          widget.compact
+              ? 'Chạm tiêu đề %N để chọn nhiệt độ T: thêm cột %N^e = xác suất chọn nước.'
+              : 'Rê chuột (hoặc chạm) vào tiêu đề %N để chọn nhiệt độ: thêm cột %N^e = xác suất engine chọn '
+                    'từng nước khi áp nhiệt độ T = 1/e (vd %N^2 là T = 0,5).',
         ),
       );
       if (_extra) {
@@ -344,27 +434,6 @@ class _SearchPanelState extends State<SearchPanel> {
             '${TempChoice(widget.exponent, '').header} = N^$e / ΣN^$e trên các nước đang liệt kê '
             '(nước ngoài bảng có rất ít lượt nên gần như không đổi con số khi T ≤ 1).',
             color: Colors.amber,
-          ),
-        );
-      }
-      children.add(const SizedBox(height: 6));
-      children.add(
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: _headerRow(),
-        ),
-      );
-      final cands = rec.candidates;
-      final shares = temperatureShares([
-        for (final c in cands) c.n,
-      ], widget.exponent);
-      for (int i = 0; i < cands.length; i++) {
-        children.add(_row(cands[i], nodes, _extra ? shares[i] : null));
-      }
-      if (played != null && !cands.any((c) => c.move == played)) {
-        children.add(
-          _note(
-            'Nước đã đi ($played) không nằm trong các nước engine liệt kê.',
           ),
         );
       }
@@ -401,37 +470,41 @@ class _SearchPanelState extends State<SearchPanel> {
     child: Text(s, style: TextStyle(color: color, fontSize: 12)),
   );
 
-  Widget _row(SearchCandidate c, int? nodes, double? share) {
+  String _sign(num x, int digits) =>
+      '${x >= 0 ? "+" : ""}${digits == 0 ? x.toString() : x.toStringAsFixed(digits)}';
+
+  /// Chữ của dòng một nước: Nước, N, %N, [%N^e], [P, Pnet], Q Trắng.
+  String _lineOf(SearchCandidate c, int? nodes, double? share, bool prior) {
     final v = c.forWhite(widget.whiteMoved);
-    String sign(num x, int digits) =>
-        '${x >= 0 ? "+" : ""}${digits == 0 ? x.toString() : x.toStringAsFixed(digits)}';
     final pct = (c.n == null || nodes == null || nodes == 0)
         ? ''
         : (100.0 * c.n! / nodes).toStringAsFixed(1);
     final pctT = share == null ? null : (100.0 * share).toStringAsFixed(1);
-    final line =
-        '${c.move.padRight(_wMove)}${(c.n?.toString() ?? '').padLeft(_wN)}${pct.padLeft(_wPct)}'
+    return '${c.move.padRight(_wMove)}${(c.n?.toString() ?? '').padLeft(_wN)}${pct.padLeft(_wPct)}'
         '${pctT == null ? '' : pctT.padLeft(_wPct)}'
-        '${(c.p?.toStringAsFixed(4) ?? '').padLeft(_wP)}${(c.pnet?.toStringAsFixed(4) ?? '').padLeft(_wPnet)}'
-        '${(v.q == null ? '' : sign(v.q!, 3)).padLeft(_wQ)}';
-    final cp = v.cp == null ? '' : 'cp Trắng ${sign(v.cp!, 0)} · ';
+        '${prior ? '${(c.p?.toStringAsFixed(4) ?? '').padLeft(_wP)}${(c.pnet?.toStringAsFixed(4) ?? '').padLeft(_wPnet)}' : ''}'
+        '${(v.q == null ? '' : _sign(v.q!, 3)).padLeft(_wQ)}';
+  }
+
+  Widget _row(SearchCandidate c, String line) {
+    final v = c.forWhite(widget.whiteMoved);
+    final cp = v.cp == null ? '' : 'cp Trắng ${_sign(v.cp!, 0)} · ';
     final isPlayed = c.move == widget.played;
     return Container(
+      width: double.infinity,
       margin: const EdgeInsets.only(top: 2),
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
       color: isPlayed ? const Color(0x33FFC107) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(),
-            child: Text(
-              line,
-              style: isPlayed
-                  ? _mono.copyWith(fontWeight: FontWeight.bold)
-                  : _mono,
-            ),
+          Text(
+            line,
+            maxLines: 1,
+            softWrap: false,
+            style: isPlayed
+                ? _ms.copyWith(fontWeight: FontWeight.bold)
+                : _ms,
           ),
           if (c.pv.isNotEmpty || cp.isNotEmpty)
             Text(

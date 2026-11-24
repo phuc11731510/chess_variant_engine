@@ -404,20 +404,37 @@ class GameController extends ChangeNotifier {
     notifyListeners();
     try {
       await engine.start();
-      await engine.newGame(fen: startFen);
-      if (_disposed || gen != _loadGen) return;
-      fens.add(await engine.currentFen());
-      for (final m in replayMoves) {
-        final lg = await engine.legalMoves();
+      // Ván của đời luật cũ có thể có nước mà luật hiện tại cấm (và ngược lại): gặp nước "không hợp lệ" thì thử
+      // bộ luật kia một lần (xem [RuleSetSwitcher]); engine giữ bộ luật vừa dùng cho ván kế tiếp.
+      var switched = false;
+      while (true) {
+        moves.clear();
+        fens.clear();
+        lastMove = null;
+        await engine.newGame(fen: startFen);
         if (_disposed || gen != _loadGen) return;
-        if (!lg.contains(m)) {
-          status =
-              'Nước thứ ${moves.length + 1} ($m) không hợp lệ trong thế này — chỉ xem được ${moves.length} nước đầu';
-          break;
-        }
-        await engine.applyMove(m);
-        _recordMove(m);
         fens.add(await engine.currentFen());
+        String? bad;
+        for (final m in replayMoves) {
+          final lg = await engine.legalMoves();
+          if (_disposed || gen != _loadGen) return;
+          if (!lg.contains(m)) {
+            bad = m;
+            break;
+          }
+          await engine.applyMove(m);
+          _recordMove(m);
+          fens.add(await engine.currentFen());
+        }
+        if (bad == null) break;
+        final Object eng = engine;
+        if (!switched && eng is RuleSetSwitcher && await eng.switchRuleSet()) {
+          switched = true;
+          continue;
+        }
+        status =
+            'Nước thứ ${moves.length + 1} ($bad) không hợp lệ trong thế này — chỉ xem được ${moves.length} nước đầu';
+        break;
       }
       if (_disposed || gen != _loadGen) return;
       board = BoardState.fromFen(fens.last);
