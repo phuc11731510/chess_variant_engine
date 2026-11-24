@@ -16,6 +16,7 @@ shift   # host
 tru() { local f=${FAKE_DIR:-/tmp/fc}/$1 n; [ -f "$f" ] || return 1; n=$(cat "$f"); [ "${n:-0}" -gt 0 ] || return 1; echo $((n - 1)) > "$f"; }
 case "$*" in
   *"tar xf"*)       tru loi429_tar && { head -c 30000 > /dev/null; echo "[colab] Already-active SSH session (HTTP 429): another \`colab ssh\` is connected to this runtime. Disconnect it and retry." >&2; exit 255; } ;;
+  *"FZ_TAI_VE"*)    tru loi429_doc && { echo "[colab] Already-active SSH session (HTTP 429): another \`colab ssh\` is connected to this runtime. Disconnect it and retry." >&2; exit 255; } ;;
   *"FZ_LIET_XONG"*) tru loi429     && { echo "[colab] Already-active SSH session (HTTP 429): another \`colab ssh\` is connected to this runtime. Disconnect it and retry." >&2; exit 255; } ;;
 esac
 exec bash -c "$*"
