@@ -184,12 +184,25 @@ dat_tk "$TK"
 # fz_colab.py = Colab CLI da sua loi lam moi token (invalid_scope -> doi dang nhap lai moi gio). KHONG_HOI=1:
 # KHONG BAO GIO hoi ma dang nhap (thoat ma 75, in FZ_CAN_DANG_NHAP) -- bat buoc khi dau ra bi bat (out=$(...))
 # hoac chay nen, neu khong cua so "dung hinh" cho mot ma khong ai thay loi nhac. COLAB_TO=<giay>: gioi han thoi gian.
-colab() {
+_colab_chay() {
   if [ -f ~/fz_colab.py ]; then
     HOME=$TKH FZ_KHONG_HOI=${KHONG_HOI:-} ${COLAB_TO:+timeout "$COLAB_TO"} python ~/fz_colab.py "$@"
   else
     HOME=$TKH command colab "$@"
   fi
+}
+colab() {
+  local out rc
+  if [ "${1:-}" = status ]; then
+    # `colab status` khi phien KHONG co in "[colab] Session 'x' not found." roi THOAT MA 0 (2026-11-24, do tren dien thoai): moi cho dung
+    # ma thoat de hoi "phien co khong" deu bi nham. Truoc day xin_may coi lenh xin het gio (khong co may nao) la "may da duoc cap" ->
+    # chay o 02 tren may khong ton tai -> bao "may da mat" du tai khoan con han muc. Nay: in "not found" thi tra 1.
+    out=$(_colab_chay "$@"); rc=$?
+    [ -n "$out" ] && printf '%s\n' "$out"
+    grep -q "not found" <<<"$out" && return 1
+    return $rc
+  fi
+  _colab_chay "$@"
 }
 py_colab() { HOME=$TKH python "$@"; }
 
@@ -998,7 +1011,7 @@ xin_may() {
   truoc=$(ds_ep_may)
   # KHONG_HOI: dau ra bi bat o day, loi nhac dang nhap khong ai thay (cua so dung hinh) -> khong hoi.
   # COLAB_TO: xin may khong lau qua 3 phut (treo thi bo, vong lap thu tai khoan khac).
-  out=$(KHONG_HOI=1 COLAB_TO=180 colab new -s "$S" ${1:+--gpu "$1"} 2>&1); rc=$?
+  out=$(KHONG_HOI=1 COLAB_TO=${FZ_XIN_TO:-180} colab new -s "$S" ${1:+--gpu "$1"} 2>&1); rc=$?
   grep '^\[colab\]' <<<"$out"
   if [ $rc = 0 ] && colab status -s "$S" 2>/dev/null; then
     kiem_may >/dev/null
@@ -1013,6 +1026,12 @@ xin_may() {
     kiem_may >/dev/null
     chup_han_muc "$TK" &
     return 0
+  fi
+  # Het gio (rc 124): lenh xin bi GIET giua luc may chu con dang xu ly yeu cau -> may chu co the cap may SAU khi ta da bo di (2026-11-24:
+  # tranlongn28 giu mot T4 "[?]" khong ai biet, may khong bi trach ten). Doi mot chut roi quet lai de tra no, khong de no an han muc.
+  if [ $rc = 124 ]; then
+    echo "${M_VANG}[!] Xin máy quá giờ -- chờ ${FZ_XIN_CHO:-30} giây xem máy chủ có cấp muộn không (nếu có thì trả ngay)${M_HET}"
+    sleep "${FZ_XIN_CHO:-30}"
   fi
   while IFS= read -r x; do
     ep=${x#*] }; ep=${ep%% *}

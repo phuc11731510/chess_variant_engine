@@ -96,6 +96,11 @@ for k in (1, 2):
     check("vòng lặp liên tục đã dừng" in log or "thoát" in log, f"cua so {k} thoat sach")
     logs.append(log)
 check(bad == 0, "log khong co loi bash / python")
+if kb == "xin_treo":
+    check(any("Xin máy quá giờ" in l for l in logs), "lenh xin het gio duoc bao la het gio (khong phai 'may da duoc cap')")
+    check(not any("máy của acc" in l and "đã mất" in l for l in logs), "KHONG bao 'may da mat' sai khi chua tung co may")
+    check(any("trả máy đó" in l for l in logs), "may cap muon (phien khong ten) da duoc tra")
+    check(not any("dùng máy này" in l for l in logs), "khong coi lenh xin loi la 'da co may'")
 if kb == "arena":
     check(any("arena gen" in l for l in logs), "it nhat mot cua so da danh arena")
     arena_files = glob.glob(f"{TAI}/arena/gen*_vs_gen*.txt")

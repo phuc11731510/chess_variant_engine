@@ -6,7 +6,10 @@
 # /content rieng), gh (Release = thu muc), engine (chep van mau that, toc do FAKE_RATE), o 02 / 02c / 07 / 08 (gia, nhanh).
 # Hai cua so (hai tai khoan acc1, acc2) cung chay nhu hai cua so Termux that (chung HOME, chung ~/.fz_tk).
 #
-#   bash chay_thu.sh [co ban]      co ban: co_ban (mac dinh) | arena | mat_may
+#   bash chay_thu.sh [co ban]      co ban: co_ban (mac dinh) | arena | mat_may | xin_treo
+#     xin_treo: lenh xin may cua acc1 BI TREO (het gio) roi may chu cap may muon cho phien khong ten -- tai hien loi 2026-11-24 do tren dien thoai
+#     (`colab status` thoat ma 0 khi khong co phien -> vong lap tuong da co may -> bao "may da mat"; may mo coi an han muc).
+#   MENU_SRC=<tep menu.sh khac>  thu voi ban menu.sh khac (vd ban cu lay tu git de THAY loi tai hien)
 # Ket qua: in PASS / FAIL tung kiem tra; log tung cua so o /tmp/fc/log_w<k>.txt.
 set -u
 REPO=$(cd "$(dirname "$0")/../.." && pwd)            # .../custom_engine
@@ -31,7 +34,7 @@ for i in $(seq 0 $GEN0); do head -c 64 /dev/urandom > "$W/release/gen$i.pt"; don
 TAI=$H/storage/downloads/FairyZero
 O=$TAI/o_lenh
 # --- "dien thoai": menu + tep phia dien thoai that, tep gia, o lenh ---
-cp "$SC/menu.sh" "$H/fz_menu.sh"
+cp "${MENU_SRC:-$SC/menu.sh}" "$H/fz_menu.sh"
 for f in fz_tu_dong.sh fz_lien_tuc.sh fz_tu_dong.py fz_may.py; do cp "$SC/$f" "$H/$f"; done
 cp "$GIA"/home/*.py "$H/"
 cp "$SC/00_cau_hinh.py" "$O/"
@@ -46,6 +49,7 @@ for a in acc1 acc2; do
   echo 20000 > "$W/quota/$a"
 done
 [ "$KB" = mat_may ] && echo 20000 > "$W/quota/acc1"
+[ "$KB" = xin_treo ] && echo 1 > "$W/hang_acc1"          # lan xin dau tien cua acc1 bi treo (cua so chuyen sang tai khoan khac ngay trong cung luot)
 
 TRA_LOI=$'30\n200000\n\n-\n\n'          # so van moi / luot, so the cua so, chua phut (Enter), arena tat, Enter = bat dau
 [ "$KB" = arena ] && TRA_LOI=$'30\n200000\n\n5 7 9\n100\n\n'   # arena: day doi 5 7 9 (doi 7 dau doi 5, doi 9 dau doi 7), 100 van
@@ -53,7 +57,8 @@ mk_cua_so() {   # $1 = k (1, 2)
   local k=$1
   unshare -m bash -c "
     mount --bind $W/w$k /content
-    export HOME=$H PATH=$GIA/bin:\$PATH TERM=dumb NO_COLOR=1 FZ_KHONG_NHAT_KY=1
+    export HOME=$H PATH=$GIA/bin:\$PATH TERM=dumb NO_COLOR=1 FZ_KHONG_NHAT_KY=1 PYTHONPATH=$GIA/pylib FAKE_DIR=$W
+    [ "$KB" = xin_treo ] && export FZ_XIN_TO=4 FZ_XIN_CHO=8 FAKE_GRANT_LATE=3
     cd $H
     exec bash $H/fz_menu.sh lien_tuc
   " <<<"$TRA_LOI" > "$W/log_w$k.txt" 2>&1 &
