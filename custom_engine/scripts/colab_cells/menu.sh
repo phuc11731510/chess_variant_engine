@@ -1197,6 +1197,7 @@ tai_len() {
 tai_theo_o() {
   local ra ds f dau da loi=0 tep err i=1
   TAI_DOC_LOI=0                     # 1 = KHONG doc duoc log o (ssh loi / 429): khac voi "o khong ra tep" -- vong lap lien tuc dung de khong huan luyen lai oan
+  TAI_DOC_CHO=0                     # 1 = da phai cho vi 429 (lan doc log nay khong dai dien ve thoi gian)
   # Chi hoi Colab khi o tren dien thoai co FZ_TAI_VE (khoi mot lan ssh cho moi o khac).
   tep=$(ls "$D/$1"_*.py 2>/dev/null | head -1)
   if [ -z "$tep" ] || ! doc "$tep" | grep -q FZ_TAI_VE; then
@@ -1214,6 +1215,7 @@ tai_theo_o() {
     ra=$(ssh_colab "printf '%s\n' \"\$(head -1 $LOGD/$1.log 2>/dev/null)\" \"\$(cat $LOGD/$1.da_tai 2>/dev/null)\"; sed -n 's/^FZ_TAI_VE=//p' $LOGD/$1.log 2>/dev/null" 2>"$err") && break
     if [ $i -le 5 ] && grep -q -E 'Already-active SSH session|HTTP 429' "$err"; then
       echo "[!] Colab từ chối ssh mới (429: phiên ssh trước chưa được giải phóng) -- chờ $((i * ${FZ_CHO_429:-10})) giây rồi đọc lại log ô $1 (lần $i/5)"
+      TAI_DOC_CHO=1
       sleep $((i * ${FZ_CHO_429:-10})) || { rm -f "$err"; TAI_DOC_LOI=1; return 1; }
       i=$((i + 1)); continue
     fi
