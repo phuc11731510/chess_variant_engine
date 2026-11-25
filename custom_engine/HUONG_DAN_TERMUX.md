@@ -926,6 +926,14 @@ ván dở (~1,5 phút) rồi huấn luyện một mình** (`LT_CHO_DUOI=1`, mặ
   **phân vị 90% (hạng gần nhất, trên tối đa 10 lượt sạch gần nhất) của [giây gom + tải gói + giây huấn luyện quy theo số thế cửa sổ hiện tại] + 6 phút** (`LT_DU_PHUT`), không thấp hơn 15 phút; chưa đủ 3 lượt thì dùng số đo
   (240 giây + 9 giây / 10.000 thế). Lượt sạch = không phải thử lại, không chờ 429 (`.lt_lich_su_hl`: "giây_gom giây_huấn_luyện số_thế_cửa_sổ"). Kịch bản thử: `thu_lien_tuc/chay_thu.sh tu_canh`, `thu_lien_tuc/test_tu_canh.sh`.
 
+**Mạng lên GitHub TỪ MÁY COLAB (2026-11-25, tùy chọn: bật khi có tệp token).** Cũ: điện thoại tải `gen<N>.pt` (20,3 MB) từ máy huấn luyện về rồi tải lên Release (20,3 MB lần nữa),
+  mất 39 đến 83 giây mỗi mạng. Nay, nếu có tệp `~/.fz_nets_token` (một dòng: token GitHub quyền ghi Release của kho `REL_NN`), `lt_len_github_colab` (fz_lien_tuc.sh) cho MÁY HUẤN LUYỆN tự
+  chạy `gh release upload --clobber` (`gh` có sẵn trên ảnh Colab, đo 25/11: gh 2.102; gửi 20 MB ra ngoài khoảng 0,3 đến 0,7 giây). Token đi từ điện thoại qua ĐẦU VÀO của một lệnh ssh
+  (`read -r GH_TOKEN` phía máy), KHÔNG nằm trên dòng lệnh, không ghi tệp trên máy, không vào nhật ký. Điện thoại chỉ đọc danh sách tệp của Release (công khai) để kiểm kích thước + sha256 do máy tính;
+  khớp thì coi là đã lên, không tải mạng về điện thoại. Lỗi bất kỳ (không có gh, GitHub từ chối token, 429 hết 3 lần, không khớp) thì ghi rõ lý do, DÙNG ĐƯỜNG CŨ cho lượt này và nghỉ đường mới
+  30 phút (`LT_NETS_NGHI_GIAY`). Xoá tệp token = tắt hẳn. Lưu ý an toàn: quyền ghi Release của kho này cũng cho phép đẩy mã lên `main` (GitHub không có quyền riêng cho Release), nên token lộ ra
+  thì kẻ xấu chèn được mã vào những gì máy Colab và điện thoại tải từ `main`: dùng token fine-grained chỉ cho kho này, hạn ngắn. Kịch bản thử: `chay_thu.sh len_colab`, `len_colab_loi`.
+
 3. `fz` → **`w`** (hoặc `fz lien_tuc`) ở mỗi cửa sổ. Lần đầu nó hỏi: *số ván mới mỗi lượt huấn luyện* (1000), *cửa sổ huấn luyện* (Enter = **tự canh** 4 lần; số nhỏ hơn 100 = số lần dùng lại mỗi thế, vd 3.5; số từ 100000 = cửa sổ cố định), số phút chừa,
    dãy đời arena; rồi tự **nhập** thư mục `games_gen<k>/` của 4 đời gần nhất thành 4 gói làm cửa sổ ban đầu (mốc đặt ở gói cuối: dữ liệu cũ tính là cũ).
 4. Hai thư mục `games_gen…` cũ vẫn nằm đó; `fz_tu_dong.py don_dep` (chạy lúc bắt đầu) dọn chúng theo cửa sổ 4 đời như trước.

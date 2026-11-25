@@ -6,13 +6,16 @@
 # /content rieng), gh (Release = thu muc), engine (chep van mau that, toc do FAKE_RATE), o 02 / 02c / 07 / 08 (gia, nhanh).
 # Hai cua so (hai tai khoan acc1, acc2) cung chay nhu hai cua so Termux that (chung HOME, chung ~/.fz_tk).
 #
-#   bash chay_thu.sh [co ban]      co ban: co_ban (mac dinh) | arena | mat_may | xin_treo | nap_lai | len_loi | dung_cu | xin_muon | doc_429 | tu_canh
+#   bash chay_thu.sh [co ban]      co ban: co_ban (mac dinh) | arena | mat_may | xin_treo | nap_lai | len_loi | dung_cu | xin_muon | doc_429 | tu_canh | len_colab | len_colab_loi
 #     nap_lai: giua luc chay, ~/fz_lien_tuc.sh tren "dien thoai" bi THAY (nguyen tu, nhu lay_ve / Claude cai): cua so phai tu nap lai ham moi
 #     (khong dong den engine / may dang chay, khong mat van), roi mot ban moi co LOI CU PHAP phai bi tu choi ma van chay tiep.
 #     xin_treo: lenh xin may cua acc1 BI TREO (het gio) roi may chu cap may muon cho phien khong ten -- tai hien loi 2026-11-24 do tren dien thoai
 #     (`colab status` thoat ma 0 khi khong co phien -> vong lap tuong da co may -> bao "may da mat"; may mo coi an han muc).
 #     len_loi: tai goi len may huan luyen bi Colab tu choi 429 "Already-active SSH session" (hong khi hoi danh sach goi, va hong giua luong tar):
 #     phai cho roi thu lai, KHONG bo luot huan luyen (loi that 14:42 24/11 tren dien thoai).
+#     len_colab: co tep token ($H/.fz_nets_token): may huan luyen TU dua mang len Release bang `gh release upload` (token qua DAU VAO ssh), dien thoai khong tai .pt ve;
+#     lan ssh dau bi 429 phai cho roi thu lai; token KHONG duoc nam tren dong lenh ssh / trong nhat ky.
+#     len_colab_loi: GitHub tu choi token o lan dau (HTTP 403): phai quay ve duong cu (dien thoai tai .pt ve roi tai len), mang van len Release, luot sau nghi duong moi.
 #     tu_canh: cua so huan luyen TU CANH (muc tieu 2 lan dung lai moi the: cua so = 2 x TB the moi cua 3-5 lan gan nhat) va nguong T4 theo cua so; acc1 con it T4 (35 phut)
 #     nen KHONG nhan luot huan luyen (LT_HL_PHUT_MIN=40), chi acc2 huan luyen.
 #     doc_429: SAU KHI huan luyen xong, lenh doc log o 07 qua ssh (tai_theo_o) bi Colab tu choi 429 nhieu lan: phai cho / doc lai, KHONG huan luyen lai
@@ -64,6 +67,9 @@ done
 [ "$KB" = mat_may ] && echo 20000 > "$W/quota/acc1"
 [ "$KB" = len_loi ] && { echo 2 > "$W/loi429"; echo 1 > "$W/loi429_tar"; }
 [ "$KB" = doc_429 ] && echo 7 > "$W/loi429_doc"           # 7 lan doc log o 07 bi 429: 6 lan trong tai_theo_o (het luot thu) roi lan dau cua vong doc lai o lt_huan_luyen
+if [ "$KB" = len_colab ] || [ "$KB" = len_colab_loi ]; then printf 'TOKEN_GIA_abc123XYZ\n' > "$H/.fz_nets_token"; chmod 600 "$H/.fz_nets_token"; fi
+[ "$KB" = len_colab ] && echo 1 > "$W/loi429_nets"            # lan ssh tai len dau tien bi 429
+[ "$KB" = len_colab_loi ] && echo 1 > "$W/gh_colab_loi"       # lan gh release upload dau tien (phia Colab) bi tu choi token
 [ "$KB" = tu_canh ] && echo 2100 > "$W/quota/acc1"          # acc1: 35 phut T4 (du sinh du lieu, KHONG du nguong huan luyen LT_HL_PHUT_MIN=40) -> chi acc2 huan luyen
 [ "$KB" = xin_muon ] && echo 1 > "$W/hang_acc1"
 [ "$KB" = xin_treo ] && echo 1 > "$W/hang_acc1"          # lan xin dau tien cua acc1 bi treo (cua so chuyen sang tai khoan khac ngay trong cung luot)
@@ -90,6 +96,7 @@ mk_cua_so() {   # $1 = k (1, 2)
     [ "$KB" = nap_lai ] && export LT_NAP_GIAY=8
     [ "$KB" = len_loi ] && export LT_CHO_429=2
     [ "$KB" = doc_429 ] && export FZ_CHO_429=1 LT_CHO_DOC=3
+    [ "$KB" = len_colab ] || [ "$KB" = len_colab_loi ] && export LT_CHO_NETS=1
     [ "$KB" = tu_canh ] && export LT_HL_PHUT_MIN=40 LT_THE_MIN=1000 LT_THE_MAX=100000000
     cd $H
     exec bash $H/fz_menu.sh lien_tuc

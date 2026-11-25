@@ -139,6 +139,25 @@ if kb == "doc_429":
     check("huấn luyện chưa ra mạng" not in tong and "bỏ lượt huấn luyện" not in tong, "KHONG huan luyen lai / bo luot vi loi doc log")
     dem = collections.Counter((t[1], t[2]) for t in bd)
     check(all(v == 1 for v in dem.values()) and len(dem) >= 1, f"moi doi chi huan luyen MOT lan: {dict(dem)}")
+if kb in ("len_colab", "len_colab_loi"):
+    tong = "\n".join(logs)
+    TOKEN = "TOKEN_GIA_abc123XYZ"
+    cmds = open(f"{W}/ssh_cmds.log", errors="replace").read() if os.path.exists(f"{W}/ssh_cmds.log") else ""
+    gtok = open(f"{W}/gh_token.log").read().split() if os.path.exists(f"{W}/gh_token.log") else []
+    check(TOKEN not in cmds, "token KHONG nam tren dong lenh ssh (chi di qua dau vao)")
+    check(TOKEN not in tong and TOKEN not in (open(f"{H}/.fz_tk/.tu_dong/nhat_ky.txt", errors="replace").read() if os.path.exists(f"{H}/.fz_tk/.tu_dong/nhat_ky.txt") else ""), "token KHONG xuat hien trong log cua so / nhat ky vong lap")
+    check(len(gtok) >= 1 and all(t == "TOKEN:" + TOKEN for t in gtok), f"gh phia Colab nhan dung token qua GH_TOKEN ({len(gtok)} lan)")
+    tren_dt = [os.path.basename(p) for p in glob.glob(f"{TAI}/gen*.pt")]
+    if kb == "len_colab":
+        check("từ máy Colab" in tong and "đã lên Release" in tong, "log noi mang len GitHub tu may Colab")
+        check("Colab từ chối ssh mới (429)" in tong, "gap 429 o lan ssh tai len dau tien va cho roi thu lai")
+        check(len(gtok) >= 2, f"it nhat 2 mang len bang duong Colab ({len(gtok)})")
+        check(not tren_dt, f"dien thoai KHONG tai mang nao ve (con {tren_dt})")
+        check("tải gen" not in tong, "khong con dong 'tai genN.pt len GitHub' cua duong cu")
+    else:
+        check("GitHub từ chối token" in tong and "dùng đường cũ" in tong, "gap loi token o Colab va noi ro chuyen ve duong cu")
+        check("tải gen" in tong and "lên GitHub (" in tong, "mang van len GitHub bang duong cu (tai ve dien thoai roi tai len)")
+        check(len(gtok) == 1, f"luot sau khong thu lai duong Colab trong thoi gian nghi ({len(gtok)} lan thu)")
 if kb == "nap_lai":
     tong = "\n".join(logs)
     check("đã nạp lại mã mới" in tong, "cua so bao da nap lai ma moi (khong mo lai cua so)")
