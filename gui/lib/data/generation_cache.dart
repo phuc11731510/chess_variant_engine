@@ -92,6 +92,35 @@ bool isCurrent(String source, String cacheDir) {
   }
 }
 
+/// Tên thư mục đệm của một nguồn tên [name] (chỉ giữ chữ, số, `_ . -`).
+String cacheNameOf(String name) => name.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
+
+/// Dọn bộ nhớ đệm: trong [xemDir] xoá mọi thư mục đệm có tên KHÔNG nằm trong [keep]. Bộ nhớ đệm chỉ đáng giữ khi còn đúng
+/// với dữ liệu hiện có (đời còn nguồn và nguồn không đổi); đời đã bị vòng lặp dọn gói, hoặc đã có thêm / bớt gói, thì bảng ván
+/// và nhật ký trong đó nói về ván không còn (hoặc không còn đủ) trong dữ liệu huấn luyện, nên bỏ đi; mở đời đó lần sau đổi lại
+/// từ nguồn. Trả về số thư mục đã xoá. Không đụng tới tệp lẻ, và lỗi xoá từng thư mục không làm hỏng cả lượt dọn.
+int purgeStaleCaches(String xemDir, Set<String> keep) {
+  var removed = 0;
+  try {
+    final dir = Directory(xemDir);
+    if (!dir.existsSync()) return 0;
+    for (final e in dir.listSync(followLinks: false)) {
+      if (e is! Directory) continue;
+      final name = e.path.split(RegExp(r'[\\/]')).last;
+      if (keep.contains(name)) continue;
+      try {
+        e.deleteSync(recursive: true);
+        removed++;
+      } on Exception {
+        // đang bị dùng / không xoá được: lần quét sau thử lại
+      }
+    }
+  } on Exception {
+    // không liệt kê được: bỏ qua lượt dọn này
+  }
+  return removed;
+}
+
 /// Tin nhắn từ tiến trình nền: [done] / [total] ván đã xử lý, hoặc [error], hoặc [finished].
 class ConvertEvent {
   final int done;

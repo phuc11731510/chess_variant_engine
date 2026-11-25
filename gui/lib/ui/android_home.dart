@@ -95,8 +95,10 @@ class _AndroidHomeState extends State<AndroidHome> with WidgetsBindingObserver {
     return null;
   }
 
-  String _cacheDirOf(String name) =>
-      '$_filesDir/xem/${name.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_')}';
+  String _cacheDirOf(String name) => '$_filesDir/xem/${cacheNameOf(name)}';
+
+  /// Thư mục đệm của đời đang mở trong màn hình xem ván: không dọn dù nguồn vừa đổi (đang đọc nhật ký từ đó).
+  String? _viewing;
 
   Future<void> _scan() async {
     final root = _root;
@@ -166,6 +168,16 @@ class _AndroidHomeState extends State<AndroidHome> with WidgetsBindingObserver {
     for (final s in out) {
       if (!s.isZip) s.cached = isCurrent(s.path, _cacheDirOf(s.name));
     }
+    // Dọn bộ nhớ đệm của app: chỉ giữ đời còn nguồn và còn khớp nguồn (gói zip đơn không đo dấu vân tay nên giữ khi còn),
+    // cộng đời đang xem. Chỉ dọn khi quét thành công: thư mục dữ liệu tạm không đọc được thì KHÔNG xoá gì.
+    if (access && err == null && _filesDir != null) {
+      final keep = <String>{
+        for (final s in out)
+          if (s.cached || s.isZip) cacheNameOf(s.name),
+        if (_viewing != null) _viewing!.split('/').last,
+      };
+      purgeStaleCaches('$_filesDir/xem', keep);
+    }
     if (!mounted) return;
     setState(() {
       _access = access;
@@ -215,16 +227,22 @@ class _AndroidHomeState extends State<AndroidHome> with WidgetsBindingObserver {
 
   Future<void> _open(_Source s) async {
     final cacheDir = _cacheDirOf(s.name);
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) =>
-          _ConvertDialog(source: s.path, cacheDir: cacheDir, title: s.title),
-    );
-    if (ok != true || !mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => widget.openViewer(cacheDir)),
-    );
+    // Từ lúc bắt đầu đổi đến lúc rời màn hình xem: một lần quét (vd khi app vừa quay lại) không được dọn thư mục đang dựng / đang đọc.
+    _viewing = cacheDir;
+    try {
+      final ok = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) =>
+            _ConvertDialog(source: s.path, cacheDir: cacheDir, title: s.title),
+      );
+      if (ok != true || !mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => widget.openViewer(cacheDir)),
+      );
+    } finally {
+      _viewing = null;
+    }
     if (mounted) _scan();
   }
 

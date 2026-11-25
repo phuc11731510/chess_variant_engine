@@ -231,6 +231,15 @@ hỏng hoặc đã bị vòng lặp dọn giữa chừng thì bị bỏ qua. Đ�
 (~10 giây cho 1000 ván); các đời cũ mở ngay. Vòng lặp chỉ giữ gói đủ cho cửa sổ huấn luyện (khoảng 1,5 lần), nên các đời xa
 sẽ biến mất khỏi danh sách theo thời gian. Bài thử: `flutter test test/goi_nhom_test.dart`.
 
+**Số ván cố định + dọn bộ nhớ đệm (2026-11-25).** (1) Với ván của gói vòng lặp liên tục, app gọi ván bằng nhãn `<số gói>.<thứ tự
+trong gói, từ 1>` (vd `985.1`; `992.8` = ván thứ 8 của gói `goi_00992_...zip`) thay cho `#<vị trí trong danh sách của đời>`: vị trí
+đó đổi khi vòng lặp thêm / dọn gói và không khớp công cụ nào khác, còn nhãn đi theo ván mãi mãi và khớp tên gói trên điện thoại
+(`ReplayLibrary.labelsFromSources`, đọc từ `nguon.txt` cạnh `chi_muc.tsv`; `xem_du_lieu.py --liet-ke` in cùng nhãn ở cuối mỗi dòng).
+Nguồn không phải gói (thư mục `games_genN`, gói đơn) vẫn hiện `#<id>`. (2) Mỗi lần quét màn hình đầu, app xoá thư mục đệm
+(`files/xem/<đời>`) không còn đúng với dữ liệu: đời đã bị vòng lặp dọn hết gói, hoặc đời đã thêm / bớt gói (bảng ván và nhật ký trong
+đó nói về dữ liệu cũ); mở đời đó lần sau đổi lại từ nguồn. Không dọn đời đang đổi / đang xem, và không dọn gì khi quét lỗi hoặc
+không có quyền đọc thư mục dữ liệu (`purgeStaleCaches` trong `lib/data/generation_cache.dart`).
+
 **Cách dùng.** Mở app → danh sách các đời dữ liệu (mới nhất trên cùng) → bấm một đời. Lần đầu mỗi đời được đổi sang bảng
 ván (~10 giây cho 1000 ván, có thanh tiến độ; kết quả lưu đệm trong thư mục riêng của app); các lần sau mở ngay. Đời đang
 được vòng lặp ghi thêm ván thì lần mở sau đổi lại (nguồn đã đổi). Trên màn hình xem: nút **Ván** (ngăn kéo trái) = bảng chọn

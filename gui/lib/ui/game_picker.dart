@@ -145,8 +145,8 @@ class GamePickerState extends State<GamePicker> {
             Row(
               children: [
                 SizedBox(
-                  width: 52,
-                  child: Text('#${e.id}',
+                  width: e.label.isEmpty ? 52 : 68,
+                  child: Text(e.tag,
                       style: const TextStyle(color: Colors.white54, fontSize: 12, fontFamily: 'Consolas')),
                 ),
                 Text(e.resultText,
@@ -181,6 +181,11 @@ class GamePickerState extends State<GamePicker> {
     );
   }
 
+  /// Giải thích số ván khi các ván có nhãn cố định theo gói (số đứng đầu dòng, vd 992.8).
+  static String _legend(ReplayLibrary lib) => lib.entries.any((e) => e.label.isNotEmpty)
+      ? '\nSố ván = <số gói>.<thứ tự trong gói>: 992.8 là ván thứ 8 của gói goi_00992_...zip'
+      : '';
+
   @override
   Widget build(BuildContext context) {
     final list = filtered;
@@ -195,7 +200,7 @@ class GamePickerState extends State<GamePicker> {
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
             child: Text(
-              'Chọn ván · ${list.length}/${lib.entries.length}   ([ ] = ván trước / sau, G = ẩn bảng)',
+              'Chọn ván · ${list.length}/${lib.entries.length}   ([ ] = ván trước / sau, G = ẩn bảng)${_legend(lib)}',
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ),

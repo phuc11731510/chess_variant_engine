@@ -183,7 +183,7 @@ class _BoardScreenState extends State<BoardScreen> {
     try {
       _library!.prepare?.call(e);
     } catch (err) {
-      controller.status = 'Không dựng được nhật ký ván #${e.id}: $err';
+      controller.status = 'Không dựng được nhật ký ván ${e.tag}: $err';
       controller.notifyListeners();
       return;
     }
@@ -217,7 +217,7 @@ class _BoardScreenState extends State<BoardScreen> {
     if (_isReplay) {
       final (w, b) = c.shownBoard.pieceCounts();
       final cur = _current;
-      final game = cur == null ? '' : ' #${cur.id}';
+      final game = cur == null ? '' : ' ${cur.tag}';
       final end = c.end;
       final fin = end == null
           ? ''
@@ -292,7 +292,7 @@ class _BoardScreenState extends State<BoardScreen> {
     final cur = _current;
     final title = cur == null
         ? 'Xem ván'
-        : 'Ván #${cur.id} · ${cur.resultText} · ${cur.plies} nửa nước';
+        : 'Ván ${cur.tag} · ${cur.resultText} · ${cur.plies} nửa nước';
     return Container(
       height: _toolbarHeight,
       color: const Color(0xFF262421),
