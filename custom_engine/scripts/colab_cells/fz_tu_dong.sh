@@ -384,6 +384,7 @@ td_token_ok() {
 td_xin_mot_vong() {
   local ds=() muc=() tk ten loai mo_ta rc
   mkdir -p "$TD"
+  declare -F quet_mo_coi_tat_ca >/dev/null && quet_mo_coi_tat_ca   # may MO COI cua cac lan xin hong truoc (cua so khac / da chet): tra truoc khi xin may moi (menu.sh)
   td_khoa_chon || return 1
   td_ds_tk
   if td_nhan_lai; then td_mo_khoa_chon; return 0; fi
@@ -397,6 +398,7 @@ td_xin_mot_vong() {
     tk=$(tim_tk "$ten")
     touch "$TD/.khoa_chon" 2>/dev/null          # con lam viec: khoa khong bi coi la treo (xem td_khoa_chon)
     if [ -n "$(cua_so_khac "$tk")" ]; then echo "   ${M_MO}bỏ qua $ten: đang mở ở cửa sổ khác${M_HET}"; continue; fi
+    if khoa_ngoai_con_han "$ten"; then echo "   ${M_MO}bỏ qua $ten: máy khác (WSL) đang dùng thử tài khoản này${M_HET}"; continue; fi
     dat_tk "$tk"
     td_token_ok "$ten" || { td_ranh; continue; }
     if [ -n "$(COLAB_TO=60 colab sessions 2>/dev/null | grep '^\[' | grep -v '^\[colab\]')" ]; then

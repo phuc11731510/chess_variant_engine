@@ -926,6 +926,17 @@ ván dở (~1,5 phút) rồi huấn luyện một mình** (`LT_CHO_DUOI=1`, mặ
   **phân vị 90% (hạng gần nhất, trên tối đa 10 lượt sạch gần nhất) của [giây gom + tải gói + giây huấn luyện quy theo số thế cửa sổ hiện tại] + 6 phút** (`LT_DU_PHUT`), không thấp hơn 15 phút; chưa đủ 3 lượt thì dùng số đo
   (240 giây + 9 giây / 10.000 thế). Lượt sạch = không phải thử lại, không chờ 429 (`.lt_lich_su_hl`: "giây_gom giây_huấn_luyện số_thế_cửa_sổ"). Kịch bản thử: `thu_lien_tuc/chay_thu.sh tu_canh`, `thu_lien_tuc/test_tu_canh.sh`.
 
+**Máy MỒ CÔI (2026-11-25).** `colab new` bị treo quá giờ (Colab đọc quá 120 đến 180 giây) nhưng máy chủ VẪN cấp T4 sau đó: phiên không tên `[?]` ngồi giữ hạn mức, không ai trả, và vòng lặp thấy
+  "đang giữ máy" nên bỏ qua tài khoản. Trước đây chỉ có hai lớp (`xin_may` trả máy mới ngay sau lệnh lỗi; một lượt quét nền sau 100 giây, mất theo cửa sổ). Nay thêm (menu.sh, mục "MÁY MỒ CÔI"):
+  (1) GHI NHỚ BỀN `~/.fz_tk/.tu_dong/xin_hong_<tk>` (dòng 1 = giờ, các dòng sau = endpoint các máy tài khoản đang giữ lúc xin): ghi mỗi lần xin hỏng có kết quả mơ hồ (hết giờ, lỗi lạ; KHÔNG ghi khi bị từ chối rõ như hết hạn mức),
+  sống sót khi cửa sổ chết; `quet_mo_coi` trả mọi phiên `[?]` MỚI (không có trong danh sách lúc xin, không phải máy của vòng lặp `fz_may_*.txt`) cho tới khi hết `FZ_MO_COI_TTL` (1800 giây); xin được máy sau đó KHÔNG xoá ghi nhớ
+  (máy cấp muộn của lần hỏng trước vẫn quét được) mà ghi thêm máy đang giữ vào danh sách "không phải mồ côi". Quét ở: quét nền nhiều mốc (100, 200, 300 giây), đầu mỗi lượt `td_xin_mot_vong`, và đầu mỗi vòng của `lt_vong_chinh`
+  (`quet_mo_coi_tat_ca`, cách nhau tối thiểu `FZ_MO_COI_GAP` = 20 giây mỗi tài khoản). (2) `xin_dang_<tk>`: dấu "đang xin" (bao quanh `xin_may`, hết hạn 400 giây) để quét của cửa sổ khác không trả nhầm máy của chính lần xin đó.
+  (3) KHOÁ NGOÀI `khoa_ngoai_<tk>` (dòng 1 = giờ, hết hạn `FZ_KHOA_NGOAI_TTL` = 7200 giây): máy khác (WSL: `custom_engine/scripts/chay_t4_thu.py`) đặt chỗ trước khi thuê T4 thử nghiệm; vòng lặp KHÔNG xin và KHÔNG quét tài khoản đó.
+  Phía WSL, `chay_t4_thu.py` tránh tài khoản có `may_*`, `xin_dang_*`, `xin_hong_*`, `thu_*` mới, `khoa_ngoai_*`; xin hỏng thì quét ngay, +100 giây, +300 giây rồi ghi `xin_hong_<tk>` cho điện thoại quét tiếp; ghi nhớ
+  `~/.chay_t4_thu_dang_xin.json` giúp lần chạy sau (hoặc `chay_t4_thu.py --don`) trả máy mồ côi nếu tiến trình bị giết. Kịch bản thử: `thu_lien_tuc/chay_thu.sh xin_rat_muon` (máy cấp sau CẢ ba mốc quét nền: bản cũ để lại `[?]`), `khoa_ngoai`, `khoa_het_han`;
+  `scripts/test_chay_t4_thu.py` (WSL, điện thoại + Colab giả).
+
 **Mạng lên GitHub TỪ MÁY COLAB (2026-11-25, tùy chọn: bật khi có tệp token).** Cũ: điện thoại tải `gen<N>.pt` (20,3 MB) từ máy huấn luyện về rồi tải lên Release (20,3 MB lần nữa),
   mất 39 đến 83 giây mỗi mạng. Nay, nếu có tệp `~/.fz_nets_token` (một dòng: token GitHub quyền ghi Release của kho `REL_NN`), `lt_len_github_colab` (fz_lien_tuc.sh) cho MÁY HUẤN LUYỆN tự
   chạy `gh release upload --clobber` (`gh` có sẵn trên ảnh Colab, đo 25/11: gh 2.102; gửi 20 MB ra ngoài khoảng 0,3 đến 0,7 giây). Token đi từ điện thoại qua ĐẦU VÀO của một lệnh ssh

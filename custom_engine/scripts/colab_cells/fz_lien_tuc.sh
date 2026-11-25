@@ -834,6 +834,7 @@ lt_vong_chinh() {
   td_ghi lt=1 gen="$(td_gen)" buoc=xin van=0 da_goi=0 phuc_vu="$(lt_yc)"
   while [ $TD_THOAT = 0 ] && [ $TD_LOI = 0 ]; do
     lt_nap_lai
+    declare -F quet_mo_coi_tat_ca >/dev/null && quet_mo_coi_tat_ca   # may mo coi con sot tu cac lan xin hong (ghi nho o $TD/xin_hong_*, het han sau FZ_MO_COI_TTL); khong co thi khong ton gi
     if [ $NGAT = 1 ]; then td_hoi_ngat; [ $TD_THOAT = 1 ] && break; fi
     g=$(td_gen)
     if [ "${g:-0}" -ge "$TD_GEN_CUOI" ] && ! lt_dung_hieu_luc; then

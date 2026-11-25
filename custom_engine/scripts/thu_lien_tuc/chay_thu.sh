@@ -6,7 +6,7 @@
 # /content rieng), gh (Release = thu muc), engine (chep van mau that, toc do FAKE_RATE), o 02 / 02c / 07 / 08 (gia, nhanh).
 # Hai cua so (hai tai khoan acc1, acc2) cung chay nhu hai cua so Termux that (chung HOME, chung ~/.fz_tk).
 #
-#   bash chay_thu.sh [co ban]      co ban: co_ban (mac dinh) | arena | mat_may | xin_treo | nap_lai | len_loi | dung_cu | xin_muon | doc_429 | tu_canh | len_colab | len_colab_loi
+#   bash chay_thu.sh [co ban]      co ban: co_ban (mac dinh) | arena | mat_may | xin_treo | nap_lai | len_loi | dung_cu | xin_muon | xin_rat_muon | khoa_ngoai | khoa_het_han | doc_429 | tu_canh | len_colab | len_colab_loi
 #     nap_lai: giua luc chay, ~/fz_lien_tuc.sh tren "dien thoai" bi THAY (nguyen tu, nhu lay_ve / Claude cai): cua so phai tu nap lai ham moi
 #     (khong dong den engine / may dang chay, khong mat van), roi mot ban moi co LOI CU PHAP phai bi tu choi ma van chay tiep.
 #     xin_treo: lenh xin may cua acc1 BI TREO (het gio) roi may chu cap may muon cho phien khong ten -- tai hien loi 2026-11-24 do tren dien thoai
@@ -24,6 +24,10 @@
 #     (loi that 15:10 24/11: cua so moi tu dung ngay sau "Enter = bat dau").
 #     xin_muon: nhu xin_treo nhung may chu cap may CHAM hon khoang cho cua xin_may (cap sau 16 giay, khoang cho 4 + 6 giay): quet muon chay nen (menu.sh
 #     xin_quet_muon) phai tra no, khong de tai khoan giu mot T4 "[?]" (loi that 15:13 24/11: nguoi dung mo fz thay tai khoan van con T4).
+#     xin_rat_muon: may chu cap may RAT muon (45 giay, sau CA ba moc quet nen: 20, 30, 40 giay): chi ghi nho ben $TD/xin_hong_<tk> + quet o dau moi vong
+#     cua vong lap (quet_mo_coi_tat_ca) moi tra duoc; ban cu (mot moc quet nen duy nhat) de lai T4 mo coi an han muc (11/2026: 27, 28, 31 tren WSL; dien thoai 24/11).
+#     khoa_ngoai: tep $TD/khoa_ngoai_acc1 (may khac, vd WSL chay_t4_thu.py, dang dung thu tai khoan) CON HAN: vong lap KHONG xin acc1 (chi acc2 chay).
+#     khoa_het_han: khoa ngoai da QUA HAN (dat 100 giay truoc, han 30 giay): vong lap dung acc1 binh thuong.
 #   MENU_SRC=<tep menu.sh khac>  thu voi ban menu.sh khac (vd ban cu lay tu git de THAY loi tai hien)
 # Ket qua: in PASS / FAIL tung kiem tra; log tung cua so o /tmp/fc/log_w<k>.txt.
 set -u
@@ -72,6 +76,9 @@ if [ "$KB" = len_colab ] || [ "$KB" = len_colab_loi ]; then printf 'TOKEN_GIA_ab
 [ "$KB" = len_colab_loi ] && echo 1 > "$W/gh_colab_loi"       # lan gh release upload dau tien (phia Colab) bi tu choi token
 [ "$KB" = tu_canh ] && echo 2100 > "$W/quota/acc1"          # acc1: 35 phut T4 (du sinh du lieu, KHONG du nguong huan luyen LT_HL_PHUT_MIN=40) -> chi acc2 huan luyen
 [ "$KB" = xin_muon ] && echo 1 > "$W/hang_acc1"
+[ "$KB" = xin_rat_muon ] && echo 1 > "$W/hang_acc1"
+[ "$KB" = khoa_ngoai ] && { mkdir -p "$H/.fz_tk/.tu_dong"; date +%s > "$H/.fz_tk/.tu_dong/khoa_ngoai_acc1"; }
+[ "$KB" = khoa_het_han ] && { mkdir -p "$H/.fz_tk/.tu_dong"; echo $(( $(date +%s) - 100 )) > "$H/.fz_tk/.tu_dong/khoa_ngoai_acc1"; }
 [ "$KB" = xin_treo ] && echo 1 > "$W/hang_acc1"          # lan xin dau tien cua acc1 bi treo (cua so chuyen sang tai khoan khac ngay trong cung luot)
 
 if [ "$KB" = dung_cu ]; then
@@ -93,6 +100,9 @@ mk_cua_so() {   # $1 = k (1, 2)
     export HOME=$H PATH=$GIA/bin:\$PATH TERM=dumb NO_COLOR=1 FZ_KHONG_NHAT_KY=1 PYTHONPATH=$GIA/pylib FAKE_DIR=$W
     [ "$KB" = xin_treo ] && export FZ_XIN_TO=4 FZ_XIN_CHO=8 FAKE_GRANT_LATE=3
     [ "$KB" = xin_muon ] && export FZ_XIN_TO=4 FZ_XIN_CHO=6 FZ_XIN_CHO2=10 FAKE_GRANT_LATE=16
+    [ "$KB" = xin_rat_muon ] && export FZ_XIN_TO=4 FZ_XIN_CHO=6 FZ_XIN_CHO2=10 FAKE_GRANT_LATE=45 FZ_MO_COI_GAP=3 FZ_MO_COI_TTL=600
+    [ "$KB" = khoa_ngoai ] && export FZ_KHOA_NGOAI_TTL=900
+    [ "$KB" = khoa_het_han ] && export FZ_KHOA_NGOAI_TTL=30
     [ "$KB" = nap_lai ] && export LT_NAP_GIAY=8
     [ "$KB" = len_loi ] && export LT_CHO_429=2
     [ "$KB" = doc_429 ] && export FZ_CHO_429=1 LT_CHO_DOC=3
