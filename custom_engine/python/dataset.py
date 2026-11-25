@@ -147,6 +147,17 @@ def newest_generation(games):
     return top, [g for g in games if gen.get(g) == top]
 
 
+def newest_n_games(games, mtimes, n):
+    """The `n` NEWEST games of `games` by modification time (ties by load order: the same order split_games
+    holds out from), in load order; all of them when there are fewer than `n`, none for n <= 0. Whatever generation
+    they belong to: in the continuous loop that is the games played since the starting net began its last training."""
+    if n <= 0 or not games:
+        return []
+    order = sorted(range(len(games)), key=lambda i: (mtimes[i], i))
+    keep = set(order[max(0, len(order) - n):])
+    return [g for i, g in enumerate(games) if i in keep]
+
+
 def split_games(games, val_frac, mtimes):
     """Hold out the round(val_frac * #games) NEWEST games (by modification time,
     ties by load order) as a validation set: the latest self-play, which the

@@ -11,7 +11,13 @@ if not os.path.exists(CURRENT_PT):
 # SWA "đuôi" (chủ dự án chọn, 2026-11-20): chụp trọng số ở BƯỚC HỌC CUỐI CÙNG rồi lùi mỗi 20 bước, tối
 # đa 10 lần (cửa sổ 4 đời ~586 bước: các bước 406, 426, ..., 586), lấy trung bình với trọng số bằng
 # nhau. Không chụp trước bước 1: lần học quá ngắn để đủ 10 lần thì chụp ít hơn (đời 0, 146 bước: 8 lần).
-# --val-frac 0: không giữ ván nào ra ngoài. Không còn chấm mạng cũ trên đời mới nhất (bỏ --val-newest-gen
+# --val-frac 0: không giữ ván nào ra ngoài. --val-newest-games 1000 (chủ dự án chọn 2026-11-26, thay cho --val-newest-gen đã bỏ
+# 2026-11-20 vì tốn ~1,5 phút mỗi đời): chấm mạng KHỞI ĐẦU một lần trên 1000 ván mới nhất (theo giờ tệp trong gói zip, cỡ các ván chơi từ
+# lúc mạng đó bắt đầu học lần trước), in CE chính sách / giá trị / số nước còn lại và số giây đã tốn (dòng "[val] start weights ..."), rồi
+# vẫn học trên TẤT CẢ ván như thường: KHÔNG ván nào bị giữ ra khỏi bước học. train.py cũ trên máy (chưa có cờ) -> bỏ qua việc chấm.
+# 2026-11-26 (chủ dự án): tốc độ học 1e-3 -> 5e-4 hằng số, khởi động tuyến tính 50 bước tối ưu (từ lr/50 = 1e-5 tới 5e-4; dòng
+# "[train] lr warmup ..." in lịch thật), q_ratio 0,25 -> 0,2. Chuỗi CE giá trị đổi cách tính từ đời đổi (nhãn khác), không so thẳng trước/sau.
+# (Trước đó:) Không còn chấm mạng cũ trên đời mới nhất (bỏ --val-newest-gen
 # 2026-11-20 để bớt ~1,5 phút mỗi đời; cờ vẫn còn trong train.py). Mạnh/yếu của mạng: arena.
 # --stats-newest-gen: trước khi học, in hai số thống kê của đời mới nhất (thư mục games_gen<g> số lớn nhất, ván của
 # mọi máy): số quân còn lại trung bình lúc ván kết thúc, và tỉ lệ bên công nhiều hơn thắng (dòng "[stats] ...").
@@ -27,10 +33,18 @@ if NET_EXT == "fzw":
     _out, _onnx_opt = NEXT_PT, ""
 else:
     _out, _onnx_opt = NEXT_NET, "--onnx-fp16"
+# Cờ chấm CE ngoài mẫu chỉ có từ train.py mới (2026-11-26): máy Colab giữ bản mã cũ thì bỏ cờ, không để cả lượt học lỗi vì "unrecognized arguments".
+try:
+    _val = "--val-newest-games 1000" if "--val-newest-games" in open(f"{E}/python/train.py", encoding="utf-8").read() else ""
+except OSError:
+    _val = ""
+if not _val:
+    print("[!] train.py trên máy này chưa có --val-newest-games: lượt học này không chấm CE ngoài mẫu.")
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
-    --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen --batch 512 --accum-steps 2 --lr 1e-3 \
-    --q-ratio 0.25 --weight-decay 1e-4 --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
+    --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen {_val} --batch 512 --accum-steps 2 \
+    --lr 5e-4 --warmup-steps 50 \
+    --q-ratio 0.2 --weight-decay 1e-4 --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
     --out {_out}"""
 
 print(cmd)
