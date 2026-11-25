@@ -158,6 +158,25 @@ def test_validation(tmp, base, seed_pt, net_args):
     rc, out = run(args + ["--epochs", "1", "--val-frac", "0", "--out", os.path.join(tmp, "w.onnx")], tmp)
     check(rc == 0 and "[val]" not in out, "--val-frac 0: no validation")
 
+    # --val-newest-games N: the N newest games (by modification time) are scored once with the starting weights, and EVERY
+    # game is still trained on (none held out).
+    five = D.newest_n_games(games, mt, 5)
+    check(names(five) == [f"gen2/game_{k}.gz" for k in range(5)],
+          f"newest_n_games: the 5 newest by modification time, not by name ({names(five)})")
+    check(len(D.newest_n_games(games, mt, 500)) == 60 and D.newest_n_games(games, mt, 0) == [] and D.newest_n_games([], [], 5) == [],
+          "newest_n_games: fewer games than N -> all of them; N = 0 or no games -> none")
+    check(D.newest_n_games(games, mt, 5) == [g for g in games if g in set(five)], "returned in load order")
+    rc, out = run(args + ["--epochs", "1", "--val-frac", "0", "--val-newest-games", "5", "--out", os.path.join(tmp, "n.onnx")], tmp)
+    m = re.search(r"\[val\] start weights on the 5 newest games \(all 5 games, 40 positions, .*\): policy=\d+\.\d{4} value=\d+\.\d{4} "
+                  r"mlh=\d+\.\d{4}\s+\(\d+ s: \d+ s to read \+ \d+ s to score\)", out)
+    check(rc == 0 and m is not None, "--val-newest-games 5: one [val] line for the 5 newest games, with 3 numbers and the seconds it took")
+    check("60 games -> 480 records" in out and out.count("[val] start weights") == 1,
+          "...and training still reads all 60 games (480 positions): none held out")
+    rc, out = run(args + ["--epochs", "1", "--val-newest-games", "5", "--out", os.path.join(tmp, "x.onnx")], tmp)   # default --val-frac 0.04
+    check(rc != 0 and "use it with --val-frac 0" in out, "--val-newest-games with --val-frac > 0 is refused")
+    rc, out = run(args + ["--epochs", "1", "--val-frac", "0", "--val-newest-games", "5", "--val-newest-gen", "--out", os.path.join(tmp, "y.onnx")], tmp)
+    check(rc != 0 and "use one of them" in out, "--val-newest-games with --val-newest-gen is refused")
+
 
 def test_seeds(tmp, base, net_args):
     import re

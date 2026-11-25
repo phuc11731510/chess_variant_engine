@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet, ExportNet, NUM_PLANES, POLICY_SIZE  # noqa: E402
 from nn_layout import AUX_BASE, AUX_PLANES  # noqa: E402
 from dataset import (FairyDataset, collate_packed, game_mtimes, list_games,  # noqa: E402
-                     newest_generation, split_games, unpack_batch)
+                     newest_generation, newest_n_games, split_games, unpack_batch)
 from run_seed import resolve_seed  # noqa: E402
 
 
@@ -651,6 +651,11 @@ def main():
                          "(highest games_gen<g> folder: games the warm-start net played and never "
                          "trained on), then train on ALL games including those; no other [val] "
                          "lines. Needs --val-frac 0")
+    ap.add_argument("--val-newest-games", type=int, default=0, metavar="N",
+                    help="like --val-newest-gen, but the N NEWEST games by modification time (whatever generation) are "
+                         "scored once with the STARTING weights, then trained on like every other game: none is held out "
+                         "from training. In the continuous loop these are about the games played since the starting net "
+                         "began its last training. Prints the seconds it took. Needs --val-frac 0; not with --val-newest-gen")
     ap.add_argument("--stats-newest-gen", action="store_true",
                     help="before training, print two statistics of the games of the newest generation "
                          "(highest games_gen<g> folder, every machine's games): the average number of pieces left "
@@ -692,8 +697,14 @@ def main():
         sys.exit(f"--val-frac must be in [0, 1), got {args.val_frac}")
     if args.val_newest_gen and args.val_frac > 0:
         sys.exit("--val-newest-gen trains on every game: use it with --val-frac 0")
+    if args.val_newest_games < 0:
+        sys.exit(f"--val-newest-games must be >= 0, got {args.val_newest_games}")
+    if args.val_newest_games and args.val_frac > 0:
+        sys.exit("--val-newest-games trains on every game: use it with --val-frac 0")
+    if args.val_newest_games and args.val_newest_gen:
+        sys.exit("--val-newest-games and --val-newest-gen both score the starting weights once: use one of them")
     games = list_games(args.data)
-    mtimes = game_mtimes(games) if args.val_frac > 0 else [0.0] * len(games)
+    mtimes = game_mtimes(games) if (args.val_frac > 0 or args.val_newest_games > 0) else [0.0] * len(games)
     train_games, val_games = split_games(games, args.val_frac, mtimes)
     if args.val_frac > 0 and not val_games:
         print(f"[val] {len(games)} game(s) are too few for --val-frac {args.val_frac}: "
@@ -736,16 +747,28 @@ def main():
 
     # --val-newest-gen: the newest generation's games, scored ONCE with the starting
     # weights below, and trained on like every other game (they are in train_games).
+    # --val-newest-games N: the same, for the N newest games by modification time (whatever generation they are).
+    # No game is held out of training in either case.
     first_val = None
-    if args.val_newest_gen:
-        gen, newest = newest_generation(games)
+    if args.val_newest_gen or args.val_newest_games:
+        t_build = time.time()
+        if args.val_newest_gen:
+            gen, newest = newest_generation(games)
+            what, label = f"generation {gen}", f"newest generation {gen}"
+            nothing = "[val] --val-newest-gen: no games_gen<g> folder in the data paths -- no score"
+            never = "never trained on; trained on below"
+        else:
+            newest = newest_n_games(games, mtimes, args.val_newest_games)
+            what, label = f"the {len(newest)} newest games", f"{len(newest)} newest games"
+            nothing = "[val] --val-newest-games: no games -- no score"
+            never = "newest by file time, normally never trained on; trained on below"
         if not newest:
-            print("[val] --val-newest-gen: no games_gen<g> folder in the data paths -- no score")
+            print(nothing)
         else:
             ds_first = FairyDataset(args.data, q_ratio=args.q_ratio, cache=not args.no_cache,
                                     sparse=args.sparse_cache, games=newest,
-                                    label=f"newest generation {gen}", packed=packed)
-            first_val = (gen, len(newest), len(ds_first),
+                                    label=label, packed=packed)
+            first_val = (what, len(newest), len(ds_first), never, time.time() - t_build,
                          DataLoader(ds_first, batch_size=max(args.batch, 256), shuffle=False,
                                     num_workers=workers, pin_memory=pin, collate_fn=collate))
 
@@ -796,6 +819,9 @@ def main():
     AMP_MAX_STREAK = 16    # 16 skipped steps in a row = the scale fell from 65536 to 1: something diverged, not an overflow
     print(f"[train] optimizer={args.optimizer} grad_clip={args.grad_clip} "
           f"lr_sched={'on' if use_lr_sched else f'const {args.lr}'} seed={args.seed}")
+    if args.warmup_steps > 0:      # the schedule as the loop will apply it (optimizer steps, 1-based): first, last warmup, after
+        print(f"[train] lr warmup {args.warmup_steps} steps: step 1 = {lr_for_step(0):.2e}, step {args.warmup_steps} = "
+              f"{lr_for_step(args.warmup_steps - 1):.2e}, then {lr_for_step(args.warmup_steps):.2e}")
     accum = max(1, args.accum_steps)
     # --swa-steps N (lc0 tfprocess.update_swa): every N optimizer steps
     #   swa = swa * n/(n+1) + w/(n+1),  n = min(snapshots so far, swa_max_n)
@@ -846,10 +872,13 @@ def main():
             print(f"[stats] WARNING: could not compute the statistics of the newest generation: {e!r}", flush=True)
     report("start weights", net)
     if first_val is not None:
-        gen, n_games, n_pos, loader = first_val
+        what, n_games, n_pos, never, secs_read, loader = first_val
+        t_eval = time.time()
         vp, vv, vm = evaluate(net, loader, device, use_amp, cl)
-        print(f"  [val] start weights on generation {gen} (all {n_games} games, {n_pos} positions, "
-              f"never trained on; trained on below): policy={vp:.4f} value={vv:.4f} mlh={vm:.4f}", flush=True)
+        secs_score = time.time() - t_eval
+        print(f"  [val] start weights on {what} (all {n_games} games, {n_pos} positions, "
+              f"{never}): policy={vp:.4f} value={vv:.4f} mlh={vm:.4f}  "
+              f"({secs_read + secs_score:.0f} s: {secs_read:.0f} s to read + {secs_score:.0f} s to score)", flush=True)
         del loader, first_val   # frees the scoring copy of those games
     global_step = 0         # counts OPTIMIZER steps (after accumulation)
     micro = 0                # counts micro-batches
