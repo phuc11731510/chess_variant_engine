@@ -58,6 +58,9 @@ mat = set(mong) - set(co)
 if kb == "mat_may":
     check(len(mat) > 0, f"mat may: {len(mat)} van chua gui bi mat (dung nhu du kien)")
     check(len(mat) < 0.5 * len(mong), f"mat may: chi mat {len(mat)}/{len(mong)} van")
+elif kb == "tu_canh":
+    # cua so tu canh nho (vai chuc nghin the): `don_goi` xoa goi cu hon 1,5 lan cua so -> mot phan van (da vao huan luyen) khong con tren dien thoai; khong coi la mat
+    check(len(mat) < len(mong), f"tu_canh: con {len(co)}/{len(mong)} van tren dien thoai (cac goi cu bi don theo cua so 1,5 lan)")
 else:
     check(not mat, f"khong mat van nao ({len(mat)} van tren may chua ve dien thoai)")
 
@@ -110,6 +113,25 @@ if kb == "len_loi":
     check("Colab từ chối ssh mới (429" in tong, "co gap loi 429 (mo phong) va nhan ra")
     check("bỏ lượt huấn luyện" not in tong, "KHONG bo luot huan luyen vi loi tai goi")
     check(tong.count("gói) lên máy bằng một luồng") + tong.count("lên máy bằng một luồng") >= 2, "tai goi bang luong tar, thu lai sau khi bi dut")
+if kb == "tu_canh":
+    tong = "\n".join(logs)
+    td = f"{H}/.fz_tk/.tu_dong"
+    moi = [int(x) for x in open(f"{td}/.lt_the_moi").read().split()] if os.path.exists(f"{td}/.lt_the_moi") else []
+    ls = [l.split() for l in open(f"{td}/.lt_lich_su_hl")] if os.path.exists(f"{td}/.lt_lich_su_hl") else []
+    check(len(moi) >= 3, f"lich su the moi co {len(moi)} dong (moi lan huan luyen thanh cong ghi mot so)")
+    check(len(ls) >= 1 and all(len(x) == 3 and all(v.isdigit() for v in x) for x in ls), f"lich su thoi gian co {len(ls)} dong dung dang 'gom huan_luyen the_cua_so'")
+    cs = {}                                     # doi -> so the cua so ghi trong dong '07: huan luyen doi N (cua so X the)'
+    for m in re.finditer(r"07: huấn luyện đời (\d+) \(cửa sổ (\d+) thế\)", tong):
+        cs[int(m.group(1))] = int(m.group(2))
+    gens_hl = sorted(cs)
+    check(len(gens_hl) >= 4, f"co {len(gens_hl)} lan huan luyen: {[ (g, cs[g]) for g in gens_hl ]}")
+    if len(gens_hl) >= 4 and len(moi) >= 3:
+        # lan thu 4: cua so = 2 (muc tieu) x TB 3 lan truoc (da co du 3 lan lich su)
+        mong = (sum(moi[:3]) // 3) * 2
+        check(cs[gens_hl[3]] == mong, f"cua so lan huan luyen thu 4 = {cs[gens_hl[3]]} = 2 x TB the moi 3 lan truoc ({mong})")
+    check(all(1000 <= x <= 100000000 for x in cs.values()) and 625447 not in cs.values(), "cua so la so tu canh (khong phai mac dinh 625447 / khong ngoai kep)")
+    check(not any(t[1] == "acc1" for t in bd), "acc1 (T4 con 35 phut < nguong huan luyen 40 phut) KHONG huan luyen")
+    check(any(t[1] == "acc2" for t in bd), "acc2 huan luyen")
 if kb == "doc_429":
     tong = "\n".join(logs)
     check("Colab từ chối ssh mới (429: phiên ssh trước chưa được giải phóng)" in tong, "co gap 429 khi doc log o 07 (mo phong) va nhan ra")

@@ -892,9 +892,9 @@ máy khác vẫn sinh dữ liệu suốt lúc đó (đo trên log đợt 22–23
   `Download/FairyZero/goi/goi_<số thứ tự>_n<mạng>_<số ván>_<số thế>.zip` rồi đánh dấu đã gửi. Engine không bị dừng.
 - **Huấn luyện** khi không có lượt nào đang chạy **và** số ván mới ≥ số bạn đặt (mặc định 1000): *ván mới* = ván trong các gói có số thứ tự lớn hơn
   mốc (`~/.fz_tk/.tu_dong/.lt_moc` = gói cuối cùng lúc lượt trước **bắt đầu**) cộng ván các máy chưa kịp gửi. Bộ đếm **không tính lại khi đổi mạng**.
-  Cửa sổ nào thấy đủ điều kiện, giữ được khoá (`lt_hl/`) và máy còn ≥ 28 phút T4 thì làm: (1) yêu cầu mọi máy gửi gói **ngay** (tối đa 120 giây),
-  (2) dừng engine của chính nó (ván dở chơi nốt, ≤ 8 phút), (3) lấy **cửa sổ huấn luyện = các gói mới nhất cho tới khi đủ ~625.447 thế**
-  (đặt lúc bắt đầu), chỉ tải lên máy những gói máy chưa có, (4) chạy ô 07 thật với `DATA` = danh sách gói đó, (5) tải mạng mới về, đưa lên
+  Cửa sổ nào thấy đủ điều kiện, giữ được khoá (`lt_hl/`) và máy còn đủ T4 (**ngưỡng theo cỡ cửa sổ**, xem dưới) thì làm: (1) yêu cầu mọi máy gửi gói **ngay** (tối đa 120 giây),
+  (2) dừng engine của chính nó (ván dở chơi nốt, ≤ 8 phút), (3) lấy **cửa sổ huấn luyện = các gói mới nhất cho tới khi đủ số thế của cửa sổ** (**tự canh**, xem dưới;
+  hoặc cố định nếu đặt tay), chỉ tải lên máy những gói máy chưa có, (4) chạy ô 07 thật với `DATA` = danh sách gói đó, (5) tải mạng mới về, đưa lên
   GitHub (kiểm sha256), `GEN_CURRENT + 1`, dọn gói cũ. Xong thì chính máy đó chạy tiếp engine bằng mạng mới.
 - **Đổi mạng:** các cửa sổ khác thấy `GEN_CURRENT` đổi → tải `gen<N>.pt` từ Release và chuyển `.fzw` (~20 giây, engine cũ vẫn chạy), khởi động **engine mới**
   (`04_<mã mới>`) ngay, rồi dừng mềm engine cũ (chơi nốt ván dở 1,5–3,5 phút). **Hai tiến trình engine cùng một máy** (RAM ~8,4 GB trong 12,9 GB). Ván của
@@ -919,7 +919,14 @@ ván dở (~1,5 phút) rồi huấn luyện một mình** (`LT_CHO_DUOI=1`, mặ
 
 1. Dừng mềm vòng lặp cũ (`fz dung`), đợi mọi cửa sổ trả máy và thoát. **Đừng** mở `w` khi còn cửa sổ `v`.
 2. `bash ~/lay_ve.sh` (tải thêm `~/fz_lien_tuc.sh`, ô `04l_sinh_lien_tuc.py`, `fz_tu_dong.py`/`fz_may.py` bản mới; ô bạn đã sửa được giữ).
-3. `fz` → **`w`** (hoặc `fz lien_tuc`) ở mỗi cửa sổ. Lần đầu nó hỏi: *số ván mới mỗi lượt huấn luyện* (1000), *cửa sổ huấn luyện: số thế* (625447), số phút chừa,
+**Cửa sổ tự canh + ngưỡng T4 theo cỡ cửa sổ (2026-11-25).** Mỗi thế được dùng lại bao nhiêu lần = số thế của cửa sổ / số thế MỚI của một lượt huấn luyện. Cửa sổ cố định (625.447) làm số lần
+  dùng lại trôi theo độ dài ván và theo số cửa sổ đang chạy (đo 24/11: 3,36 lần thay vì 4; ít cửa sổ thì lại vượt 4). Nay `lt_the` (fz_lien_tuc.sh) trả **cửa sổ = số lần mục tiêu (`.lt_dung_lai`, mặc định 4)
+  × trung bình số thế mới của 5 lượt thành công gần nhất** (`.lt_the_moi`; chưa đủ 3 lượt thì lấy số thế trung bình mỗi ván của các gói gần nhất × số ván mới / lượt), kẹp trong [300.000; 1.500.000]. Một số ≥ 100000 trong
+  `.lt_cua_so_the` (nhập tay ở menu `w`) = cửa sổ cố định, bỏ qua tự canh. Cỡ cửa sổ được chốt MỘT lần lúc lấy khoá huấn luyện (`LT_THE_HL`). Ngưỡng T4 để nhận lượt (`lt_can_giay`) không còn là 28 phút cố định:
+  **phân vị 90% (hạng gần nhất, trên tối đa 10 lượt sạch gần nhất) của [giây gom + tải gói + giây huấn luyện quy theo số thế cửa sổ hiện tại] + 6 phút** (`LT_DU_PHUT`), không thấp hơn 15 phút; chưa đủ 3 lượt thì dùng số đo
+  (240 giây + 9 giây / 10.000 thế). Lượt sạch = không phải thử lại, không chờ 429 (`.lt_lich_su_hl`: "giây_gom giây_huấn_luyện số_thế_cửa_sổ"). Kịch bản thử: `thu_lien_tuc/chay_thu.sh tu_canh`, `thu_lien_tuc/test_tu_canh.sh`.
+
+3. `fz` → **`w`** (hoặc `fz lien_tuc`) ở mỗi cửa sổ. Lần đầu nó hỏi: *số ván mới mỗi lượt huấn luyện* (1000), *cửa sổ huấn luyện* (Enter = **tự canh** 4 lần; số nhỏ hơn 100 = số lần dùng lại mỗi thế, vd 3.5; số từ 100000 = cửa sổ cố định), số phút chừa,
    dãy đời arena; rồi tự **nhập** thư mục `games_gen<k>/` của 4 đời gần nhất thành 4 gói làm cửa sổ ban đầu (mốc đặt ở gói cuối: dữ liệu cũ tính là cũ).
 4. Hai thư mục `games_gen…` cũ vẫn nằm đó; `fz_tu_dong.py don_dep` (chạy lúc bắt đầu) dọn chúng theo cửa sổ 4 đời như trước.
 
