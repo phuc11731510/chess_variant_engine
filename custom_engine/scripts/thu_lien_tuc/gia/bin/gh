@@ -18,6 +18,10 @@ case "$1" in
   release)
     # gh release upload TAG FILE --clobber -R REPO
     [ "$2" = upload ] || exit 1
+    if [ -n "${GH_TOKEN:-}" ]; then      # goi tu may Colab (token qua GH_TOKEN): ghi lai; gia loi neu co tep gh_colab_loi
+      echo "TOKEN:$GH_TOKEN" >> "${FAKE_DIR:-/tmp/fc}/gh_token.log"
+      f=${FAKE_DIR:-/tmp/fc}/gh_colab_loi; n=$(cat "$f" 2>/dev/null); if [ "${n:-0}" -gt 0 ]; then echo $((n - 1)) > "$f"; echo "HTTP 403: Resource not accessible by personal access token" >&2; exit 1; fi
+    fi
     cp -f "$4" "$R/$(basename "$4")" ;;
   *) exit 1 ;;
 esac

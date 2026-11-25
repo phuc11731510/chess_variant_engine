@@ -504,9 +504,65 @@ lt_len_cua_so() {
   LT_DATA=$(printf '/content/goi/%s,' "${ten[@]}"); LT_DATA=${LT_DATA%,}
   return 0
 }
+# ---------------- Dua mang len GitHub TU MAY COLAB (khong qua dien thoai) ----------------
+# Neu co tep token ($LT_NETS_TOKEN_F, mac dinh ~/.fz_nets_token, do nguoi dung tu dat) thi sau khi o 07 xong, MAY HUAN LUYEN tu tai /content/gen<N>.pt len Release NN_Model bang
+# `gh release upload --clobber` (gh co san tren anh Colab; do 2026-11-25: gh 2.102, gui 20 MB ra ngoai ~0,3-0,7 giay) thay cho duong cu: dien thoai tai .pt ve (20,3 MB) roi tai len
+# (20,3 MB), mat 39-83 giay moi lan. Token di tu dien thoai qua DAU VAO cua mot lenh ssh (khong nam tren dong lenh, khong ghi tep tren may, khong vao nhat ky). Dien thoai chi doc danh
+# sach tep cua Release de kiem kich thuoc + sha256 do may Colab tinh. Loi gi cung tra 1 -> vong lap dung duong cu (tai ve dien thoai roi tai len); sau loi thi nghi LT_NETS_NGHI_GIAY.
+LT_NETS_TOKEN_F=${LT_NETS_TOKEN_F:-$HOME/.fz_nets_token}
+LT_NETS_NGHI_F=$TD/.lt_nets_loi
+LT_NETS_NGHI_GIAY=${LT_NETS_NGHI_GIAY:-1800}
+lt_nets_bat() {      # 0 = co tep token va khong dang nghi sau loi
+  local t
+  [ -s "$LT_NETS_TOKEN_F" ] || return 1
+  t=$(cat "$LT_NETS_NGHI_F" 2>/dev/null)
+  [[ "$t" =~ ^[0-9]+$ ]] && [ $(( $(date +%s) - t )) -lt "$LT_NETS_NGHI_GIAY" ] && return 1
+  return 0
+}
+lt_nets_loi() { lt_ghi_tep "$LT_NETS_NGHI_F" "$(date +%s)"; td_in "${M_VANG}$1${M_HET} -- dùng đường cũ (tải về điện thoại rồi tải lên); thử lại đường mới sau $((LT_NETS_NGHI_GIAY / 60)) phút"; }
+lt_len_github_colab() {
+  local n=$1 repo tag tsv so them out err=$TD/.loi_nets_$$ i rc cho sz sha ten tsz dg cmd
+  read -r repo tag <<<"$(td_rel_nn)"
+  [ -n "$tag" ] || { lt_nets_loi "không đọc được REL_NN"; return 1; }
+  [ "$n" -le "$TD_GEN_CUOI" ] || { td_in "${M_DO}[!] đời $n vượt giới hạn $TD_GEN_CUOI${M_HET}"; return 1; }
+  tsv=$(td_tep_release "$repo" "$tag") || { lt_nets_loi "không đọc được danh sách tệp Release $tag"; return 1; }
+  so=$(grep -c . <<<"$tsv"); them=0; grep -q "^gen$n\.pt"$'\t' <<<"$tsv" || them=1
+  [ $((so + them)) -le "$TD_REL_TOI_DA" ] || { td_in "${M_DO}[!] Release $tag có $so tệp, thêm $them tệp sẽ vượt giới hạn $TD_REL_TOI_DA${M_HET}"; return 1; }
+  td_in "đưa gen$n.pt lên GitHub ${M_DAM}từ máy Colab${M_HET} ($tag, đang có $so/$TD_REL_TOI_DA tệp)"
+  cmd="read -r GH_TOKEN || exit 90; export GH_TOKEN; command -v gh >/dev/null || exit 91; cd /content && [ -s gen$n.pt ] || exit 92; gh release upload $tag gen$n.pt --clobber -R $repo >/dev/null 2>/content/fz_gh_err || { tail -c 300 /content/fz_gh_err >&2; exit 93; }; echo FZ_NETS \$(stat -c %s gen$n.pt) \$(sha256sum gen$n.pt | cut -d' ' -f1)"
+  for i in 1 2 3; do
+    out=$(cat "$LT_NETS_TOKEN_F" | ssh_colab "$cmd" 2>"$err"); rc=$?
+    [ $rc = 0 ] && grep -q '^FZ_NETS ' <<<"$out" && break
+    if [ $i -lt 3 ] && grep -q -E 'Already-active SSH session|HTTP 429' "$err"; then
+      cho=$(( ${LT_CHO_NETS:-15} * i ))
+      td_in "${M_VANG}Colab từ chối ssh mới (429)${M_HET} -- chờ $cho giây rồi tải lên lại (lần $i/3)"
+      td_ngu "$cho" || { rm -f "$err"; return 1; }
+      continue
+    fi
+    break
+  done
+  if [ $rc != 0 ] || ! grep -q '^FZ_NETS ' <<<"$out"; then
+    case $rc in
+      91) lt_nets_loi "máy Colab không có gh" ;;
+      92) lt_nets_loi "không thấy /content/gen$n.pt trên máy Colab" ;;
+      93) if grep -q -E '401|403|Bad credentials|Forbidden|not accessible|Not Found' "$err"; then lt_nets_loi "GitHub từ chối token ($(tr -d '\n' < "$err" | cut -c1-120)) -- kiểm tra $LT_NETS_TOKEN_F"; else lt_nets_loi "gh tải lên lỗi: $(tr -d '\n' < "$err" | cut -c1-120)"; fi ;;
+      *) lt_nets_loi "không chạy được lệnh tải lên trên máy Colab (mã $rc)" ;;
+    esac
+    rm -f "$err"; return 1
+  fi
+  rm -f "$err"
+  read -r _ sz sha <<<"$(grep '^FZ_NETS ' <<<"$out" | tail -1)"
+  for i in 1 2 3; do tsv=$(td_tep_release "$repo" "$tag") && break; td_ngu 10 || return 1; done
+  IFS=$'\t' read -r ten tsz dg < <(grep "^gen$n\.pt"$'\t' <<<"$tsv" | head -1) || :
+  if [ -z "$tsz" ] || [ "$tsz" != "$sz" ] || { [ -n "$dg" ] && [ "$dg" != "sha256:$sha" ]; }; then
+    lt_nets_loi "gen$n.pt trên Release không khớp máy Colab (kích thước $tsz/$sz)"; return 1
+  fi
+  td_in "${M_XANH}đã lên Release $tag${M_HET} (từ máy Colab; kích thước + sha256 trên GitHub khớp tệp trên máy huấn luyện, điện thoại không phải tải $((sz / 1000000)) MB về rồi lên)"
+  return 0
+}
 # Cua so nay huan luyen luot moi. Goi khi lt_hl_den_luot dung. Tra 0 = xong (ke ca loi, da tra khoa); 3 = mat may; 4 = q.
 lt_huan_luyen() {
-  local g n yc t0 w cho moc_cu seq van the h rc loi=0 f hl loi_len=0 bu_nghi=0 need t_khoa t_07 t_xong mv mt ms the_moi=0 sach=1
+  local g n yc t0 w cho moc_cu seq van the h rc loi=0 f hl loi_len=0 bu_nghi=0 need t_khoa t_07 t_xong mv mt ms the_moi=0 sach=1 mang_len=0
   g=$(td_gen); n=$((g + 1))
   lt_hl_lay || return 0
   moc_cu=$(lt_moc)
@@ -571,6 +627,8 @@ lt_huan_luyen() {
     td_chay 07 "$f"; rc=$?
     case $rc in 3) lt_hl_tra; TD_VAI=; td_mat_may; lt_ghi_tep "$LT_MOC_F" "$moc_cu"; return 3 ;; 4) lt_hl_tra; TD_VAI=; return 4 ;; esac
     td_don_mang_cu "$n"
+    # Co tep token: may Colab tu tai mang len GitHub (nhanh, khong qua dien thoai); loi thi xuong duong cu ben duoi.
+    if lt_nets_bat && lt_len_github_colab "$n"; then mang_len=1; break; fi
     tai_theo_o 07
     [ "${TAI_DOC_CHO:-0}" = 1 ] && sach=0           # doc log bi 429 phai cho: khong dai dien
     # KHONG doc duoc log o 07 (ssh loi / Colab tu choi 429) khac voi "huan luyen khong ra mang": mang co the DA xong tren may (2026-11-24 17:23: gen65 xong, doc log
@@ -589,7 +647,7 @@ lt_huan_luyen() {
     if [ $loi -ge 2 ]; then td_in "${M_DO}[!] huấn luyện lỗi 2 lần -- xem log ô 07${M_HET}"; loi=1; break; fi
     td_in "huấn luyện chưa ra mạng -- thử lại"; loi=0
   done
-  if [ $loi = 1 ] || ! td_co_mang "$n"; then
+  if [ $loi = 1 ] || { [ $mang_len = 0 ] && ! td_co_mang "$n"; }; then
     td_in "${M_DO}[!] bỏ lượt huấn luyện đời $n${M_HET} -- ván vẫn giữ, thử lại sau $(( (600 - bu_nghi) / 60 )) phút"
     lt_ghi_tep "$LT_MOC_F" "$moc_cu"; lt_ghi_tep "$LT_NGHI_F" "$(( $(date +%s) - bu_nghi ))"
     lt_hl_tra; TD_VAI=; return 0
@@ -597,7 +655,7 @@ lt_huan_luyen() {
   # Mang da ve dien thoai: ghi lan huan luyen THANH CONG (the moi de canh cua so, thoi gian de tinh nguong T4 cho cac lan sau).
   t_xong=$SECONDS
   lt_ghi_lich_su "$((t_07 - t_khoa))" "$((t_xong - t_07))" "$LT_THE_HL" "$the_moi" "$sach"
-  td_len_github "$n" || { lt_hl_tra; TD_VAI=; return 0; }
+  [ $mang_len = 1 ] || td_len_github "$n" || { lt_hl_tra; TD_VAI=; return 0; }      # mang_len = 1: may Colab da dua len Release roi
   td_len_doi "$g" "$n"
   [ "$(td_gen)" = "$n" ] && td_don_dep "$n"
   python ~/fz_tu_dong.py don_goi "$TAI" "$LT_THE_HL" 1.5 | sed -n 's/^FZ_DON_GOI_XONG \([0-9]*\) \(.*\)/dọn gói cũ: xoá \1 gói (\2 MB)/p' | while IFS= read -r hl; do td_in "$hl"; done
