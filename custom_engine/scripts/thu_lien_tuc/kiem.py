@@ -73,7 +73,8 @@ for t in bd:
     acc, gen, t0 = t[1], t[2], float(t[3])
     t1 = xg.get((acc, gen), t0 + 5)
     khac = [x for x in led if x[0] != acc and t0 < x[3] < t1]
-    check(len(khac) >= 1, f"{acc} huan luyen doi {gen} trong {t1 - t0:.0f}s: cua so khac van sinh {len(khac)} van")
+    if kb != "khoa_ngoai":          # khoa_ngoai: acc1 bi khoa, chi MOT cua so chay -> khong co 'cua so khac' de sinh van luc huan luyen
+        check(len(khac) >= 1, f"{acc} huan luyen doi {gen} trong {t1 - t0:.0f}s: cua so khac van sinh {len(khac)} van")
     check(int(t[5]) >= 1, f"  cua so huan luyen doi {gen} co {t[4]} goi / {t[5]} van")
 
 gens = sorted(int(re.fullmatch(r"gen(\d+)\.pt", os.path.basename(p)).group(1)) for p in glob.glob(f"{W}/release/gen*.pt"))
@@ -104,6 +105,20 @@ if kb == "xin_muon":
     nk = open(f"{H}/.fz_tk/.tu_dong/nhat_ky.txt", encoding="utf-8", errors="replace").read() if os.path.exists(f"{H}/.fz_tk/.tu_dong/nhat_ky.txt") else ""
     check("Xin máy quá giờ" in "\n".join(logs), "xin het gio duoc nhan ra")
     check("muộn (sau khi ta bỏ yêu cầu) -> trả máy đó" in nk, "quet muon chay nen da tra may cap cham (ghi trong nhat ky vong lap)")
+if kb == "xin_rat_muon":
+    nk = open(f"{H}/.fz_tk/.tu_dong/nhat_ky.txt", encoding="utf-8", errors="replace").read() if os.path.exists(f"{H}/.fz_tk/.tu_dong/nhat_ky.txt") else ""
+    check("Xin máy quá giờ" in chr(10).join(logs), "xin het gio duoc nhan ra")
+    check("muộn (sau khi ta bỏ yêu cầu) -> trả máy đó (tài khoản acc1)" in nk, "may cap RAT muon (sau ca ba moc quet nen) van duoc tra, ghi trong nhat ky vong lap")
+if kb in ("khoa_ngoai", "khoa_het_han"):
+    tong = chr(10).join(logs)
+    co_bo_qua = "máy khác (WSL) đang dùng thử tài khoản này" in tong
+    sinh1 = [x for x in led if x[0] == "acc1"]
+    if kb == "khoa_ngoai":
+        check(co_bo_qua, "vong lap bao bo qua acc1 vi co khoa ngoai con han")
+        check(not sinh1, f"acc1 KHONG sinh van nao trong luc khoa ngoai con han ({len(sinh1)} van)")
+    else:
+        check(not co_bo_qua, "khoa ngoai da het han: KHONG bi bo qua")
+        check(len(sinh1) > 0, f"acc1 van duoc dung binh thuong ({len(sinh1)} van)")
 if kb == "dung_cu":
     for i, l in enumerate(logs, 1):
         a, b = l.find("04l trên"), l.find("dừng mềm")

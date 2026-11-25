@@ -1008,19 +1008,91 @@ ds_ep_may() {
 # Quet MUON (chay nen): may chu co the cap may cham hon ca khoang cho cua xin_may (2026-11-24: nguoi dung mo fz thay tai khoan van con mot T4). Sau
 # FZ_XIN_CHO2 giay (mac dinh 100) tra cac phien KHONG TEN "[?]" MOI xuat hien (khong co trong danh sach endpoint $1 luc truoc khi xin) CUA TAI KHOAN NAY
 # (TKH da co trong ban sao tien trinh con) -- khong dung toi may CO TEN (may nguoi dung tu xin bang m, may cua vong lap). Ghi vao nhat ky vong lap.
+#
+# MAY MO COI -- ba lop (2026-11-25; cac lan truoc chi co lop 1, va chi quet MOT lan sau 100 giay):
+#  1. xin_may tra may moi xuat hien ngay sau khi lenh xin loi / het gio (xem xin_may).
+#  2. GHI NHO BEN: moi lan xin may that bai ghi $TKG/.tu_dong/xin_hong_<tai khoan> = dong 1 gio (epoch), cac dong sau = endpoint cac may
+#     tai khoan dang giu luc xin. Tep nay song sot khi cua so chet / bi dung (quet nen o lop 1 thi khong), nen ve sau con quet duoc: quet_mo_coi
+#     (moi luot xin may, moi vong cua vong lap, quet nen nhieu moc) tra moi phien KHONG TEN "[?]" khong co trong danh sach luc xin,
+#     cho den het FZ_MO_COI_TTL (mac dinh 1800 giay) roi xoa ghi nho.
+#  3. KHOA NGOAI: may khac (WSL: chay_t4_thu.py) dat cho truoc bang tep $TKG/.tu_dong/khoa_ngoai_<tai khoan> (dong 1 = epoch); con han
+#     FZ_KHOA_NGOAI_TTL (mac dinh 7200 giay) thi vong lap KHONG xin va KHONG quet tai khoan do (neu quet se tra nham may cua ben kia).
+xin_hong_tep() { echo "$TKG/.tu_dong/xin_hong_$1"; }
+khoa_ngoai_con_han() {          # $1 = ten tai khoan; 0 neu co khoa ngoai con han
+  local f t0
+  f="$TKG/.tu_dong/khoa_ngoai_$1"; [ -f "$f" ] || return 1
+  t0=$(head -1 "$f" 2>/dev/null); [[ "$t0" =~ ^[0-9]+$ ]] || return 1
+  [ $(( $(date +%s) - t0 )) -lt "${FZ_KHOA_NGOAI_TTL:-7200}" ]
+}
+ghi_xin_hong() {                # $1 = cac endpoint luc xin (moi dong mot)
+  local f; f=$(xin_hong_tep "$(ten_tk "$TK")"); mkdir -p "$TKG/.tu_dong" 2>/dev/null
+  { date +%s; [ -n "$1" ] && echo "$1"; true; } > "$f.tam" 2>/dev/null && mv -f "$f.tam" "$f"
+}
+# Xin duoc may (o tai khoan co ghi nho xin hong chua het han): KHONG xoa ghi nho (may cap muon cua lan xin hong truoc co the con toi), chi ghi them
+# cac endpoint dang giu luc nay vao danh sach "khong phai mo coi" (giu nguyen gio ghi).
+nho_may_hien_co() {
+  local f t0 truoc
+  f=$(xin_hong_tep "$(ten_tk "$TK")"); [ -f "$f" ] || return 0
+  t0=$(head -1 "$f"); truoc=$({ tail -n +2 "$f"; ds_ep_may; } | sort -u | grep .)
+  { echo "$t0"; [ -n "$truoc" ] && echo "$truoc"; true; } > "$f.tam" 2>/dev/null && mv -f "$f.tam" "$f"
+}
+# Tai khoan hien tai ($TK): co ghi nho xin hong con han -> tra moi phien "[?]" khong co trong danh sach luc xin (khong dung toi may CO TEN:
+# may nguoi dung tu xin bang m, may cua vong lap). Ghi nhat ky vong lap. Luon tra 0.
+quet_mo_coi() {
+  local ten f t0 l truoc x ep
+  ten=$(ten_tk "$TK"); f=$(xin_hong_tep "$ten"); [ -f "$f" ] || return 0
+  khoa_ngoai_con_han "$ten" && return 0
+  # Dang co lan xin may o tai khoan nay (cua so nay hoac cua so khac): may MOI xuat hien luc nay co the la may cua chinh lan xin do -> khong dung toi.
+  l=$(cat "$TKG/.tu_dong/xin_dang_$ten" 2>/dev/null)
+  [[ "$l" =~ ^[0-9]+$ ]] && [ $(( $(date +%s) - l )) -lt "${FZ_XIN_DANG_TTL:-400}" ] && return 0
+  t0=$(head -1 "$f" 2>/dev/null); truoc=$(tail -n +2 "$f" 2>/dev/null)
+  [[ "$t0" =~ ^[0-9]+$ ]] || { rm -f "$f" "$f.quet"; return 0; }
+  # Khong hoi may chu qua day (nhieu cua so cung quet): cach nhau it nhat FZ_MO_COI_GAP giay (mac dinh 20).
+  l=$(cat "$f.quet" 2>/dev/null)
+  [[ "$l" =~ ^[0-9]+$ ]] && [ $(( $(date +%s) - l )) -lt "${FZ_MO_COI_GAP:-20}" ] && return 0
+  date +%s > "$f.quet"
+  truoc=$truoc$'\n'$(cat "$TKH"/.config/colab-cli/fz_may_*.txt 2>/dev/null)     # may CUA VONG LAP (da ghi endpoint) khong bao gio la mo coi
+  while IFS= read -r x; do
+    ep=${x#*] }; ep=${ep%% *}
+    [ -n "$ep" ] && ! grep -qxF "$ep" <<<"$truoc" || continue
+    printf '%s %s %s\n' "$$" "$(date '+%d/%m %H:%M:%S')" "[!] máy chủ cấp T4 $ep muộn (sau khi ta bỏ yêu cầu) -> trả máy đó (tài khoản $ten)" >> "$TKG/.tu_dong/nhat_ky.txt" 2>/dev/null
+    tra_mot "$x"
+  done < <(KHONG_HOI=1 COLAB_TO=60 colab sessions 2>/dev/null | grep '^\[?\]')
+  [ $(( $(date +%s) - t0 )) -gt "${FZ_MO_COI_TTL:-1800}" ] && rm -f "$f" "$f.quet"
+  return 0
+}
+# Moi tai khoan co ghi nho xin hong (chay trong tien trinh con: khong doi TK / HOME cua cua so dang chay).
+quet_mo_coi_tat_ca() {
+  local f ten tk
+  for f in "$TKG"/.tu_dong/xin_hong_*; do
+    [ -f "$f" ] || continue
+    case "$f" in *.tam|*.quet) continue ;; esac
+    ten=${f##*/xin_hong_}
+    tk=$(tim_tk "$ten") || continue
+    ( dat_tk "$tk"; quet_mo_coi ) >/dev/null 2>&1
+  done
+  return 0
+}
+# Quet nen nhieu moc (cach nhau FZ_XIN_CHO2 = 100 giay: 100, 200, 300 giay sau khi bo yeu cau); het ghi nho thi thoi. Moc xa hon do (den 30 phut)
+# do quet_mo_coi_tat_ca lo (moi luot xin may va moi vong cua vong lap), ke ca khi cua so nay da chet.
 xin_quet_muon() {
-  local truoc=$1 x ep
+  local d=${FZ_XIN_CHO2:-100} m
   (
-    sleep "${FZ_XIN_CHO2:-100}"
-    while IFS= read -r x; do
-      ep=${x#*] }; ep=${ep%% *}
-      [ -n "$ep" ] && ! grep -qxF "$ep" <<<"$truoc" || continue
-      printf '%s %s %s\n' "$$" "$(date '+%d/%m %H:%M:%S')" "[!] máy chủ cấp T4 $ep muộn (sau khi ta bỏ yêu cầu) -> trả máy đó" >> "$TKG/.tu_dong/nhat_ky.txt" 2>/dev/null
-      tra_mot "$x"
-    done < <(KHONG_HOI=1 COLAB_TO=60 colab sessions 2>/dev/null | grep '^\[?\]')
+    for m in 1 2 3; do
+      sleep "$d"
+      [ -f "$(xin_hong_tep "$(ten_tk "$TK")")" ] || break
+      quet_mo_coi
+    done
   ) >/dev/null 2>&1 &
 }
-xin_may() {
+xin_may() {         # vo boc: danh dau "dang xin" de quet_mo_coi (cua so khac) khong tra nham may cua chinh lan xin nay
+  local rc f
+  f="$TKG/.tu_dong/xin_dang_$(ten_tk "$TK")"; mkdir -p "$TKG/.tu_dong" 2>/dev/null; date +%s > "$f" 2>/dev/null
+  xin_may_that "$@"; rc=$?
+  rm -f "$f"
+  return $rc
+}
+xin_may_that() {
   local out rc loi truoc x ep
   # May tai khoan dang giu TRUOC khi xin: lenh xin bao loi ma co may moi -> may do la cua lan xin nay (xem duoi).
   truoc=$(ds_ep_may)
@@ -1029,6 +1101,7 @@ xin_may() {
   out=$(KHONG_HOI=1 COLAB_TO=${FZ_XIN_TO:-180} colab new -s "$S" ${1:+--gpu "$1"} 2>&1); rc=$?
   grep '^\[colab\]' <<<"$out"
   if [ $rc = 0 ] && colab status -s "$S" 2>/dev/null; then
+    nho_may_hien_co
     kiem_may >/dev/null
     [ -f ~/fz_han_muc.py ] && py_colab ~/fz_han_muc.py --het-xoa     # T4 vua duoc cap: xoa dau 'bi tu choi' cu (h khong con in HET)
     chup_han_muc "$TK" &          # dang giu may -> may chu tra han muc: chup nen
@@ -1039,6 +1112,7 @@ xin_may() {
   # lai: tra moi may moi xuat hien (khong dong den may co tu truoc), khong de may mo coi tieu han muc.
   if [ $rc != 0 ] && KHONG_HOI=1 COLAB_TO=60 colab status -s "$S" >/dev/null 2>&1; then
     echo "${M_VANG}[!] Lệnh xin báo lỗi nhưng máy đã được cấp và dùng được -> dùng máy này${M_HET}"
+    nho_may_hien_co
     kiem_may >/dev/null
     [ -f ~/fz_han_muc.py ] && py_colab ~/fz_han_muc.py --het-xoa
     chup_han_muc "$TK" &
@@ -1046,10 +1120,15 @@ xin_may() {
   fi
   # Het gio (rc 124): lenh xin bi GIET giua luc may chu con dang xu ly yeu cau -> may chu co the cap may SAU khi ta da bo di (2026-11-24:
   # tranlongn28 giu mot T4 "[?]" khong ai biet, may khong bi trach ten). Doi mot chut roi quet lai de tra no, khong de no an han muc.
+  # GHI NHO truoc moi viec khac (cua so co the bi dung / chet trong luc cho): moi may MOI xuat hien o tai khoan nay sau day deu la cua lan xin nay.
+  # (Chi khi ket qua MO HO: het gio, hoac loi la. Bi tu choi ro rang -- het han muc, bi cam, mat mang -- thi may chu khong cap muon, khong can quet.)
+  if [ $rc = 124 ] || ! grep -q 'Service Unavailable\|precondition failed\|Backend rejected accelerator\|Forbidden\|Unauthorized\|Too Many Requests\|FZ_CAN_DANG_NHAP\|Name or service not known\|Max retries exceeded' <<<"$out"; then
+    ghi_xin_hong "$truoc"
+  fi
   if [ $rc = 124 ]; then
     echo "${M_VANG}[!] Xin máy quá giờ -- chờ ${FZ_XIN_CHO:-30} giây xem máy chủ có cấp muộn không (nếu có thì trả ngay)${M_HET}"
     sleep "${FZ_XIN_CHO:-30}"
-    xin_quet_muon "$truoc"
+    xin_quet_muon
   fi
   while IFS= read -r x; do
     ep=${x#*] }; ep=${ep%% *}
