@@ -45,6 +45,9 @@ co_dung_mem = b"FZ_ARENA" in _bin
 # Arena --start-fen (2026-11-20): một binary cũ vẫn nhận cờ nhưng BỎ QUA nó trong arena (chơi từ thế cố định) mà
 # không báo gì, nên phải kiểm trước khi chạy, không đợi lỗi.
 co_the_arena = b"each played by a PAIR" in _bin
+# Ưu tiên ô CHƯA THĂM (FPU) = 0 như lúc sinh dữ liệu huấn luyện (selfplay_mode.cc: một nước chưa thăm bắt đầu ở Q của nút cha), qua
+# --search-opt fpu-value=0 áp cho CẢ HAI mạng (từ 2026-11-25; trước đó arena dùng mặc định lc0 0,33, nên số arena trước ngày này đo dưới cài đặt hơi
+# khác và không so thẳng với số sau). Hai mạng luôn cùng cài đặt nên so sánh vẫn công bằng ở cả hai thời kỳ.
 # Arena tìm kiếm HẰNG (2026-11-20, chủ dự án chọn): 400 lượt thăm mỗi nước, c_puct 1,25, KHÔNG nhiễu, nhiệt độ cho CẢ ván.
 # Nhiệt độ: 0,5 lúc đầu (trọng số (N/Nmax)^(1/T), như tự đấu); **từ 2026-11-21 là 0** (chủ dự án đổi: luôn đi nước nhiều lượt
 # thăm nhất; đa dạng ván đến từ 500 thế khởi đầu ngẫu nhiên x 2 màu, còn nhiệt độ 0,5 làm loãng chênh lệch sức mạnh giữa hai mạng).
@@ -73,7 +76,7 @@ cmd = f"""bash {E}/run.sh --arena \
     --games {GAMES} --visits 400 --temperature 0 --cpuct 1.25 --start-fen {BOOK} \
     --provider {_provider} --fixed-batch 32 --max-moves 400 --show-nps \
     --search-opt max-prefetch=0 --parallel {PARALLEL} --batch-aggregate \
-    --search-opt minibatch-size=32 --search-opt task-workers=0"""
+    --search-opt minibatch-size=32 --search-opt task-workers=0 --search-opt fpu-value=0"""
 if co_dung_mem:
     cmd += f" --stop-file {DUNG_MEM}" + (f" --max-seconds {SECS}" if SECS > 0 else "")
 
