@@ -300,6 +300,7 @@ private:
         Send("option name TempCutoffPly type spin default 0 min 0 max 1000");   // temp only first N plies (0=always)
         Send("option name ReuseTree type check default true");                  // keep MCTS tree across moves
         Send("option name RootStats type check default false");                 // after each search: `info string stat` per root move (N, P, Q)
+        Send("option name DepthStats type check default false");                // after each search: `info string depthstats` (how deep the playouts went)
         // Plus any lc0 search param by its native name (T8.3 passthrough), e.g.:
         // setoption name cpuct value 2.0 ; setoption name draw-score value -0.2
         Send("uciok");
@@ -330,6 +331,7 @@ private:
         else if (name == "TempCutoffPly") { temp_cutoff_ply_ = std::max(0, to_int(temp_cutoff_ply_)); }
         else if (name == "ReuseTree") { reuse_tree_ = (value == "true" || value == "1"); }
         else if (name == "RootStats") { root_stats_ = (value == "true" || value == "1"); }
+        else if (name == "DepthStats") { depth_stats_ = (value == "true" || value == "1"); }
         else if (!name.empty()) {   // lc0 search-param passthrough (applied at `go`)
             search_opts_[name] = value;
             // Read when the backend/cache is built, not by the search: rebuild.
@@ -546,6 +548,68 @@ private:
             Send(os.str());
         }
 
+        // DepthStats: where the playouts of this search ended, read off the finished tree.
+        // A node at depth d (edges from the root) with N visits and children with visits N_c
+        // was the END of N - sum(N_c) playouts (one for each leaf evaluated there, more for a
+        // terminal node that was visited again). So:
+        //   leaf[d] = playouts that ended at depth d      (sums to the number of playouts)
+        //   mean    = sum(d * leaf[d]) / sum(leaf)        (float; the periodic `info depth` is this, truncated)
+        //   max     = deepest node that holds a playout   (`seldepth`)
+        //   term    = playouts that ended on a terminal node (mate / draw rule), tmin = its shallowest depth
+        //   nodes   = nodes of the tree with at least one visit
+        //   pvfull  = length of the most-visited chain from the root (the `pv` above stops at 24 plies)
+        //   pvn10/pvn50 = how long that chain stays on nodes with >= 10 / >= 50 visits
+        // Fields of one line: depthstats nodes <n> playouts <p> mean <m> max <M> term <t> tmin <d|-1> pvfull <L> pvn10 <a> pvn50 <b> leaf <l0,l1,...>
+        if (depth_stats_) {
+            std::vector<int64_t> leaf;
+            int64_t node_count = 0, term = 0, plays = 0;
+            int tmin = -1;
+            double dsum = 0.0;
+            std::vector<std::pair<lczero::classic::Node*, int>> stack;
+            stack.emplace_back(root, 0);
+            while (!stack.empty()) {
+                auto [nd, d] = stack.back();
+                stack.pop_back();
+                ++node_count;
+                int64_t child_sum = 0;
+                for (const auto& ce : nd->Edges()) {
+                    lczero::classic::Node* c = ce.node();
+                    if (c && c->GetN() > 0) { child_sum += c->GetN(); stack.emplace_back(c, d + 1); }
+                }
+                const int64_t ends = static_cast<int64_t>(nd->GetN()) - child_sum;
+                if (ends > 0) {
+                    if (static_cast<int>(leaf.size()) <= d) leaf.resize(d + 1, 0);
+                    leaf[d] += ends;
+                    plays += ends;
+                    dsum += static_cast<double>(d) * static_cast<double>(ends);
+                    if (nd->IsTerminal()) { term += ends; if (tmin < 0 || d < tmin) tmin = d; }
+                }
+            }
+            int pvfull = 0, pvn10 = 0, pvn50 = 0;
+            {
+                lczero::classic::EdgeAndNode e = edges[0];
+                while (!e.GetMove().is_null() && pvfull < 400) {
+                    ++pvfull;
+                    if (e.GetN() >= 10) pvn10 = pvfull;
+                    if (e.GetN() >= 50) pvn50 = pvfull;
+                    lczero::classic::Node* child = e.node();
+                    if (!child || child->GetN() == 0) break;
+                    lczero::classic::EdgeAndNode bestc;
+                    uint64_t bn = 0;
+                    for (const auto& ce : child->Edges()) if (ce.GetN() >= bn) { bn = ce.GetN(); bestc = ce; }
+                    if (bestc.GetMove().is_null()) break;
+                    e = bestc;
+                }
+            }
+            std::ostringstream os;
+            os << "info string depthstats nodes " << node_count << " playouts " << plays
+               << " mean " << std::fixed << std::setprecision(4) << (plays ? dsum / static_cast<double>(plays) : 0.0)
+               << " max " << (static_cast<int>(leaf.size()) - 1) << " term " << term << " tmin " << tmin
+               << " pvfull " << pvfull << " pvn10 " << pvn10 << " pvn50 " << pvn50 << " leaf ";
+            for (size_t i = 0; i < leaf.size(); ++i) os << (i ? "," : "") << leaf[i];
+            Send(os.str());
+        }
+
         // RootStats: for the same K moves, how the search spent its visits. N = visits,
         // P = prior as stored in the tree (after policy softmax temperature and, when
         // noise is on, after Dirichlet noise), Q = value of playing the move from the
@@ -627,6 +691,8 @@ private:
         std::string bopts;
         if (provider_ == "cuda")
             bopts = "provider=cuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch_));
+        else if (provider_ == "fzcuda")   // the self-play network runner (.fzw weights), same keys as --selfplay
+            bopts = "provider=fzcuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch_));
         else if (provider_ == "dml")   // DirectML: dynamic batch; threads= covers any CPU-fallback ops
             bopts = "provider=dml,threads=" + std::to_string(std::max(1, backend_threads_));
         else
@@ -676,6 +742,7 @@ private:
     int temperature_ = 0, temp_cutoff_ply_ = 0;   // difficulty: move-selection temperature (permille)
     bool reuse_tree_ = true;                       // keep MCTS tree across moves (T8.x)
     bool root_stats_ = false;                      // RootStats: per-root-move N / P / Q after each search (debug)
+    bool depth_stats_ = false;                     // DepthStats: how deep the playouts of the last search went
     float policy_temp_ = 1.359f;                    // lc0 default (PolicySoftmaxTemp)
     bool backend_dirty_ = true;
     bool injected_backend_ = false;                // see InjectBackend (tests only)
