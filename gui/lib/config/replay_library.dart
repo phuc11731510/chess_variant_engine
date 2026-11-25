@@ -22,6 +22,11 @@ class ReplayEntry {
   /// Ghi chú lỗi khi dựng bảng (rỗng = ổn).
   final String note;
 
+  /// Nhãn CỐ ĐỊNH của ván (rỗng = không có): với ván của vòng lặp liên tục là `<số gói>.<thứ tự trong gói, từ 1>`, vd `992.8`
+  /// = ván thứ 8 của gói `goi_00992_...zip`. Khác [id] (vị trí trong danh sách của đời, đổi khi vòng lặp thêm / dọn gói), nhãn này
+  /// theo ván mãi mãi và khớp tên gói trên điện thoại.
+  final String label;
+
   const ReplayEntry({
     required this.id,
     required this.file,
@@ -31,7 +36,23 @@ class ReplayEntry {
     required this.blackPieces,
     required this.reason,
     required this.note,
+    this.label = '',
   });
+
+  /// Cách gọi ván trên màn hình: nhãn cố định nếu có, không thì `#<id>`.
+  String get tag => label.isEmpty ? '#$id' : label;
+
+  ReplayEntry withLabel(String l) => ReplayEntry(
+    id: id,
+    file: file,
+    plies: plies,
+    result: result,
+    whitePieces: whitePieces,
+    blackPieces: blackPieces,
+    reason: reason,
+    note: note,
+    label: l,
+  );
 
   int get pieces => whitePieces + blackPieces;
   bool get decisive => result == 'W' || result == 'B';
@@ -108,7 +129,46 @@ class ReplayLibrary {
       if (e != null) out.add(e);
     }
     if (out.isEmpty) throw FormatException('$indexName không có ván nào');
-    return ReplayLibrary(dir, out, prepare: prepare);
+    final labels = _readLabels(dir);
+    final entries = labels.isEmpty
+        ? out
+        : [for (final e in out) e.withLabel(labels[e.id] ?? '')];
+    return ReplayLibrary(dir, entries, prepare: prepare);
+  }
+
+  /// Nhãn cố định của từng ván, đọc từ `nguon.txt` (do app Android ghi cạnh chi_muc.tsv); rỗng nếu không có tệp đó.
+  static Map<int, String> _readLabels(String dir) {
+    try {
+      final f = File('$dir${Platform.pathSeparator}nguon.txt');
+      if (!f.existsSync()) return const {};
+      return labelsFromSources(f.readAsLinesSync().skip(1));
+    } on Exception {
+      return const {};
+    }
+  }
+
+  /// Nhãn theo từng dòng `<đường dẫn gói>\t<thành viên>` của `nguon.txt` (dòng thứ i = ván số i): gói của vòng lặp liên tục
+  /// `goi_<số>_n<đời>_<ván>_<thế>.zip` cho nhãn `<số>.<thứ tự trong gói, từ 1>`; nguồn khác không có nhãn.
+  static Map<int, String> labelsFromSources(Iterable<String> lines) {
+    final re = RegExp(r'^goi_(\d+)_n\d+_\d+_\d+\.zip$');
+    final out = <int, String>{};
+    String? lastPath;
+    var k = 0;
+    var i = -1;
+    for (final l in lines) {
+      if (l.isEmpty) continue;
+      i++;
+      final tab = l.lastIndexOf('\t');
+      final path = tab < 0 ? l : l.substring(0, tab);
+      if (path != lastPath) {
+        lastPath = path;
+        k = 0;
+      }
+      k++;
+      final m = re.firstMatch(path.split(RegExp(r'[\\/]')).last);
+      if (m != null) out[i] = '${int.parse(m.group(1)!)}.$k';
+    }
+    return out;
   }
 
   String pathOf(ReplayEntry e) => '$dir${Platform.pathSeparator}${e.file}';

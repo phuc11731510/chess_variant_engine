@@ -4,6 +4,7 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:fairyzero_gui/config/replay_library.dart';
 import 'package:fairyzero_gui/data/game_library.dart';
 import 'package:fairyzero_gui/data/generation_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,5 +115,77 @@ void main() {
       final text = File('$cache/${tenLogOf(i)}').readAsStringSync();
       expect(text, isNotEmpty);
     }
+  });
+
+  group('số ván cố định + dọn đệm', soVanVaDonDem);
+}
+
+// Số ván cố định theo gói + dọn bộ nhớ đệm không còn khớp dữ liệu.
+void soVanVaDonDem() {
+  late Directory tmp;
+  setUp(() => tmp = Directory.systemTemp.createTempSync('goi_nhan_'));
+  tearDown(() => tmp.deleteSync(recursive: true));
+
+  test('nhãn ván = <số gói>.<thứ tự trong gói từ 1>, ổn định khi gói cũ bị dọn', () {
+    const p = '/storage/emulated/0/Download/FairyZero/goi';
+    final dayDu = [
+      '$p/goi_00985_n103_2_100.zip\tgames_gen103/a.xz',
+      '$p/goi_00985_n103_2_100.zip\tgames_gen103/b.xz',
+      '$p/goi_00992_n103_3_100.zip\tgames_gen103/c.xz',
+      '$p/goi_00992_n103_3_100.zip\tgames_gen103/d.xz',
+      '$p/goi_00992_n103_3_100.zip\tgames_gen103/e.xz',
+    ];
+    final a = ReplayLibrary.labelsFromSources(dayDu);
+    expect(a, {0: '985.1', 1: '985.2', 2: '992.1', 3: '992.2', 4: '992.3'});
+    // Vòng lặp dọn gói 985: số thứ tự (id) của các ván còn lại đổi (0, 1, 2) nhưng nhãn vẫn là 992.x.
+    final saukhidon = ReplayLibrary.labelsFromSources(dayDu.skip(2));
+    expect(saukhidon, {0: '992.1', 1: '992.2', 2: '992.3'});
+    // Nguồn không phải gói của vòng lặp: không nhãn (app hiện #id như cũ).
+    expect(
+      ReplayLibrary.labelsFromSources(['/x/games_gen5/van1.xz\t', '/x/games_gen5_7.zip\tm.xz']),
+      isEmpty,
+    );
+  });
+
+  test('ReplayLibrary.load gắn nhãn từ nguon.txt, thiếu nguon.txt thì #id', () {
+    const tsv = 'so\ttep\tnua_nuoc\tket_qua\tquan_trang\tquan_den\tly_do\tghi_chu\n'
+        '0\tvan_0000.txt\t16\tB\t29\t29\tno_moves\t\n'
+        '1\tvan_0001.txt\t20\tW\t30\t28\tchecks\t\n';
+    File('${tmp.path}/chi_muc.tsv').writeAsStringSync(tsv);
+    var lib = ReplayLibrary.load(tmp.path);
+    expect(lib.entries.map((e) => e.tag).toList(), ['#0', '#1']);
+    File('${tmp.path}/nguon.txt').writeAsStringSync(
+      'g1|1|1|1|1\n'
+      '/d/goi/goi_00992_n103_2_100.zip\tgames_gen103/c.xz\n'
+      '/d/goi/goi_00992_n103_2_100.zip\tgames_gen103/d.xz\n',
+    );
+    lib = ReplayLibrary.load(tmp.path);
+    expect(lib.entries.map((e) => e.tag).toList(), ['992.1', '992.2']);
+    expect(lib.entries[1].id, 1); // id nội bộ vẫn là vị trí trong bảng
+  });
+
+  test('purgeStaleCaches chỉ xoá thư mục đệm không nằm trong danh sách giữ', () {
+    final xem = '${tmp.path}/xem';
+    for (final n in ['goi_n103', 'goi_n64', 'games_gen45', 'games_gen55_723.zip']) {
+      Directory('$xem/$n').createSync(recursive: true);
+      File('$xem/$n/van_0001.txt').writeAsStringSync('x' * 1000);
+    }
+    File('$xem/tep_le.txt').writeAsStringSync('giữ'); // tệp lẻ không bị đụng
+    final removed = purgeStaleCaches(xem, {'goi_n103', 'games_gen55_723.zip'});
+    expect(removed, 2);
+    expect(Directory('$xem/goi_n103').existsSync(), isTrue);
+    expect(Directory('$xem/games_gen55_723.zip').existsSync(), isTrue);
+    expect(Directory('$xem/goi_n64').existsSync(), isFalse);
+    expect(Directory('$xem/games_gen45').existsSync(), isFalse);
+    expect(File('$xem/tep_le.txt').existsSync(), isTrue);
+    // Chạy lại: không còn gì để xoá; thư mục không có thì 0, không ném lỗi.
+    expect(purgeStaleCaches(xem, {'goi_n103', 'games_gen55_723.zip'}), 0);
+    expect(purgeStaleCaches('${tmp.path}/khong_co', {}), 0);
+  });
+
+  test('cacheNameOf bỏ ký tự lạ, giữ tên đời', () {
+    expect(cacheNameOf('goi_n103'), 'goi_n103');
+    expect(cacheNameOf('games_gen55_723.zip'), 'games_gen55_723.zip');
+    expect(cacheNameOf('a b/c'), 'a_b_c');
   });
 }

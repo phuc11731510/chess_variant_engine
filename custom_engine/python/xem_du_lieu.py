@@ -23,6 +23,7 @@ Mã thoát: 0 = xong; 1 = lỗi (không có ván, đọc lỗi, --kiem thấy v�
 import argparse
 import os
 import random
+import re
 import sys
 import zipfile
 
@@ -256,6 +257,13 @@ def liet_ke_van(nguon):
     return van
 
 
+def nhan_goi(duong_dan, thu_tu):
+    """Nhãn cố định của ván trong gói của vòng lặp liên tục (`goi_<số>_n<đời>_<ván>_<thế>.zip`): `<số gói>.<thứ tự trong gói, từ 1>`,
+    cùng nhãn app Android hiện làm số ván (vd 992.8 = ván thứ 8 của gói goi_00992_...); nguồn khác: rỗng."""
+    m = re.match(r"^goi_(\d+)_n\d+_\d+_\d+\.zip$", os.path.basename(duong_dan))
+    return f"{int(m.group(1))}.{thu_tu}" if m else ""
+
+
 def ten_van(entry):
     p, m = entry
     return f"{os.path.basename(p)}:{m}" if m else os.path.basename(p)
@@ -487,8 +495,11 @@ def main():
     if a.liet_ke:
         dem = {"Trắng thắng": 0, "Đen thắng": 0, "Hoà": 0}
         hong = 0
-        print(f"{'số':>5} {'nửa nước':>9}  {'kết quả':<12} tệp")
+        print(f"{'số':>5} {'nửa nước':>9}  {'kết quả':<12} tệp (nhãn <số gói>.<thứ tự trong gói> = số ván trong app Android)")
+        dem_goi = {}
         for i, e in enumerate(ds):
+            dem_goi[e[0]] = dem_goi.get(e[0], 0) + 1
+            nhan = nhan_goi(e[0], dem_goi[e[0]])
             try:
                 v = doc_van(e)
             except (ValueError, OSError, zipfile.BadZipFile) as ex:
@@ -498,7 +509,8 @@ def main():
             kq = v.ket_qua()
             dem[kq] += 1
             loi = v.kiem() if a.kiem else []
-            print(f"{i:>5} {len(v.nuoc):>9}  {kq:<12} {v.ten}" + (f"   GIẢI MÃ SAI: {loi[0]}" if loi else ""))
+            print(f"{i:>5} {len(v.nuoc):>9}  {kq:<12} {v.ten}" + (f"  <{nhan}>" if nhan else "")
+                  + (f"   GIẢI MÃ SAI: {loi[0]}" if loi else ""))
             hong += bool(loi)
         print(f"-- {len(ds)} ván: Trắng thắng {dem['Trắng thắng']}, Đen thắng {dem['Đen thắng']}, Hoà {dem['Hoà']}"
               + (f"; {hong} ván lỗi" if hong else "") + (" (đã kiểm giải mã)" if a.kiem else ""))
