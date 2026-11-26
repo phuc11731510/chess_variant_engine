@@ -184,7 +184,27 @@ dat_tk "$TK"
 # fz_colab.py = Colab CLI da sua loi lam moi token (invalid_scope -> doi dang nhap lai moi gio). KHONG_HOI=1:
 # KHONG BAO GIO hoi ma dang nhap (thoat ma 75, in FZ_CAN_DANG_NHAP) -- bat buoc khi dau ra bi bat (out=$(...))
 # hoac chay nen, neu khong cua so "dung hinh" cho mot ma khong ai thay loi nhac. COLAB_TO=<giay>: gioi han thoi gian.
+# Tat kiem tra cap nhat cua Colab CLI cho HOME tai khoan $1 ("enable_update_check": false trong .config/colab-cli/settings.json, giu cac khoa
+# khac). Chu du an 2026-11-26: khong muon thay loi nhac cap nhat (va KHONG nang cap CLI). Goi truoc moi lenh colab, nen tai khoan moi dang nhap
+# cung tu tat; da tat roi thi chi ton mot lan grep. Loi thi bo qua.
+colab_tat_cap_nhat() {
+  local f="$1/.config/colab-cli/settings.json"
+  grep -qE '"enable_update_check": *false' "$f" 2>/dev/null && return 0
+  mkdir -p "${f%/*}" 2>/dev/null && python - "$f" <<'PY' 2>/dev/null || :
+import json, os, sys
+p = sys.argv[1]
+try:
+    d = json.load(open(p, encoding="utf-8"))
+except (OSError, ValueError):
+    d = {}
+d["enable_update_check"] = False
+with open(p + ".fz", "w", encoding="utf-8") as f:
+    json.dump(d, f, indent=2)
+os.replace(p + ".fz", p)
+PY
+}
 _colab_chay() {
+  colab_tat_cap_nhat "$TKH"
   if [ -f ~/fz_colab.py ]; then
     HOME=$TKH FZ_KHONG_HOI=${KHONG_HOI:-} ${COLAB_TO:+timeout "$COLAB_TO"} python ~/fz_colab.py "$@"
   else
