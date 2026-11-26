@@ -45,8 +45,11 @@ if not _val:
 # giữ như cũ). Chính sách (PCR, mặt nạ nước không hợp lệ) và số nước còn lại không đổi. Lý do: đầu giá trị học thuộc kết quả từng ván (thế khởi
 # đầu ngẫu nhiên là "dấu vân tay" của ván): gen139 đoán đúng 100% ở nửa nước 1 của ván đã học, ~51% ván mới; thử T4 (scripts/thu_hoc_thuoc_t4.py,
 # 16 thế/ván): CE giá trị ván mới 0,6946 -> 0,6499. Dòng "[val]" vẫn chấm mọi thế. train.py cũ (chưa có cờ) -> học như trước, in cảnh báo.
+# --weight-decay 1e-2 (chủ dự án chọn 2026-11-26, mức mặc định của AdamW / thường dùng cho transformer; trước đây 1e-4 = hệ số L2 của lc0 dùng
+# với SGD, sang AdamW gần như không tác dụng: lr 5e-4 x 1e-4 x ~780 bước ≈ 0,004% mỗi đời; nay ≈ 0,4% mỗi đời). Thử T4 1 đời: không đổi CE
+# giá trị / chính sách, không hại.
 try:
-    _vpg = "--value-per-game 21" if "--value-per-game" in open(f"{E}/python/train.py", encoding="utf-8").read() else ""
+    _vpg ="--value-per-game 21" if "--value-per-game" in open(f"{E}/python/train.py", encoding="utf-8").read() else ""
 except OSError:
     _vpg = ""
 if not _vpg:
@@ -55,7 +58,7 @@ cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
     --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen {_val} --batch 512 --accum-steps 2 \
     --lr 5e-4 --warmup-steps 50 \
-    --q-ratio 0.2 --weight-decay 1e-4 {_vpg} --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
+    --q-ratio 0.2 --weight-decay 1e-2 {_vpg} --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
     --out {_out}"""
 
 print(cmd)

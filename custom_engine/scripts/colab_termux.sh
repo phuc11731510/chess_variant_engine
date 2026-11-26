@@ -100,7 +100,7 @@ train)
   check_gpu || { echo "[fz] VM khong co GPU -- dung lai."; exit 1; }
   echo "!nohup python $E/python/train.py --data \"${DATA:-/content/games_gen$GEN.zip}\" --init-from /content/gen$GEN.pt \
 --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen --batch 512 --accum-steps 2 --lr 5e-4 --warmup-steps 50 \
---q-ratio 0.2 --weight-decay 1e-4 --value-per-game 21 --report-every 20 --amp --grad-clip 10 --onnx-fp16 \
+--q-ratio 0.2 --weight-decay 1e-2 --value-per-game 21 --report-every 20 --amp --grad-clip 10 --onnx-fp16 \
 --out /content/gen$NEXT.onnx > /content/train.log 2>&1 &" | rx
   echo "[fz] da chay nen tren VM; xem: bash $0 status train"
   ;;
