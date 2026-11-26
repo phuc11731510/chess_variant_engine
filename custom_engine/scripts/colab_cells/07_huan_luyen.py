@@ -40,11 +40,22 @@ except OSError:
     _val = ""
 if not _val:
     print("[!] train.py trên máy này chưa có --val-newest-games: lượt học này không chấm CE ngoài mẫu.")
+# --value-per-game 21 (chủ dự án chọn 2026-11-26): mỗi lượt học, ở MỖI ván chỉ bốc ngẫu nhiên 21 thế để học giá trị (ván ít hơn 21 thế: mọi
+# thế), bốc lại mỗi đời; phần giá trị của loss = trung bình trên các thế được bốc (chia cho số thế được bốc, nên cán cân giá trị / chính sách
+# giữ như cũ). Chính sách (PCR, mặt nạ nước không hợp lệ) và số nước còn lại không đổi. Lý do: đầu giá trị học thuộc kết quả từng ván (thế khởi
+# đầu ngẫu nhiên là "dấu vân tay" của ván): gen139 đoán đúng 100% ở nửa nước 1 của ván đã học, ~51% ván mới; thử T4 (scripts/thu_hoc_thuoc_t4.py,
+# 16 thế/ván): CE giá trị ván mới 0,6946 -> 0,6499. Dòng "[val]" vẫn chấm mọi thế. train.py cũ (chưa có cờ) -> học như trước, in cảnh báo.
+try:
+    _vpg = "--value-per-game 21" if "--value-per-game" in open(f"{E}/python/train.py", encoding="utf-8").read() else ""
+except OSError:
+    _vpg = ""
+if not _vpg:
+    print("[!] train.py trên máy này chưa có --value-per-game: lượt học này đầu giá trị học mọi thế như cũ.")
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
     --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen {_val} --batch 512 --accum-steps 2 \
     --lr 5e-4 --warmup-steps 50 \
-    --q-ratio 0.2 --weight-decay 1e-4 --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
+    --q-ratio 0.2 --weight-decay 1e-4 {_vpg} --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
     --out {_out}"""
 
 print(cmd)
