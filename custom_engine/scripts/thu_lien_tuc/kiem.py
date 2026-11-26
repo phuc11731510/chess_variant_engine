@@ -140,10 +140,18 @@ if kb == "tu_canh":
         cs[int(m.group(1))] = int(m.group(2))
     gens_hl = sorted(cs)
     check(len(gens_hl) >= 4, f"co {len(gens_hl)} lan huan luyen: {[ (g, cs[g]) for g in gens_hl ]}")
-    if len(gens_hl) >= 4 and len(moi) >= 3:
-        # lan thu 4: cua so = 2 (muc tieu) x TB 3 lan truoc (da co du 3 lan lich su)
-        mong = (sum(moi[:3]) // 3) * 2
-        check(cs[gens_hl[3]] == mong, f"cua so lan huan luyen thu 4 = {cs[gens_hl[3]]} = 2 x TB the moi 3 lan truoc ({mong})")
+    # Cua so = goi cua 2 luot gan nhat (muc tieu 2): lan huan luyen thu k (k >= 3) lay moc duoi = moc KET THUC du lieu cua lan k-2 (.lt_moc_lich_su).
+    mls = [int(x) for x in open(f"{td}/.lt_moc_lich_su").read().split()] if os.path.exists(f"{td}/.lt_moc_lich_su") else []
+    check(len(mls) >= 3 and mls == sorted(mls), f".lt_moc_lich_su: {mls} (moi lan thanh cong mot moc, tang dan)")
+    duoi = []                                   # (doi, moc duoi) theo thu tu trong log cua so huan luyen
+    for lg in logs:
+        for m in re.finditer(r"gói của 2 lượt gần nhất \(mốc dưới (\d+)\).*?\n(?:.*\n)*?.*?07: huấn luyện đời (\d+)", lg):
+            duoi.append((int(m.group(2)), int(m.group(1))))
+    duoi = sorted(dict(duoi).items())           # moi doi lay lan cuoi (thu lai thi lan sau)
+    check(len(duoi) >= 2, f"cua so tinh theo luot o {len(duoi)} lan: {duoi}")
+    thu_tu = {g: k for k, g in enumerate(gens_hl, start=1)}          # doi -> lan huan luyen thu may (1, 2, ...)
+    dung = [(g, d, mls[thu_tu[g] - 3]) for g, d in duoi if g in thu_tu and 3 <= thu_tu[g] and thu_tu[g] - 3 < len(mls)]
+    check(dung and all(d == m for _, d, m in dung), f"moc duoi lan k = moc ket thuc lan k-2: {dung}")
     check(all(1000 <= x <= 100000000 for x in cs.values()) and 625447 not in cs.values(), "cua so la so tu canh (khong phai mac dinh 625447 / khong ngoai kep)")
     check(not any(t[1] == "acc1" for t in bd), "acc1 (T4 con 35 phut < nguong huan luyen 40 phut) KHONG huan luyen")
     check(any(t[1] == "acc2" for t in bd), "acc2 huan luyen")

@@ -46,6 +46,12 @@ VONG LAP LIEN TUC (fz_lien_tuc.sh, menu fz -> w): du lieu di theo GOI nho thay v
   python ~/fz_tu_dong.py cua_so <thu muc FairyZero> <so the>
       CUA SO HUAN LUYEN = cac goi MOI NHAT cho toi khi du <so the> (goi cuoi cung vua du thi dung; chua du thi lay het). In moi goi
       mot dong "GOI <ten>" (tu moi toi cu), cuoi cung "FZ_CUA_SO <so goi> <so van> <so the> <mang nho nhat>-<mang lon nhat>".
+      (Cua so CO DINH so the, tep .lt_cua_so_the.)
+  python ~/fz_tu_dong.py cua_so_luot <thu muc FairyZero> <R x 10> <the min> <the max> <van moi / luot> <van cho gui> <moc ...> <the moi ...> <moc tren> [--dem]
+      Cua so TU CANH = cac goi cua R luot huan luyen gan nhat (moi the hoc dung R lan). <moc ...>: cac moc giua cac luot, moi nhat truoc, cach nhau dau
+      phay ('-' = chua co); <the moi ...>: so the moi cua cac luot gan nhat, moi nhat truoc (de uoc cac moc con thieu); <moc tren>: goi cuoi cua luot
+      nay ('-' = moi goi). In nhu cua_so, them dong
+      "FZ_CUA_SO_CACH luot <R> <moc duoi> | uoc"; --dem: chi in "FZ_CUA_SO_UOC <so the>" (uoc truoc khi gom, cong <van cho gui>).
   python ~/fz_tu_dong.py nhap_cu <thu muc FairyZero> <doi G> <so doi>
       Mot lan khi chuyen tu vong lap cu (theo doi) sang vong lap lien tuc: moi thu muc games_gen<k>/ (k tu G-<so doi>+1 den G) thanh MOT goi
       (mang k) de lam cua so huan luyen ban dau; thu muc k nao da nhap roi (tep goi/.da_nhap_<k>) thi bo qua.
@@ -414,6 +420,91 @@ def cua_so(tai, so_the):
     print(f"FZ_CUA_SO {len(chon)} {van} {the} {min(mangs, default=0)}-{max(mangs, default=0)}")
 
 
+def _so_ds(s):
+    """'12,9,5' -> [12, 9, 5]; '-' / '' -> []."""
+    return [int(x) for x in str(s).split(",") if x.strip().isdigit()]
+
+
+def moc_luot(ds, moc_ls, the_ls, can):
+    """Moc (so thu tu goi) giua cac luot huan luyen, MOI NHAT truoc: moc[0] = moc hien tai (goi cuoi luc luot truoc bat dau), moc[i+1] = moc truoc
+    luot co du lieu (moc[i+1], moc[i]]. moc_ls: cac moc da ghi (.lt_moc_lich_su, moi nhat truoc). Thieu (vua chuyen sang cach nay) thi UOC cac moc cu
+    hon tu the_ls (so the MOI cua cac luot gan nhat, moi nhat truoc: the_ls[i] = so the cua luot (moc[i+1], moc[i]]): lui tu moc cu nhat da biet, cong
+    so the cac goi cho toi khi du the_ls[i]. Lay toi `can` moc; het goi thi dung."""
+    b = list(moc_ls)
+    while 0 < len(b) < can and len(b) - 1 < len(the_ls):
+        can_the, cong, moi = the_ls[len(b) - 1], 0, None
+        for g in sorted((g for g in ds if g[0] <= b[-1]), reverse=True):
+            cong += g[3]
+            moi = g[0] - 1
+            if cong >= can_the:
+                break
+        if moi is None or cong < can_the:
+            break                         # het goi cu: khong uoc duoc them
+        b.append(moi)
+    return b
+
+
+def cua_so_luot(tai, r10, the_min, the_max, muc, them_van, moc_ls, the_ls, moc_tren="-", chi_dem=False):
+    """Cua so huan luyen TU CANH = cac goi cua R luot gan nhat (R = r10 / 10, vd 40 -> 4; 35 -> 3 luot + nua luot thu tu): moi goi nam trong DUNG R luot
+    huan luyen lien tiep, nen moi the duoc hoc dung R lan, bat ke so cua so dang chay, do dai van hay so van lot vao luc gom goi thay doi the nao
+    (chu du an 2026-11-26; truoc day cua so = R x TB the moi 5 luot, tre ~5 luot moi bat kip khi so cua so doi dot ngot).
+    Luot hien tai = cac goi co so thu tu > moc[0] va <= moc_tren (moc moi, dat luc gom xong: goi den SAU do thuoc luot ke tiep, khong lay, neu khong
+    no se vao R + 1 cua so); moc_tren '-' = moi goi (uoc truoc khi gom). Chua du moc (va khong uoc duoc) -> cach cu: R x TB the moi (the_ls, toi 5 luot;
+    khong co thi so the / van cua cac goi gan nhat x muc). Kep [the_min, the_max]: thieu thi them goi cu hon, thua thi bo goi cu nhat.
+    them_van: so van dang cho gui o cac may (chi de UOC so the truoc khi gom, chi_dem). In: GOI <ten> (moi nhat truoc), FZ_CUA_SO <goi> <van> <the>
+    <mang nho nhat>-<lon nhat>, FZ_CUA_SO_CACH luot <R> <moc duoi> | uoc; chi_dem: chi in FZ_CUA_SO_UOC <the>."""
+    r10, the_min, the_max, muc, them_van = int(r10), int(the_min), int(the_max), int(muc), int(them_van)
+    moc_ls, the_ls, tren = _so_ds(moc_ls), _so_ds(the_ls), _so_ds(moc_tren)
+    ds = [g for g in ds_goi(tai) if not tren or g[0] <= tren[0]]
+    r, le = r10 // 10, (r10 % 10) / 10
+    moi_nhat = sorted(ds, reverse=True)
+    gan = moi_nhat[:60]
+    the_moi_van = (sum(g[3] for g in gan) / sum(g[2] for g in gan)) if any(g[2] for g in gan) else 175.0
+    b = moc_luot(ds, moc_ls, the_ls, r + (1 if le else 0))
+    if r >= 1 and len(b) >= r:
+        duoi = b[r - 1]
+        chon = [g for g in moi_nhat if g[0] > duoi]
+        if le and len(b) > r:
+            cu = [g for g in moi_nhat if b[r] < g[0] <= duoi]
+            muon, cong = le * sum(g[3] for g in cu), 0
+            for g in cu:
+                if cong >= muon:
+                    break
+                chon.append(g)
+                cong += g[3]
+        cach = f"luot {r10 / 10:g} {duoi}"
+    else:
+        his = the_ls[:5]
+        moi_luot = sum(his) / len(his) if len(his) >= 3 else the_moi_van * muc
+        can, chon, cong = int(moi_luot * r10 / 10), [], 0
+        for g in moi_nhat:
+            if cong >= can:
+                break
+            chon.append(g)
+            cong += g[3]
+        cach = "uoc"
+    dang = {g[0] for g in chon}
+    the = sum(g[3] for g in chon)
+    for g in moi_nhat:                    # thieu: them goi cu hon (moi nhat truoc)
+        if the >= the_min:
+            break
+        if g[0] not in dang:
+            chon.append(g)
+            dang.add(g[0])
+            the += g[3]
+    chon.sort(reverse=True)
+    while len(chon) > 1 and the > the_max:   # thua: bo goi cu nhat
+        the -= chon.pop()[3]
+    if chi_dem:
+        print(f"FZ_CUA_SO_UOC {the + int(them_van * the_moi_van)}")
+        return
+    for g in chon:
+        print(f"GOI {g[4]}")
+    mangs = [g[1] for g in chon]
+    print(f"FZ_CUA_SO {len(chon)} {sum(g[2] for g in chon)} {the} {min(mangs, default=0)}-{max(mangs, default=0)}")
+    print(f"FZ_CUA_SO_CACH {cach}")
+
+
 def nhap_cu(tai, g, so_doi):
     g, so_doi = int(g), int(so_doi)
     d = thu_muc_goi(tai)
@@ -490,6 +581,8 @@ if __name__ == "__main__":
         goi_tong(a[1], a[2])
     elif len(a) == 3 and a[0] == "cua_so":
         cua_so(a[1], a[2])
+    elif len(a) in (10, 11) and a[0] == "cua_so_luot" and a[10:] in ([], ["--dem"]):
+        cua_so_luot(*a[1:10], chi_dem=a[10:] == ["--dem"])
     elif len(a) == 4 and a[0] == "nhap_cu":
         nhap_cu(a[1], a[2], a[3])
     elif len(a) in (3, 4) and a[0] == "don_goi":
