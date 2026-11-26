@@ -18,7 +18,7 @@ from torch.utils.data import Dataset
 
 from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_RULE50, BOARD,
                        HISTORY_PLANES, NUM_PLANES, POLICY_SIZE)
-from trainingdata_reader import is_game_member, iter_games, reconstruct_planes
+from trainingdata_reader import _iter_member, is_game_member, iter_games, iter_records, reconstruct_planes
 
 
 def wdl_from_qd(q, d):
@@ -158,6 +158,32 @@ def newest_n_games(games, mtimes, n):
     return [g for i, g in enumerate(games) if i in keep]
 
 
+def iter_games_value_per_game(games, k, rng, sparse=False):
+    """iter_games, but in each game only `k` positions drawn at random (all of them in a shorter game) keep their
+    value target; the others are marked r["no_value"] = True (FairyDataset then gives them an all-zero W/D/L row,
+    which train.value_loss leaves out). The policy and moves-left targets of every position are kept. Experiment
+    (2026-11-26): the value head memorizes whole games (each has its own random start position and one result)."""
+    zf, zpath = None, None
+    try:
+        for path, member in games:
+            if member is None:
+                recs = list(iter_records(path, sparse))
+            else:
+                if path != zpath:
+                    if zf is not None:
+                        zf.close()
+                    zf, zpath = zipfile.ZipFile(path), path
+                recs = list(_iter_member(zf, member, path, sparse))
+            keep = set(rng.sample(range(len(recs)), min(k, len(recs))))
+            for i, r in enumerate(recs):
+                if i not in keep:
+                    r["no_value"] = True
+                yield r
+    finally:
+        if zf is not None:
+            zf.close()
+
+
 def split_games(games, val_frac, mtimes):
     """Hold out the round(val_frac * #games) NEWEST games (by modification time,
     ties by load order) as a validation set: the latest self-play, which the
@@ -220,7 +246,7 @@ class FairyDataset(Dataset):
 
     def __init__(self, data, q_ratio=0.25, downsample_keep=1.0, cache=True, seed=0,
                  diff_focus=False, df_slope=1.0, df_kld_w=0.5, df_min=0.2, sparse=True,
-                 max_records=0, games=None, label="", packed=False):
+                 max_records=0, games=None, label="", packed=False, value_per_game=0):
         """`games` (from list_games / split_games) loads only those games; by
         default every game in `data`. `label` names the set in the log line.
         `packed` (sparse cache only): items are pack_compact() samples, to batch
@@ -283,7 +309,10 @@ class FairyDataset(Dataset):
         kept = 0
         # The compact cache only needs the legal policy slots: v6 games then skip
         # building the dense probabilities[POLICY_SIZE] of every position.
-        records = iter_games(games, sparse=compact_cache is not None)
+        if value_per_game > 0:
+            records = iter_games_value_per_game(games, value_per_game, rng, sparse=compact_cache is not None)
+        else:
+            records = iter_games(games, sparse=compact_cache is not None)
         for r in records:
             k = _keep(r)
             if k is False:
@@ -314,7 +343,8 @@ class FairyDataset(Dataset):
         self.num_games = len(games)
         print(f"[dataset] {label + ': ' if label else ''}{len(games)} games -> {kept} records "
               f"(q_ratio={q_ratio}, downsample={downsample_keep}, cached={cache}, "
-              f"sparse={sparse and cache})")
+              f"sparse={sparse and cache}"
+              + (f", value target on {value_per_game} positions per game" if value_per_game > 0 else "") + ")")
 
     def _value(self, r):
         """[W, D, L, plies_left, has_policy] (float32[5]); the WDL part is q_ratio * the search value (best_q /
@@ -322,6 +352,8 @@ class FairyDataset(Dataset):
         z_wdl = wdl_from_qd(r["result_q"], r["result_d"])
         q_wdl = wdl_from_qd(search_q(r), r["best_d"])
         v = self.q_ratio * q_wdl + (1.0 - self.q_ratio) * z_wdl
+        if r.get("no_value"):            # iter_games_value_per_game: no value target (train.value_loss skips the row)
+            v = np.zeros(3, dtype=np.float32)
         extra = np.array([float(r.get("plies_left", 0)), 0.0 if r.get("fast_search", 0) else 1.0])
         return np.concatenate([v, extra]).astype(np.float32)
 
