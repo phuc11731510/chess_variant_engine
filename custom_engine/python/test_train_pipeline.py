@@ -240,10 +240,29 @@ def test_value_per_game(tmp, base):
     ds = D.FairyDataset(data, q_ratio=0.2, value_per_game=3, seed=7)
     per_game = [sum(1 for j in range(8) if float(ds[8 * g + j][2][:3].sum()) > 0.5) for g in range(60)]
     check(all(n == 3 for n in per_game), "...exactly 3 in EACH game")
+    other = D.FairyDataset(data, q_ratio=0.2, value_per_game=3, seed=8)
+    check(any(float(ds[i][2][:3].sum()) != float(other[i][2][:3].sum()) for i in range(len(ds))),
+          "another seed (every run draws its own) picks other positions")
+    # evaluate(): the value loss is the mean over the positions WITH a value target, whatever the batch size.
+    from torch.utils.data import DataLoader
+    from model import FairyNet
+    torch.manual_seed(0)
+    net = FairyNet(d_model=16, layers=1, heads=2).eval()
+    got = [T.evaluate(net, DataLoader(ds, batch_size=b, shuffle=False), "cpu")[1] for b in (7, 480)]
+    with torch.no_grad():
+        x = torch.stack([ds[i][0] for i in range(len(ds))]); y = torch.stack([ds[i][2] for i in range(len(ds))])[:, :3]
+        ce = -(y * torch.log_softmax(net(x)[1].float(), 1)).sum(1)
+        want = ce[y.sum(1) > 0.5].mean().item()
+    check(all(abs(g - want) < 1e-5 for g in got),
+          f"evaluate(): value loss = mean over the 180 positions with a target, any batch size ({got[0]:.5f} {got[1]:.5f} vs {want:.5f})")
     args = list(base)
     args[args.index("--data") + 1] = data
     rc, out = run(args + ["--epochs", "1", "--val-frac", "0", "--value-per-game", "3", "--out", os.path.join(tmp, "vpg.pt")], tmp)
     check(rc == 0 and "value target on 3 positions per game" in out, "train.py --value-per-game 3 trains and says so")
+    import re
+    vl = [float(v) for v in re.findall(r"epoch\s+1: policy_loss=[\d.]+\s+value_loss=([\d.]+)", out)]
+    check(len(vl) == 1 and 0.3 < vl[0] < 3.0,
+          f"...and its printed value_loss is a per-position mean over the drawn positions ({vl}), not shrunk by the 5/8 without one")
     rc, out = run(args + ["--epochs", "1", "--value-per-game", "-1", "--out", os.path.join(tmp, "vpg2.pt")], tmp)
     check(rc != 0 and "--value-per-game must be >= 0" in out, "--value-per-game -1 is refused")
 
@@ -367,7 +386,7 @@ def main():
         print("\n[7] run seeds")
         test_seeds(tmp, base, net_args)
 
-        print("\n[8] --value-per-game (experiment)")
+        print("\n[8] --value-per-game")
         test_value_per_game(tmp, base)
 
     print("\n" + "=" * 60)
@@ -378,3 +397,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
