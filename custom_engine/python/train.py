@@ -55,7 +55,12 @@ def policy_loss(logits, pi, has_policy=None):
 
 
 def value_loss(logits, target_wdl):
-    return -(target_wdl * F.log_softmax(logits, dim=1)).sum(dim=1).mean()
+    """Mean over the positions that HAVE a value target. A row of zeros (--value-per-game: a position whose value
+    target was left out) counts for nothing; with every row a distribution (always, without that flag) this is the
+    plain mean over the batch."""
+    ce = -(target_wdl * F.log_softmax(logits, dim=1)).sum(dim=1)
+    has = (target_wdl.sum(dim=1) > 0.5).to(ce.dtype)
+    return (ce * has).sum() / has.sum().clamp(min=1.0)
 
 
 # lc0 (tfprocess.py moves_left_loss): target and output divided by 20, Huber with delta 10 / 20, mean.
@@ -661,6 +666,10 @@ def main():
                          "(highest games_gen<g> folder, every machine's games): the average number of pieces left "
                          "when a game ended, and how often the side that attacked more won (thong_ke_doi.py). "
                          "A failure only prints a warning")
+    ap.add_argument("--value-per-game", type=int, default=0, metavar="K",
+                    help="EXPERIMENT (off = 0): train the value head on only K positions drawn at random from each "
+                         "training game (all positions keep their policy and moves-left targets); the validation / "
+                         "scoring sets are unchanged")
     ap.add_argument("--report-every", type=int, default=0, help="print running loss every N steps (0 = per-epoch)")
     ap.add_argument("--save-every", type=int, default=0, help="export an ONNX checkpoint every N steps (0 = only final)")
     args = ap.parse_args()
@@ -697,6 +706,8 @@ def main():
         sys.exit(f"--val-frac must be in [0, 1), got {args.val_frac}")
     if args.val_newest_gen and args.val_frac > 0:
         sys.exit("--val-newest-gen trains on every game: use it with --val-frac 0")
+    if args.value_per_game < 0:
+        sys.exit(f"--value-per-game must be >= 0, got {args.value_per_game}")
     if args.val_newest_games < 0:
         sys.exit(f"--val-newest-games must be >= 0, got {args.val_newest_games}")
     if args.val_newest_games and args.val_frac > 0:
@@ -714,7 +725,7 @@ def main():
                       df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min,
                       sparse=args.sparse_cache, max_records=args.max_records,
                       games=train_games, label="train" if val_games else "", seed=args.seed,
-                      packed=packed)
+                      packed=packed, value_per_game=args.value_per_game)
     collate = collate_packed if packed else None
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
                     num_workers=workers, pin_memory=pin, collate_fn=collate,

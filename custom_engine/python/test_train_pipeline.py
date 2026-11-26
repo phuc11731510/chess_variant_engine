@@ -215,6 +215,39 @@ def test_seeds(tmp, base, net_args):
     check(rc != 0 and "--seed must be >= 0" in out, "--seed -5 is refused")
 
 
+def test_value_per_game(tmp, base):
+    """--value-per-game K (experiment): each training game keeps the value target of K random positions only;
+    the others get an all-zero W/D/L row that value_loss leaves out. Uses the 60 games x 8 positions of [6]."""
+    import dataset as D
+    import train as T
+    logits = torch.tensor([[1.0, 0.0, -1.0], [0.5, 0.2, 0.1], [-2.0, 0.0, 2.0]])
+    full = torch.tensor([[1.0, 0.0, 0.0], [0.2, 0.5, 0.3], [0.0, 0.0, 1.0]])
+    plain = -(full * torch.log_softmax(logits, 1)).sum(1)
+    check(abs(T.value_loss(logits, full).item() - plain.mean().item()) < 1e-6,
+          "value_loss: every row a distribution -> the plain batch mean (the default runs are unchanged)")
+    part = full.clone(); part[1] = 0.0
+    check(abs(T.value_loss(logits, part).item() - (plain[0] + plain[2]).item() / 2) < 1e-6,
+          "value_loss: a zero row counts for nothing (mean over the 2 rows with a target)")
+    check(T.value_loss(logits, torch.zeros(3, 3)).item() == 0.0, "value_loss: no row with a target -> 0, not NaN")
+    data = ",".join(os.path.join(tmp, "games", g) for g in ("gen0", "gen1", "gen2"))
+    for k, want in ((3, 60 * 3), (20, 60 * 8), (0, 60 * 8)):
+        ds = D.FairyDataset(data, q_ratio=0.2, value_per_game=k, seed=7)
+        rows = [ds[i][2] for i in range(len(ds))]
+        has = sum(1 for v in rows if float(v[:3].sum()) > 0.5)
+        pol = sum(1 for v in rows if float(v[4]) == 1.0)
+        check(len(ds) == 480 and has == want and pol == 480,
+              f"--value-per-game {k}: 480 positions, {want} with a value target ({has}), all 480 keep the policy ({pol})")
+    ds = D.FairyDataset(data, q_ratio=0.2, value_per_game=3, seed=7)
+    per_game = [sum(1 for j in range(8) if float(ds[8 * g + j][2][:3].sum()) > 0.5) for g in range(60)]
+    check(all(n == 3 for n in per_game), "...exactly 3 in EACH game")
+    args = list(base)
+    args[args.index("--data") + 1] = data
+    rc, out = run(args + ["--epochs", "1", "--val-frac", "0", "--value-per-game", "3", "--out", os.path.join(tmp, "vpg.pt")], tmp)
+    check(rc == 0 and "value target on 3 positions per game" in out, "train.py --value-per-game 3 trains and says so")
+    rc, out = run(args + ["--epochs", "1", "--value-per-game", "-1", "--out", os.path.join(tmp, "vpg2.pt")], tmp)
+    check(rc != 0 and "--value-per-game must be >= 0" in out, "--value-per-game -1 is refused")
+
+
 def test_tail_swa(tmp, base):
     """Tail SWA averages (equal weights) the weights at the LAST optimizer step and every K steps back from it,
     at most N snapshots, none before step 1. The data is 192 records at --batch 32: 6 optimizer steps per epoch."""
@@ -333,6 +366,9 @@ def main():
 
         print("\n[7] run seeds")
         test_seeds(tmp, base, net_args)
+
+        print("\n[8] --value-per-game (experiment)")
+        test_value_per_game(tmp, base)
 
     print("\n" + "=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")
