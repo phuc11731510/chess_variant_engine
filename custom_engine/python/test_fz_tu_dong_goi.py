@@ -97,6 +97,59 @@ def test_goi_nhan_tong_cua_so():
         check(not os.path.exists(os.path.join(tai, "goi", ten[0])) and os.path.exists(os.path.join(tai, "goi", ten[2])), "goi cu mat, goi trong cua so con")
 
 
+def _goi_gia(tai, cac):
+    """Tao goi gia (tep rong, so van / the nam trong ten) theo thu tu: cac = [(mang, van, the), ...] -> seq 1, 2, ..."""
+    d = os.path.join(tai, "goi")
+    os.makedirs(d, exist_ok=True)
+    for i, (mang, van, the) in enumerate(cac, 1):
+        open(os.path.join(d, f"goi_{i:05d}_n{mang}_{van}_{the}.zip"), "wb").close()
+
+
+def _cs(tai, r10, moc_ls, the_ls, lo=0, hi=10**9, muc=1000, them=0, dem=False, tren="-"):
+    out = chay(lambda: T.cua_so_luot(tai, r10, lo, hi, muc, them, moc_ls, the_ls, tren, chi_dem=dem))
+    seqs = sorted(int(l.split()[1][4:9]) for l in out if l.startswith("GOI "))
+    return seqs, out
+
+
+def test_cua_so_luot():
+    print("E. cua_so_luot: cua so = goi cua R luot gan nhat (moi the hoc dung R lan)")
+    with tempfile.TemporaryDirectory() as tai:
+        # 4 luot: A = goi 1-3, B = 4-6, C = 7-9 (da xong; moc 3, 6, 9); D = luot dang chay = goi 10-14 (so cua so tang dot ngot: 5 goi thay vi 3)
+        _goi_gia(tai, [(60, 10, 1700)] * 3 + [(61, 10, 1750)] * 3 + [(62, 10, 1800)] * 3 + [(63, 10, 1800)] * 5)
+        seqs, out = _cs(tai, 40, "9,6,3", "5400,5250,5100")
+        check(seqs == list(range(1, 15)) and out[-1] == "FZ_CUA_SO_CACH luot 4 0",
+              f"R=4, moc 9,6,3 + moc 0 uoc tu the moi cua luot A: goi 1-14 ({seqs}, {out[-1]})")
+        check(out[-2] == f"FZ_CUA_SO 14 140 {3 * 1700 + 3 * 1750 + 8 * 1800} 60-63", f"dong tong: {out[-2]}")
+        seqs, _ = _cs(tai, 30, "9,6,3", "-")
+        check(seqs == list(range(4, 15)), f"R=3: goi 4-14 = luot B, C, D ({seqs})")
+        seqs, _ = _cs(tai, 35, "9,6,3,0", "-")
+        check(seqs == list(range(2, 15)), f"R=3,5: luot B, C, D + NUA luot A (moi nhat truoc: goi 3, 2 >= 1/2 x 5100) ({seqs})")
+        seqs, _ = _cs(tai, 20, "9,6,3", "-")
+        check(seqs == list(range(7, 15)), f"R=2: goi 7-14 ({seqs})")
+        seqs, _ = _cs(tai, 40, "9,6,3", "-")
+        check(seqs == list(range(1, 15)), f"R=4 khong co the moi de uoc moc thu 4: van dung (cach uoc, lay het) ({seqs})")
+        # moc chi co moc hien tai (vua chuyen sang): uoc moc 6, 3 tu so the moi 5400 (C), 5250 (B)
+        seqs, out = _cs(tai, 30, "9", "5400,5250,5100")
+        check(seqs == list(range(4, 15)) and out[-1] == "FZ_CUA_SO_CACH luot 3 3", f"chi co moc 9: uoc 6, 3 tu the moi -> goi 4-14 ({seqs}, {out[-1]})")
+        seqs, out = _cs(tai, 30, "-", "5400,5250,5100")
+        check(out[-1] == "FZ_CUA_SO_CACH uoc" and seqs == list(range(6, 15)),
+              f"khong co moc: cach cu 3 x TB the moi (5250 x 3 = 15750) -> goi moi nhat toi khi du ({seqs})")
+        seqs, _ = _cs(tai, 30, "9,6,3", "-", hi=12000)
+        check(seqs == list(range(9, 15)), f"tran 12000 the: bo goi cu nhat cho toi khi <= tran ({seqs})")
+        seqs, _ = _cs(tai, 20, "9,6,3", "-", lo=20000)
+        check(seqs == list(range(3, 15)), f"san 20000 the: them goi cu hon (moi nhat truoc) ({seqs})")
+        _, out = _cs(tai, 30, "9,6,3", "-", them=20, dem=True)
+        per_van = sum([1700] * 3 + [1750] * 3 + [1800] * 8) / 140
+        check(out == [f"FZ_CUA_SO_UOC {3 * 1750 + 8 * 1800 + int(20 * per_van)}"], f"--dem: cua so + 20 van cho gui ({out})")
+        seqs, _ = _cs(tai, 30, "9,6,3", "-", tren="12")
+        check(seqs == list(range(4, 13)), f"moc tren 12 (goi 13, 14 den SAU luc gom = luot sau): khong lay ({seqs})")
+        # so cua so GIAM dot ngot: luot D chi 1 goi
+        with tempfile.TemporaryDirectory() as tai2:
+            _goi_gia(tai2, [(60, 10, 1700)] * 3 + [(61, 10, 1750)] * 3 + [(62, 10, 1800)] * 3 + [(63, 10, 1800)])
+            seqs, _ = _cs(tai2, 40, "9,6,3,0", "-")
+            check(seqs == list(range(1, 11)), f"luot D nho (1 goi): cua so van dung 4 luot, goi 1-10 ({seqs})")
+
+
 def test_dong_thoi():
     print("C. nhieu tien trinh nhan goi cung luc: so thu tu khong trung")
     with tempfile.TemporaryDirectory() as tai:
@@ -130,6 +183,7 @@ def test_nhap_cu():
 def main():
     test_dem_the()
     test_goi_nhan_tong_cua_so()
+    test_cua_so_luot()
     test_dong_thoi()
     test_nhap_cu()
     print("\n" + "=" * 60)

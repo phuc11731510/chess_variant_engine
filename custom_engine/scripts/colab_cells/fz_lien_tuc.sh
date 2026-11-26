@@ -10,14 +10,14 @@
 #   * HUAN LUYEN khi: khong co luot nao dang chay VA so van MOI >= td_muc (mac dinh 1000; bo dem KHONG tinh lai khi doi mang -- "cach Y"):
 #     van moi = van trong cac goi co so thu tu > moc (moc = goi cuoi cung luc luot huan luyen truoc BAT DAU) + van dang cho gui o cac may.
 #     Cua so nao thay du dieu kien va giu duoc khoa (mkdir) thi: yeu cau moi may gui goi NGAY (rao), dung engine cua chinh no (van do choi
-#     not), lay CUA SO = cac goi moi nhat cho toi khi du LT_THE_F the (mac dinh 625.447), tai len may (chi goi may do chua co), chay o 07
+#     not), lay CUA SO = cac goi cua 4 luot huan luyen gan nhat (tu canh, xem "Cua so huan luyen TU CANH"; hoac co dinh LT_THE_F the), tai len may (chi goi may do chua co), chay o 07
 #     (DATA = danh sach goi), tai mang moi ve, len GitHub, GEN_CURRENT + 1. Cac may khac van sinh du lieu SUOT thoi gian do.
 #   * DOI MANG: cua so thay GEN_CURRENT doi -> tai mang moi len may (python/lay_mang.py tu Release, ~20 giay, engine cu van chay),
 #     khoi dong engine MOI (04_<run moi>) ngay, roi dung mem engine cu (04_<run cu> choi not van do, 1,5-3,5 phut) -- hai tien trinh cung luc.
 #     Van cua engine cu duoc gom o lan gui goi ke tiep (goi_van.py quet moi thu muc van tren may).
 #   * ARENA: nhu cu (td_arena) nhung KHONG con la mot giai doan cua "doi": dung engine, gui goi, arena, roi sinh tiep bang mang moi.
 # Tep trang thai tren dien thoai (~/.fz_tk/.tu_dong/):
-#   .lt_moc  .lt_cua_so_the (>= 100000: cua so CO DINH; khong co = TU CANH)  .lt_dung_lai (4)  .lt_the_moi  .lt_lich_su_hl  .lt_yeu_cau_goi ("<so> <epoch>": yeu cau gui goi NGAY)  lt_hl/ (khoa huan luyen, pid)  .lt_hl_nghi (epoch)
+#   .lt_moc  .lt_moc_lich_su  .lt_cua_so_the (>= 100000: cua so CO DINH; khong co = TU CANH)  .lt_dung_lai (4)  .lt_the_moi  .lt_lich_su_hl  .lt_yeu_cau_goi ("<so> <epoch>": yeu cau gui goi NGAY)  lt_hl/ (khoa huan luyen, pid)  .lt_hl_nghi (epoch)
 #   w_<pid> co them: lt=1 van= da_goi= phuc_vu= (so yeu cau da phuc vu)
 
 LT_GOI=$TAI/goi
@@ -41,17 +41,20 @@ lt_dung_hieu_luc() { [ -f "$TD_DUNG" ] && [ "$(stat -c %Y "$TD_DUNG" 2>/dev/null
 td_dung_ca() { lt_dung_hieu_luc || [ -f "$TD_DUNG_RIENG" ]; }
 lt_moc() { local n; n=$(cat "$LT_MOC_F" 2>/dev/null); [[ "$n" =~ ^[0-9]+$ ]] && echo $((10#$n)) || echo 0; }
 # ---------------- Cua so huan luyen TU CANH + nguong T4 theo so the ----------------
-# Moi the duoc dung lai bao nhieu lan = so the cua cua so / so the MOI cua mot lan huan luyen. Truoc day cua so la mot so co dinh (625.447), nen so lan dung
-# lai troi theo do dai van va so cua so dang chay (do 24/11: 3,36 lan thay vi 4: van dai 174,5 the thay vi ~156, va moi luot nhan ~1.091 van thay vi 1000
-# vi them cac van lot vao luc gom goi -- phan nay tang theo so cua so; it cua so thi so lan dung lai lai vuot 4). Nay: cua so = LT_DUNG_LAI (mac dinh 4)
-# x TRUNG BINH so the moi cua LT_NHO lan huan luyen gan nhat (ghi o .lt_the_moi), kep trong [LT_THE_MIN, LT_THE_MAX]. Mot so >= 100000 trong .lt_cua_so_the
+# Moi the duoc dung lai bao nhieu lan = so luot huan luyen ma no con nam trong cua so. Cua so TU CANH (chu du an 2026-11-26) = cac goi cua LT_DUNG_LAI
+# (mac dinh 4) luot huan luyen GAN NHAT, ke ca luot dang chay: moi goi nam trong dung 4 luot lien tiep roi bi day ra, nen moi the hoc DUNG 4 lan bat
+# ke so cua so dang chay (quyet dinh so van choi them trong luc mot cua so dang huan luyen), do dai van hay so van lot vao luc gom goi thay doi dot
+# ngot the nao. Moc giua cac luot (so thu tu goi cuoi luc moi luot bat dau) ghi o .lt_moc_lich_su sau moi luot thanh cong; moc cu hon con thieu (vua
+# chuyen sang cach nay) thi uoc tu .lt_the_moi (fz_tu_dong.py cua_so_luot). Truoc day cua so = 4 x TB the moi 5 luot gan nhat, tre ~5 luot moi bat kip
+# khi so cua so doi. Kep [LT_THE_MIN, LT_THE_MAX] (thieu thi them goi cu hon, thua thi bo goi cu nhat). Mot so >= 100000 trong .lt_cua_so_the
 # (nhap tay o menu w) = cua so CO DINH, bo qua tu canh.
-LT_DUNG_LAI_F=$TD/.lt_dung_lai          # muc tieu so lan dung lai moi the (mac dinh 4; cho phep le 3.5)
+LT_DUNG_LAI_F=$TD/.lt_dung_lai          # muc tieu so lan dung lai moi the (mac dinh 4; cho phep le 3.5 = 3 luot + nua luot thu tu)
 LT_THE_MOI_F=$TD/.lt_the_moi            # so the MOI cua cac lan huan luyen thanh cong gan nhat (moi dong mot so; giu 10 dong)
+LT_MOC_LS_F=$TD/.lt_moc_lich_su         # moc (so thu tu goi) ket thuc du lieu cua moi luot huan luyen thanh cong (moi dong mot so, cu truoc; giu 20 dong)
+LT_MOC_CU=                              # moc hien tai luc luot dang chay bat dau (lt_huan_luyen doi .lt_moc ngay khi gom goi)
 LT_LS_F=$TD/.lt_lich_su_hl              # "<giay gom+tai goi> <giay huan luyen+ve dien thoai> <so the cua so>" cua cac lan huan luyen SACH gan nhat (giu 10 dong)
 LT_THE_MIN=${LT_THE_MIN:-300000}
 LT_THE_MAX=${LT_THE_MAX:-1500000}
-LT_NHO=${LT_NHO:-5}                     # so lan huan luyen gan nhat de lay trung binh the moi
 LT_DU_PHUT=${LT_DU_PHUT:-6}             # nguong T4: phan vi 90% thoi gian cac lan gan nhat + so phut nay
 LT_HL_PHUT_MIN=${LT_HL_PHUT_MIN:-15}    # ...nhung khong bao gio thap hon
 LT_GOM_MAC_DINH=${LT_GOM_MAC_DINH:-240} # giay gom + tai goi khi chua co lich su (do 24/11: 3,4 den 3,8 phut)
@@ -62,30 +65,35 @@ lt_dung_lai10() {
   local r; r=$(cat "$LT_DUNG_LAI_F" 2>/dev/null)
   if [[ "$r" =~ ^([0-9]+)(\.([0-9]))?$ ]]; then echo $(( 10#${BASH_REMATCH[1]} * 10 + 10#${BASH_REMATCH[3]:-0} )); else echo $((LT_GIA_TRI_DUNG_LAI * 10)); fi
 }
-# Uoc tinh so the MOI cua lan huan luyen sap toi: trung binh LT_NHO lan gan nhat; chua du 3 lan thi lay so the TB moi van (tu ten cac goi gan nhat) x so van moi / luot.
-lt_the_moi_uoc() {
-  local -a his; local x s=0 v=0 t=0 f b
-  mapfile -t his < <(tail -n "$LT_NHO" "$LT_THE_MOI_F" 2>/dev/null | grep -E '^[0-9]+$')
-  if [ ${#his[@]} -ge 3 ]; then
-    for x in "${his[@]}"; do s=$((s + 10#$x)); done
-    echo $((s / ${#his[@]})); return
-  fi
-  for f in $(ls -r "$LT_GOI"/goi_*.zip 2>/dev/null | head -60); do
-    b=${f##*/}
-    [[ $b =~ ^goi_[0-9]+_n[0-9]+_([0-9]+)_([0-9]+)\.zip$ ]] || continue
-    v=$((v + 10#${BASH_REMATCH[1]})); t=$((t + 10#${BASH_REMATCH[2]}))
-  done
-  if [ $v -gt 0 ]; then echo $((t * $(td_muc) / v)); else echo $((LT_THE_MAC_DINH / 4)); fi
+# Cua so CO DINH (tep .lt_cua_so_the >= 100000): in so the; khong thi khong in gi (tu canh).
+lt_the_co_dinh() {
+  local n; n=$(cat "$LT_THE_F" 2>/dev/null)
+  [[ "$n" =~ ^[0-9]+$ ]] && [ $((10#$n)) -ge 100000 ] && echo $((10#$n))
 }
-# So the cua cua so huan luyen: co dinh (tep .lt_cua_so_the >= 100000) hoac tu canh.
+# Cac moc giua cac luot, MOI NHAT truoc, cach nhau dau phay: moc hien tai (luc luot dang chay bat dau, hoac .lt_moc) roi cac moc da ghi cu hon no.
+lt_moc_ls() {
+  local m x out
+  m=${LT_MOC_CU:-$(lt_moc)}; out=$m
+  while read -r x; do
+    [[ "$x" =~ ^[0-9]+$ ]] && [ $((10#$x)) -lt "$m" ] && out="$out,$((10#$x))"
+  done < <(tac "$LT_MOC_LS_F" 2>/dev/null)
+  echo "$out"
+}
+# So the moi cua cac luot gan nhat, MOI NHAT truoc ('-' = chua co).
+lt_the_ls() { local s; s=$(tac "$LT_THE_MOI_F" 2>/dev/null | grep -E '^[0-9]+$' | paste -sd, -); echo "${s:--}"; }
+# Ghi moc ket thuc du lieu cua mot luot THANH CONG (giu 20 dong, tang dan).
+lt_moc_ls_ghi() { { tail -n 19 "$LT_MOC_LS_F" 2>/dev/null | grep -E '^[0-9]+$' | awk -v m="$1" '$1 < m'; echo "$1"; } > "$LT_MOC_LS_F.t" && mv "$LT_MOC_LS_F.t" "$LT_MOC_LS_F"; }
+# fz_tu_dong.py cua_so_luot voi tham so hien tai; $1 = so van dang cho gui (chi dung khi uoc), $2 = moc tren (goi cuoi cua luot nay; '-' = moi goi),
+# $3 = --dem hoac rong.
+lt_cua_so_luot() {
+  python ~/fz_tu_dong.py cua_so_luot "$TAI" "$(lt_dung_lai10)" "$LT_THE_MIN" "$LT_THE_MAX" "$(td_muc)" "${1:-0}" "$(lt_moc_ls)" "$(lt_the_ls)" "${2:--}" ${3:+"$3"}
+}
+# So the cua cua so huan luyen: co dinh, hoac UOC cua so tu canh neu huan luyen ngay bay gio (goi da co + van dang cho gui o cac may).
 lt_the() {
-  local n the
-  n=$(cat "$LT_THE_F" 2>/dev/null)
-  if [[ "$n" =~ ^[0-9]+$ ]] && [ $((10#$n)) -ge 100000 ]; then echo $((10#$n)); return; fi
-  the=$(( $(lt_the_moi_uoc) * $(lt_dung_lai10) / 10 ))
-  [ $the -lt "$LT_THE_MIN" ] && the=$LT_THE_MIN
-  [ $the -gt "$LT_THE_MAX" ] && the=$LT_THE_MAX
-  echo $the
+  local n
+  n=$(lt_the_co_dinh); [ -n "$n" ] && { echo "$n"; return; }
+  n=$(lt_cua_so_luot "$(lt_van_cho_gui)" - --dem | sed -n 's/^FZ_CUA_SO_UOC //p')
+  [[ "$n" =~ ^[0-9]+$ ]] && echo "$n" || echo "$LT_THE_MAC_DINH"
 }
 # Giay T4 can con khi lay khoa huan luyen voi cua so $1 the: phan vi 90% (hang gan nhat) cua [giay gom + giay huan luyen quy theo $1 the] qua cac lan sach gan nhat
 # (huan luyen ti le voi so the), cong LT_DU_PHUT phut; chua du 3 lan thi dung gia tri do duoc (LT_GOM_MAC_DINH, LT_HL_GIAY_NGHIN_THE). Khong thap hon LT_HL_PHUT_MIN.
@@ -151,7 +159,7 @@ lt_hl_lay() {
   mkdir "$LT_HL" 2>/dev/null || return 1
   echo $$ > "$LT_HL/pid"
 }
-lt_hl_tra() { [ "$(cat "$LT_HL/pid" 2>/dev/null)" = $$ ] && rm -rf "$LT_HL"; return 0; }
+lt_hl_tra() { LT_MOC_CU=; [ "$(cat "$LT_HL/pid" 2>/dev/null)" = $$ ] && rm -rf "$LT_HL"; return 0; }
 # Co nen huan luyen luot moi (khong dung toi may; chi doc tep tren dien thoai)? 0 = co.
 lt_hl_den_luot() {
   local moc van the seq nghi
@@ -492,13 +500,23 @@ lt_len_goi() {
 }
 # Tai len may cac goi cua cua so huan luyen ma may chua co; xoa goi thua. In danh sach (cach nhau dau phay) ra bien LT_DATA.
 lt_len_cua_so() {
-  local the ds ten tong
-  the=${LT_THE_HL:-$(lt_the)}                  # cua so da chot luc lay khoa huan luyen (tu canh doi theo lich su, khong de doi giua chung)
-  ds=$(python ~/fz_tu_dong.py cua_so "$TAI" "$the")
-  tong=$(grep '^FZ_CUA_SO' <<<"$ds")
+  local the ds ten tong cach
+  the=$(lt_the_co_dinh)
+  if [ -n "$the" ]; then
+    ds=$(python ~/fz_tu_dong.py cua_so "$TAI" "$the")
+  else
+    ds=$(lt_cua_so_luot 0 "$(lt_moc)")   # goi cua 4 luot gan nhat; luot nay = goi (LT_MOC_CU, .lt_moc moi] (goi den sau luc gom: luot sau)
+  fi
+  tong=$(grep '^FZ_CUA_SO ' <<<"$ds")
+  cach=$(sed -n 's/^FZ_CUA_SO_CACH //p' <<<"$ds")
   mapfile -t ten < <(sed -n 's/^GOI //p' <<<"$ds")
   if [ ${#ten[@]} -eq 0 ]; then td_in "${M_DO}[!] chưa có gói ván nào cho cửa sổ huấn luyện${M_HET}"; return 1; fi
-  td_in "cửa sổ huấn luyện: ${tong#FZ_CUA_SO } (gói, ván, thế, mạng nhỏ nhất-lớn nhất)"
+  LT_THE_HL=$(cut -d' ' -f4 <<<"$tong")       # so the THAT cua cua so (nhat ky, nguong T4 cac lan sau, don goi)
+  case $cach in
+    luot*) cach=" · gói của $(cut -d' ' -f2 <<<"$cach") lượt gần nhất (mốc dưới $(cut -d' ' -f3 <<<"$cach"))" ;;
+    uoc) cach=" · chưa đủ mốc các lượt: ước theo số thế mới" ;;
+  esac
+  td_in "cửa sổ huấn luyện: ${tong#FZ_CUA_SO } (gói, ván, thế, mạng nhỏ nhất-lớn nhất)$cach"
   lt_len_goi "${ten[@]}" || { td_in "${M_VANG}[!] chưa tải đủ gói lên máy${M_HET}"; return 1; }
   ssh_colab "cd /content/goi && for f in *.zip; do case ' ${ten[*]} ' in *\" \$f \"*) ;; *) rm -f \"\$f\" ;; esac; done" >/dev/null 2>&1
   LT_DATA=$(printf '/content/goi/%s,' "${ten[@]}"); LT_DATA=${LT_DATA%,}
@@ -565,7 +583,7 @@ lt_huan_luyen() {
   local g n yc t0 w cho moc_cu seq van the h rc loi=0 f hl loi_len=0 bu_nghi=0 need t_khoa t_07 t_xong mv mt ms the_moi=0 sach=1 mang_len=0
   g=$(td_gen); n=$((g + 1))
   lt_hl_lay || return 0
-  moc_cu=$(lt_moc)
+  moc_cu=$(lt_moc); LT_MOC_CU=$moc_cu
   # Du dieu kien that khong (cua so khac vua lay khoa roi tra)? May nay con du T4 cho cua so huan luyen nay khong (lt_can_giay: phan vi 90% thoi gian cac lan
   # gan nhat quy theo so the cua so + LT_DU_PHUT phut)?
   if ! lt_hl_den_luot_khoa; then lt_hl_tra; return 0; fi
@@ -655,6 +673,7 @@ lt_huan_luyen() {
   # Mang da ve dien thoai: ghi lan huan luyen THANH CONG (the moi de canh cua so, thoi gian de tinh nguong T4 cho cac lan sau).
   t_xong=$SECONDS
   lt_ghi_lich_su "$((t_07 - t_khoa))" "$((t_xong - t_07))" "$LT_THE_HL" "$the_moi" "$sach"
+  lt_moc_ls_ghi "$seq"                         # du lieu luot nay = goi (moc_cu, seq]: moc cho cua so 4 luot cua cac lan sau
   [ $mang_len = 1 ] || td_len_github "$n" || { lt_hl_tra; TD_VAI=; return 0; }      # mang_len = 1: may Colab da dua len Release roi
   td_len_doi "$g" "$n"
   [ "$(td_gen)" = "$n" ] && td_don_dep "$n"
@@ -783,9 +802,9 @@ lt_bat_dau() {
   if [[ "$n_cs" =~ ^[0-9]+$ ]] && [ $((10#$n_cs)) -ge 100000 ]; then
     echo "Cửa sổ huấn luyện hiện: ${M_DAM}CỐ ĐỊNH $((10#$n_cs)) thế${M_HET}"
   else
-    echo "Cửa sổ huấn luyện hiện: ${M_DAM}TỰ CANH${M_HET} = $(( $(lt_dung_lai10) / 10 )),$(( $(lt_dung_lai10) % 10 )) lần số thế mới của mỗi lượt ≈ $(lt_the) thế"
+    echo "Cửa sổ huấn luyện hiện: ${M_DAM}TỰ CANH${M_HET} = gói của $(( $(lt_dung_lai10) / 10 )),$(( $(lt_dung_lai10) % 10 )) lượt huấn luyện gần nhất (mỗi thế được học đúng chừng đó lần) ≈ $(lt_the) thế nếu học ngay bây giờ"
   fi
-  echo "  Enter = giữ nguyên · số nhỏ hơn 100 (vd 4 hoặc 3.5) = tự canh sao cho mỗi thế được dùng lại chừng đó lần · số từ 100000 = cửa sổ cố định (số thế)"
+  echo "  Enter = giữ nguyên · số nhỏ hơn 100 (vd 4 hoặc 3.5) = tự canh: cửa sổ = gói của chừng đó lượt gần nhất · số từ 100000 = cửa sổ cố định (số thế)"
   read -rp "Cửa sổ huấn luyện: " x
   if [ -n "$x" ]; then
     if [[ "$x" =~ ^[0-9]+$ ]] && [ $((10#$x)) -ge 100000 ]; then lt_ghi_tep "$LT_THE_F" $((10#$x))
