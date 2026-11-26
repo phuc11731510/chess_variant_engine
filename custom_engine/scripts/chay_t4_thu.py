@@ -54,8 +54,31 @@ def chi_so(name):
     return tai_khoan().index(name) + 1
 
 
+def tat_cap_nhat(home):
+    """Tat kiem tra cap nhat cua Colab CLI cho mot HOME tai khoan ("enable_update_check": false trong ~/.config/colab-cli/settings.json, giu cac
+    khoa khac). Chu du an 2026-11-26: khong muon thay loi nhac cap nhat (va KHONG BAO GIO nang cap CLI); goi truoc moi lenh colab nen tai khoan
+    moi cung tu tat. Loi doc / ghi thi bo qua (khong chan lenh)."""
+    p = os.path.join(home, ".config", "colab-cli", "settings.json")
+    try:
+        with open(p, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, ValueError):
+        d = {}
+    if d.get("enable_update_check") is False:
+        return
+    d["enable_update_check"] = False
+    try:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p + ".fz", "w", encoding="utf-8") as f:
+            json.dump(d, f, indent=2)
+        os.replace(p + ".fz", p)
+    except OSError:
+        pass
+
+
 def colab(name, *args, timeout=None, stream=False):
     env = dict(os.environ, HOME=os.path.join(FZ, name))
+    tat_cap_nhat(env["HOME"])
     if stream:
         return subprocess.run([COLAB, *args], env=env, timeout=timeout)
     return subprocess.run([COLAB, *args], env=env, capture_output=True, text=True, timeout=timeout)
