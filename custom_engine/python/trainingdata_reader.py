@@ -243,6 +243,25 @@ def iter_games(games, sparse=False):
             zf.close()
 
 
+def iter_games_grouped(games, sparse=False):
+    """Like iter_games, but yields each game's records as ONE list (in game order), for whatever needs to see a
+    whole game at once (dataset.iter_games_value_per_game). A game is a few hundred records, so the list is small."""
+    zf, zpath = None, None
+    try:
+        for path, member in games:
+            if member is None:
+                yield list(iter_records(path, sparse))
+                continue
+            if path != zpath:
+                if zf is not None:
+                    zf.close()
+                zf, zpath = zipfile.ZipFile(path), path
+            yield list(_iter_member(zf, member, path, sparse))
+    finally:
+        if zf is not None:
+            zf.close()
+
+
 def read_records_from_zip(zip_path):
     """Read all records from a .zip bundle of .gz/.bin games (eager list).
 

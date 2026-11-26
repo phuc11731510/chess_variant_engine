@@ -18,7 +18,7 @@ from torch.utils.data import Dataset
 
 from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_RULE50, BOARD,
                        HISTORY_PLANES, NUM_PLANES, POLICY_SIZE)
-from trainingdata_reader import _iter_member, is_game_member, iter_games, iter_records, reconstruct_planes
+from trainingdata_reader import is_game_member, iter_games, iter_games_grouped, reconstruct_planes
 
 
 def wdl_from_qd(q, d):
@@ -159,29 +159,22 @@ def newest_n_games(games, mtimes, n):
 
 
 def iter_games_value_per_game(games, k, rng, sparse=False):
-    """iter_games, but in each game only `k` positions drawn at random (all of them in a shorter game) keep their
-    value target; the others are marked r["no_value"] = True (FairyDataset then gives them an all-zero W/D/L row,
-    which train.value_loss leaves out). The policy and moves-left targets of every position are kept. Experiment
-    (2026-11-26): the value head memorizes whole games (each has its own random start position and one result)."""
-    zf, zpath = None, None
+    """iter_games, but in each game only `k` positions drawn at random keep their value target (a game of k
+    positions or fewer: all of them); the others are marked r["no_value"] = True, and FairyDataset gives them an
+    all-zero W/D/L row that train.value_loss leaves out. The policy and moves-left targets of every position are
+    kept. Why (owner's decision 2026-11-26, --value-per-game 21 in cell 07): the value head memorized whole games
+    -- every game starts from its own random position and all its positions share one result -- so it now meets
+    each game through fewer positions."""
+    grouped = iter_games_grouped(games, sparse)
     try:
-        for path, member in games:
-            if member is None:
-                recs = list(iter_records(path, sparse))
-            else:
-                if path != zpath:
-                    if zf is not None:
-                        zf.close()
-                    zf, zpath = zipfile.ZipFile(path), path
-                recs = list(_iter_member(zf, member, path, sparse))
+        for recs in grouped:
             keep = set(rng.sample(range(len(recs)), min(k, len(recs))))
             for i, r in enumerate(recs):
                 if i not in keep:
                     r["no_value"] = True
                 yield r
     finally:
-        if zf is not None:
-            zf.close()
+        grouped.close()          # closes an open .zip at once, also when the caller stops early
 
 
 def split_games(games, val_frac, mtimes):

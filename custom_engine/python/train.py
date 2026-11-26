@@ -3,7 +3,9 @@
 Loss = w_p * policy CE + w_v * value WDL CE + w_m * moves-left Huber (lc0), all weights 1; L2 is the
 AdamW weight_decay, not a term of the loss. The policy term is the mean over the positions that HAVE a
 policy target (full search); positions searched with the reduced playout cap (fast_search = 1) train the
-value and moves-left heads only. Value target (qMix, 8.2.1) is mixed in the dataset. SWA (8.2.4)
+value and moves-left heads only. The value term is likewise the mean over the positions that HAVE a value
+target: all of them, or with --value-per-game K only K drawn from each game (the others carry an all-zero
+W/D/L row). Value target (qMix, 8.2.1) is mixed in the dataset. SWA (8.2.4)
 averages the last epochs' weights. Export matches the engine I/O contract exactly (FP32).
 
 Usage:
@@ -59,8 +61,13 @@ def value_loss(logits, target_wdl):
     target was left out) counts for nothing; with every row a distribution (always, without that flag) this is the
     plain mean over the batch."""
     ce = -(target_wdl * F.log_softmax(logits, dim=1)).sum(dim=1)
-    has = (target_wdl.sum(dim=1) > 0.5).to(ce.dtype)
+    has = has_value(target_wdl).to(ce.dtype)
     return (ce * has).sum() / has.sum().clamp(min=1.0)
+
+
+def has_value(target_wdl):
+    """[B] bool: the rows that carry a value target (a W/D/L distribution, not the all-zero 'no target' row)."""
+    return target_wdl.sum(dim=1) > 0.5
 
 
 # lc0 (tfprocess.py moves_left_loss): target and output divided by 20, Huber with delta 10 / 20, mean.
@@ -136,24 +143,26 @@ def update_bn(loader, model, device, channels_last=False):
 
 def evaluate(net, loader, device, use_amp=False, channels_last=False):
     """(policy loss, value loss, moves-left loss): the mean over every POSITION `loader` yields (the policy
-    one over the positions that have a policy target), with the weights fixed (eval mode: no dropout, no
-    gradient). Each position counts once, so the numbers do not depend on the batch size: 9000 positions
-    give the average of their 9000 losses."""
+    one over the positions that have a policy target, the value one over those that have a value target), with
+    the weights fixed (eval mode: no dropout, no gradient). Each position counts once, so the numbers do not
+    depend on the batch size: 9000 positions give the average of their 9000 losses."""
     was_training = net.training
     net.eval()
-    tp = tv = tm = n = n_pol = 0.0
+    tp = tv = tm = n = n_pol = n_val = 0.0
     with torch.no_grad(), torch.autocast(device_type=device, enabled=use_amp):
         for x, pi, val in device_batches(loader, device, channels_last):
             p_logits, v_logits, mlh = net(x)
             wdl, plies, has_policy = split_val(val)
             bs = x.size(0)
+            nv = has_value(wdl).sum().item()
             tp += (policy_ce(p_logits.float(), pi) * has_policy).sum().item()
             n_pol += has_policy.sum().item()
-            tv += value_loss(v_logits.float(), wdl).item() * bs
+            tv += value_loss(v_logits.float(), wdl).item() * nv
+            n_val += nv
             tm += mlh_loss(mlh.float().squeeze(1), plies).item() * bs
             n += bs
     net.train(was_training)
-    return tp / max(n_pol, 1.0), tv / n, tm / n
+    return tp / max(n_pol, 1.0), tv / max(n_val, 1.0), tm / n
 
 
 ONNX_OPSET = 18      # the engine's ONNX Runtime (1.18) understands up to opset 21; 18 has every operator used
@@ -630,7 +639,7 @@ def main():
                     help="cache policy targets sparsely to avoid Colab OOM (8.2.2); default ON")
     ap.add_argument("--dense-cache", dest="sparse_cache", action="store_false",
                     help="cache dense tensors instead (more RAM; the old behavior)")
-    # T8.3 — extra hyperparameters (lczero-training parity).
+    # T8.3 â€” extra hyperparameters (lczero-training parity).
     ap.add_argument("--optimizer", default="adamw", choices=["adamw", "sgd", "nadam"],
                     help="optimizer (lc0 canonical = sgd+momentum)")
     ap.add_argument("--momentum", type=float, default=0.9, help="momentum for --optimizer sgd")
@@ -642,7 +651,7 @@ def main():
     ap.add_argument("--warmup-steps", type=int, default=0, help="linear LR warmup over N optimizer steps")
     ap.add_argument("--lr-values", default="", help="step LR schedule values, comma-separated (overrides --lr)")
     ap.add_argument("--lr-boundaries", default="", help="step LR schedule boundaries, comma-separated")
-    # #5 — more lczero-training-style knobs.
+    # #5 â€” more lczero-training-style knobs.
     ap.add_argument("--dropout", type=float, default=0.0, help="dropout in value head (warm-start safe)")
     ap.add_argument("--accum-steps", type=int, default=1, help="gradient accumulation steps (big effective batch)")
     ap.add_argument("--max-steps", type=int, default=0, help="stop after N optimizer steps (0 = use --epochs)")
@@ -667,9 +676,10 @@ def main():
                          "when a game ended, and how often the side that attacked more won (thong_ke_doi.py). "
                          "A failure only prints a warning")
     ap.add_argument("--value-per-game", type=int, default=0, metavar="K",
-                    help="EXPERIMENT (off = 0): train the value head on only K positions drawn at random from each "
-                         "training game (all positions keep their policy and moves-left targets); the validation / "
-                         "scoring sets are unchanged")
+                    help="train the value head on only K positions drawn at random from each training game, drawn "
+                         "again every run (a game of K positions or fewer: all of them; 0 = every position, the "
+                         "default); the value loss is the mean over the drawn positions. Every position keeps its "
+                         "policy and moves-left targets; the validation / scoring sets are unchanged. Cell 07: 21")
     ap.add_argument("--report-every", type=int, default=0, help="print running loss every N steps (0 = per-epoch)")
     ap.add_argument("--save-every", type=int, default=0, help="export an ONNX checkpoint every N steps (0 = only final)")
     args = ap.parse_args()
@@ -899,7 +909,7 @@ def main():
         if stop:
             break
         net.train()
-        tp = tv = tm = n = n_pol = 0.0
+        tp = tv = tm = n = n_pol = n_val = 0.0
         in_swa = epoch >= swa_start
         for x, pi, val in device_batches(dl, device, cl):
             if use_lr_sched and not in_swa:        # custom schedule controls LR pre-SWA
@@ -914,13 +924,16 @@ def main():
             if guard_x is None:
                 guard_x = x[:FP16_CHECK_POSITIONS].detach().float().cpu().numpy()   # real positions for the export check
             bs = x.size(0)
-            n_has = float(val[:, 4].sum().item())     # positions with a policy target in this batch
-            lp_v, lv_v, lm_v = lp.item(), lv.item(), lm.item()
+            # The three losses and how many positions have a policy / value target, read back in ONE device sync.
+            lp_v, lv_v, lm_v, n_has, n_v = torch.stack([
+                lp.detach().float(), lv.detach().float(), lm.detach().float(),
+                val[:, 4].sum().float(), has_value(val[:, :3]).sum().float()]).tolist()
             if use_amp and not all(math.isfinite(v) for v in (lp_v, lv_v, lm_v)):
                 amp_bad_loss += 1                     # a forward overflow: its gradient is NaN, the scaler skips the step;
             else:                                     # keep the NaN out of the running means
                 tp += lp_v * n_has; n_pol += n_has
-                tv += lv_v * bs; tm += lm_v * bs; n += bs
+                tv += lv_v * n_v; n_val += n_v
+                tm += lm_v * bs; n += bs
             micro += 1
             if micro % accum == 0:                  # one optimizer step per `accum` micro-batches
                 if args.grad_clip > 0:
@@ -945,7 +958,7 @@ def main():
                 if tail_swa and global_step in tail_set:
                     swa_net.update_parameters(net)
                 if args.report_every and global_step % args.report_every == 0:
-                    print(f"  step {global_step:7d}: policy_loss={tp/max(n_pol, 1.0):.4f}  value_loss={tv/max(n, 1.0):.4f}  "
+                    print(f"  step {global_step:7d}: policy_loss={tp/max(n_pol, 1.0):.4f}  value_loss={tv/max(n_val, 1.0):.4f}  "
                           f"mlh_loss={tm/max(n, 1.0):.4f}", flush=True)
                 if args.save_every and global_step % args.save_every == 0:
                     ckpt = f"{os.path.splitext(args.out)[0]}_step{global_step}.pt"
@@ -956,7 +969,7 @@ def main():
         if in_swa:
             swa_net.update_parameters(net)
             swa_sched.step()
-        print(f"  epoch {epoch:3d}: policy_loss={tp/max(n_pol, 1.0):.4f}  value_loss={tv/max(n, 1.0):.4f}  mlh_loss={tm/max(n, 1.0):.4f}")
+        print(f"  epoch {epoch:3d}: policy_loss={tp/max(n_pol, 1.0):.4f}  value_loss={tv/max(n_val, 1.0):.4f}  mlh_loss={tm/max(n, 1.0):.4f}")
         report(f"epoch {epoch}", net)
 
     if int(swa_net.n_averaged) == 0:
