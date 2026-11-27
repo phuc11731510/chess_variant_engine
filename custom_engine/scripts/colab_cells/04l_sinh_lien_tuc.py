@@ -13,7 +13,7 @@ SECS = 15480          # dừng MỀM sau chừng này giây (ván dở chơi n�
 RUN = time.strftime("%m%d%H%M%S")     # mã lần chạy, duy nhất trên một máy
 NET_N = GEN_CURRENT   # đời mạng engine dùng (mạng gen<NET_N>.fzw / .onnx đã có trên máy: ô 02 / python/lay_mang.py)
 GAMES = 1000000       # "mãi mãi": engine dừng vì SECS hoặc tệp dừng, không phải vì đủ ván
-N_THE = 6000          # số thế khởi đầu trong tệp (engine lấy dòng g % N_THE; một lần chạy dài ~1 giờ chơi ~600 ván nên không lặp)
+N_THE = 6000          # số dòng thế khởi đầu trong tệp, CHẴN (engine lấy dòng g % N_THE; một lần chạy dài ~1 giờ chơi ~600 ván nên không lặp)
 PARALLEL = 16         # số ván chơi cùng lúc
 ELO_CAT = 70.44       # loại khỏi lần bốc nước những nước kém nước nhiều lượt thăm nhất quá chừng này Elo (0 = không loại)
 
@@ -45,14 +45,20 @@ print("FZ_ELO_CAT=" + (f"{ELO_CAT}" if co_elo_cat and ELO_CAT > 0 else "khong"))
 if ELO_CAT > 0 and not co_elo_cat:
     print("[!] Binary chưa có --temp-elo-cutoff: sinh dữ liệu KHÔNG loại nước sai. Chạy ô 02 / đưa binary mới lên Release.")
 
-# Tệp thế khởi đầu: mỗi ván một thế ngẫu nhiên (python/sinh_the_khoi_dau.py, luật 2026-11-24), hạt giống ngẫu nhiên mỗi lần chạy.
-!python {E}/python/sinh_the_khoi_dau.py --n {N_THE} --out {BOOK}
+# Tệp thế khởi đầu: thế ngẫu nhiên (python/sinh_the_khoi_dau.py, luật 2026-11-24), hạt giống ngẫu nhiên mỗi lần chạy.
+# Cặp đổi màu (chủ dự án 2026-11-27): mỗi thế khởi đầu dùng cho HAI ván liền nhau, ván sau Trắng lấy cách xếp của Đen và
+# ngược lại (sinh_the_khoi_dau.py --cap-doi-mau): dấu vết khởi đầu của một ván không còn gắn với đúng một kết quả, nên đầu
+# giá trị không học thuộc được kết quả từng ván qua thế khởi đầu. Mã trên máy chưa có cờ thì sinh như cũ (không dừng ván).
+_cap = " --cap-doi-mau" if "--cap-doi-mau" in open(f"{E}/python/sinh_the_khoi_dau.py", encoding="utf-8").read() else ""
+if not _cap:
+    print("[!] python/sinh_the_khoi_dau.py chưa có --cap-doi-mau: mỗi ván một thế khởi đầu như cũ.")
+!python {E}/python/sinh_the_khoi_dau.py --n {N_THE} --out {BOOK}{_cap}
 if not os.path.exists(BOOK) or os.path.getsize(BOOK) == 0:
     raise SystemExit(f"[!] Không sinh được {BOOK} (python/sinh_the_khoi_dau.py lỗi) -- dừng, không sinh ván.")
 
 cmd = f"""bash {E}/run.sh --selfplay \
     --games {GAMES} --max-seconds {SECS} \
-    --visits 800 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 \
+    --visits 800 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.5 --fast-noise-eps 0 \
     --temperature 0.5 --start-fen {BOOK} \
     --parallel {PARALLEL} --provider {_provider} --fixed-batch 64 --batch-aggregate \
     --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 \

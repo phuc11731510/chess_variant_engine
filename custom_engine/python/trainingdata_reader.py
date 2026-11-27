@@ -245,7 +245,7 @@ def iter_games(games, sparse=False):
 
 def iter_games_grouped(games, sparse=False):
     """Like iter_games, but yields each game's records as ONE list (in game order), for whatever needs to see a
-    whole game at once (dataset.iter_games_value_per_game). A game is a few hundred records, so the list is small."""
+    whole game at once (dataset.iter_games_targets). A game is a few hundred records, so the list is small."""
     zf, zpath = None, None
     try:
         for path, member in games:

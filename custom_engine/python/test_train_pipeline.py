@@ -15,6 +15,9 @@ records, and checks what they write (not just that they finish):
      training, after each epoch and for the exported model.
   7. Run seeds: without --seed every run draws its own ten-digit seed and
      prints it; the same --seed repeats a training run weight for weight.
+  8. --value-per-game: K value targets per game, the value loss a mean over them.
+  9. --td-lambda: the TD value target against a direct sum, in the dataset and in train.py.
+ 10. --mirror: the policy permutation against the move decoder, mirror_batch, train.py.
 
 Run:  python test_train_pipeline.py        (~1 minute on a CPU)
 """
@@ -267,6 +270,140 @@ def test_value_per_game(tmp, base):
     check(rc != 0 and "--value-per-game must be >= 0" in out, "--value-per-game -1 is refused")
 
 
+def _td_direct(recs, lam, w):
+    """The TD target written out as the sum of its definition (dataset.td_value_targets computes it otherwise)."""
+    import dataset as D
+    flip = lambda v: v[::-1].copy()
+    out = []
+    for t, rt in enumerate(recs):
+        side = rt["side_to_move"]
+        own = lambda r, v: v if r["side_to_move"] == side else flip(v)
+        g = np.zeros(3)
+        for j in range(t + 1, len(recs)):
+            g += (1 - lam) * lam ** (j - t - 1) * own(recs[j], D.wdl_from_qd(recs[j]["best_q"], recs[j]["best_d"]))
+        last = recs[-1]
+        g += lam ** (len(recs) - 1 - t) * own(last, D.wdl_from_qd(last["result_q"], last["result_d"]))
+        out.append(w * D.wdl_from_qd(rt["result_q"], rt["result_d"]) + (1 - w) * g)
+    return np.array(out)
+
+
+def _td_game(n, seed, draw=False, sides=None):
+    """n synthetic records of one game: random search values, one result seen from each side to move."""
+    rng = np.random.default_rng(seed)
+    sides = sides if sides is not None else [i % 2 for i in range(n)]
+    z_white = 0.0 if draw else (1.0 if rng.random() < 0.5 else -1.0)
+    recs = []
+    for i in range(n):
+        d = float(rng.random() * 0.4)
+        recs.append({"side_to_move": sides[i], "best_q": float(rng.uniform(-1 + d, 1 - d)), "best_d": d,
+                     "result_q": z_white if sides[i] == 0 else -z_white, "result_d": 1.0 if draw else 0.0})
+    return recs
+
+
+def test_td_lambda(tmp, base):
+    """--td-lambda: value target = w * result + (1 - w) * TD(lambda) over the later search values of the game."""
+    import dataset as D
+    worst = 0.0
+    for n in (1, 2, 7, 160, 600):                  # 600 > 512: the kernel matrix has to grow
+        for lam in (0.0, 0.3, 0.8, 1.0):
+            for w in (0.0, 0.5, 1.0):
+                for draw in (False, True):
+                    recs = _td_game(n, seed=n + int(10 * lam), draw=draw)
+                    worst = max(worst, float(np.abs(D.td_value_targets(recs, lam, w) - _td_direct(recs, lam, w)).max()))
+    check(worst < 1e-5, f"td_value_targets = the direct sum of the definition (5 lengths x 4 lambdas x 3 weights x win/draw; "
+                        f"largest gap {worst:.1e})")
+    recs = _td_game(9, seed=3, sides=[0, 1, 1, 0, 1, 0, 0, 1, 0])
+    gap = float(np.abs(D.td_value_targets(recs, 0.7, 0.4) - _td_direct(recs, 0.7, 0.4)).max())
+    check(gap < 1e-5, f"...also when the side to move does not simply alternate (it follows side_to_move; gap {gap:.1e})")
+    recs = _td_game(50, seed=4)
+    z = np.array([D.wdl_from_qd(r["result_q"], r["result_d"]) for r in recs])
+    check(np.allclose(D.td_value_targets(recs, 1.0, 0.0), z, atol=1e-6), "lambda 1: the target is the game result")
+    s_next = np.array([D.wdl_from_qd(r["best_q"], r["best_d"])[::-1] for r in recs[1:]])
+    t0 = D.td_value_targets(recs, 0.0, 0.0)
+    check(np.allclose(t0[:-1], s_next, atol=1e-6) and np.allclose(t0[-1], z[-1], atol=1e-6),
+          "lambda 0: the next position's search value, seen from this side; the last position: the result")
+    t = D.td_value_targets(recs, 0.8, 0.5)
+    check(np.allclose(t.sum(1), 1.0, atol=1e-5) and (t >= -1e-7).all(), "every target is a W/D/L distribution")
+
+    # The dataset: the TD rows are what it hands out, also together with --value-per-game.
+    data = ",".join(os.path.join(tmp, "games", g) for g in ("gen0", "gen1", "gen2"))
+    games = D.list_games(data)
+    want = np.concatenate([D.td_value_targets(recs, 0.8, 0.5) for recs in R.iter_games_grouped(games)])
+    ds = D.FairyDataset(data, q_ratio=0.2, td_lambda=0.8, td_z_weight=0.5)
+    got = np.stack([ds[i][2][:3].numpy() for i in range(len(ds))])
+    check(got.shape == want.shape and np.allclose(got, want, atol=1e-6),
+          f"FairyDataset(td_lambda 0.8): its {len(ds)} value targets are the TD targets of their games")
+    ds_q = D.FairyDataset(data, q_ratio=0.2)
+    check(not np.allclose(np.stack([ds_q[i][2][:3].numpy() for i in range(len(ds_q))]), got),
+          "...and not the qMix ones (the default is unchanged)")
+    ds_k = D.FairyDataset(data, q_ratio=0.2, td_lambda=0.8, td_z_weight=0.5, value_per_game=3, seed=7)
+    rows = np.stack([ds_k[i][2][:3].numpy() for i in range(len(ds_k))])
+    has = rows.sum(1) > 0.5
+    check(int(has.sum()) == 60 * 3 and np.allclose(rows[has], want[has], atol=1e-6),
+          "with --value-per-game 3: 3 positions per game keep a value target, and it is the TD one")
+    try:
+        D.FairyDataset(data, td_lambda=1.5)
+        check(False, "td_lambda 1.5 is refused by FairyDataset")
+    except ValueError:
+        check(True, "td_lambda 1.5 is refused by FairyDataset")
+
+    args = list(base)
+    args[args.index("--data") + 1] = data
+    rc, out = run(args + ["--epochs", "1", "--val-frac", "0", "--td-lambda", "0.8", "--out", os.path.join(tmp, "td.pt")], tmp)
+    check(rc == 0 and "value target 0.5 x result + 0.5 x TD(0.8)" in out, "train.py --td-lambda 0.8 trains and says so")
+    rc, out = run(args + ["--epochs", "1", "--td-lambda", "1.5", "--out", os.path.join(tmp, "td2.pt")], tmp)
+    check(rc != 0 and "--td-lambda and --td-z-weight must be in [0, 1]" in out, "--td-lambda 1.5 is refused")
+
+
+def test_mirror(tmp, base):
+    """--mirror: the policy slot permutation, mirror_batch, and train.py."""
+    import dataset as D
+    import xem_du_lieu as X
+    perm = D.MIRROR_POLICY
+    check(np.array_equal(np.sort(perm), np.arange(R.POLICY_SIZE)) and np.array_equal(perm[perm], np.arange(R.POLICY_SIZE)),
+          "the policy permutation is a permutation and its own inverse")
+    import re
+    flip_file = lambda u: re.sub(r"([a-j])(\d+)", lambda m: chr(ord("a") + ord("j") - ord(m.group(1))) + m.group(2), u)
+    bad = seen = 0
+    for den in (False, True):
+        for i in range(R.POLICY_SIZE):
+            try:
+                mv = X.nuoc_tu_chi_so(i, den)
+            except ValueError:                     # the slot's target is off the board: so is its mirror's
+                try:
+                    X.nuoc_tu_chi_so(int(perm[i]), den)
+                    bad += 1
+                except ValueError:
+                    pass
+                continue
+            seen += 1
+            bad += X.nuoc_tu_chi_so(int(perm[i]), den) != flip_file(mv)
+    check(bad == 0 and seen > 0, f"every slot goes to the slot of the mirrored move, for White and for Black "
+                                 f"({seen} on-board slots, {bad} wrong)")
+    g = torch.Generator().manual_seed(5)
+    x = torch.rand(6, R.NUM_PLANES, 10, 10, generator=g)
+    pi = torch.rand(6, R.POLICY_SIZE, generator=g)
+    flip = torch.tensor([True, False, True, True, False, False])
+    mx, mpi = D.mirror_batch(x, pi, flip)
+    pt = torch.from_numpy(perm)
+    ok = all(torch.equal(mx[b], x[b].flip(-1)) and torch.equal(mpi[b], pi[b][pt]) if flip[b] else
+             torch.equal(mx[b], x[b]) and torch.equal(mpi[b], pi[b]) for b in range(6))
+    back = D.mirror_batch(mx, mpi, flip)
+    check(ok and torch.equal(back[0], x) and torch.equal(back[1], pi),
+          "mirror_batch flips exactly the chosen rows (planes along the files, policy by the permutation); twice = no-op")
+
+    args = list(base)
+    data = ",".join(os.path.join(tmp, "games", g) for g in ("gen0", "gen1", "gen2"))
+    args[args.index("--data") + 1] = data
+    outs = [os.path.join(tmp, f"mir{k}.pt") for k in range(3)]
+    rc1, out1 = run(args + ["--epochs", "1", "--val-frac", "0", "--mirror", "--seed", "11", "--out", outs[0]], tmp)
+    rc2, _ = run(args + ["--epochs", "1", "--val-frac", "0", "--mirror", "--seed", "11", "--out", outs[1]], tmp)
+    rc3, _ = run(args + ["--epochs", "1", "--val-frac", "0", "--seed", "11", "--out", outs[2]], tmp)
+    check(rc1 == rc2 == rc3 == 0 and "mirror: every training position flipped" in out1, "train.py --mirror trains and says so")
+    check(same_weights(outs[0], outs[1]) and not same_weights(outs[0], outs[2]),
+          "the same --seed repeats a --mirror run weight for weight, and the flips do change the training")
+
+
 def test_tail_swa(tmp, base):
     """Tail SWA averages (equal weights) the weights at the LAST optimizer step and every K steps back from it,
     at most N snapshots, none before step 1. The data is 192 records at --batch 32: 6 optimizer steps per epoch."""
@@ -388,6 +525,12 @@ def main():
 
         print("\n[8] --value-per-game")
         test_value_per_game(tmp, base)
+
+        print("\n[9] --td-lambda")
+        test_td_lambda(tmp, base)
+
+        print("\n[10] --mirror")
+        test_mirror(tmp, base)
 
     print("\n" + "=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")

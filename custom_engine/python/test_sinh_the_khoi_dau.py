@@ -201,6 +201,28 @@ def test_hai_ben_doc_lap():
     assert khac > 395          # hai bên hầu như luôn xếp khác nhau (không đối xứng)
 
 
+
+def test_cap_doi_mau():
+    """--cap-doi-mau: dòng 2k + 1 là dòng 2k đổi màu (Trắng lấy cách xếp của Đen và ngược lại), vẫn đạt tiêu chí; số dòng lẻ bị từ chối."""
+    rng = random.Random(21)
+    dong = g.sinh_dong(40, rng, cap_doi_mau=True)
+    assert len(dong) == 40
+    for a, b in zip(dong[0::2], dong[1::2]):
+        ba, bb = orc.from_fen(a), orc.from_fen(b)
+        # (B, A) = (A, B) lật hàng và đổi màu quân: ô hàng r cột c của thế sau = ô hàng 9 - r cùng cột của thế trước, đổi dấu
+        assert all(bb[s] == -ba[g.mirror_sq(s)] for s in range(100))
+        w = g.Ben(0, tuple(bb[f] for f in range(10)), tuple(bb[10 + f] for f in range(10)))
+        k = g.Ben(0, tuple(-bb[90 + f] for f in range(10)), tuple(-bb[80 + f] for f in range(10)))
+        assert g.hop_le_ben(w) and g.hop_le_ben(k)
+    assert len(set(dong[0::2])) == 20                            # các cặp khác nhau
+    assert g.sinh_dong(5, random.Random(1)) and len(g.sinh_dong(5, random.Random(1))) == 5
+    try:
+        g.sinh_dong(5, rng, cap_doi_mau=True)
+        assert False, "số dòng lẻ phải bị từ chối"
+    except ValueError:
+        pass
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

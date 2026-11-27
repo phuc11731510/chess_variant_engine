@@ -77,11 +77,11 @@ gpu)
   ;;
 selfplay)
   check_gpu || { echo "[fz] VM khong co GPU -- dung lai."; exit 1; }
-  # Thế khởi đầu ngẫu nhiên (một thế mỗi ván) + PUCT với PCR: 50% nước tìm nông 200 lượt (c_puct 1,25,
-  # nhiễu 0,125), còn lại 800 lượt (c_puct 1,5, nhiễu 0,25); mọi nước chọn theo N^(1/T), T = 0,5.
-  echo "!python $E/python/sinh_the_khoi_dau.py --n 1000 --out /content/the_khoi_dau_gen$GEN.txt" | rx
+  # Thế khởi đầu ngẫu nhiên, mỗi thế hai ván (ván sau đổi màu: --cap-doi-mau) + PUCT với PCR: 50% nước tìm nông 200 lượt
+  # (c_puct 1,5, không nhiễu), còn lại 800 lượt (c_puct 1,5, nhiễu 0,25); mọi nước chọn theo N^(1/T), T = 0,5.
+  echo "!python $E/python/sinh_the_khoi_dau.py --n 1000 --cap-doi-mau --out /content/the_khoi_dau_gen$GEN.txt" | rx
   echo "!nohup bash $E/run.sh --selfplay --games 1000 --max-seconds ${SECS:-15480} \
---visits 800 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 \
+--visits 800 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.5 --fast-noise-eps 0 \
 --temperature 0.5 --start-fen /content/the_khoi_dau_gen$GEN.txt --parallel 4 --provider cuda --fixed-batch 16 \
 --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 \
 --weights /content/gen$GEN.onnx --out /content/games_gen$GEN > /content/selfplay.log 2>&1 &" | rx
