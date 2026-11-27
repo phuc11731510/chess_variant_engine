@@ -166,6 +166,11 @@ neural_sources = files(
   'src/lczero_chess/neural/zero_heap_cache.cc',
   'src/lczero_chess/neural/batching_backend.cc'
 )
+# Android: GPU backend (TFLite + GPU delegate, libraries dlopened at run time; the app ships them).
+if host_machine.system() == 'android'
+  neural_sources += files('src/lczero_chess/neural/tflite_backend.cc')
+  add_project_arguments('-DUSE_TFLITE', language: 'cpp')
+endif
 
 # Training data (self-play) source files
 trainingdata_sources = files(

@@ -312,7 +312,21 @@ trình (`libfairyzero.so` + `libonnxruntime.so` 1.18), không cần máy tính.
   KHÔNG nhiễu; "Tìm thêm" cộng lượt vào cùng cây (ReuseTree). Xem cây: lệnh engine `tree <đường đi>` trả các con của một nút
   (N, P, Q, D), chạm một nước để đi xuống, đường dẫn phía trên để quay lên, bàn cờ nhỏ hiện thế của nút. Ở tầng gốc, cột
   "%N ghi" = tỉ lệ lượt thăm trong dữ liệu huấn luyện ở cùng thế, dòng tô vàng = nước ván đã đi.
-- **Tốc độ** (SM-X110, Helio G99, mạng 10 lớp d 192, đo bằng `custom_engine --bench-nn --bench-batches 1,16` qua adb): ORT CPU
-  4 luồng và XNNPACK đều ~15–20 thế / giây; NNAPI (GPU / APU qua trình điều khiển MediaTek; fp32, fp16, cấm CPU tham chiếu)
-  chỉ ~3,8 thế / giây ở lô 1, 6,8 ở lô 8. App dùng ORT CPU: 800 lượt ~45 giây, 8000 lượt ~7 phút. Engine nhận thêm
-  `--provider xnnpack|nnapi`, `--nnapi-opt fp16=1|cpu_disabled=1|cpu_only=1` (UCI `Provider`: `xnnpack`, `nnapi`, `nnapi-fp16`).
+- **GPU (2026-11-27).** App chạy mạng trên GPU (TFLite / LiteRT 1.4.2 + GPU delegate qua OpenCL, FP16, lô 16), không được thì
+  tự lùi về CPU (ONNX Runtime); tiêu đề màn Phân tích và nút mạng ghi `GPU` / `CPU`. Mạng GPU `gen<N>/gpu_b16.tflite` (~22 MB)
+  tạo lúc tải, hoặc lần dùng đầu tiên với mạng tải trước đó, từ `trong_so.bin` (không cần `.pt`): khung
+  `assets/mang/khung_gpu_b16.tflite` (trọng số để 0) + `assets/mang/bang_ghep_gpu_b16.json` (mỗi chỗ ghép = một tensor qua phép
+  `id` / `T` / `relb`), dựng bằng `custom_engine/python/khung_gpu.py dung --kiem <mạng thật>` trong môi trường có tensorflow +
+  onnx2tf + ai-edge-litert + onnxruntime (không cần torch); `khung_gpu.py va` vá như app để thử bằng adb. Đồ thị GPU khác khung
+  ONNX ở hai chỗ: chỉ tensor <= 4 chiều, không Gather (GPU delegate từ chối, cả attention rơi về CPU), và LayerNorm viết tay
+  chia x cho 32 trước khi bình phương (dòng dư lệch tới ~625, bình phương tràn FP16: prior ra gần đều nhau). Engine:
+  `src/lczero_chess/neural/tflite_backend.cc` (chỉ bản Android, dlopen `libtensorflowlite_jni.so` + `libtensorflowlite_gpu_jni.so`
+  từ gói Maven `com.google.ai.edge.litert:litert(-gpu):1.4.2`; LiteRT 2.x không còn GPU delegate cổ điển), `provider=gpu`.
+  Manifest khai `uses-native-library libOpenCL.so` (Android 12+). Kiểm: `flutter test test/doi_pt_test.dart` với `FZ_GPU_REF`
+  (giống từng byte `khung_gpu.py va`).
+- **Tốc độ** (SM-X110, Helio G99, mạng 10 lớp d 192). MCTS 800 lượt: GPU ~66–72 lượt / giây (~12 giây), CPU ~19 (~42 giây),
+  tức GPU ~3,5 lần. Thuần mạng (`benchmark_model` của TFLite / `custom_engine --bench-nn --bench-batches 1,16` qua adb): GPU
+  FP16 lô 1 / 8 / 16 / 32 = 28 / 73 / 80 / 81 thế / giây (GPU FP32 lô 16: 33); ORT CPU 4 luồng ≈ XNNPACK ≈ 15–20; NNAPI (GPU /
+  APU qua trình điều khiển MediaTek; fp32, fp16, cấm CPU tham chiếu) chỉ ~3,8 ở lô 1. GPU và CPU ra cùng nước, cùng biến chính;
+  Q lệch ~0,003, prior lệch ~0,001 (FP16, như tự đấu trên T4). Engine nhận thêm `--provider xnnpack|nnapi`,
+  `--nnapi-opt fp16=1|cpu_disabled=1|cpu_only=1` (UCI `Provider`: `xnnpack`, `nnapi`, `nnapi-fp16`, `gpu`).

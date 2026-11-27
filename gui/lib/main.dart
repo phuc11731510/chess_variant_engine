@@ -289,7 +289,7 @@ class _BoardScreenState extends State<BoardScreen> {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.memory, size: 18, color: Colors.white70),
           const SizedBox(width: 2),
-          Text(ctl.netGen == null ? 'chưa có mạng' : 'gen${ctl.netGen}',
+          Text(ctl.netGen == null ? 'chưa có mạng' : 'gen${ctl.netGen}${ctl.dangDung == null ? '' : ' · ${ctl.dangDung}'}',
               style: const TextStyle(color: Colors.white70, fontSize: 13)),
         ]),
       ),

@@ -9,6 +9,10 @@
         android:allowBackup="false"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- GPU delegate của TFLite dùng OpenCL của hãng chip (Android 12+ chỉ cho app mở thư viện hệ thống đã khai báo). -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false"/>
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false"/>
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

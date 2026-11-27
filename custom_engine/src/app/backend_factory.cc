@@ -47,6 +47,9 @@
 #ifdef USE_FZCUDA
 #include "neural/fz/fzcuda_backend.h"
 #endif
+#ifdef USE_TFLITE
+#include "neural/tflite_backend.h"
+#endif
 #include "utils/exception.h"
 #include "neural/zero_heap_cache.h"
 #include "utils/random.h"
@@ -58,17 +61,26 @@ using namespace Stockfish;
 
 
 namespace {
-bool WantsFzCuda(const lczero::OptionsDict& opts) {
+bool WantsProvider(const lczero::OptionsDict& opts, const std::string& provider) {
     const std::string bopts = opts.GetOrDefault<std::string>(lczero::SharedBackendParams::kBackendOptionsId, "");
     std::istringstream in(bopts);
     for (std::string kv; std::getline(in, kv, ',');)
-        if (kv == "provider=fzcuda") return true;
+        if (kv == "provider=" + provider) return true;
     return false;
 }
 }  // namespace
 
 std::unique_ptr<lczero::Backend> make_network_backend(const lczero::OptionsDict& opts) {
-    if (WantsFzCuda(opts)) {
+    if (WantsProvider(opts, "gpu")) {   // Android GPU: TFLite + GPU delegate, weights = a .tflite of python/khung_gpu.py
+#ifdef USE_TFLITE
+        auto raw = std::make_unique<lczero::TfliteBackend>();
+        raw->UpdateConfiguration(opts);
+        return raw;
+#else
+        throw lczero::Exception("provider gpu: only the Android build has the TFLite GPU backend");
+#endif
+    }
+    if (WantsProvider(opts, "fzcuda")) {
 #ifdef USE_FZCUDA
         auto raw = std::make_unique<lczero::FzCudaBackend>();
         raw->UpdateConfiguration(opts);

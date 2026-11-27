@@ -153,7 +153,8 @@ class _PhanTichScreenState extends State<PhanTichScreen> {
       backgroundColor: const Color(0xFF302E2B),
       appBar: AppBar(
         backgroundColor: const Color(0xFF262421),
-        title: Text('Phân tích · gen${widget.pt.gen}', style: const TextStyle(fontSize: 17)),
+        title: Text('Phân tích · gen${widget.pt.gen}${widget.pt.dangDung == null ? '' : ' · ${widget.pt.dangDung}'}',
+            style: const TextStyle(fontSize: 17)),
       ),
       body: LayoutBuilder(builder: (context, c) {
         final wide = c.maxWidth > c.maxHeight && c.maxWidth >= 700;
@@ -181,6 +182,12 @@ class _PhanTichScreenState extends State<PhanTichScreen> {
                 ),
               ),
             if (_busy) const Padding(padding: EdgeInsets.only(top: 6), child: LinearProgressIndicator()),
+            if (widget.pt.loiGpu != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text('Không dùng được GPU, đang chạy bằng CPU: ${widget.pt.loiGpu}',
+                    style: const TextStyle(color: Colors.orangeAccent, fontSize: 12)),
+              ),
             if (_error != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_error!, style: const TextStyle(color: Colors.orangeAccent))),
             const SizedBox(height: 10),
             if (node != null) ...[

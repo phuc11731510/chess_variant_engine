@@ -25,7 +25,6 @@ import onnx
 from onnx import TensorProto, helper
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from model import FairyNet, _relative_index  # noqa: E402
 from nn_layout import NUM_PLANES, POLICY_SIZE, SQUARES  # noqa: E402
 
 OPSET = 18                      # như train.ONNX_OPSET: ONNX Runtime 1.18 của app hiểu tới opset 21
@@ -84,6 +83,7 @@ class _Do:
 
 
 def dung_do_thi(d_model=192, layers=10, heads=6):
+    from model import FairyNet, _relative_index   # torch chỉ cần lúc dựng (khung_gpu.py dùng _Do mà không cần torch)
     net = FairyNet(d_model=d_model, layers=layers, heads=heads)
     bang, tong = bang_tensor(net)
     dh = d_model // heads
@@ -171,6 +171,7 @@ def main():
     import torch
     import onnxruntime as ort
     from train import check_inputs
+    from model import FairyNet
     with open(os.path.join(args.khung, "bang_ghep.json"), encoding="utf-8") as f:
         ghep = json.load(f)
     out = args.thu_muc or os.path.splitext(args.pt)[0] + "_khung"
