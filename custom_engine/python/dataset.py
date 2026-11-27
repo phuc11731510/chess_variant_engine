@@ -1,8 +1,10 @@
 """Dataset for FairyZero training: game files (.xz v6, .gz, .bin) -> (input, pi, value_wdl).
 
-Applies the qMix value target (8.2.1): target = q_ratio*q_wdl + (1-q_ratio)*z_wdl,
-and optional position down-sampling (8.2.3). For small datasets the dense tensors
-are cached in RAM (fast epochs); for large-scale training use a streaming reader.
+Value target: by default the qMix (8.2.1), target = q_ratio*q_wdl + (1-q_ratio)*z_wdl; with td_lambda the
+mix of the game result and a TD(lambda) return over the later search values of the game (td_value_targets).
+Optional position down-sampling (8.2.3). For small datasets the dense tensors are cached in RAM (fast
+epochs); for large-scale training use a streaming reader. mirror_batch flips a batch left-right (the rules
+have no castling, so a position and its a<->j mirror image are equivalent).
 """
 
 import glob
@@ -16,8 +18,9 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_RULE50, BOARD,
-                       HISTORY_PLANES, NUM_PLANES, POLICY_SIZE)
+from nn_layout import (AUX_BASE, AUX_CHECKS_THEM, AUX_CHECKS_US, AUX_EN_PASSANT, AUX_RULE50, BOARD, CAMEL_BASE,
+                       HISTORY_PLANES, KNIGHT_BASE, MOVE_TYPES, NUM_PLANES, POLICY_SIZE, PROMOTION_BASE,
+                       PROMOTION_DIRECTIONS, SLIDE_TYPES, SQUARES)
 from trainingdata_reader import is_game_member, iter_games, iter_games_grouped, reconstruct_planes
 
 
@@ -32,6 +35,21 @@ def wdl_from_qd(q, d):
     if s <= 1e-8:
         return np.array([0.0, 1.0, 0.0], dtype=np.float32)
     return np.array([w / s, d / s, l / s], dtype=np.float32)
+
+
+def wdl_from_qd_many(q, d):
+    """wdl_from_qd for arrays: (q[N], d[N]) -> [N, 3] float64, the same clamping and normalization (a row with
+    nothing left after clamping is a draw)."""
+    q = np.asarray(q, dtype=np.float64)
+    d = np.clip(np.asarray(d, dtype=np.float64), 0.0, 1.0)
+    w = np.clip((q + 1.0 - d) / 2.0, 0.0, 1.0)
+    l = np.clip((1.0 - d - q) / 2.0, 0.0, 1.0)
+    out = np.stack([w, d, l], axis=1)
+    tot = out.sum(axis=1, keepdims=True)
+    empty = tot[:, 0] <= 1e-8
+    out = out / np.where(tot > 1e-8, tot, 1.0)
+    out[empty] = (0.0, 1.0, 0.0)
+    return out
 
 
 # Records before training-data version 2 stored the search values root_q /
@@ -158,21 +176,69 @@ def newest_n_games(games, mtimes, n):
     return [g for i, g in enumerate(games) if i in keep]
 
 
-def iter_games_value_per_game(games, k, rng, sparse=False):
-    """iter_games, but in each game only `k` positions drawn at random keep their value target (a game of k
-    positions or fewer: all of them); the others are marked r["no_value"] = True, and FairyDataset gives them an
-    all-zero W/D/L row that train.value_loss leaves out. The policy and moves-left targets of every position are
-    kept. Why (owner's decision 2026-11-26, --value-per-game 21 in cell 07): the value head memorized whole games
-    -- every game starts from its own random position and all its positions share one result -- so it now meets
-    each game through fewer positions."""
+_TD_KERNELS = {}      # lambda -> the TD weight matrix of the longest game seen so far (td_value_targets)
+
+
+def _td_kernel(lam, n):
+    """K[t, j] = (1 - lam) * lam ** (j - t - 1) for j > t, else 0: the weight of the search value of position j
+    in the TD(lam) return of position t (top-left n x n block of one matrix per lambda, grown when needed)."""
+    k = _TD_KERNELS.get(lam)
+    if k is None or k.shape[0] < n:
+        size = max(n, 512 if k is None else 2 * k.shape[0])
+        gap = np.arange(size)[None, :] - np.arange(size)[:, None] - 1          # j - t - 1
+        k = np.where(gap >= 0, (1.0 - lam) * np.power(lam, np.maximum(gap, 0)), 0.0)
+        _TD_KERNELS[lam] = k
+    return k[:n, :n]
+
+
+def td_value_targets(recs, lam, z_weight):
+    """W/D/L value targets [len(recs), 3] (float32) of ONE game's records, in game order, each from its own side to
+    move: z_weight * the game result + (1 - z_weight) * the TD(lam) return
+
+        G_t = sum_{j > t} (1 - lam) * lam^(j - t - 1) * s_j  +  lam^(L - 1 - t) * z
+
+    s_j = the search value of position j (best_q / best_d, as the qMix uses) and z = the game result, both seen
+    from the side to move at t (W and L swap at every position whose side to move differs from t's). The last
+    position's return is z; lam = 1 gives z everywhere, lam = 0 the next position's search value. Computed in the
+    frame of the first position (one matrix product), then turned back to each position's own side."""
+    n = len(recs)
+    s = wdl_from_qd_many([search_q(r) for r in recs], [r["best_d"] for r in recs])
+    z = wdl_from_qd_many([r["result_q"] for r in recs], [r["result_d"] for r in recs])
+    other = np.fromiter((r["side_to_move"] != recs[0]["side_to_move"] for r in recs), dtype=bool, count=n)[:, None]
+
+    def to_first(a):                      # swaps W and L where the side to move differs: its own inverse
+        return np.where(other, a[:, ::-1], a)
+
+    tail = np.power(lam, np.arange(n - 1, -1, -1, dtype=np.float64))[:, None]
+    g = _td_kernel(lam, n) @ to_first(s) + tail * to_first(z)[-1]
+    return (z_weight * z + (1.0 - z_weight) * to_first(g)).astype(np.float32)
+
+
+def iter_games_targets(games, rng, sparse=False, value_per_game=0, td=None):
+    """iter_games with the per-GAME work of the value target done on each whole game:
+
+      * td = (lam, z_weight): every record gets r["td_wdl"] = its td_value_targets row (the value target the
+        dataset then uses instead of the qMix);
+      * value_per_game = k > 0: only k positions drawn at random keep their value target (a game of k positions or
+        fewer: all of them); the others are marked r["no_value"] = True, FairyDataset gives them an all-zero W/D/L
+        row that train.value_loss leaves out. The policy and moves-left targets of every position are kept.
+
+    Why value_per_game (owner's decision 2026-11-26, cell 07: 21): the value head memorized whole games -- every
+    game starts from its own random position and all its positions share one result -- so it meets each game
+    through fewer positions. Why td (2026-11-27): a target made of later search values carries less of the luck of
+    the rest of the game, the part of the result that only a memorized game can tell."""
     grouped = iter_games_grouped(games, sparse)
     try:
         for recs in grouped:
-            keep = set(rng.sample(range(len(recs)), min(k, len(recs))))
-            for i, r in enumerate(recs):
-                if i not in keep:
-                    r["no_value"] = True
-                yield r
+            if td is not None:
+                for r, v in zip(recs, td_value_targets(recs, *td)):
+                    r["td_wdl"] = v
+            if value_per_game > 0:
+                keep = set(rng.sample(range(len(recs)), min(value_per_game, len(recs))))
+                for i, r in enumerate(recs):
+                    if i not in keep:
+                        r["no_value"] = True
+            yield from recs
     finally:
         grouped.close()          # closes an open .zip at once, also when the caller stops early
 
@@ -239,11 +305,16 @@ class FairyDataset(Dataset):
 
     def __init__(self, data, q_ratio=0.25, downsample_keep=1.0, cache=True, seed=0,
                  diff_focus=False, df_slope=1.0, df_kld_w=0.5, df_min=0.2, sparse=True,
-                 max_records=0, games=None, label="", packed=False, value_per_game=0):
+                 max_records=0, games=None, label="", packed=False, value_per_game=0,
+                 td_lambda=None, td_z_weight=0.5):
         """`games` (from list_games / split_games) loads only those games; by
         default every game in `data`. `label` names the set in the log line.
         `packed` (sparse cache only): items are pack_compact() samples, to batch
-        with collate_packed and rebuild on the device with unpack_batch."""
+        with collate_packed and rebuild on the device with unpack_batch.
+        `td_lambda` (0..1, None = off): value target = td_z_weight * the game result + (1 - td_z_weight) *
+        the TD(td_lambda) return (td_value_targets) instead of the qMix; q_ratio is then unused."""
+        if td_lambda is not None and not (0.0 <= td_lambda <= 1.0 and 0.0 <= td_z_weight <= 1.0):
+            raise ValueError(f"td_lambda and td_z_weight must be in [0, 1], got {td_lambda} and {td_z_weight}")
         rng = random.Random(seed)
         games = list_games(data) if games is None else list(games)
         if not games:
@@ -302,8 +373,9 @@ class FairyDataset(Dataset):
         kept = 0
         # The compact cache only needs the legal policy slots: v6 games then skip
         # building the dense probabilities[POLICY_SIZE] of every position.
-        if value_per_game > 0:
-            records = iter_games_value_per_game(games, value_per_game, rng, sparse=compact_cache is not None)
+        if value_per_game > 0 or td_lambda is not None:
+            records = iter_games_targets(games, rng, sparse=compact_cache is not None, value_per_game=value_per_game,
+                                         td=None if td_lambda is None else (float(td_lambda), float(td_z_weight)))
         else:
             records = iter_games(games, sparse=compact_cache is not None)
         for r in records:
@@ -334,18 +406,23 @@ class FairyDataset(Dataset):
         self._cached = compact_cache if compact_cache is not None else dense_cache
         self._records = raw_records
         self.num_games = len(games)
+        target = (f"value target {td_z_weight:g} x result + {1 - td_z_weight:g} x TD({td_lambda:g})"
+                  if td_lambda is not None else f"q_ratio={q_ratio}")
         print(f"[dataset] {label + ': ' if label else ''}{len(games)} games -> {kept} records "
-              f"(q_ratio={q_ratio}, downsample={downsample_keep}, cached={cache}, "
+              f"({target}, downsample={downsample_keep}, cached={cache}, "
               f"sparse={sparse and cache}"
               + (f", value target on {value_per_game} positions per game" if value_per_game > 0 else "") + ")")
 
     def _value(self, r):
-        """[W, D, L, plies_left, has_policy] (float32[5]); the WDL part is q_ratio * the search value (best_q /
-        best_d: the average value of the most-visited move) + (1 - q_ratio) * the game result."""
-        z_wdl = wdl_from_qd(r["result_q"], r["result_d"])
-        q_wdl = wdl_from_qd(search_q(r), r["best_d"])
-        v = self.q_ratio * q_wdl + (1.0 - self.q_ratio) * z_wdl
-        if r.get("no_value"):            # iter_games_value_per_game: no value target (train.value_loss skips the row)
+        """[W, D, L, plies_left, has_policy] (float32[5]); the WDL part is the TD target of iter_games_targets
+        (td_lambda) or else q_ratio * the search value (best_q / best_d: the average value of the most-visited
+        move) + (1 - q_ratio) * the game result."""
+        v = r.get("td_wdl")
+        if v is None:
+            z_wdl = wdl_from_qd(r["result_q"], r["result_d"])
+            q_wdl = wdl_from_qd(search_q(r), r["best_d"])
+            v = self.q_ratio * q_wdl + (1.0 - self.q_ratio) * z_wdl
+        if r.get("no_value"):            # iter_games_targets: no value target (train.value_loss skips the row)
             v = np.zeros(3, dtype=np.float32)
         extra = np.array([float(r.get("plies_left", 0)), 0.0 if r.get("fast_search", 0) else 1.0])
         return np.concatenate([v, extra]).astype(np.float32)
@@ -465,3 +542,49 @@ def unpack_batch(batch, device, channels_last=False):
     pi = torch.full((b, POLICY_SIZE + 1), -1.0, dtype=torch.float32, device=device)
     pi.scatter_(1, idx, val)
     return x, pi[:, :POLICY_SIZE], value
+
+
+# --------------------------------------------------------------------------- #
+# Left-right mirror (train.py --mirror). The variant has no castling and every piece moves left-right
+# symmetrically, so the position mirrored a<->j has the mirrored legal moves and the same value. The planes are
+# seen from the side to move with the ranks flipped for Black (Move::Flip(RANK_10)), never the files, so the
+# mirror is the same for both sides: reverse the file axis of every plane, and send each policy slot
+# (type * 100 + from square, encoder.cc MoveToNNIndex) to the slot of the mirrored move.
+# --------------------------------------------------------------------------- #
+def _mirror_move_type(t):
+    """Policy move type of the a<->j mirror image (dx -> -dx) of a move of type `t` (encoder.cc MoveToNNIndex)."""
+    if t < SLIDE_TYPES:                    # 8 directions clockwise from north (N NE E SE S SW W NW) x distance 1..9
+        d, k = divmod(t, 9)
+        return ((8 - d) % 8) * 9 + k
+    if t < CAMEL_BASE:                     # knight jumps, clockwise from (1, 2): i <-> 7 - i flips dx
+        return KNIGHT_BASE + 7 - (t - KNIGHT_BASE)
+    if t < PROMOTION_BASE:                 # camel jumps, the same order
+        return CAMEL_BASE + 7 - (t - CAMEL_BASE)
+    piece, d = divmod(t - PROMOTION_BASE, PROMOTION_DIRECTIONS)   # d = dx + 1: capture left / straight / right
+    return PROMOTION_BASE + piece * PROMOTION_DIRECTIONS + (PROMOTION_DIRECTIONS - 1 - d)
+
+
+def mirror_policy_permutation():
+    """int64[POLICY_SIZE]: slot i of a position is slot perm[i] of its mirror image. An involution (perm[perm] is
+    the identity), so the mirrored policy is original[:, perm]."""
+    sq = np.arange(SQUARES)
+    sq_m = (sq // BOARD) * BOARD + (BOARD - 1 - sq % BOARD)
+    types_m = np.array([_mirror_move_type(t) for t in range(MOVE_TYPES)], dtype=np.int64)
+    return (types_m[:, None] * SQUARES + sq_m[None, :]).reshape(-1)
+
+
+MIRROR_POLICY = mirror_policy_permutation()
+assert np.array_equal(MIRROR_POLICY[MIRROR_POLICY], np.arange(POLICY_SIZE))
+_MIRROR_POLICY_T = {}    # device -> MIRROR_POLICY as a tensor there
+
+
+def mirror_batch(x, pi, flip):
+    """(x [B, NUM_PLANES, 10, 10], pi [B, POLICY_SIZE]) with the rows where `flip` [B] (bool, same device) is True
+    replaced by their mirror images; the value target does not change. The legal-move mask moves with the policy
+    (illegal slots are -1 and stay -1)."""
+    perm = _MIRROR_POLICY_T.get(x.device)
+    if perm is None:
+        perm = _MIRROR_POLICY_T[x.device] = torch.from_numpy(MIRROR_POLICY).to(x.device)
+    x = torch.where(flip[:, None, None, None], x.flip(-1), x)
+    pi = torch.where(flip[:, None], pi.index_select(1, perm), pi)
+    return x, pi

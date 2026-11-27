@@ -7,7 +7,8 @@
 #
 # Luật mới (2026-11-20, chủ dự án chọn): tìm kiếm PUCT với PLAYOUT CAP RANDOMIZATION (PCR). Trước MỖI nước
 # tung đồng xu 50/50: tìm đủ 800 lượt (c_puct 1,5, nhiễu Dirichlet eps 0,25) hoặc tìm nông 200 lượt
-# (c_puct 1,25, eps 0,125); alpha 0,15 chung. Nước tìm nông ghi fast_search = 1: huấn luyện value + mlh,
+# (c_puct 1,5, KHÔNG nhiễu: chủ dự án 2026-11-27; trước đó c_puct 1,25, eps 0,125 -- nước tìm nông không cho nhãn policy, nhiễu
+# chỉ làm lệch nước đi; khám phá còn nhờ nhiễu của nước tìm đủ và nhiệt độ); alpha 0,15. Nước tìm nông ghi fast_search = 1: huấn luyện value + mlh,
 # KHÔNG huấn luyện policy. Mỗi nước tạo cây mới (không tái dùng cây). Nước đi được chọn cho CẢ ván theo
 # trọng số N^(1/T), T = 0,5 (--temperature; nhãn policy vẫn là tỷ lệ lượt thăm) -- TRỪ những nước mà cây tìm
 # kiếm đã cho thấy kém nước nhiều lượt thăm nhất quá ELO_CAT Elo (2026-11-22, chủ dự án chọn 70,44: mức Elo của
@@ -16,7 +17,7 @@
 # Đo trên 1013 ván đời 24: nước kém hơn 70 Elo chiếm 5,2% số nước tìm đầy đủ và gây ~46% số điểm kỳ vọng bị bỏ đi do
 # bốc lệch. --temp-elo-cutoff 0 (hoặc ELO_CAT = 0) = tắt. Số lượt thăm là mức
 # SÀN: một lượt tìm kiếm dừng sau lô lá cuối (tối đa +31 với minibatch-size=32), như lc0.
-# Thế khởi đầu: MỖI VÁN một thế ngẫu nhiên (python/sinh_the_khoi_dau.py, luật 2026-11-24: hàng 3 toàn Tốt, hàng 2
+# Thế khởi đầu: MỖI CẶP VÁN một thế ngẫu nhiên, ván thứ hai đổi màu (2026-11-27, --cap-doi-mau; python/sinh_the_khoi_dau.py, luật 2026-11-24: hàng 3 toàn Tốt, hàng 2
 # có 5 Sergeant theo 1 trong 6 cấu hình, 15 quân còn lại gồm 10 quân cố định + 4 trong 8 quân nhảy + 1 quân thêm
 # xếp ngẫu nhiên, Hoàng gia chỉ ở hàng 1, an toàn hai nước), sinh mới ở mỗi lần chạy ô (hạt giống ngẫu nhiên nên
 # các máy Colab khác nhau không trùng thế).
@@ -69,15 +70,22 @@ if ELO_CAT > 0 and not co_elo_cat:
 if not co_dung_mem:
     print("[!] Binary chưa có --stop-file (bản cũ): không dừng mềm được. Chạy ô 02b, đưa binary mới lên Release.")
 
-# Tệp thế khởi đầu: một dòng FEN mỗi ván (engine lấy dòng g % số dòng; GAMES dòng nên không lặp thế).
+# Tệp thế khởi đầu: một dòng FEN mỗi ván (engine lấy dòng g % số dòng; GAMES dòng, làm tròn lên số chẵn, nên không lặp thế).
 BOOK = f"/content/the_khoi_dau_gen{GEN_CURRENT}.txt"
-!python {E}/python/sinh_the_khoi_dau.py --n {GAMES} --out {BOOK}
+# Cặp đổi màu (chủ dự án 2026-11-27): mỗi thế khởi đầu dùng cho HAI ván liền nhau, ván sau Trắng lấy cách xếp của Đen và
+# ngược lại (sinh_the_khoi_dau.py --cap-doi-mau): dấu vết khởi đầu của một ván không còn gắn với đúng một kết quả, nên đầu
+# giá trị không học thuộc được kết quả từng ván qua thế khởi đầu. Mã trên máy chưa có cờ thì sinh như cũ (không dừng ván).
+_cap = " --cap-doi-mau" if "--cap-doi-mau" in open(f"{E}/python/sinh_the_khoi_dau.py", encoding="utf-8").read() else ""
+if not _cap:
+    print("[!] python/sinh_the_khoi_dau.py chưa có --cap-doi-mau: mỗi ván một thế khởi đầu như cũ.")
+_n_the = GAMES + GAMES % 2
+!python {E}/python/sinh_the_khoi_dau.py --n {_n_the} --out {BOOK}{_cap}
 if not os.path.exists(BOOK) or os.path.getsize(BOOK) == 0:
     raise SystemExit(f"[!] Không sinh được {BOOK} (python/sinh_the_khoi_dau.py lỗi) -- dừng, không sinh ván.")
 
 cmd = f"""bash {E}/run.sh --selfplay \
     --games {GAMES} --max-seconds {SECS} \
-    --visits 800 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.25 --fast-noise-eps 0.125 \
+    --visits 800 --max-moves 400 --fast-visits 200 --fast-prob 0.5 --fast-cpuct 1.5 --fast-noise-eps 0 \
     --temperature 0.5 --start-fen {BOOK} \
     --parallel {PARALLEL} --provider {_provider} --fixed-batch 64 --batch-aggregate \
     --noise-alpha 0.15 --show-nps --search-opt max-prefetch=0 --search-opt minibatch-size=32 \

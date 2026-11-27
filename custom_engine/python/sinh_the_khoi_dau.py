@@ -32,8 +32,16 @@ chính xác): bốc dãy 5 quân hàng 2 theo trọng số = số cách xếp h�
 
 Cách dùng:
     python sinh_the_khoi_dau.py --n 20000 --seed 1 --out book.txt
+    python sinh_the_khoi_dau.py --n 6000 --cap-doi-mau --out book.txt      (3000 cặp: mỗi thế kèm thế đổi màu ngay sau)
     custom_engine --selfplay ... --start-fen book.txt      (mỗi ván lấy một dòng theo thứ tự vòng tròn)
 Engine lấy dòng thứ g % (số dòng) cho ván g; các dòng do bộ sinh ghi là độc lập nên không cần xáo trộn.
+
+--cap-doi-mau (chủ dự án 2026-11-27, ô 04 / 04l): mỗi thế khởi đầu dùng cho HAI ván, ván thứ hai đổi màu: Trắng lấy cách
+xếp của Đen và ngược lại (dòng 2k là thế (A, B), dòng 2k + 1 là thế (B, A); cùng bộ quân, hai cách xếp vẫn đạt mọi tiêu chí
+vì tiêu chí kiểm cho cả hai bên như nhau). Mạng nhìn bàn cờ từ phía bên đi nên hai ván mang cùng một "dấu vết khởi đầu"
+(quân mình xếp A, đối phương xếp B), một lần đi trước, một lần đi sau: dấu vết đó không còn gắn với đúng một kết quả, nên
+đầu giá trị không học thuộc được kết quả từng ván qua thế khởi đầu (đầu giá trị học thuộc ván: nhac-kiem-qua-khop). Số
+dòng phải chẵn để hai ván một cặp luôn nằm liền nhau trong vòng tròn của engine.
 
 Nếu luật quân đổi (luat_py.py là bản dịch Python của `src/tests/test_rules_oracle.cc`) thì chạy `--kiem-lai-bang`.
 """
@@ -320,6 +328,19 @@ def lay_the(rng=random):
     return to_fen(w, b), w, b
 
 
+def sinh_dong(n, rng=random, cap_doi_mau=False):
+    """n dòng FEN của tệp thế khởi đầu. cap_doi_mau: n/2 cặp liền nhau, thế (A, B) rồi thế đổi màu (B, A) (n phải chẵn)."""
+    if not cap_doi_mau:
+        return [lay_the(rng)[0] for _ in range(n)]
+    if n % 2:
+        raise ValueError(f"--cap-doi-mau cần số dòng chẵn (mỗi cặp hai dòng liền nhau), nhận {n}")
+    dong = []
+    for _ in range(n // 2):
+        fen, w, b = lay_the(rng)
+        dong += [fen, to_fen(b, w)]
+    return dong
+
+
 # ----------------------------------------------------------------------------------------------------------
 def thong_ke():
     pb = phan_bo_bo_quan()
@@ -340,6 +361,8 @@ def main():
     ap.add_argument("--n", type=int, default=10, help="số thế cần sinh")
     ap.add_argument("--seed", type=int, default=None, help="hạt giống (bỏ trống = ngẫu nhiên mỗi lần chạy)")
     ap.add_argument("--out", default="", help="tệp ra (mỗi dòng một FEN); bỏ trống = in ra màn hình")
+    ap.add_argument("--cap-doi-mau", action="store_true",
+                    help="mỗi thế dùng cho hai ván: dòng 2k là thế (A, B), dòng 2k + 1 là thế đổi màu (B, A); --n phải chẵn")
     ap.add_argument("--kiem-lai-bang", action="store_true", help="tính lại các bảng bằng bộ kiểm hai nước (mọi cấu hình Sergeant) và so với luật")
     ap.add_argument("--thong-ke", action="store_true", help="in số bộ quân, số cách xếp và entropy")
     args = ap.parse_args()
@@ -356,9 +379,13 @@ def main():
     if args.thong_ke:
         thong_ke()
     rng = random.Random(args.seed) if args.seed is not None else random.SystemRandom()
+    try:
+        dong = sinh_dong(args.n, rng, args.cap_doi_mau)
+    except ValueError as e:
+        print(f"[!] {e}", file=sys.stderr)
+        return 2
     out = open(args.out, "w", encoding="utf-8", newline="\n") if args.out else sys.stdout
-    for _ in range(args.n):
-        out.write(lay_the(rng)[0] + "\n")
+    out.write("".join(f + "\n" for f in dong))
     if args.out:
         out.close()
     return 0

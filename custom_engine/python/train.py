@@ -5,7 +5,9 @@ AdamW weight_decay, not a term of the loss. The policy term is the mean over the
 policy target (full search); positions searched with the reduced playout cap (fast_search = 1) train the
 value and moves-left heads only. The value term is likewise the mean over the positions that HAVE a value
 target: all of them, or with --value-per-game K only K drawn from each game (the others carry an all-zero
-W/D/L row). Value target (qMix, 8.2.1) is mixed in the dataset. SWA (8.2.4)
+W/D/L row). Value target is mixed in the dataset: the qMix (8.2.1), or with --td-lambda the game result mixed
+with a TD(lambda) return over the later search values (dataset.td_value_targets). --mirror flips each training
+position left-right with probability 1/2 every time it is drawn (dataset.mirror_batch). SWA (8.2.4)
 averages the last epochs' weights. Export matches the engine I/O contract exactly (FP32).
 
 Usage:
@@ -30,7 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model import FairyNet, ExportNet, NUM_PLANES, POLICY_SIZE  # noqa: E402
 from nn_layout import AUX_BASE, AUX_PLANES  # noqa: E402
 from dataset import (FairyDataset, collate_packed, game_mtimes, list_games,  # noqa: E402
-                     newest_generation, newest_n_games, split_games, unpack_batch)
+                     mirror_batch, newest_generation, newest_n_games, split_games, unpack_batch)
 from run_seed import resolve_seed  # noqa: E402
 
 
@@ -680,6 +682,17 @@ def main():
                          "again every run (a game of K positions or fewer: all of them; 0 = every position, the "
                          "default); the value loss is the mean over the drawn positions. Every position keeps its "
                          "policy and moves-left targets; the validation / scoring sets are unchanged. Cell 07: 21")
+    ap.add_argument("--td-lambda", type=float, default=None, metavar="LAMBDA",
+                    help="value target of the TRAINING positions = --td-z-weight x the game result + the rest x the "
+                         "TD(LAMBDA) return over the later search values of the game (0..1; 1 = the result, 0 = the "
+                         "next position's search value) instead of the qMix; --q-ratio then only sets the targets the "
+                         "validation / scoring sets are scored against. Off by default. Cell 07: 0.8")
+    ap.add_argument("--td-z-weight", type=float, default=0.5, metavar="W",
+                    help="with --td-lambda: the share of the game result in the value target (0..1, default 0.5)")
+    ap.add_argument("--mirror", action="store_true",
+                    help="flip every training position left-right (files a<->j, policy to the mirrored moves) with "
+                         "probability 1/2 each time it is drawn: the rules are left-right symmetric (no castling). "
+                         "The validation / scoring sets are not flipped")
     ap.add_argument("--report-every", type=int, default=0, help="print running loss every N steps (0 = per-epoch)")
     ap.add_argument("--save-every", type=int, default=0, help="export an ONNX checkpoint every N steps (0 = only final)")
     args = ap.parse_args()
@@ -718,6 +731,8 @@ def main():
         sys.exit("--val-newest-gen trains on every game: use it with --val-frac 0")
     if args.value_per_game < 0:
         sys.exit(f"--value-per-game must be >= 0, got {args.value_per_game}")
+    if args.td_lambda is not None and not (0.0 <= args.td_lambda <= 1.0 and 0.0 <= args.td_z_weight <= 1.0):
+        sys.exit(f"--td-lambda and --td-z-weight must be in [0, 1], got {args.td_lambda} and {args.td_z_weight}")
     if args.val_newest_games < 0:
         sys.exit(f"--val-newest-games must be >= 0, got {args.val_newest_games}")
     if args.val_newest_games and args.val_frac > 0:
@@ -735,7 +750,8 @@ def main():
                       df_slope=args.df_slope, df_kld_w=args.df_kld_w, df_min=args.df_min,
                       sparse=args.sparse_cache, max_records=args.max_records,
                       games=train_games, label="train" if val_games else "", seed=args.seed,
-                      packed=packed, value_per_game=args.value_per_game)
+                      packed=packed, value_per_game=args.value_per_game,
+                      td_lambda=args.td_lambda, td_z_weight=args.td_z_weight)
     collate = collate_packed if packed else None
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
                     num_workers=workers, pin_memory=pin, collate_fn=collate,
@@ -901,6 +917,13 @@ def main():
               f"{never}): policy={vp:.4f} value={vv:.4f} mlh={vm:.4f}  "
               f"({secs_read + secs_score:.0f} s: {secs_read:.0f} s to read + {secs_score:.0f} s to score)", flush=True)
         del loader, first_val   # frees the scoring copy of those games
+    # --mirror: which rows of each training batch are flipped, drawn on the training device from the run's seed
+    # (the same --seed repeats a run exactly, also with --mirror).
+    mirror_gen = None
+    if args.mirror:
+        mirror_gen = torch.Generator(device=device)
+        mirror_gen.manual_seed(args.seed + 2)
+        print("[train] mirror: every training position flipped left-right with probability 1/2 each time it is drawn")
     global_step = 0         # counts OPTIMIZER steps (after accumulation)
     micro = 0                # counts micro-batches
     stop = False
@@ -912,6 +935,8 @@ def main():
         tp = tv = tm = n = n_pol = n_val = 0.0
         in_swa = epoch >= swa_start
         for x, pi, val in device_batches(dl, device, cl):
+            if mirror_gen is not None:
+                x, pi = mirror_batch(x, pi, torch.rand(x.size(0), device=device, generator=mirror_gen) < 0.5)
             if use_lr_sched and not in_swa:        # custom schedule controls LR pre-SWA
                 for g in opt.param_groups:
                     g["lr"] = lr_for_step(global_step)
