@@ -31,6 +31,13 @@ android {
         }
     }
 
+    // Chỉ arm64 (ndk.abiFilters không lọc .so của các gói Maven như LiteRT): bỏ bản armeabi-v7a / x86 / x86_64 của chúng.
+    packaging {
+        jniLibs {
+            excludes += listOf("lib/armeabi-v7a/**", "lib/x86/**", "lib/x86_64/**")
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
@@ -48,4 +55,11 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Mạng chạy trên GPU (engine dlopen libtensorflowlite_jni.so + libtensorflowlite_gpu_jni.so, provider "gpu"): LiteRT 1.x
+    // = TensorFlow Lite đổi tên, còn C API và GPU delegate cổ điển (LiteRT 2.x đổi sang API khác).
+    implementation("com.google.ai.edge.litert:litert:1.4.2")
+    implementation("com.google.ai.edge.litert:litert-gpu:1.4.2")
 }

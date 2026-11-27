@@ -303,7 +303,7 @@ private:
         Send("id author FairyZero");
         Send("option name WeightsFile type string default " + weights_);
         Send("option name Visits type spin default 800 min 1 max 100000000");
-        Send("option name Provider type combo default cpu var cpu var xnnpack var nnapi var nnapi-fp16 var cuda var dml");
+        Send("option name Provider type combo default cpu var cpu var xnnpack var nnapi var nnapi-fp16 var gpu var cuda var dml");
         Send("option name FixedBatch type spin default 16 min 1 max 1024");
         Send("option name Threads type spin default 1 min 1 max 256");
         Send("option name BackendThreads type spin default 1 min 1 max 256");
@@ -756,6 +756,8 @@ private:
             bopts = "provider=fzcuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch_));
         else if (provider_ == "dml")   // DirectML: dynamic batch; threads= covers any CPU-fallback ops
             bopts = "provider=dml,threads=" + std::to_string(std::max(1, backend_threads_));
+        else if (provider_ == "gpu")   // Android GPU (TFLite GPU delegate): fixed batch from the .tflite, threads= for CPU ops
+            bopts = "provider=gpu,threads=" + std::to_string(std::max(1, backend_threads_));
         else if (provider_ == "xnnpack")   // XNNPACK CPU kernels: dynamic batch, its own pool of threads=
             bopts = "provider=xnnpack,threads=" + std::to_string(std::max(1, backend_threads_));
         else if (provider_ == "nnapi" || provider_ == "nnapi-fp16")   // Android accelerator: fixed batch, CPU EP for the rest

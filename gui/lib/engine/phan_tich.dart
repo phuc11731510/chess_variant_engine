@@ -107,22 +107,30 @@ const List<(String, String)> kThongSoPhanTich = [
 /// Cây tìm kiếm là của thế được `position` sau cùng. Tính prior thô ở một thế KHÁC phải đặt thế đó lên engine, nên cây cũ
 /// mất: [treePosition] cho biết cây hiện thuộc thế nào, và [cay] báo lỗi khi cây đã bị thay.
 ///
-/// [provider] mặc định `cpu`: đo trên máy bảng SM-X110 (Helio G99, 2026-11-27, mạng 10 lớp d 192), ORT CPU 4 luồng và XNNPACK
-/// đều ~15-20 thế / giây (lô 1 và 16), NNAPI (GPU / APU qua trình điều khiển MediaTek; fp32, fp16, cấm CPU tham chiếu) chỉ
-/// ~3,8 thế / giây ở lô 1 và 6,8 ở lô 8.
+/// Chạy mạng bằng GPU khi được (TFLite + GPU delegate, FP16, lô 16: ~66 lượt tìm / giây trên SM-X110), không thì CPU (ONNX
+/// Runtime 4 luồng, ~19 lượt / giây). Đo 2026-11-27, Helio G99, mạng 10 lớp d 192: ORT CPU ≈ XNNPACK ≈ 15-20 thế / giây;
+/// NNAPI (GPU / APU qua trình điều khiển MediaTek) chỉ ~3,8; GPU delegate của TFLite ~80 thế / giây ở lô 16.
 class PhanTich {
   final int gen;
   final String onnxPath;
-  final String provider;
+
+  /// Mạng GPU (TFLite) nếu có: trả đường dẫn (tạo khi cần), null = chỉ dùng CPU.
+  final Future<String?> Function()? gpuModel;
   final int threads;
   final int ruleSet;
   NativeFfiEngine? _e;
+
+  /// Engine đang chạy mạng bằng gì: 'GPU' hoặc 'CPU' (null khi chưa khởi động).
+  String? dangDung;
+
+  /// Lý do không dùng được GPU (đã lùi về CPU), nếu có.
+  String? loiGpu;
   Future<void> _queue = Future.value();
   String? _position; // lệnh position đã gửi sau cùng
   String? _treePosition; // lệnh position của cây hiện có (null = chưa tìm)
   bool _searching = false;
 
-  PhanTich({required this.gen, required this.onnxPath, this.provider = 'cpu', this.threads = 4, this.ruleSet = 0});
+  PhanTich({required this.gen, required this.onnxPath, this.gpuModel, this.threads = 4, this.ruleSet = 0});
 
   String? get treePosition => _treePosition;
   bool get searching => _searching;
@@ -145,13 +153,41 @@ class PhanTich {
   Future<NativeFfiEngine> _engine() async {
     final e = _e;
     if (e != null) return e;
+    // GPU trước (TFLite + GPU delegate, ~3,4 lần CPU trên máy bảng); không dựng được thì CPU (ONNX Runtime).
+    final gpu = gpuModel;
+    if (gpu != null) {
+      try {
+        final path = await gpu();
+        if (path != null) {
+          final n = await _start(path, 'gpu', 2);
+          // Engine vẫn trả readyok khi không dựng được mạng: hỏi thử một lần chạy mạng.
+          n.sendRaw('position startpos');
+          final r = await n.collect('nneval', (l) => l.startsWith('nneval'), timeout: const Duration(seconds: 60));
+          if (!r.last.startsWith('nneval none')) {
+            _position = 'position startpos';
+            dangDung = 'GPU';
+            return _e = n;
+          }
+          await n.dispose();
+          loiGpu = 'engine không dựng được mạng GPU';
+        }
+      } catch (err) {
+        loiGpu = '$err';
+      }
+    }
+    final n = await _start(onnxPath, 'cpu', threads);
+    dangDung = 'CPU';
+    return _e = n;
+  }
+
+  Future<NativeFfiEngine> _start(String model, String provider, int backendThreads) async {
     final n = NativeFfiEngine(
-      LaunchConfig(enginePath: '', modelPath: onnxPath, provider: provider),
+      LaunchConfig(enginePath: '', modelPath: model, provider: provider),
       ruleSet: ruleSet,
-      uciOptions: [('BackendThreads', '$threads'), ...kThongSoPhanTich],
+      uciOptions: [('BackendThreads', '$backendThreads'), ...kThongSoPhanTich],
     );
     await n.start();
-    return _e = n;
+    return n;
   }
 
   void _setPosition(NativeFfiEngine e, String cmd) {

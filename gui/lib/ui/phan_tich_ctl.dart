@@ -24,6 +24,9 @@ class PhanTichCtl extends ChangeNotifier {
   String? _errKey; // thế vừa tính lỗi: không tự thử lại (bật lại nút để thử)
   bool _disposed = false;
 
+  /// Engine đang chạy mạng bằng 'GPU' / 'CPU' (null khi chưa khởi động).
+  String? get dangDung => _pt?.dangDung;
+
   /// Prior thô của thế [key] (đã tính), hoặc null.
   DanhGiaTho? rawFor(String? key) => key == null ? null : _cache[key];
 
@@ -76,7 +79,8 @@ class PhanTichCtl extends ChangeNotifier {
       _cache.clear();
     }
     _ruleSet = ruleSet;
-    return _pt ??= PhanTich(gen: gen, onnxPath: m.onnx, ruleSet: ruleSet);
+    final kho = _kho!;
+    return _pt ??= PhanTich(gen: gen, onnxPath: m.onnx, ruleSet: ruleSet, gpuModel: () => kho.ensureGpu(m));
   }
 
   void togglePrior() {

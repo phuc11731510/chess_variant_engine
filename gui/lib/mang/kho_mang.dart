@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../platform/android_paths.dart';
+import 'doi_gpu.dart';
 import 'doi_pt.dart';
 
 /// Release chứa `gen<N>.pt` của mọi đời (kho công khai: hỏi API không cần đăng nhập, 60 lần / giờ / địa chỉ IP).
@@ -21,6 +22,9 @@ class MangDaTai {
   final DateTime when;
   const MangDaTai(this.gen, this.dir, this.bytes, this.when);
   String get onnx => '$dir/$kTenKhung';
+
+  /// Mạng GPU (TFLite) của đời này; có thể chưa tạo (mạng tải trước khi app có GPU): [KhoMang.ensureGpu].
+  String get gpu => '$dir/$kTenGpu';
 }
 
 /// Một `gen<N>.pt` trên Release.
@@ -100,6 +104,16 @@ class KhoMang {
 
   int get totalBytes => local().fold(0, (a, m) => a + m.bytes);
 
+  /// Đường dẫn mạng GPU của [m]; tạo từ tệp trọng số của khung ONNX nếu chưa có (một lần, ~1-2 giây, trong isolate).
+  Future<String> ensureGpu(MangDaTai m) async {
+    if (File(m.gpu).existsSync()) return m.gpu;
+    final khung = (await rootBundle.load('assets/mang/khung_gpu_b16.tflite')).buffer.asUint8List();
+    final bangGpu = await rootBundle.loadString('assets/mang/bang_ghep_gpu_b16.json');
+    final bang = await rootBundle.loadString('assets/mang/bang_ghep.json');
+    await taoMangGpuNen(dir: m.dir, khungGpu: khung, bangGpuJson: bangGpu, bangGhepJson: bang);
+    return m.gpu;
+  }
+
   void delete(int gen) {
     final d = Directory('$root/gen$gen');
     if (d.existsSync()) d.deleteSync(recursive: true);
@@ -178,6 +192,12 @@ class KhoMang {
         final bang = await rootBundle.loadString('assets/mang/bang_ghep.json');
         final src = pt.path, dst = '$root/gen${r.gen}';
         await doiPtNen(ptPath: src, dich: dst, khung: khung, bangGhepJson: bang);
+        // Mạng GPU cùng lúc (lỗi ở bước này không làm hỏng mạng CPU vừa đổi: lần dùng GPU đầu tiên sẽ thử tạo lại).
+        try {
+          final khungGpu = (await rootBundle.load('assets/mang/khung_gpu_b16.tflite')).buffer.asUint8List();
+          final bangGpu = await rootBundle.loadString('assets/mang/bang_ghep_gpu_b16.json');
+          await taoMangGpuNen(dir: dst, khungGpu: khungGpu, bangGpuJson: bangGpu, bangGhepJson: bang);
+        } catch (_) {}
         ctl.add(const TaiTienDo(finished: true));
       } on _Huy {
         // người dùng huỷ

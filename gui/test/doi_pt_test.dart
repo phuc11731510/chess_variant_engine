@@ -3,10 +3,12 @@
 // Luôn chạy: bộ đọc pickle với một .pt nhỏ dựng tay (zip + data.pkl giao thức 2).
 // Chạy thêm khi đặt biến môi trường (so một mạng thật; bản chuẩn ghi bằng `py khung_mang.py kiem gen201.pt --thu-muc <thư mục>`):
 //   FZ_PT=<gen201.pt>  FZ_PT_REF=<thư mục chứa trong_so.bin do Python ghi>
+//   FZ_GPU_REF=<gen201_gpu.tflite do `khung_gpu.py va --tu <FZ_PT_REF>` ghi>   (mạng GPU)
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:fairyzero_gui/mang/doi_gpu.dart';
 import 'package:fairyzero_gui/mang/doi_pt.dart';
 import 'package:fairyzero_gui/mang/kho_mang.dart' show doiPtNen;
 import 'package:fairyzero_gui/mang/pt_doc.dart';
@@ -83,4 +85,22 @@ void main() {
       tmp.deleteSync(recursive: true);
     }
   }, skip: pt == null || ref == null ? 'đặt FZ_PT và FZ_PT_REF để so mạng thật' : false);
+
+  final gpuRef = Platform.environment['FZ_GPU_REF'];
+  test('mạng GPU: giống từng byte khung_gpu.py va', () {
+    final bang = File('assets/mang/bang_ghep.json').readAsStringSync();
+    final got = mangGpu(
+      File('assets/mang/khung_gpu_b16.tflite').readAsBytesSync(),
+      BangGhepGpu.fromJson(File('assets/mang/bang_ghep_gpu_b16.json').readAsStringSync()),
+      File('$ref/trong_so.bin').readAsBytesSync(),
+      BangGhep.fromJson(bang),
+    );
+    final want = File(gpuRef!).readAsBytesSync();
+    expect(got.length, want.length);
+    var diff = -1;
+    for (var i = 0; i < got.length; i++) {
+      if (got[i] != want[i]) { diff = i; break; }
+    }
+    expect(diff, -1, reason: 'byte đầu tiên khác ở $diff');
+  }, skip: ref == null || gpuRef == null ? 'đặt FZ_PT_REF và FZ_GPU_REF để so mạng GPU' : false);
 }
