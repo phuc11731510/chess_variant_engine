@@ -2,6 +2,8 @@
     <!-- Đọc dữ liệu huấn luyện do Termux ghi trong Download/FairyZero (Android 11+ không cho đọc tệp .xz của app khác
          nếu thiếu quyền này; người dùng bật một lần ở màn hình đầu của app). -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+    <!-- Kho mạng: tải gen<N>.pt từ Release NN_Model trên GitHub. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="FairyZero Xem ván"
         android:allowBackup="false"

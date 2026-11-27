@@ -16,6 +16,9 @@ import 'ui/android_home.dart';
 import 'ui/board_view.dart';
 import 'ui/game_picker.dart';
 import 'ui/move_strip.dart';
+import 'ui/kho_mang_screen.dart';
+import 'ui/phan_tich_ctl.dart';
+import 'ui/phan_tich_screen.dart';
 import 'ui/search_panel.dart';
 
 /// Chọn engine theo nền tảng: desktop spawn tiến trình UCI; Android nạp
@@ -53,11 +56,12 @@ class FairyZeroApp extends StatelessWidget {
       // Android: danh sách các đời dữ liệu huấn luyện trên máy, bấm một đời để xem ván (không chơi với máy).
       home: Platform.isAndroid
           ? AndroidHome(
-              openViewer: (cacheDir) {
+              openViewer: (cacheDir, gen) {
                 final preparer = GameFilePreparer(cacheDir);
                 return BoardScreen(
                   config: LaunchConfig(enginePath: '', replayDir: cacheDir),
                   prepareGame: (e) => preparer.ensure(e.id),
+                  dataGen: gen,
                 );
               },
             )
@@ -79,12 +83,16 @@ class BoardScreen extends StatefulWidget {
   /// trên bàn để lùi / tiến nước, bảng chọn ván và bảng tìm kiếm là ngăn kéo khi không đủ chỗ cạnh bàn.
   /// Null = tự nhận (Android).
   final bool? touchUi;
+
+  /// Đời mạng đã sinh dữ liệu đang xem (Android): mạng mặc định cho prior thô / phân tích nếu đã tải về Kho mạng.
+  final int? dataGen;
   const BoardScreen({
     super.key,
     required this.config,
     this.engineFactory,
     this.prepareGame,
     this.touchUi,
+    this.dataGen,
   });
 
   @override
@@ -121,9 +129,18 @@ class _BoardScreenState extends State<BoardScreen> {
   static const _minSearchHeight = 170.0;
   static const _maxSearchWidth = 520.0;
 
+  /// Prior thô / phân tích bằng mạng của Kho mạng (chỉ khi xem lại ván trên Android).
+  PhanTichCtl? _pt;
+
   @override
   void initState() {
     super.initState();
+    if (Platform.isAndroid && _isReplay && widget.engineFactory == null) {
+      _pt = PhanTichCtl(dataGen: widget.dataGen)
+        ..onNeedRefresh = _wantPrior
+        ..init();
+      _pt!.addListener(_onPt);
+    }
     controller = GameController(
       engine: (widget.engineFactory ?? _makeEngine)(widget.config),
       humanIsWhite: widget.config.humanPlaysWhite,
@@ -192,8 +209,91 @@ class _BoardScreenState extends State<BoardScreen> {
 
   @override
   void dispose() {
+    _pt?.removeListener(_onPt);
+    _pt?.dispose();
     controller.dispose();
     super.dispose();
+  }
+
+  void _onPt() {
+    if (mounted) setState(() {});
+  }
+
+  /// Bộ luật của engine xem ván (ván đời luật cũ dùng thư viện luật cũ): engine phân tích phải dùng cùng bộ luật.
+  int get _ruleSet {
+    final Object e = controller.engine;
+    return e is NativeFfiEngine ? e.ruleSet : 0;
+  }
+
+  /// Khoá của thế mà bảng tìm kiếm đang nói tới: thế TRƯỚC nước thứ [shownPly] (nơi lần tìm của nước đó chạy).
+  String? get _priorKey {
+    final ply = controller.shownPly;
+    if (ply == 0 || controller.fens.isEmpty) return null;
+    return '${_current?.id ?? ''}|${ply - 1}';
+  }
+
+  void _wantPrior() {
+    final pt = _pt, key = _priorKey;
+    if (pt == null || key == null || !pt.priorOn) return;
+    final ply = controller.shownPly;
+    pt.want(key, controller.fens.first, controller.moves.sublist(0, ply - 1), _ruleSet);
+  }
+
+  void _openKho() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const KhoMangScreen()));
+    _pt?.refreshNets();
+  }
+
+  /// Màn phân tích ở thế ĐANG HIỆN trên bàn (sau [shownPly] nửa nước); so với lần tìm của nước ván đi tiếp từ thế này.
+  void _openAnalysis() {
+    final ctl = _pt;
+    if (ctl == null) return;
+    final eng = ctl.engineFor(_ruleSet);
+    if (eng == null) {
+      _openKho();
+      return;
+    }
+    final ply = controller.shownPly;
+    final moves = controller.moves.sublist(0, ply);
+    final cur = _current;
+    final side = controller.shownBoard.whiteToMove ? 'Trắng' : 'Đen';
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => PhanTichScreen(
+        pt: eng,
+        startFen: controller.fens.first,
+        moves: moves,
+        title: '${cur == null ? 'Ván' : 'Ván ${cur.tag}'} · thế sau nửa nước $ply · $side đi',
+        record: controller.searches[ply],
+        nextPlayed: ply < controller.moves.length ? controller.moves[ply] : null,
+      ),
+    ));
+  }
+
+  /// Nút chọn mạng trên thanh công cụ: các mạng đã tải + mở Kho mạng.
+  Widget _netButton() {
+    final ctl = _pt!;
+    return PopupMenuButton<int>(
+      tooltip: 'Mạng dùng cho prior thô và phân tích',
+      onSelected: (g) => g < 0 ? _openKho() : ctl.chooseNet(g),
+      itemBuilder: (_) => [
+        for (final m in ctl.nets)
+          CheckedPopupMenuItem<int>(
+            value: m.gen,
+            checked: m.gen == ctl.netGen,
+            child: Text('gen${m.gen}${m.gen == widget.dataGen ? '  (đời của dữ liệu)' : ''}'),
+          ),
+        const PopupMenuItem<int>(value: -1, child: Text('Kho mạng…')),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.memory, size: 18, color: Colors.white70),
+          const SizedBox(width: 2),
+          Text(ctl.netGen == null ? 'chưa có mạng' : 'gen${ctl.netGen}',
+              style: const TextStyle(color: Colors.white70, fontSize: 13)),
+        ]),
+      ),
+    );
   }
 
   String _resultText(GameResult r) {
@@ -264,7 +364,14 @@ class _BoardScreenState extends State<BoardScreen> {
 
   Widget _searchPanel() {
     final ply = controller.shownPly;
+    final pt = _pt;
+    if (pt != null && pt.priorOn) {
+      // Sau khung hình này: bảng đang nói tới thế nào thì xin prior thô của thế đó (nếu chưa có).
+      WidgetsBinding.instance.addPostFrameCallback((_) => _wantPrior());
+    }
     return SearchPanel(
+      rawPrior: pt != null && pt.priorOn ? pt.rawFor(_priorKey) : null,
+      rawHeader: pt == null || ply == 0 ? null : _priorRow(pt),
       exponent: _pctExp,
       onExponentChanged: (e) => setState(() => _pctExp = e),
       record: controller.shownSearch,
@@ -273,6 +380,37 @@ class _BoardScreenState extends State<BoardScreen> {
       whiteMoved: ply == 0 || controller.whiteMovedAt(ply - 1),
       compact: widget.touchUi ?? Platform.isAndroid,
     );
+  }
+
+  /// Dòng bật / tắt prior thô ở đầu bảng tìm kiếm.
+  Widget _priorRow(PhanTichCtl pt) {
+    final net = pt.netGen;
+    final String note;
+    if (net == null) {
+      note = 'chưa có mạng: mở Kho mạng để tải';
+    } else if (pt.priorBusy) {
+      note = 'đang tính bằng gen$net…';
+    } else if (pt.priorError != null) {
+      note = 'lỗi: ${pt.priorError}';
+    } else {
+      note = pt.priorOn ? 'cột Pnet = prior thô của gen$net' : 'bật để tính bằng gen$net';
+    }
+    return Row(children: [
+      SizedBox(
+        height: 28,
+        child: FilterChip(
+          label: const Text('Prior thô', style: TextStyle(fontSize: 12)),
+          selected: pt.priorOn,
+          visualDensity: VisualDensity.compact,
+          onSelected: net == null ? (_) => _openKho() : (_) => pt.togglePrior(),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(note, maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: pt.priorError != null ? Colors.orangeAccent : Colors.white54, fontSize: 11)),
+      ),
+    ]);
   }
 
   Widget _picker(ReplayLibrary lib, {Key? key, VoidCallback? afterSelect}) =>
@@ -317,6 +455,14 @@ class _BoardScreenState extends State<BoardScreen> {
               style: const TextStyle(color: Colors.white70, fontSize: 14),
             ),
           ),
+          if (_pt != null) ...[
+            _netButton(),
+            IconButton(
+              tooltip: 'Phân tích thế đang xem (MCTS + cây tìm kiếm)',
+              icon: const Icon(Icons.account_tree_outlined),
+              onPressed: _openAnalysis,
+            ),
+          ],
           IconButton(
             tooltip: controller.autoPlaying
                 ? 'Dừng tự chạy'

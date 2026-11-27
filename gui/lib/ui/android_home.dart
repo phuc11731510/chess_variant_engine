@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../data/game_library.dart' show groupSource;
 import '../data/generation_cache.dart';
 import '../platform/android_paths.dart';
+import 'kho_mang_screen.dart';
 
 /// Màn hình đầu của app Android: các đời dữ liệu huấn luyện tìm thấy trên máy, bấm một đời để xem các ván trong đó.
 /// Có hai kiểu dữ liệu do vòng lặp Termux ghi vào `Download/FairyZero`:
@@ -14,8 +15,9 @@ import '../platform/android_paths.dart';
 ///    MỘT đời mạng (do vài máy Colab sinh liên tục), nên app gom các gói cùng `n<đời>` thành một "Đời N".
 /// Lần đầu mỗi đời được đổi sang bảng ván (vài chục giây, có thanh tiến độ); các lần sau mở ngay.
 class AndroidHome extends StatefulWidget {
-  /// Màn hình xem ván của một đời dữ liệu đã đổi trong [cacheDir] (main.dart dựng BoardScreen).
-  final Widget Function(String cacheDir) openViewer;
+  /// Màn hình xem ván của một đời dữ liệu đã đổi trong [cacheDir] (main.dart dựng BoardScreen); [gen] = đời mạng đã sinh
+  /// dữ liệu đó (null nếu không biết), để màn xem chọn sẵn mạng cùng đời trong Kho mạng.
+  final Widget Function(String cacheDir, int? gen) openViewer;
   const AndroidHome({super.key, required this.openViewer});
 
   @override
@@ -238,7 +240,7 @@ class _AndroidHomeState extends State<AndroidHome> with WidgetsBindingObserver {
       );
       if (ok != true || !mounted) return;
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => widget.openViewer(cacheDir)),
+        MaterialPageRoute<void>(builder: (_) => widget.openViewer(cacheDir, s.gen)),
       );
     } finally {
       _viewing = null;
@@ -327,6 +329,13 @@ class _AndroidHomeState extends State<AndroidHome> with WidgetsBindingObserver {
         backgroundColor: const Color(0xFF262421),
         title: const Text('Xem ván huấn luyện'),
         actions: [
+          IconButton(
+            tooltip: 'Kho mạng',
+            icon: const Icon(Icons.memory),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const KhoMangScreen()),
+            ),
+          ),
           IconButton(
             tooltip: 'Quét lại',
             icon: const Icon(Icons.refresh),

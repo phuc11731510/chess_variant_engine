@@ -60,9 +60,13 @@ struct EngineOptions {
     // --trt-opt key=value (repeatable): ORT TensorRT EP option for --provider tensorrt
     // (e.g. trt_engine_cache_path=/content/trt_cache, trt_builder_optimization_level=5).
     std::vector<std::string> sp_trt_opts;
+    // --nnapi-opt key=value (repeatable): NNAPI EP flag for --provider nnapi (Android): fp16=1, cpu_disabled=1, cpu_only=1.
+    std::vector<std::string> sp_nnapi_opts;
     // --extra-batches 16,32,48 (B3): also load the net pinned at these smaller
     // batch sizes; a Run with fewer inputs uses the smallest that fits.
     std::vector<int> sp_extra_batches;
+    // --bench-batches 1,8,16: --bench-nn measures only these batch sizes (default 1..256; a phone CPU needs minutes per size).
+    std::vector<int> bench_batches;
     std::string ort_profile;  // --ort-profile PREFIX (--bench-nn): ORT per-node timing JSON
     bool sp_batch_aggregate=false;  // --batch-aggregate: gom batch NN xuyên nhiều ván (A4, GPU)
     int sp_batch_timeout_us=2000;   // --batch-timeout-us: cửa sổ gộp batch (chống treo)

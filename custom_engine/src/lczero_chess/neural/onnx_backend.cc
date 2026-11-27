@@ -16,6 +16,10 @@
 // DirectML EP factory (only in the DirectML ONNX Runtime package).
 #include "dml_provider_factory.h"
 #endif
+#ifdef __ANDROID__
+// NNAPI EP factory (in the Android ONNX Runtime package): hands the graph to the phone's accelerator driver.
+#include "nnapi_provider_factory.h"
+#endif
 
 namespace lczero {
 
@@ -320,7 +324,7 @@ BackendAttributes OnnxBackend::GetAttributes() const {
     return BackendAttributes{
         .has_mlh = true,
         .has_wdl = true,
-        .runs_on_cpu = (provider_ == "cpu"),
+        .runs_on_cpu = (provider_ == "cpu" || provider_ == "xnnpack"),
         .suggested_num_search_threads = 2,
         .recommended_batch_size = rec_batch,
         .maximum_batch_size = max_batch
@@ -344,7 +348,7 @@ void OnnxBackend::InitializeSession() {
     small_owned_.clear();
     session_ = BuildSession(fixed_batch_ ? fixed_batch_size_ : 0);
     // B3: extra sessions only make sense with a pinned batch on a GPU provider.
-    if (fixed_batch_ && provider_ != "cpu") {
+    if (fixed_batch_ && provider_ != "cpu" && provider_ != "xnnpack") {
         std::vector<size_t> sizes;
         for (size_t b : extra_batches_)
             if (b > 0 && b < fixed_batch_size_) sizes.push_back(b);
@@ -381,7 +385,7 @@ std::unique_ptr<Ort::Session> OnnxBackend::BuildSession(size_t batch) {
     }
 
     bool gpu_ep = false;   // true only if a real GPU Execution Provider was appended
-    if (provider_ != "cpu") {
+    if (provider_ != "cpu" && provider_ != "xnnpack") {
         // GPU-class provider: CUDA (Colab, -Duse_cuda) or DirectML (Windows iGPU/GPU,
         // -Duse_dml). The CUDA path keeps its fixed-batch profile; DirectML usually
         // runs dynamic batch (play = batch 1). EPs below are compiled in only when
@@ -524,12 +528,30 @@ std::unique_ptr<Ort::Session> OnnxBackend::BuildSession(size_t batch) {
             gpu_ep = true;
         }
 #endif
+#ifdef __ANDROID__
+        if (provider_ == "nnapi") {
+            // NNAPI compiles a fixed-shape model (the batch override above); the nodes it cannot take run on the CPU EP.
+            // nnapi_opts_: fp16 (allow FP16 arithmetic), cpu_disabled (no NNAPI CPU reference device), cpu_only (debug).
+            uint32_t flags = NNAPI_FLAG_USE_NONE;
+            for (const auto& kv : nnapi_opts_) {
+                const bool on = kv.second == "1" || kv.second == "true";
+                if (kv.first == "fp16") { if (on) flags |= NNAPI_FLAG_USE_FP16; }
+                else if (kv.first == "cpu_disabled") { if (on) flags |= NNAPI_FLAG_CPU_DISABLED; }
+                else if (kv.first == "cpu_only") { if (on) flags |= NNAPI_FLAG_CPU_ONLY; }
+                else throw Exception("ONNX Backend: unknown NNAPI option nnapi." + kv.first + " (fp16, cpu_disabled, cpu_only)");
+            }
+            session_options_.SetIntraOpNumThreads(intra_op_threads_);   // the CPU EP still runs what NNAPI leaves
+            Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_Nnapi(session_options_, flags));
+            std::cout << "[ONNX Backend] NNAPI Execution Provider appended (flags " << flags << ")." << std::endl;
+            gpu_ep = true;
+        }
+#endif
         if (gpu_ep) {
             std::cout << "[ONNX Backend] GPU profile activated (" << provider_ << ")." << std::endl;
         } else {
             std::cout << "[ONNX Backend] WARNING: provider='" << provider_
                       << "' requested but its EP is not compiled into this binary "
-                      << "(rebuild with -Duse_cuda=true or -Duse_dml=true) -> CPU fallback." << std::endl;
+                      << "(rebuild with -Duse_cuda=true or -Duse_dml=true; nnapi needs the Android build) -> CPU fallback." << std::endl;
         }
     }
     if (!gpu_ep) {
@@ -537,6 +559,14 @@ std::unique_ptr<Ort::Session> OnnxBackend::BuildSession(size_t batch) {
         session_options_.SetIntraOpNumThreads(intra_op_threads_);
         session_options_.SetInterOpNumThreads(1);
         session_options_.DisableMemPattern();
+        if (provider_ == "xnnpack") {
+            // XNNPACK (ARM / x86 CPU kernels, in the Android and the default packages) runs its own thread pool: ORT's
+            // pool stays at one thread without spinning so the two do not compete (ONNX Runtime's XNNPACK guidance).
+            session_options_.SetIntraOpNumThreads(1);
+            session_options_.AddConfigEntry("session.intra_op.allow_spinning", "0");
+            session_options_.AppendExecutionProvider("XNNPACK", {{"intra_op_num_threads", std::to_string(intra_op_threads_)}});
+            std::cout << "[ONNX Backend] XNNPACK Execution Provider appended (" << intra_op_threads_ << " threads)." << std::endl;
+        }
         std::cout << "[ONNX Backend] CPU profile activated: Dynamic batching, DisableMemPattern, IntraOp="
                   << intra_op_threads_ << std::endl;
     }
@@ -587,6 +617,7 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     cuda_graph_ = false;
     cuda_opts_.clear();
     trt_opts_.clear();
+    nnapi_opts_.clear();
     extra_batches_.clear();
     profile_prefix_.clear();
 
@@ -626,6 +657,8 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
                     }
                 } else if (parts[0] == "profile") {
                     profile_prefix_ = parts[1];
+                } else if (parts[0].rfind("nnapi.", 0) == 0 && parts[0].size() > 6) {
+                    nnapi_opts_.emplace_back(parts[0].substr(6), parts[1]);
                 } else if (parts[0].rfind("cuda.", 0) == 0 && parts[0].size() > 5) {
                     cuda_opts_.emplace_back(parts[0].substr(5), parts[1]);
                 }
@@ -642,7 +675,8 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     }
 
     // Validate provider
-    if (provider_ != "cpu" && provider_ != "cuda" && provider_ != "tensorrt" && provider_ != "dml") {
+    if (provider_ != "cpu" && provider_ != "cuda" && provider_ != "tensorrt" && provider_ != "dml" &&
+        provider_ != "nnapi" && provider_ != "xnnpack") {
         std::cerr << "[ONNX Backend] Warning: Unknown provider '" << provider_ 
                   << "', fallback to 'cpu'" << std::endl;
         provider_ = "cpu";
@@ -651,7 +685,7 @@ void OnnxBackend::UpdateConfiguration(const OptionsDict& opts) {
     // CUDA/TensorRT always use a fixed-batch profile. DirectML and CPU keep the
     // parsed value (dynamic batch unless the caller explicitly passed fixed_batch=),
     // which suits iGPU play at batch 1 — forcing batch 16 there wastes GPU work.
-    if (provider_ != "cpu" && provider_ != "dml") {
+    if (provider_ != "cpu" && provider_ != "dml" && provider_ != "xnnpack") {
         fixed_batch_ = (fixed_batch_size_ > 0);
     }
 

@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../domain/search_record.dart';
+import '../engine/phan_tich.dart' show DanhGiaTho;
 
 /// Một lựa chọn trong menu của tiêu đề cột %N: luỹ thừa [exponent] = 1/T của số lượt thăm.
 class TempChoice {
@@ -72,6 +73,12 @@ class SearchPanel extends StatefulWidget {
   /// Màn hình cảm ứng (bảng nằm dưới bàn hoặc cạnh bàn, chỗ ít): bỏ các ghi chú dài, chỉ giữ ghi chú cần thiết.
   final bool compact;
 
+  /// Prior thô của mạng đang chọn ở đúng thế của lần tìm này (tính theo yêu cầu): cột Pnet lấy từ đây.
+  final DanhGiaTho? rawPrior;
+
+  /// Dòng điều khiển đặt trên cùng bảng (nút bật prior thô), hoặc null.
+  final Widget? rawHeader;
+
   const SearchPanel({
     super.key,
     required this.record,
@@ -81,6 +88,8 @@ class SearchPanel extends StatefulWidget {
     this.exponent = 1,
     this.onExponentChanged,
     this.compact = false,
+    this.rawPrior,
+    this.rawHeader,
   });
 
   @override
@@ -240,16 +249,17 @@ class _SearchPanelState extends State<SearchPanel> {
   );
 
   /// Chữ từng ô của dòng tiêu đề, đúng thứ tự trong [_headerRow], để đo bề rộng.
-  List<String> _headerCells(bool prior) => [
+  List<String> _headerCells(({bool p, bool pnet}) prior) => [
     'Nước'.padRight(_wMove),
     'N'.padLeft(_wN),
     '%N'.padLeft(_wPct),
     if (_extra) TempChoice(widget.exponent, '').header.padLeft(_wPct),
-    if (prior) ...['P'.padLeft(_wP), 'Pnet'.padLeft(_wPnet)],
+    if (prior.p) 'P'.padLeft(_wP),
+    if (prior.pnet) 'Pnet'.padLeft(_wPnet),
     'Q Trắng'.padLeft(_wQ),
   ];
 
-  Widget _headerRow(bool prior) {
+  Widget _headerRow(({bool p, bool pnet}) prior) {
     final hov = _ms.copyWith(
       color: Colors.amber,
       decoration: TextDecoration.underline,
@@ -285,7 +295,8 @@ class _SearchPanelState extends State<SearchPanel> {
             key: const ValueKey('tieu_de_pct_nt'),
             style: _ms.copyWith(color: Colors.amber),
           ),
-        if (prior) ...[_cell('P', _wP), _cell('Pnet', _wPnet)],
+        if (prior.p) _cell('P', _wP),
+        if (prior.pnet) _cell('Pnet', _wPnet),
         _cell('Q Trắng', _wQ),
       ],
     );
@@ -294,7 +305,7 @@ class _SearchPanelState extends State<SearchPanel> {
   /// Bảng các nước: tiêu đề + mỗi nước một dòng chữ đơn cách. Cả bảng được thu nhỏ vừa bề ngang của bảng khi chỗ hẹp
   /// (màn hình điện thoại xoay ngang, cỡ chữ hệ thống lớn) thay vì tràn ra ngoài; cột P / Pnet chỉ hiện khi nhật ký
   /// có (dữ liệu huấn luyện không lưu prior).
-  Widget _table(List<SearchCandidate> cands, int? nodes, bool prior) {
+  Widget _table(List<SearchCandidate> cands, int? nodes, ({bool p, bool pnet}) prior) {
     final shares = temperatureShares([
       for (final c in cands) c.n,
     ], widget.exponent);
@@ -346,6 +357,7 @@ class _SearchPanelState extends State<SearchPanel> {
     final played = widget.played;
     final ply = widget.ply;
     final children = <Widget>[
+      if (widget.rawHeader != null) ...[widget.rawHeader!, const SizedBox(height: 4)],
       Text(
         ply == 0
             ? 'Thế xuất phát'
@@ -385,7 +397,13 @@ class _SearchPanelState extends State<SearchPanel> {
         );
       }
       final cands = rec.candidates;
-      final prior = cands.any((c) => c.p != null || c.pnet != null);
+      final raw = widget.rawPrior;
+      final prior = (p: cands.any((c) => c.p != null), pnet: raw != null || cands.any((c) => c.pnet != null));
+      if (raw != null) {
+        final qw = widget.whiteMoved ? raw.q : -raw.q;
+        children.add(_note('Giá trị thô của mạng ở thế này: Q Trắng ${_sign(qw, 3)} · hoà ${(raw.d * 100).toStringAsFixed(1)}%',
+            color: Colors.lightBlueAccent));
+      }
       // Bảng các nước ngay dưới dòng tổng (chỗ ít, màn hình dọc: số liệu phải thấy ngay); các ghi chú xuống dưới bảng.
       children.add(const SizedBox(height: 4));
       children.add(_table(cands, nodes, prior));
@@ -403,7 +421,7 @@ class _SearchPanelState extends State<SearchPanel> {
           '(engine in theo phía bên đi; bản gốc ở cuối bảng).',
         ),
       );
-      if (!prior) {
+      if (!prior.p && !prior.pnet) {
         // Nhật ký dựng từ dữ liệu huấn luyện: bản ghi chỉ lưu Q của hai nước.
         children.add(
           _note(
@@ -474,7 +492,7 @@ class _SearchPanelState extends State<SearchPanel> {
       '${x >= 0 ? "+" : ""}${digits == 0 ? x.toString() : x.toStringAsFixed(digits)}';
 
   /// Chữ của dòng một nước: Nước, N, %N, [%N^e], [P, Pnet], Q Trắng.
-  String _lineOf(SearchCandidate c, int? nodes, double? share, bool prior) {
+  String _lineOf(SearchCandidate c, int? nodes, double? share, ({bool p, bool pnet}) prior) {
     final v = c.forWhite(widget.whiteMoved);
     final pct = (c.n == null || nodes == null || nodes == 0)
         ? ''
@@ -482,9 +500,13 @@ class _SearchPanelState extends State<SearchPanel> {
     final pctT = share == null ? null : (100.0 * share).toStringAsFixed(1);
     return '${c.move.padRight(_wMove)}${(c.n?.toString() ?? '').padLeft(_wN)}${pct.padLeft(_wPct)}'
         '${pctT == null ? '' : pctT.padLeft(_wPct)}'
-        '${prior ? '${(c.p?.toStringAsFixed(4) ?? '').padLeft(_wP)}${(c.pnet?.toStringAsFixed(4) ?? '').padLeft(_wPnet)}' : ''}'
+        '${prior.p ? (c.p?.toStringAsFixed(4) ?? '').padLeft(_wP) : ''}'
+        '${prior.pnet ? (_pnetOf(c)?.toStringAsFixed(4) ?? '').padLeft(_wPnet) : ''}'
         '${(v.q == null ? '' : _sign(v.q!, 3)).padLeft(_wQ)}';
   }
+
+  /// Pnet của một nước: prior thô vừa tính (nếu bật) hơn Pnet trong nhật ký.
+  double? _pnetOf(SearchCandidate c) => widget.rawPrior?.policy[c.move] ?? c.pnet;
 
   Widget _row(SearchCandidate c, String line) {
     final v = c.forWhite(widget.whiteMoved);
