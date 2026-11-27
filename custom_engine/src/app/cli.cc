@@ -156,27 +156,29 @@ EngineOptions parse_cli(int argc, char* argv[]) {
             } else {
                 o.sp_search_opts.emplace_back(kv.substr(0, eq), kv.substr(eq + 1));
             }
-        } else if (a == "--extra-batches") {   // "16,32,48"
+        } else if (a == "--extra-batches" || a == "--bench-batches") {   // "16,32,48"
+            std::vector<int>& dst = a == "--extra-batches" ? o.sp_extra_batches : o.bench_batches;
+            const int max_n = a == "--extra-batches" ? 64 : 256;
             std::string v;
             const size_t errors_before = o.errors.size();
             string_value(&v);
             if (o.errors.size() == errors_before) {
-                o.sp_extra_batches.clear();
+                dst.clear();
                 size_t i = 0;
                 while (i <= v.size()) {
                     const size_t j = std::min(v.find(',', i), v.size());
                     const std::string t = v.substr(i, j - i);
                     char* end = nullptr;
                     const long n = std::strtol(t.c_str(), &end, 10);
-                    if (t.empty() || *end != '\0' || n < 1 || n > 64) {
-                        error("--extra-batches '" + v + "': expected sizes 1..64 separated by commas");
+                    if (t.empty() || *end != '\0' || n < 1 || n > max_n) {
+                        error(a + " '" + v + "': expected sizes 1.." + std::to_string(max_n) + " separated by commas");
                         break;
                     }
-                    o.sp_extra_batches.push_back(static_cast<int>(n));
+                    dst.push_back(static_cast<int>(n));
                     i = j + 1;
                 }
             }
-        } else if (a == "--cuda-opt" || a == "--trt-opt" || a == "--fz-opt") {  // "key=value", ORT CUDA / TensorRT EP option; CUDA runner option
+        } else if (a == "--cuda-opt" || a == "--trt-opt" || a == "--fz-opt" || a == "--nnapi-opt") {  // "key=value", ORT CUDA / TensorRT EP option; CUDA runner option
             std::string kv;
             const size_t errors_before = o.errors.size();
             string_value(&kv);
@@ -190,15 +192,18 @@ EngineOptions parse_cli(int argc, char* argv[]) {
                        kv.find_first_of(",=", eq + 1) != std::string::npos) {
                 error(a + " '" + kv + "': expected key=value (key: letters, digits, _)");
             } else {
-                (a == "--cuda-opt" ? o.sp_cuda_opts : a == "--fz-opt" ? o.sp_fz_opts : o.sp_trt_opts).push_back(kv);
+                (a == "--cuda-opt"    ? o.sp_cuda_opts
+                 : a == "--fz-opt"    ? o.sp_fz_opts
+                 : a == "--nnapi-opt" ? o.sp_nnapi_opts
+                                      : o.sp_trt_opts).push_back(kv);
             }
         } else {
             error(a.rfind("-", 0) == 0 ? "unknown flag " + a : "unexpected argument " + a);
         }
     }
     if (o.sp_provider != "cpu" && o.sp_provider != "cuda" && o.sp_provider != "dml" &&
-        o.sp_provider != "tensorrt" && o.sp_provider != "fzcuda")
-        error("--provider " + o.sp_provider + ": expected cpu, cuda, tensorrt, fzcuda or dml");
+        o.sp_provider != "tensorrt" && o.sp_provider != "fzcuda" && o.sp_provider != "nnapi" && o.sp_provider != "xnnpack")
+        error("--provider " + o.sp_provider + ": expected cpu, xnnpack, nnapi, cuda, tensorrt, fzcuda or dml");
     // Neither self-play nor the arena has an opening phase any more: every move of the game is drawn
     // with --temperature (2026-11-20). A stale --temp-cutoff would otherwise be accepted and silently do
     // nothing (the arena used to read it as the length of its sampled opening).

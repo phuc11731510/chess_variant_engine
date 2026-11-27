@@ -290,3 +290,29 @@ nhật ký có (dữ liệu huấn luyện không lưu prior); bảng nằm ngay
 lượt thăm (`nhatKy(..., tatCaNuocCoLuot: true)`, chỉ ở Android; bản Python và bài so byte vẫn 8 nước). **Q chỉ có ở nước đã đi
 và nước nhiều lượt nhất**: bản ghi huấn luyện chỉ lưu `played_q`, `best_q`, `root_q` và phân bố lượt thăm, không lưu Q của nước khác
 (chủ dự án đồng ý để vậy, 2026-11-24).
+
+**Kho mạng, prior thô, phân tích MCTS trên máy bảng (2026-11-27).** App tự chạy mạng ngay trên máy bảng bằng engine trong tiến
+trình (`libfairyzero.so` + `libonnxruntime.so` 1.18), không cần máy tính.
+- **Kho mạng** (nút chip ở màn hình đầu): danh sách `gen<N>.pt` trên Release `NN_Model` (API GitHub, không đăng nhập, 60 lần
+  hỏi / giờ), nút "Tải mạng mới nhất", tải đời bất kỳ, xoá đời không dùng; mạng nằm trong `Android/data/vn.fairyzero.xem/files/mang/gen<N>/`
+  (gỡ app là sạch). Release chỉ có `.pt` mà máy bảng không có PyTorch, nên app tự đổi: `assets/mang/khung.onnx` là đồ thị
+  dựng tay (`custom_engine/python/khung_mang.py dung`), mọi trọng số nằm ở tệp ngoài `trong_so.bin`, mỗi trọng số là ĐÚNG một
+  tensor của state_dict (cùng tên, cùng byte); app đọc `.pt` (zip không nén + pickle, bộ đọc chỉ nhận đúng 3 tên toàn cục của
+  một state_dict, `lib/mang/pt_doc.dart`) rồi chép byte theo `assets/mang/bang_ghep.json` (`lib/mang/doi_pt.dart`). Đổi
+  kiến trúc mạng thì chạy lại `khung_mang.py dung` (`.pt` lệch hình dạng thì app báo lỗi, không chạy). Kiểm:
+  `py khung_mang.py kiem gen201.pt` (so với PyTorch) và `flutter test test/doi_pt_test.dart` với `FZ_PT` / `FZ_PT_REF`
+  (so từng byte với bản Python, cả đường đổi trong isolate như app).
+- **Chọn mạng**: nút `gen<N>` trên thanh công cụ màn xem ván; mặc định là đời đã sinh dữ liệu đang xem nếu đã tải, không thì
+  đời mới nhất đã tải.
+- **Prior thô**: nút "Prior thô" ở đầu bảng tìm kiếm. Bật thì app chạy mạng MỘT lần cho đúng thế của lần tìm đang xem (đủ
+  lịch sử: FEN đầu ván + các nước) bằng lệnh engine `nneval policy`, điền cột Pnet và giá trị thô (Q Trắng, hoà); chỉ tính thế
+  đang xem, thế đã tính thì giữ lại.
+- **Phân tích** (nút cây trên thanh công cụ): MCTS độc lập ở thế ĐANG HIỆN trên bàn với số lượt chọn được (200 … 20000), thông
+  số như tìm sâu lúc sinh dữ liệu (c_puct 1,5, cpuct-factor 0, fpu 0, không two-fold, không sticky, PolicySoftmaxTemp 1,0) nhưng
+  KHÔNG nhiễu; "Tìm thêm" cộng lượt vào cùng cây (ReuseTree). Xem cây: lệnh engine `tree <đường đi>` trả các con của một nút
+  (N, P, Q, D), chạm một nước để đi xuống, đường dẫn phía trên để quay lên, bàn cờ nhỏ hiện thế của nút. Ở tầng gốc, cột
+  "%N ghi" = tỉ lệ lượt thăm trong dữ liệu huấn luyện ở cùng thế, dòng tô vàng = nước ván đã đi.
+- **Tốc độ** (SM-X110, Helio G99, mạng 10 lớp d 192, đo bằng `custom_engine --bench-nn --bench-batches 1,16` qua adb): ORT CPU
+  4 luồng và XNNPACK đều ~15–20 thế / giây; NNAPI (GPU / APU qua trình điều khiển MediaTek; fp32, fp16, cấm CPU tham chiếu)
+  chỉ ~3,8 thế / giây ở lô 1, 6,8 ở lô 8. App dùng ORT CPU: 800 lượt ~45 giây, 8000 lượt ~7 phút. Engine nhận thêm
+  `--provider xnnpack|nnapi`, `--nnapi-opt fp16=1|cpu_disabled=1|cpu_only=1` (UCI `Provider`: `xnnpack`, `nnapi`, `nnapi-fp16`).

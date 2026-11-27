@@ -35,14 +35,26 @@ class NativeFfiEngine implements EngineService, RuleSetSwitcher {
   /// đếm giờ): mở một ván 150 nước mất vài chục mili-giây thay vì vài giây.
   final bool rulesOnly;
 
-  NativeFfiEngine(this.config, {this.verbose = false, this.rulesOnly = false});
+  /// Tuỳ chọn UCI gửi TRƯỚC `isready` (lúc engine nạp mạng), để mạng chỉ dựng một lần (vd PolicySoftmaxTemp).
+  final List<(String, String)> uciOptions;
+
+  NativeFfiEngine(
+    this.config, {
+    this.verbose = false,
+    this.rulesOnly = false,
+    this.uciOptions = const [],
+    int ruleSet = 0,
+  }) : _libIdx = ruleSet;
 
   /// Kênh hỏi đường dẫn hệ thống (xem MainActivity.kt).
   static const MethodChannel _paths = MethodChannel('fairyzero/paths');
 
   /// Thư viện của từng bộ luật: [0] luật hiện tại, [1] luật trước 2026-11-24 (xem [RuleSetSwitcher]).
   static const List<String> _libNames = ['libfairyzero.so', 'libfzcu.so'];
-  int _libIdx = 0;
+  int _libIdx;
+
+  /// Bộ luật đang dùng: 0 = luật hiện tại, 1 = luật trước 2026-11-24 (sau [switchRuleSet]).
+  int get ruleSet => _libIdx;
 
   late DynamicLibrary _lib;
   late _FzCreateD _fzCreate;
@@ -63,6 +75,9 @@ class NativeFfiEngine implements EngineService, RuleSetSwitcher {
 
   /// Yêu cầu đang chờ một dòng output khớp predicate (xử lý tuần tự).
   final List<_Pending> _pending = [];
+
+  /// Lần gom nhiều dòng đang chạy ([collect]), hoặc null.
+  _Collector? _collector;
 
   /// Timer drain hàng đợi output native. KHÔNG pump ngay trong [_send] để tránh
   /// nuốt phản hồi đồng bộ TRƯỚC khi [_expect] kịp đăng ký pending; thay vào đó
@@ -122,6 +137,9 @@ class NativeFfiEngine implements EngineService, RuleSetSwitcher {
     _send('setoption name Provider value $provider');
     if (config.visits != null) {
       _send('setoption name Visits value ${config.visits}');
+    }
+    for (final (name, value) in uciOptions) {
+      _send('setoption name $name value $value');
     }
 
     // isready: EnsureBackend nạp model (ĐỒNG BỘ — block ngắn trên isolate lúc
@@ -233,6 +251,45 @@ class NativeFfiEngine implements EngineService, RuleSetSwitcher {
       }
     }
     _pending.clear();
+    final c = _collector;
+    _collector = null;
+    if (c != null && !c.completer.isCompleted) {
+      c.completer.completeError(EngineException('Engine da dong'));
+    }
+  }
+
+  // ----------------- lệnh thô (phân tích: nneval / go / tree) -----------------
+
+  /// Gửi một dòng UCI không chờ trả lời (vd `position ...`, `setoption ...`, `stop`).
+  void sendRaw(String cmd) {
+    _ensureStarted();
+    _send(cmd);
+  }
+
+  /// Gửi [cmd] rồi gom MỌI dòng engine in ra cho tới dòng [isLast] (tính cả dòng đó); [onLine] thấy từng dòng ngay khi
+  /// tới (vd tiến độ `info ... nodes`). Chỉ một lần gom mỗi lúc (người gọi tự xếp hàng); trong lúc gom, các dòng không
+  /// đi tới các yêu cầu chờ khác.
+  Future<List<String>> collect(
+    String cmd,
+    bool Function(String) isLast, {
+    Duration timeout = const Duration(seconds: 30),
+    void Function(String)? onLine,
+  }) {
+    _ensureStarted();
+    if (_collector != null) {
+      throw EngineException('Engine dang tra loi lenh khac');
+    }
+    final c = _Collector(isLast, onLine);
+    _collector = c;
+    _send(cmd);
+    _pump();
+    return c.completer.future.timeout(
+      timeout,
+      onTimeout: () {
+        if (identical(_collector, c)) _collector = null;
+        throw EngineException('Engine khong tra loi "$cmd" dung han');
+      },
+    );
   }
 
   @override
@@ -354,6 +411,16 @@ class NativeFfiEngine implements EngineService, RuleSetSwitcher {
       // ignore: avoid_print
       print('[engine:>>] $line');
     }
+    final c = _collector;
+    if (c != null) {
+      c.lines.add(line);
+      c.onLine?.call(line);
+      if (c.isLast(line)) {
+        _collector = null;
+        if (!c.completer.isCompleted) c.completer.complete(c.lines);
+      }
+      return;
+    }
     for (var i = 0; i < _pending.length; i++) {
       if (_pending[i].match(line)) {
         final p = _pending.removeAt(i);
@@ -362,6 +429,14 @@ class NativeFfiEngine implements EngineService, RuleSetSwitcher {
       }
     }
   }
+}
+
+class _Collector {
+  final bool Function(String) isLast;
+  final void Function(String)? onLine;
+  final List<String> lines = [];
+  final Completer<List<String>> completer = Completer<List<String>>();
+  _Collector(this.isLast, this.onLine);
 }
 
 class _Pending {

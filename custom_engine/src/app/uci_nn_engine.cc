@@ -231,6 +231,10 @@ public:
                 // kiếm) cho bên đi ở thế hiện tại, với đúng lịch sử đã đặt.
                 // "nneval q <Thắng-Thua> d <Hoà>". `go nodes 1` không thay được:
                 // tìm kiếm chạy lố vài lượt và báo điểm nước con.
+                // "nneval policy": thêm " m <số nửa nước còn lại> policy <nước> <P> ..." = prior THÔ của
+                // mạng cho mọi nước hợp lệ (sau PolicySoftmaxTemp, không nhiễu), nhiều nhất trước.
+                std::string arg;
+                const bool with_policy = (is >> arg) && arg == "policy";
                 if (searching_.load() || !tree_ || !EnsureBackend()) {
                     Send("nneval none");
                 } else {
@@ -245,8 +249,19 @@ public:
                     comp->ComputeBlocking();
                     std::ostringstream os;
                     os << "nneval q " << r.q << " d " << r.d;
+                    if (with_policy) {
+                        const bool black = tree_->IsBlackToMove();
+                        std::vector<size_t> order(legal.size());
+                        for (size_t j = 0; j < order.size(); ++j) order[j] = j;
+                        std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return r.p[a] > r.p[b]; });
+                        os << " m " << r.m << " policy";
+                        os << std::fixed << std::setprecision(5);
+                        for (size_t j : order) os << ' ' << CanonicalMoveToUci(legal[j], black) << ' ' << r.p[j];
+                    }
                     Send(os.str());
                 }
+            } else if (cmd == "tree") {
+                HandleTree(is);
             } else if (cmd == "debug" || cmd == "register") {
                 // Accept & ignore (robustness).
             } else if (cmd == "quit") {
@@ -288,7 +303,7 @@ private:
         Send("id author FairyZero");
         Send("option name WeightsFile type string default " + weights_);
         Send("option name Visits type spin default 800 min 1 max 100000000");
-        Send("option name Provider type combo default cpu var cpu var cuda var dml");
+        Send("option name Provider type combo default cpu var cpu var xnnpack var nnapi var nnapi-fp16 var cuda var dml");
         Send("option name FixedBatch type spin default 16 min 1 max 1024");
         Send("option name Threads type spin default 1 min 1 max 256");
         Send("option name BackendThreads type spin default 1 min 1 max 256");
@@ -474,6 +489,52 @@ private:
             EmitBestMove();
             searching_.store(false);
         });
+    }
+
+    // tree [nước ...]: các con của nút đạt được khi đi các nước đó (toạ độ thật) từ GỐC của cây tìm kiếm hiện có (thế
+    // của `position` cuối cùng; cây còn nguyên sau `go` cho tới `position` khác / `ucinewgame`). Để xem lượt thăm phân bố
+    // ra sao ở từng tầng mà không phải đổ cả cây (hàng nghìn nút) qua một lần.
+    //   treenode N <lượt> Q <q> D <d> M <m> [T]      giá trị của nút, phía BÊN ĐI ở nút đó (T = thế kết thúc)
+    //   treechild <nước> N <n> P <prior trong cây> Q <q> D <d> [T]   mỗi nước, nhiều lượt nhất trước (rồi P);
+    //                                                Q / D phía bên đi ở nút (như RootStats); N 0 = chưa thăm (Q = Q nút)
+    //   treeend                                      hoặc "treeerror <lý do>" (đang tìm, sai nước, nút chưa mở)
+    void HandleTree(std::istringstream& is) {
+        if (searching_.load()) { Send("treeerror dang tim kiem"); return; }
+        if (!tree_) { Send("treeerror chua co the"); return; }
+        lczero::classic::Node* node = tree_->GetCurrentHead();
+        lczero::PositionHistory hist = tree_->GetPositionHistory();
+        bool black = tree_->IsBlackToMove();
+        std::string mv;
+        while (is >> mv) {
+            const lczero::Move m = UciToCanonicalMove(hist.Last().GetBoard(), mv, black);
+            lczero::classic::Node* next = nullptr;
+            if (!m.is_null() && node)
+                for (const auto& e : node->Edges())
+                    if (e.GetMove() == m) { next = e.node(); break; }
+            if (!next || next->GetN() == 0) { Send("treeerror nut chua mo: " + mv); return; }
+            hist.Append(m);
+            black = !black;
+            node = next;
+        }
+        if (!node) { Send("treeerror chua tim kiem"); return; }
+        std::ostringstream os;
+        os << std::fixed << std::setprecision(4) << "treenode N " << node->GetN() << " Q " << -node->GetWL() << " D "
+           << node->GetD() << " M " << std::setprecision(1) << node->GetM() << (node->IsTerminal() ? " T" : "");
+        Send(os.str());
+        std::vector<lczero::classic::EdgeAndNode> edges;
+        for (const auto& e : node->Edges()) edges.push_back(e);
+        std::stable_sort(edges.begin(), edges.end(), [](const auto& a, const auto& b) {
+            return a.GetN() != b.GetN() ? a.GetN() > b.GetN() : a.GetP() > b.GetP();
+        });
+        const float q0 = -node->GetWL(), d0 = node->GetD();
+        for (const auto& e : edges) {
+            std::ostringstream ln;
+            ln << std::fixed << std::setprecision(4) << "treechild " << CanonicalMoveToUci(e.GetMove(), black) << " N "
+               << e.GetN() << " P " << e.GetP() << " Q " << e.GetWL(q0) << " D " << e.GetD(d0)
+               << (e.node() && e.node()->IsTerminal() ? " T" : "");
+            Send(ln.str());
+        }
+        Send("treeend");
     }
 
     // Builds a principal-variation string (real coords) by following the
@@ -695,6 +756,11 @@ private:
             bopts = "provider=fzcuda,fixed_batch=" + std::to_string(std::max(1, fixed_batch_));
         else if (provider_ == "dml")   // DirectML: dynamic batch; threads= covers any CPU-fallback ops
             bopts = "provider=dml,threads=" + std::to_string(std::max(1, backend_threads_));
+        else if (provider_ == "xnnpack")   // XNNPACK CPU kernels: dynamic batch, its own pool of threads=
+            bopts = "provider=xnnpack,threads=" + std::to_string(std::max(1, backend_threads_));
+        else if (provider_ == "nnapi" || provider_ == "nnapi-fp16")   // Android accelerator: fixed batch, CPU EP for the rest
+            bopts = "provider=nnapi,threads=" + std::to_string(std::max(1, backend_threads_)) + ",fixed_batch=" +
+                    std::to_string(std::max(1, fixed_batch_)) + (provider_ == "nnapi-fp16" ? ",nnapi.fp16=1" : "");
         else
             bopts = "threads=" + std::to_string(std::max(1, backend_threads_));
         d->Set<std::string>(lczero::SharedBackendParams::kBackendOptionsId, bopts);

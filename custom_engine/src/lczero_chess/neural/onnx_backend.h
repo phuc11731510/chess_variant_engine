@@ -141,6 +141,8 @@ class OnnxBackend : public Backend {
   std::vector<std::pair<std::string, std::string>> cuda_opts_;
   // "trt.<key>=<value>" backend opts -> ORT TensorRT EP options (--trt-opt).
   std::vector<std::pair<std::string, std::string>> trt_opts_;
+  // "nnapi.<key>=<value>" backend options (provider=nnapi, Android): fp16, cpu_disabled, cpu_only.
+  std::vector<std::pair<std::string, std::string>> nnapi_opts_;
   // "profile=<prefix>" (--bench-nn --ort-profile): ORT per-node timing JSON.
   std::string profile_prefix_;
   int intra_op_threads_ = 1;

@@ -82,8 +82,9 @@ std::unique_ptr<lczero::Backend> MakeRawOnnx(const EngineOptions& o,
   if (o.sp_provider == "cuda" || o.sp_provider == "tensorrt") {
     bo = "provider=" + o.sp_provider;
     for (const auto& kv : o.sp_trt_opts) bo += ",trt." + kv;
-  } else if (o.sp_provider == "dml") {
-    bo = "provider=dml,threads=" + std::to_string(std::max(1, o.sp_backend_threads));
+  } else if (o.sp_provider == "dml" || o.sp_provider == "xnnpack" || o.sp_provider == "nnapi") {
+    bo = "provider=" + o.sp_provider + ",threads=" + std::to_string(std::max(1, o.sp_backend_threads));
+    for (const auto& kv : o.sp_nnapi_opts) bo += ",nnapi." + kv;
   } else {
     bo = "threads=" + std::to_string(std::max(1, o.sp_backend_threads));
   }
@@ -265,6 +266,8 @@ int run_bench_nn(const EngineOptions& o) {
   for (int b : {1, 2, 4, 8, 16, 32, 64, 128, 256}) {
     // TensorRT builds an engine per session (minutes): only the production size.
     if (o.sp_provider == "tensorrt" && b != 64) continue;
+    if (!o.bench_batches.empty() &&
+        std::find(o.bench_batches.begin(), o.bench_batches.end(), b) == o.bench_batches.end()) continue;
     if (static_cast<size_t>(b) > lczero::MaxBatchSize) continue;
     std::unique_ptr<lczero::Backend> backend;
     std::string bo;
@@ -311,6 +314,9 @@ int run_bench_nn(const EngineOptions& o) {
       }
     }
   }
+
+  // --bench-batches: only the sweep of the chosen sizes (the sections below take minutes more on a phone CPU).
+  if (!o.bench_batches.empty()) return 0;
 
   // ---- Padding cost: same session, fewer inputs than the profile -----------
   const int prod = o.sp_fixed_batch > 0 ? o.sp_fixed_batch : 16;
