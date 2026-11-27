@@ -54,11 +54,26 @@ except OSError:
     _vpg = ""
 if not _vpg:
     print("[!] train.py trên máy này chưa có --value-per-game: lượt học này đầu giá trị học mọi thế như cũ.")
+# --td-lambda 0.8 --td-z-weight 0.5 --mirror (chủ dự án chọn 2026-11-27):
+#   * nhãn giá trị của thế học = 0,5 x kết quả ván + 0,5 x TD(0,8) trên điểm tìm kiếm của các thế phía sau (chủ yếu ~5 nửa nước tới), thay
+#     qMix 0,2 (80% kết quả ván): phần kết quả ván ~50% ở mọi giai đoạn (~60% ở giai đoạn cuối), bớt phần may rủi mà dấu vết khởi đầu khai thác
+#     để học thuộc ván. --q-ratio 0.2 vẫn ghi để dòng "[val]" chấm CE như các đời trước (so được);
+#   * --mirror: mỗi thế học lật trái-phải (cột a<->j, chính sách sang nước đối xứng) xác suất 1/2 mỗi lần bốc (luật không nhập thành nên đối
+#     xứng; kiểm bằng engine trên 3000 thế thật).
+#   Thử T4 1 đời từ gen184 trên đúng cửa sổ gen185 (scratchpad thu_td_t4.py), 562 ván n185 chưa học: CE giá trị so với kết quả 0,6597 (như cũ)
+#   -> 0,5866 (TD) -> 0,5740 (TD + lật); đoán đúng 66,9 -> 68,6%; |q - q lật| 0,449 -> 0,230; học thuộc ván học 1 lượt 94,5 -> 79,1%;
+#   CE chính sách 3,0046 -> 3,0130 (lật làm kém một chút ở đời đầu). train.py cũ (chưa có cờ) -> học như trước, in cảnh báo.
+try:
+    _td = "--td-lambda 0.8 --td-z-weight 0.5 --mirror" if "--td-lambda" in open(f"{E}/python/train.py", encoding="utf-8").read() else ""
+except OSError:
+    _td = ""
+if not _td:
+    print("[!] train.py trên máy này chưa có --td-lambda / --mirror: lượt học này dùng nhãn qMix, không lật.")
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
     --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen {_val} --batch 512 --accum-steps 2 \
     --lr 5e-4 --warmup-steps 50 \
-    --q-ratio 0.2 --weight-decay 1e-2 {_vpg} --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
+    --q-ratio 0.2 --weight-decay 1e-2 {_vpg} {_td} --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
     --out {_out}"""
 
 print(cmd)
