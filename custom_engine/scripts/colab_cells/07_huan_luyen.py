@@ -17,6 +17,8 @@ if not os.path.exists(CURRENT_PT):
 # vẫn học trên TẤT CẢ ván như thường: KHÔNG ván nào bị giữ ra khỏi bước học. train.py cũ trên máy (chưa có cờ) -> bỏ qua việc chấm.
 # 2026-11-26 (chủ dự án): tốc độ học 1e-3 -> 5e-4 hằng số, khởi động tuyến tính 50 bước tối ưu (từ lr/50 = 1e-5 tới 5e-4; dòng
 # "[train] lr warmup ..." in lịch thật), q_ratio 0,25 -> 0,2. Chuỗi CE giá trị đổi cách tính từ đời đổi (nhãn khác), không so thẳng trước/sau.
+# 2026-11-27 (chủ dự án): tốc độ học 5e-4 -> 1e-4 (khởi động 50 bước từ 2e-6). Mỗi đời mạng dịch ít hơn ~5 lần; weight decay 1e-2 của AdamW nhân
+# với lr nên cũng nhỏ đi 5 lần (~0,08% mỗi đời thay vì ~0,4%).
 # (Trước đó:) Không còn chấm mạng cũ trên đời mới nhất (bỏ --val-newest-gen
 # 2026-11-20 để bớt ~1,5 phút mỗi đời; cờ vẫn còn trong train.py). Mạnh/yếu của mạng: arena.
 # --stats-newest-gen: trước khi học, in hai số thống kê của đời mới nhất (thư mục games_gen<g> số lớn nhất, ván của
@@ -72,7 +74,7 @@ if not _td:
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
     --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen {_val} --batch 512 --accum-steps 2 \
-    --lr 5e-4 --warmup-steps 50 \
+    --lr 1e-4 --warmup-steps 50 \
     --q-ratio 0.2 --weight-decay 1e-2 {_vpg} {_td} --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
     --out {_out}"""
 
