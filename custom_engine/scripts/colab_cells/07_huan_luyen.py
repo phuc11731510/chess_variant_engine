@@ -31,11 +31,11 @@ if not os.path.exists(CURRENT_PT):
 # Kiểu mạng "fzw" (2026-11-22, bộ chạy CUDA riêng của engine; NET_EXT ở ô 00 / 02): train.py ghi CHỈ .pt (--out gen<N>.pt, không xuất ONNX, nên
 # máy huấn luyện không cần pip onnx / onnxscript / onnxruntime-gpu), rồi python/lay_mang.py fzw chuyển .pt -> .fzw ngay ở dưới (kiểm an toàn
 # với mạng FP32 như đã nói; lệch / NaN thì KHÔNG ghi .fzw và ô báo lỗi, không tải mạng về). Kiểu "onnx": như trước.
-# Máy Colab sống nhiều đời liền và chỉ lấy mã mới khi chạy lại ô 02: train.py chưa có cờ mới nhất (--surprise-value-beta, 2026-11-28)
+# Máy Colab sống nhiều đời liền và chỉ lấy mã mới khi chạy lại ô 02: train.py chưa phải bản mới nhất (dấu hiệu: hàm grad_origin, 2026-11-28)
 # -> lấy thư mục python/ của main MỘT lần ngay tại đây (chỉ python/, vài trăm KB; binary / run.sh không đụng). Lỗi mạng -> học bằng bản
 # đang có, các cờ chưa có tự tắt bên dưới.
 try:
-    _cu = "--surprise-value-beta" not in open(f"{E}/python/train.py", encoding="utf-8").read()
+    _cu = "def grad_origin" not in open(f"{E}/python/train.py", encoding="utf-8").read()
 except OSError:
     _cu = False
 if _cu:
