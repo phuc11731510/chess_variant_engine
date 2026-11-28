@@ -71,11 +71,24 @@ except OSError:
     _td = ""
 if not _td:
     print("[!] train.py trên máy này chưa có --td-lambda / --mirror: lượt học này dùng nhãn qMix, không lật.")
+# --surprise-policy-beta 0.5 --surprise-value-beta 0.25 (chủ dự án chọn 2026-11-28): hai trọng số RIÊNG nhân vào loss của mỗi thế học,
+#   w = (1 - beta) + beta x min(S / S trung bình, 10), chia lại cho trung bình 1; trung bình và chuẩn hoá tính riêng cho TỪNG mạng đã chơi ván:
+#   * loss chính sách (chỉ thế tìm đầy đủ): S = policy_kld (KL phân bố lượt thăm so với prior thô), beta 0,5 (như KataGo);
+#   * loss giá trị (21 thế / ván): S = KL(lợi nhuận TD(0,8) || Thắng/Hoà/Thua thô của mạng đã chơi), beta 0,25.
+#   Khảo sát cửa sổ n241-n245 (630.599 thế): dữ liệu hiệu dụng chính sách 81,4% (w lớn nhất 5,5), giá trị 84,8% (3,37). Dòng "[val]" vẫn
+#   chấm KHÔNG trọng số (so được với các đời trước); loss in lúc học là loss có trọng số. Cần --td-lambda (nên đi cùng _td).
+try:
+    _sw = ("--surprise-policy-beta 0.5 --surprise-value-beta 0.25"
+           if _td and "--surprise-value-beta" in open(f"{E}/python/train.py", encoding="utf-8").read() else "")
+except OSError:
+    _sw = ""
+if not _sw:
+    print("[!] train.py trên máy này chưa có --surprise-*-beta: lượt học này không dùng trọng số theo độ bất ngờ.")
 cmd = f"""python {E}/python/train.py \
     --data "{DATA}" --init-from {CURRENT_PT} \
     --epochs 1 --swa-tail 10 --swa-tail-every 20 --val-frac 0 --stats-newest-gen {_val} --batch 512 --accum-steps 2 \
     --lr 1e-4 --warmup-steps 50 \
-    --q-ratio 0.2 --weight-decay 1e-2 {_vpg} {_td} --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
+    --q-ratio 0.2 --weight-decay 1e-2 {_vpg} {_td} {_sw} --report-every 20 --amp --grad-clip 10 {_onnx_opt} \
     --out {_out}"""
 
 print(cmd)

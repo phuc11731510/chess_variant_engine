@@ -48,22 +48,27 @@ def policy_ce(logits, pi):
     return -(target * logp).sum(dim=1)
 
 
-def policy_loss(logits, pi, has_policy=None):
+def policy_loss(logits, pi, has_policy=None, weight=None):
     """Mean over the positions. With `has_policy` ([B]: 1 = full search, 0 = reduced playout cap) the mean is
     over the positions WITH a policy target: sum / max(1, how many), not sum / B -- dividing by B would
-    halve this term whenever half of the batch has no policy target."""
+    halve this term whenever half of the batch has no policy target. `weight` ([B], the surprise weights, mean 1
+    over the data): each position's loss times its weight, still divided by the number of positions."""
     ce = policy_ce(logits, pi)
+    if weight is not None:
+        ce = ce * weight
     if has_policy is None:
         return ce.mean()
     return (ce * has_policy).sum() / has_policy.sum().clamp(min=1.0)
 
 
-def value_loss(logits, target_wdl):
+def value_loss(logits, target_wdl, weight=None):
     """Mean over the positions that HAVE a value target. A row of zeros (--value-per-game: a position whose value
     target was left out) counts for nothing; with every row a distribution (always, without that flag) this is the
-    plain mean over the batch."""
+    plain mean over the batch. `weight`: as in policy_loss."""
     ce = -(target_wdl * F.log_softmax(logits, dim=1)).sum(dim=1)
     has = has_value(target_wdl).to(ce.dtype)
+    if weight is not None:
+        ce = ce * weight
     return (ce * has).sum() / has.sum().clamp(min=1.0)
 
 
@@ -85,15 +90,23 @@ def mlh_loss(pred, plies_left):
 
 
 def split_val(val):
-    """The dataset's per-position target row [B,5] -> (wdl [B,3], plies_left [B], has_policy [B])."""
+    """The dataset's per-position target row [B,7] (or [B,5]) -> (wdl [B,3], plies_left [B], has_policy [B])."""
     return val[:, :3], val[:, 3], val[:, 4]
 
 
+def split_weights(val):
+    """(value weight [B], policy weight [B]) of the target rows (FairyDataset columns 5, 6), or (None, None) for
+    rows without them."""
+    return (val[:, 5], val[:, 6]) if val.size(1) >= 7 else (None, None)
+
+
 def compute_losses(outputs, pi, val):
-    """(policy, value, moves-left) losses of one batch from the net's three outputs."""
+    """(policy, value, moves-left) TRAINING losses of one batch from the net's three outputs, with the surprise
+    weights of the targets (all 1 unless --surprise-*-beta). evaluate() scores without them."""
     p_logits, v_logits, mlh = outputs
     wdl, plies, has_policy = split_val(val)
-    return (policy_loss(p_logits.float(), pi, has_policy), value_loss(v_logits.float(), wdl),
+    w_value, w_policy = split_weights(val)
+    return (policy_loss(p_logits.float(), pi, has_policy, w_policy), value_loss(v_logits.float(), wdl, w_value),
             mlh_loss(mlh.float().squeeze(1), plies))
 
 
@@ -693,6 +706,16 @@ def main():
                     help="flip every training position left-right (files a<->j, policy to the mirrored moves) with "
                          "probability 1/2 each time it is drawn: the rules are left-right symmetric (no castling). "
                          "The validation / scoring sets are not flipped")
+    ap.add_argument("--surprise-policy-beta", type=float, default=0.0, metavar="BETA",
+                    help="weight each training position's POLICY loss by (1 - BETA) + BETA x min(S / mean S, "
+                         "--surprise-cap), normalized to mean 1, S = policy_kld of a full search (the net that "
+                         "played vs its search); mean and normalization per network that played (0 = off, the "
+                         "default). The validation / scoring sets are unweighted. Cell 07: 0.5")
+    ap.add_argument("--surprise-value-beta", type=float, default=0.0, metavar="BETA",
+                    help="the same for the VALUE loss, S = KL(TD return || raw W/D/L eval of the net that played); "
+                         "needs --td-lambda (0 = off, the default). Cell 07: 0.25")
+    ap.add_argument("--surprise-cap", type=float, default=10.0, metavar="X",
+                    help="cap of S / mean S in the surprise weights (>= 1, default 10)")
     ap.add_argument("--report-every", type=int, default=0, help="print running loss every N steps (0 = per-epoch)")
     ap.add_argument("--save-every", type=int, default=0, help="export an ONNX checkpoint every N steps (0 = only final)")
     args = ap.parse_args()
@@ -733,6 +756,13 @@ def main():
         sys.exit(f"--value-per-game must be >= 0, got {args.value_per_game}")
     if args.td_lambda is not None and not (0.0 <= args.td_lambda <= 1.0 and 0.0 <= args.td_z_weight <= 1.0):
         sys.exit(f"--td-lambda and --td-z-weight must be in [0, 1], got {args.td_lambda} and {args.td_z_weight}")
+    if not (0.0 <= args.surprise_policy_beta <= 1.0 and 0.0 <= args.surprise_value_beta <= 1.0
+            and args.surprise_cap >= 1.0):
+        sys.exit("--surprise-policy-beta / --surprise-value-beta must be in [0, 1] and --surprise-cap >= 1")
+    if args.surprise_value_beta > 0 and args.td_lambda is None:
+        sys.exit("--surprise-value-beta measures the surprise against the TD return: it needs --td-lambda")
+    if args.diff_focus and (args.surprise_policy_beta > 0 or args.surprise_value_beta > 0):
+        sys.exit("--diff-focus and the surprise weights are two ways to favor surprising positions: use one")
     if args.val_newest_games < 0:
         sys.exit(f"--val-newest-games must be >= 0, got {args.val_newest_games}")
     if args.val_newest_games and args.val_frac > 0:
@@ -751,7 +781,9 @@ def main():
                       sparse=args.sparse_cache, max_records=args.max_records,
                       games=train_games, label="train" if val_games else "", seed=args.seed,
                       packed=packed, value_per_game=args.value_per_game,
-                      td_lambda=args.td_lambda, td_z_weight=args.td_z_weight)
+                      td_lambda=args.td_lambda, td_z_weight=args.td_z_weight,
+                      surprise_policy_beta=args.surprise_policy_beta, surprise_value_beta=args.surprise_value_beta,
+                      surprise_cap=args.surprise_cap)
     collate = collate_packed if packed else None
     dl = DataLoader(ds, batch_size=args.batch, shuffle=True, drop_last=False,
                     num_workers=workers, pin_memory=pin, collate_fn=collate,

@@ -197,7 +197,8 @@ def test_qmix():
         z = D.wdl_from_qd(rec["result_q"], rec["result_d"])
         q = D.wdl_from_qd(rec["best_q"], rec["best_d"])
         expect = qr * q + (1 - qr) * z
-        check(v.shape == (5,) and v.dtype == np.float32, "value row = [W, D, L, plies_left, has_policy]")
+        check(v.shape == (7,) and v.dtype == np.float32 and np.all(v[5:] == 1.0),
+              "value row = [W, D, L, plies_left, has_policy, value_weight 1, policy_weight 1]")
         check(np.allclose(v[:3], expect, atol=1e-6), f"q_ratio={qr}: value == qr*q+(1-qr)*z")
     check(np.allclose(_DS(0.0)._value(make_rec(3))[:3],
                       D.wdl_from_qd(make_rec(3)["result_q"], make_rec(3)["result_d"])),

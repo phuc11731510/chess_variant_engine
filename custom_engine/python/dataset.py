@@ -191,16 +191,17 @@ def _td_kernel(lam, n):
     return k[:n, :n]
 
 
-def td_value_targets(recs, lam, z_weight):
-    """W/D/L value targets [len(recs), 3] (float32) of ONE game's records, in game order, each from its own side to
-    move: z_weight * the game result + (1 - z_weight) * the TD(lam) return
+def td_returns(recs, lam):
+    """(z, G) of ONE game's records, in game order: two [len(recs), 3] float64 W/D/L arrays, each row from its own
+    position's side to move. z = the game result; G = the TD(lam) return
 
         G_t = sum_{j > t} (1 - lam) * lam^(j - t - 1) * s_j  +  lam^(L - 1 - t) * z
 
-    s_j = the search value of position j (best_q / best_d, as the qMix uses) and z = the game result, both seen
-    from the side to move at t (W and L swap at every position whose side to move differs from t's). The last
-    position's return is z; lam = 1 gives z everywhere, lam = 0 the next position's search value. Computed in the
-    frame of the first position (one matrix product), then turned back to each position's own side."""
+    s_j = the search value of position j (best_q / best_d, as the qMix uses) and z, both seen from the side to move
+    at t (W and L swap at every position whose side to move differs from t's). The weights sum to 1, so every G_t is
+    a W/D/L distribution. The last position's return is z; lam = 1 gives z everywhere, lam = 0 the next position's
+    search value. Computed in the frame of the first position (one matrix product), then turned back to each
+    position's own side."""
     n = len(recs)
     s = wdl_from_qd_many([search_q(r) for r in recs], [r["best_d"] for r in recs])
     z = wdl_from_qd_many([r["result_q"] for r in recs], [r["result_d"] for r in recs])
@@ -211,17 +212,93 @@ def td_value_targets(recs, lam, z_weight):
 
     tail = np.power(lam, np.arange(n - 1, -1, -1, dtype=np.float64))[:, None]
     g = _td_kernel(lam, n) @ to_first(s) + tail * to_first(z)[-1]
-    return (z_weight * z + (1.0 - z_weight) * to_first(g)).astype(np.float32)
+    return z, to_first(g)
 
 
-def iter_games_targets(games, rng, sparse=False, value_per_game=0, td=None):
+def td_value_targets(recs, lam, z_weight):
+    """W/D/L value targets [len(recs), 3] (float32) of ONE game's records, in game order, each from its own side to
+    move: z_weight * the game result + (1 - z_weight) * the TD(lam) return G_t (td_returns)."""
+    z, g = td_returns(recs, lam)
+    return (z_weight * z + (1.0 - z_weight) * g).astype(np.float32)
+
+
+# --------------------------------------------------------------------------- #
+# Surprise weights (owner's design, 2026-11-28): each training position's policy loss and value loss are multiplied
+# by two SEPARATE weights that grow with how much the net that played the game was off at that position:
+#   * policy surprise = policy_kld (KL of the visit distribution from the raw prior), full searches only (a reduced
+#     playout cap search has no policy target);
+#   * value surprise  = KL(G_t || V_net): the TD return G_t of td_returns (the search part of the value target)
+#     against the raw W/D/L eval of the net (orig_q / orig_d). Not the game result: its luck is the part only a
+#     memorized game can tell.
+# w = (1 - beta) + beta * min(S / mean S, cap), then divided by its mean so the average weight is 1: both the mean
+# and the normalization are per NETWORK that played (a stronger net is less surprised, and the window mixes ~5 nets).
+# A position whose surprise is unknown (data < v4 without a raw eval) gets weight 1.
+# --------------------------------------------------------------------------- #
+SURPRISE_EPS = 1e-4                    # floor of the net's W/D/L probabilities (stored values are rounded)
+_NET_IN_NAME = re.compile(r"_n(\d+)_")
+
+
+def value_surprise(recs, g):
+    """KL(G_t || V_net) [len(recs)] (float64, nan where the raw eval is unknown) of ONE game, G = td_returns(...)[1]."""
+    v = wdl_from_qd_many([orig_q(r) for r in recs], [r["orig_d"] for r in recs])
+    v = np.maximum(v, SURPRISE_EPS)
+    v /= v.sum(axis=1, keepdims=True)
+    kl = (g * np.log(np.where(g > 0.0, g, 1.0) / v)).sum(axis=1)      # 0 * log(.) = 0 where G has no mass
+    unknown = np.fromiter((orig_is_unknown(r) for r in recs), dtype=bool, count=len(recs))
+    kl[unknown] = np.nan
+    return kl
+
+
+def policy_surprise(rec):
+    """policy_kld of a full search; nan for a reduced playout cap search (no policy target) or an unknown raw eval."""
+    if rec.get("fast_search", 0) or orig_is_unknown(rec):
+        return np.nan
+    return max(0.0, rec["policy_kld"])
+
+
+def surprise_group(path):
+    """Which network played the games of the file `path`: n<net> of a goi_<seq>_n<net>_... package, or else the
+    file's folder (one generation's games_gen<g>)."""
+    m = _NET_IN_NAME.search(os.path.basename(path))
+    return f"n{m.group(1)}" if m else os.path.dirname(os.path.abspath(path))
+
+
+def surprise_weights(s, group, beta, cap):
+    """Weights [N] (float64) for the surprises s [N] (nan = unknown -> weight 1) of positions in groups group [N]
+    (ints 0..G-1): (1 - beta) + beta * min(s / mean, cap), then divided by the group's mean weight. All vectorized."""
+    w = np.ones(len(s))
+    known = np.isfinite(s)
+    if beta <= 0.0 or not known.any():
+        return w
+    g, sk = group[known], s[known]
+    ng = int(g.max()) + 1
+    count = np.maximum(np.bincount(g, minlength=ng), 1)
+    mean = (np.bincount(g, weights=sk, minlength=ng) / count)[g]
+    ratio = np.where(mean > 0.0, np.minimum(sk / np.where(mean > 0.0, mean, 1.0), cap), 1.0)
+    x = (1.0 - beta) + beta * ratio
+    w[known] = x / (np.bincount(g, weights=x, minlength=ng) / count)[g]
+    return w
+
+
+def _weights_summary(w, mask):
+    """'max M, effective E%' of the weights w[mask] (effective = (sum w)^2 / (n * sum w^2): the share of positions
+    that, equally weighted, would give the same noise)."""
+    x = w[mask]
+    if len(x) == 0:
+        return "no positions"
+    return f"max {x.max():.2f}, effective {x.sum() ** 2 / (len(x) * (x * x).sum()):.1%}"
+
+
+def iter_games_targets(games, rng, sparse=False, value_per_game=0, td=None, surprise=False):
     """iter_games with the per-GAME work of the value target done on each whole game:
 
       * td = (lam, z_weight): every record gets r["td_wdl"] = its td_value_targets row (the value target the
         dataset then uses instead of the qMix);
       * value_per_game = k > 0: only k positions drawn at random keep their value target (a game of k positions or
         fewer: all of them); the others are marked r["no_value"] = True, FairyDataset gives them an all-zero W/D/L
-        row that train.value_loss leaves out. The policy and moves-left targets of every position are kept.
+        row that train.value_loss leaves out. The policy and moves-left targets of every position are kept;
+      * surprise: every record gets r["s_policy"] (policy_surprise), r["s_value"] (value_surprise against the TD
+        return of td; nan without td) and r["s_group"] (surprise_group of its file), for the surprise weights.
 
     Why value_per_game (owner's decision 2026-11-26, cell 07: 21): the value head memorized whole games -- every
     game starts from its own random position and all its positions share one result -- so it meets each game
@@ -229,10 +306,21 @@ def iter_games_targets(games, rng, sparse=False, value_per_game=0, td=None):
     the rest of the game, the part of the result that only a memorized game can tell."""
     grouped = iter_games_grouped(games, sparse)
     try:
-        for recs in grouped:
+        for (path, _), recs in zip(games, grouped):        # iter_games_grouped yields one list per game, in order
+            if not recs:
+                continue
             if td is not None:
-                for r, v in zip(recs, td_value_targets(recs, *td)):
+                lam, z_weight = td
+                z, g = td_returns(recs, lam)
+                for r, v in zip(recs, (z_weight * z + (1.0 - z_weight) * g).astype(np.float32)):
                     r["td_wdl"] = v
+            if surprise:
+                sv = value_surprise(recs, g) if td is not None else np.full(len(recs), np.nan)
+                group = surprise_group(path)
+                for r, s in zip(recs, sv.tolist()):
+                    r["s_value"] = s
+                    r["s_policy"] = policy_surprise(r)
+                    r["s_group"] = group
             if value_per_game > 0:
                 keep = set(rng.sample(range(len(recs)), min(value_per_game, len(recs))))
                 for i, r in enumerate(recs):
@@ -286,11 +374,11 @@ def _diff_focus_keep(rec, slope, kld_w, pmin):
 
 
 class FairyDataset(Dataset):
-    """Yields (input[NUM_PLANES,10,10], pi[POLICY_SIZE], value[5]).
+    """Yields (input[NUM_PLANES,10,10], pi[POLICY_SIZE], value[7]).
 
     value = [W, D, L target (the qMix of the search value and the game result), plies_left (the moves-left
     target; 0 = not filled in), has_policy (1 = full search; 0 = fast_search, the policy target is not to
-    be trained on)].
+    be trained on), value_weight, policy_weight (the surprise weights of the value / policy loss; 1 = off)].
 
     Two in-RAM cache representations (both produce identical training tensors):
       * sparse=True  (default, 8.2.2): per record keep only the compact bitboard
@@ -306,15 +394,26 @@ class FairyDataset(Dataset):
     def __init__(self, data, q_ratio=0.25, downsample_keep=1.0, cache=True, seed=0,
                  diff_focus=False, df_slope=1.0, df_kld_w=0.5, df_min=0.2, sparse=True,
                  max_records=0, games=None, label="", packed=False, value_per_game=0,
-                 td_lambda=None, td_z_weight=0.5):
+                 td_lambda=None, td_z_weight=0.5, surprise_policy_beta=0.0, surprise_value_beta=0.0,
+                 surprise_cap=10.0):
         """`games` (from list_games / split_games) loads only those games; by
         default every game in `data`. `label` names the set in the log line.
         `packed` (sparse cache only): items are pack_compact() samples, to batch
         with collate_packed and rebuild on the device with unpack_batch.
         `td_lambda` (0..1, None = off): value target = td_z_weight * the game result + (1 - td_z_weight) *
-        the TD(td_lambda) return (td_value_targets) instead of the qMix; q_ratio is then unused."""
+        the TD(td_lambda) return (td_value_targets) instead of the qMix; q_ratio is then unused.
+        `surprise_policy_beta` / `surprise_value_beta` (0..1, 0 = off): the surprise weights of the policy / value
+        loss (surprise_weights, capped at `surprise_cap` x the mean); the value one needs td_lambda."""
         if td_lambda is not None and not (0.0 <= td_lambda <= 1.0 and 0.0 <= td_z_weight <= 1.0):
             raise ValueError(f"td_lambda and td_z_weight must be in [0, 1], got {td_lambda} and {td_z_weight}")
+        if not (0.0 <= surprise_policy_beta <= 1.0 and 0.0 <= surprise_value_beta <= 1.0 and surprise_cap >= 1.0):
+            raise ValueError(f"surprise betas must be in [0, 1] and the cap >= 1, got {surprise_policy_beta}, "
+                             f"{surprise_value_beta} and {surprise_cap}")
+        weighted = surprise_policy_beta > 0.0 or surprise_value_beta > 0.0
+        if surprise_value_beta > 0.0 and td_lambda is None:
+            raise ValueError("the value surprise weight is measured against the TD return: it needs td_lambda")
+        if weighted and diff_focus:
+            raise ValueError("diff_focus and the surprise weights are two ways to favor surprising positions: use one")
         rng = random.Random(seed)
         games = list_games(data) if games is None else list(games)
         if not games:
@@ -373,11 +472,14 @@ class FairyDataset(Dataset):
         kept = 0
         # The compact cache only needs the legal policy slots: v6 games then skip
         # building the dense probabilities[POLICY_SIZE] of every position.
-        if value_per_game > 0 or td_lambda is not None:
+        if value_per_game > 0 or td_lambda is not None or weighted:
             records = iter_games_targets(games, rng, sparse=compact_cache is not None, value_per_game=value_per_game,
-                                         td=None if td_lambda is None else (float(td_lambda), float(td_z_weight)))
+                                         td=None if td_lambda is None else (float(td_lambda), float(td_z_weight)),
+                                         surprise=weighted)
         else:
             records = iter_games(games, sparse=compact_cache is not None)
+        # Surprise weights: the surprises of every kept record (in store order), turned into weights once all are in.
+        s_value, s_policy, s_group, has_v, groups = [], [], [], [], {}
         for r in records:
             k = _keep(r)
             if k is False:
@@ -386,10 +488,20 @@ class FairyDataset(Dataset):
                 deferred.append(_form(r))
                 continue
             store.append(_form(r))
+            if weighted:
+                s_value.append(r["s_value"])
+                s_policy.append(r["s_policy"])
+                s_group.append(groups.setdefault(r["s_group"], len(groups)))
+                has_v.append(not r.get("no_value"))
             kept += 1
             if max_records and kept >= max_records:
                 break
         records.close()                        # closes an open .zip at once
+        if weighted:
+            self._set_surprise_weights(store, np.array(s_value, dtype=np.float64),
+                                       np.array(s_policy, dtype=np.float64), np.array(s_group, dtype=np.int64),
+                                       np.array(has_v, dtype=bool), len(groups), surprise_policy_beta,
+                                       surprise_value_beta, surprise_cap)
         if deferred:
             keep_p = df_seen[0] / df_seen[1] if df_seen[1] else 1.0
             for form in deferred:
@@ -414,9 +526,10 @@ class FairyDataset(Dataset):
               + (f", value target on {value_per_game} positions per game" if value_per_game > 0 else "") + ")")
 
     def _value(self, r):
-        """[W, D, L, plies_left, has_policy] (float32[5]); the WDL part is the TD target of iter_games_targets
-        (td_lambda) or else q_ratio * the search value (best_q / best_d: the average value of the most-visited
-        move) + (1 - q_ratio) * the game result."""
+        """[W, D, L, plies_left, has_policy, value_weight, policy_weight] (float32[7]); the WDL part is the TD
+        target of iter_games_targets (td_lambda) or else q_ratio * the search value (best_q / best_d: the average
+        value of the most-visited move) + (1 - q_ratio) * the game result. The two weights are 1 here;
+        _set_surprise_weights fills them in once every record is loaded."""
         v = r.get("td_wdl")
         if v is None:
             z_wdl = wdl_from_qd(r["result_q"], r["result_d"])
@@ -424,8 +537,30 @@ class FairyDataset(Dataset):
             v = self.q_ratio * q_wdl + (1.0 - self.q_ratio) * z_wdl
         if r.get("no_value"):            # iter_games_targets: no value target (train.value_loss skips the row)
             v = np.zeros(3, dtype=np.float32)
-        extra = np.array([float(r.get("plies_left", 0)), 0.0 if r.get("fast_search", 0) else 1.0])
+        extra = np.array([float(r.get("plies_left", 0)), 0.0 if r.get("fast_search", 0) else 1.0,
+                          r.get("w_value", 1.0), r.get("w_policy", 1.0)])
         return np.concatenate([v, extra]).astype(np.float32)
+
+    def _set_surprise_weights(self, store, s_value, s_policy, s_group, has_v, n_groups, policy_beta, value_beta, cap):
+        """Turns the surprises of the stored records (same order) into the value / policy weights (surprise_weights,
+        per network that played) and writes them into each record's target row (the raw record without a cache)."""
+        w_value = surprise_weights(s_value, s_group, value_beta, cap).astype(np.float32)
+        w_policy = surprise_weights(s_policy, s_group, policy_beta, cap).astype(np.float32)
+        pairs = zip(store, w_value.tolist(), w_policy.tolist())
+        if self.cache and self.sparse:                          # compact records
+            for item, wv, wp in pairs:
+                item["value"][5:7] = (wv, wp)
+        elif self.cache:                                        # dense (x, pi, value) tensors
+            for item, wv, wp in pairs:
+                item[2][5:7] = torch.tensor((wv, wp))
+        else:                                                   # raw records: _value reads these when building
+            for item, wv, wp in pairs:
+                item["w_value"], item["w_policy"] = wv, wp
+        full = np.isfinite(s_policy)
+        print(f"[dataset] surprise weights (per network that played, {n_groups} networks; capped at {cap:g}x the "
+              f"mean): policy beta {policy_beta:g} on {int(full.sum())} full searches -> "
+              f"{_weights_summary(w_policy, full) if policy_beta > 0 else 'off'}; value beta {value_beta:g} on "
+              f"{int(has_v.sum())} value targets -> {_weights_summary(w_value, has_v) if value_beta > 0 else 'off'}")
 
     def _build(self, r):
         """Dense tensors (used by sparse=False cache and by streaming)."""
@@ -490,7 +625,7 @@ assert AUX_EN_PASSANT == 0
 
 
 def pack_compact(c):
-    """One compact record -> (masks int64[N_MASKS,2], scalars f32[3], pi_idx, pi_val, value f32[5]).
+    """One compact record -> (masks int64[N_MASKS,2], scalars f32[3], pi_idx, pi_val, value f32[7]).
     The scalars are computed exactly as reconstruct_planes does (float64 division
     rounded to float32), so the planes rebuilt from them are bit-identical."""
     masks = np.empty((N_MASKS, 2), dtype=np.uint64)
@@ -525,7 +660,7 @@ _BIT_T = torch.from_numpy(
 
 
 def unpack_batch(batch, device, channels_last=False):
-    """collate_packed batch -> (x f32[B,NUM_PLANES,10,10], pi f32[B,POLICY_SIZE], value f32[B,5])
+    """collate_packed batch -> (x f32[B,NUM_PLANES,10,10], pi f32[B,POLICY_SIZE], value f32[B,7])
     on `device`; x in channels_last memory format when asked (same values)."""
     masks, scal, idx, val, value = (t.to(device, non_blocking=True) for t in batch)
     b = masks.size(0)

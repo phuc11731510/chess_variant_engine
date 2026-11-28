@@ -18,6 +18,8 @@ records, and checks what they write (not just that they finish):
   8. --value-per-game: K value targets per game, the value loss a mean over them.
   9. --td-lambda: the TD value target against a direct sum, in the dataset and in train.py.
  10. --mirror: the policy permutation against the move decoder, mirror_batch, train.py.
+ 11. --surprise-policy-beta / --surprise-value-beta: the weights against their formula, in the dataset, the
+     losses and train.py; evaluate() stays unweighted.
 
 Run:  python test_train_pipeline.py        (~1 minute on a CPU)
 """
@@ -355,6 +357,113 @@ def test_td_lambda(tmp, base):
     check(rc != 0 and "--td-lambda and --td-z-weight must be in [0, 1]" in out, "--td-lambda 1.5 is refused")
 
 
+def test_surprise(tmp, base):
+    """--surprise-policy-beta / --surprise-value-beta: the two surprise weights, from the formula to train.py."""
+    import dataset as D
+    import train as T
+    nan = float("nan")
+    # surprise_weights: (1 - beta) + beta * min(S / mean, cap), normalized to mean 1 in each group; unknown -> 1.
+    s, g = np.array([1.0, 1.0, 1.0, 4.0]), np.zeros(4, dtype=np.int64)
+    w = D.surprise_weights(s, g, 0.5, 10.0)
+    want = 0.5 + 0.5 * s / s.mean()
+    check(np.allclose(w, want) and abs(w.mean() - 1) < 1e-12, f"beta 0.5: 0.5 + 0.5 S / mean S ({w.round(4).tolist()})")
+    w = D.surprise_weights(np.array([0.0, 0.0, 0.0, 100.0]), g, 1.0, 2.0)
+    check(np.allclose(w, [0, 0, 0, 4]), f"the cap: S / mean S capped at 2, then normalized to mean 1 ({w.tolist()})")
+    s = np.array([1.0, 3.0, nan, 10.0, 30.0])
+    g = np.array([0, 0, 0, 1, 1])
+    w = D.surprise_weights(s, g, 0.25, 10.0)
+    check(w[2] == 1.0 and abs(w[[0, 1]].mean() - 1) < 1e-12 and abs(w[[3, 4]].mean() - 1) < 1e-12
+          and np.allclose(w[[0, 1]], w[[3, 4]]) and w[1] > w[0],
+          "per group: each group's known weights average 1, the same pattern at 10x the scale gets the same weights, "
+          "an unknown surprise gets 1")
+    check(np.all(D.surprise_weights(s, g, 0.0, 10.0) == 1.0), "beta 0: every weight 1")
+    check(D.surprise_group("/x/goi_04017_n240_50_7891.zip") == "n240" and
+          D.surprise_group(os.path.join("a", "games_gen7", "g1.gz")) == os.path.abspath(os.path.join("a", "games_gen7")),
+          "surprise_group: the n<net> of a package, else the folder")
+
+    # value_surprise = KL(TD return || raw W/D/L of the net), against the direct sum; policy_surprise.
+    recs = _td_game(40, seed=11)
+    rng = np.random.default_rng(5)
+    for r in recs:
+        d = float(rng.random() * 0.3)
+        r.update(orig_q=float(rng.uniform(-1 + d, 1 - d)), orig_d=d, policy_kld=float(rng.random()), fast_search=0)
+    recs[-1].update(orig_q=-0.99999, orig_d=0.0)              # a near-certain eval: the floor keeps the KL finite
+    g_ret = _td_direct(recs, 0.8, 0.0)
+    v = np.maximum(np.array([D.wdl_from_qd(r["orig_q"], r["orig_d"]) for r in recs], dtype=np.float64), D.SURPRISE_EPS)
+    v /= v.sum(1, keepdims=True)
+    want = np.array([sum(p * np.log(p / q) for p, q in zip(gt, vt) if p > 0) for gt, vt in zip(g_ret, v)])
+    got = D.value_surprise(recs, D.td_returns(recs, 0.8)[1])
+    check(np.allclose(got, want, atol=1e-9) and np.isfinite(got).all() and (got >= -1e-12).all(),
+          f"value_surprise = sum G ln(G / V) of the TD return (40 positions, largest {got.max():.3f}, finite)")
+    old = dict(recs[0], version=3, policy_kld=0.0, orig_q=recs[0]["best_q"], orig_d=recs[0]["best_d"])
+    check(np.isnan(D.value_surprise([old], np.array([[1.0, 0.0, 0.0]]))[0]) and np.isnan(D.policy_surprise(old)),
+          "a record without a raw eval (data < v4): both surprises unknown")
+    check(np.isnan(D.policy_surprise(dict(recs[1], fast_search=1))) and D.policy_surprise(dict(recs[1], policy_kld=-0.1)) == 0.0
+          and D.policy_surprise(recs[1]) == recs[1]["policy_kld"],
+          "policy_surprise: policy_kld of a full search, nan for a reduced playout cap one")
+
+    # The dataset: weights in columns 5 / 6, equal to the weights computed directly from the games.
+    data = ",".join(os.path.join(tmp, "games", g) for g in ("gen0", "gen1", "gen2"))
+    games = D.list_games(data)
+    kw = dict(q_ratio=0.2, td_lambda=0.8, td_z_weight=0.5, seed=7)
+    ds = D.FairyDataset(data, surprise_policy_beta=0.5, surprise_value_beta=0.25, **kw)
+    rows = np.stack([ds[i][2].numpy() for i in range(len(ds))])
+    sv, sp, grp, ids = [], [], [], {}
+    for (path, _), recs in zip(games, R.iter_games_grouped(games)):
+        sv += D.value_surprise(recs, D.td_returns(recs, 0.8)[1]).tolist()
+        sp += [D.policy_surprise(r) for r in recs]
+        grp += [ids.setdefault(D.surprise_group(path), len(ids))] * len(recs)
+    grp = np.array(grp)
+    wv, wp = D.surprise_weights(np.array(sv), grp, 0.25, 10.0), D.surprise_weights(np.array(sp), grp, 0.5, 10.0)
+    check(rows.shape == (480, 7) and np.allclose(rows[:, 5], wv, atol=1e-6) and np.allclose(rows[:, 6], wp, atol=1e-6),
+          f"FairyDataset: columns 5 / 6 = the value / policy weights of its {len(ds)} positions ({len(ids)} groups)")
+    check(rows[:, 5].std() > 0.01 and all(abs(rows[grp == k, 5].mean() - 1) < 1e-5 for k in range(len(ids))),
+          f"...the value weights differ (std {rows[:, 5].std():.3f}) and average 1 in every group")
+    plain = np.stack([D.FairyDataset(data, **kw)[i][2].numpy() for i in range(len(ds))])
+    check(plain.shape == (480, 7) and np.all(plain[:, 5:] == 1.0) and np.allclose(plain[:, :5], rows[:, :5]),
+          "without the flags: weights 1, and the targets are the same as with them")
+    for bad, why in ((dict(surprise_value_beta=0.25, q_ratio=0.2), "the value weight without td_lambda"),
+                     (dict(surprise_policy_beta=0.5, diff_focus=True, **kw), "the weights together with diff_focus"),
+                     (dict(surprise_policy_beta=1.5, **kw), "beta 1.5")):
+        try:
+            D.FairyDataset(data, **bad)
+            check(False, f"FairyDataset refuses {why}")
+        except ValueError:
+            check(True, f"FairyDataset refuses {why}")
+
+    # The losses: each position's loss times its weight, divided by the number of positions; evaluate() unweighted.
+    torch.manual_seed(1)
+    pol, val_logits = torch.randn(6, R.POLICY_SIZE), torch.randn(6, 3)
+    x, pi, val = ds[0][0], torch.stack([ds[i][1] for i in range(6)]), torch.tensor(rows[:6])
+    val[2, :3] = 0.0                                                    # one position without a value target
+    lp, lv, _ = T.compute_losses((pol, val_logits, torch.zeros(6, 1)), pi, val)
+    ce_p = T.policy_ce(pol, pi)
+    ce_v = -(val[:, :3] * torch.log_softmax(val_logits, 1)).sum(1)
+    has = (val[:, :3].sum(1) > 0.5).float()
+    want_p = (ce_p * val[:, 6] * val[:, 4]).sum() / val[:, 4].sum().clamp(min=1)
+    want_v = (ce_v * val[:, 5] * has).sum() / has.sum()
+    check(abs(lp.item() - want_p.item()) < 1e-5 and abs(lv.item() - want_v.item()) < 1e-5,
+          "compute_losses: policy loss weighted by column 6, value loss by column 5, divided by the counts")
+    from torch.utils.data import DataLoader
+    from model import FairyNet
+    net = FairyNet(d_model=16, layers=1, heads=2).eval()
+    e_w = T.evaluate(net, DataLoader(ds, batch_size=64), "cpu")
+    e_p = T.evaluate(net, DataLoader(D.FairyDataset(data, **kw), batch_size=64), "cpu")
+    check(np.allclose(e_w, e_p, atol=1e-6), "evaluate() ignores the weights (the [val] scores stay comparable)")
+
+    args = list(base)
+    args[args.index("--data") + 1] = data
+    flags = ["--td-lambda", "0.8", "--surprise-policy-beta", "0.5", "--surprise-value-beta", "0.25"]
+    rc, out = run(args + ["--epochs", "1", "--val-frac", "0", "--value-per-game", "3"] + flags +
+                  ["--out", os.path.join(tmp, "sw.pt")], tmp)
+    check(rc == 0 and "surprise weights (per network that played, 3 networks" in out and "value beta 0.25 on 180 value targets" in out,
+          "train.py with both weights (and --value-per-game 3) trains and prints them")
+    rc, out = run(args + ["--epochs", "1", "--surprise-value-beta", "0.25", "--out", os.path.join(tmp, "sw2.pt")], tmp)
+    check(rc != 0 and "it needs --td-lambda" in out, "--surprise-value-beta without --td-lambda is refused")
+    rc, out = run(args + ["--epochs", "1", "--surprise-policy-beta", "2", "--out", os.path.join(tmp, "sw3.pt")], tmp)
+    check(rc != 0 and "must be in [0, 1]" in out, "--surprise-policy-beta 2 is refused")
+
+
 def test_mirror(tmp, base):
     """--mirror: the policy slot permutation, mirror_batch, and train.py."""
     import dataset as D
@@ -531,6 +640,9 @@ def main():
 
         print("\n[10] --mirror")
         test_mirror(tmp, base)
+
+        print("\n[11] surprise weights")
+        test_surprise(tmp, base)
 
     print("\n" + "=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")
