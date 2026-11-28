@@ -110,6 +110,37 @@ def compute_losses(outputs, pi, val):
             mlh_loss(mlh.float().squeeze(1), plies))
 
 
+# Where an infinite / NaN gradient of a skipped FP16 step started. The three heads have their own parameters (by name
+# prefix), the rest is the shared trunk. An infinity born in one head flows back into the trunk but never into another
+# head's parameters, so a head with a non-finite gradient is where it came from; the trunk alone = born in the trunk.
+GRAD_PARTS = (("policy head", "pol_"), ("value head", "val_"), ("moves-left head", "mlh_"))
+
+
+def grad_part_names(net):
+    """[(part, parameter)] of every trainable parameter, part = a GRAD_PARTS name or 'trunk'."""
+    return [(next((part for part, pre in GRAD_PARTS if name.startswith(pre)), "trunk"), p)
+            for name, p in net.named_parameters() if p.requires_grad]
+
+
+def grad_finite_flags(parts):
+    """Bool tensor [len(parts)] on the device: the gradient of each parameter is all finite (a missing one counts as
+    finite). One fused norm over every gradient (as clip_grad_norm_ computes it): a norm is finite exactly when every
+    element is. No device sync: read only when a step was skipped (grad_origin)."""
+    grads = [p.grad if p.grad is not None else p.new_zeros(()) for _, p in parts]
+    return torch.stack(torch._foreach_norm(grads)).isfinite()
+
+
+def grad_origin(parts, flags):
+    """(origin, {part: number of parameters with a non-finite gradient}) from grad_finite_flags. origin = the head(s)
+    with a non-finite gradient, else 'trunk' (or 'none' if every gradient was finite)."""
+    bad = {}
+    for (part, _), ok in zip(parts, flags.tolist()):
+        if not ok:
+            bad[part] = bad.get(part, 0) + 1
+    heads = [part for part, _ in GRAD_PARTS if part in bad]
+    return (" + ".join(heads) if heads else ("trunk" if bad else "none")), bad
+
+
 def device_batches(loader, device, channels_last=False):
     """(x, pi, value) on `device` for each batch of `loader`. Packed batches
     (collate_packed) are rebuilt there by unpack_batch; dense ones are moved.
@@ -884,6 +915,8 @@ def main():
     amp_skipped = 0        # optimizer steps skipped because of an infinite / NaN gradient
     amp_streak = 0         # ... in a row
     amp_bad_loss = 0       # micro-batches whose loss itself was not finite
+    amp_origin = {}        # skipped steps by where the non-finite gradient started (grad_origin)
+    grad_parts = grad_part_names(net) if use_amp else None
     guard_x = None         # first training batch (real positions), for the FP16 export check
     AMP_MAX_STREAK = 16    # 16 skipped steps in a row = the scale fell from 65536 to 1: something diverged, not an overflow
     print(f"[train] optimizer={args.optimizer} grad_clip={args.grad_clip} "
@@ -993,6 +1026,8 @@ def main():
                 tm += lm_v * bs; n += bs
             micro += 1
             if micro % accum == 0:                  # one optimizer step per `accum` micro-batches
+                # Before clipping: a NaN gradient makes clip_grad_norm_ turn EVERY gradient into NaN.
+                finite = grad_finite_flags(grad_parts) if use_amp else None
                 if args.grad_clip > 0:
                     scaler.unscale_(opt)            # clip the TRUE gradient, not the scaled one
                     torch.nn.utils.clip_grad_norm_(net.parameters(), args.grad_clip)
@@ -1000,6 +1035,11 @@ def main():
                 scaler.step(opt)                    # skipped by the scaler if the gradient has an inf / NaN
                 scaler.update()
                 if use_amp and scaler.get_scale() < scale_before:
+                    origin, bad = grad_origin(grad_parts, finite)
+                    amp_origin[origin] = amp_origin.get(origin, 0) + 1
+                    print(f"[amp] step {global_step + 1} skipped (loss scale {scale_before:g} -> {scaler.get_scale():g}): "
+                          f"non-finite gradient started in the {origin} (parameters with one: "
+                          + ", ".join(f"{part} {n}" for part, n in bad.items()) + ")", flush=True)
                     amp_skipped += 1
                     amp_streak += 1
                     if amp_streak >= AMP_MAX_STREAK:
@@ -1052,7 +1092,9 @@ def main():
     if use_amp:
         print(f"[amp] {amp_skipped} of {global_step} optimizer steps skipped (a gradient had an infinity/NaN: the step is not "
               f"taken and the loss scale halves), {amp_bad_loss} micro-batches had a non-finite loss; final loss scale "
-              f"{scaler.get_scale():g}")
+              f"{scaler.get_scale():g}"
+              + ("; skipped steps by where it started: " + ", ".join(f"{o} {n}" for o, n in amp_origin.items())
+                 if amp_origin else ""))
         if amp_skipped > max(20, 0.1 * global_step):
             print(f"[amp] WARNING: more than 10% of the steps were skipped ({amp_skipped} of {global_step}); the run "
                   f"trained on fewer batches than planned. Compare with a run without --amp.")

@@ -464,6 +464,28 @@ def test_surprise(tmp, base):
     check(rc != 0 and "must be in [0, 1]" in out, "--surprise-policy-beta 2 is refused")
 
 
+def test_grad_origin():
+    """grad_origin: which part of the net a non-finite gradient of a skipped FP16 step started in."""
+    import train as T
+    from model import FairyNet
+    net = FairyNet(d_model=16, layers=1, heads=2)
+    parts = T.grad_part_names(net)
+    check({part for part, _ in parts} == {"trunk", "policy head", "value head", "moves-left head"},
+          "every parameter belongs to the trunk or one of the three heads")
+    for where, bad, want in (("val_fc1.weight", float("inf"), "value head"), ("pol_head", float("nan"), "policy head"),
+                             ("mlh_fc2.bias", float("inf"), "moves-left head"), ("blocks.0", float("nan"), "trunk"),
+                             (None, 0.0, "none")):
+        for p in net.parameters():
+            p.grad = torch.ones_like(p)
+        if where:
+            name, p = next((n, p) for n, p in net.named_parameters() if n.startswith(where))
+            p.grad.view(-1)[0] = bad
+        flags = T.grad_finite_flags(parts)                  # before clipping, as train.py does
+        torch.nn.utils.clip_grad_norm_(net.parameters(), 10.0)   # a NaN norm turns every gradient into NaN
+        got, counts = T.grad_origin(parts, flags)
+        check(got == want and (want == "none") == (not counts), f"{bad} in {where or 'nothing'} -> '{got}' ({counts})")
+
+
 def test_mirror(tmp, base):
     """--mirror: the policy slot permutation, mirror_batch, and train.py."""
     import dataset as D
@@ -643,6 +665,9 @@ def main():
 
         print("\n[11] surprise weights")
         test_surprise(tmp, base)
+
+        print("\n[12] where a non-finite FP16 gradient started")
+        test_grad_origin()
 
     print("\n" + "=" * 60)
     print(f"RESULT: {PASS} passed, {FAIL} failed")

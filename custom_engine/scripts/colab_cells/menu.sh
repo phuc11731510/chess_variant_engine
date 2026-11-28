@@ -172,13 +172,15 @@ TUDONG=                               # `fz tu_dong`: vong lap tu dong (tu chon 
 [ "${1:-}" = tu_dong ] && TUDONG=1
 LIENTUC=                              # `fz lien_tuc`: vong lap LIEN TUC (engine choi mai, huan luyen chay chong len; fz_lien_tuc.sh)
 [ "${1:-}" = lien_tuc ] && LIENTUC=1
+NAPSOM=                               # `fz nap_som [phut]`: cua so NAP SOM han muc (fz_nap_som.sh), chay song song vong lap
+[ "${1:-}" = nap_som ] && NAPSOM=1
 # `fz dung`: dung mem MOI cua so vong lap tu dong tren dien thoai nay (go o bat ky cua so nao).
 if [ "${1:-}" = dung ]; then
   mkdir -p "$TKG/.tu_dong" && : > "$TKG/.tu_dong/dung_tay"
   echo "[đã yêu cầu dừng mềm] Mọi cửa sổ vòng lặp: chơi nốt ván dở, gom, tải về, trả máy rồi thoát."
   exit 0
 fi
-[ -n "$LE$TUDONG$LIENTUC" ] || hoi_trung "$TK" "$S" || exit 1
+[ -n "$LE$TUDONG$LIENTUC$NAPSOM" ] || hoi_trung "$TK" "$S" || exit 1
 dat_tk "$TK"
 [ -n "$LE" ] || ghi_cua_so
 # fz_colab.py = Colab CLI da sua loi lam moi token (invalid_scope -> doi dang nhap lai moi gio). KHONG_HOI=1:
@@ -1642,9 +1644,24 @@ lien_tuc() {
   ghi_cua_so
 }
 
+# Muc n / `fz nap_som [phut]`: cu moi <phut> phut nhan tai khoan DA TOI GIO NAP LAI ma chua ai dung (xin T4, chup han muc, tra ngay) de gio
+# nap lai ke tiep bat dau tinh som (~/fz_nap_som.sh, xem dau tep do). Chay o cua so RIENG, song song vong lap v / w.
+nap_som() {
+  da_giao && return
+  [ -f ~/fz_tu_dong.sh ] && [ -f ~/fz_nap_som.sh ] || { echo "[!] Thiếu ~/fz_tu_dong.sh hoặc ~/fz_nap_som.sh -- chạy: bash ~/lay_ve.sh"; return; }
+  # shellcheck source=/dev/null
+  source ~/fz_tu_dong.sh
+  td_ranh         # cua so nay KHONG giu tai khoan nao (vong lap khong bo qua tai khoan dang dat cua menu)
+  # shellcheck source=/dev/null
+  source ~/fz_nap_som.sh
+  ns_vong "$1"
+  ghi_cua_so
+}
+
 if [ -n "$LE" ]; then tai_len "$2" "${3:-}"; exit; fi
 if [ -n "$TUDONG" ]; then tu_dong; exit; fi
 if [ -n "$LIENTUC" ]; then lien_tuc; exit; fi
+if [ -n "$NAPSOM" ]; then nap_som "${2:-}"; exit; fi
 if [ $# -gt 0 ]; then chay_cac_o "$@"; exit; fi
 
 # Mo menu: may cua cua so nay con thi bao dam tien trinh giu may (~/fz_giu_may.py) dang chay --
@@ -1686,6 +1703,7 @@ while true; do
   echo " a    Tài khoản Colab (thêm / đổi / đăng xuất; nhiều tài khoản cùng lúc)"
   echo " v    Vòng lặp tự động: sinh -> huấn luyện -> lên đời"
   echo " w    Vòng lặp LIÊN TỤC: engine chơi mãi, huấn luyện chạy chồng (không chạy cùng v)"
+  echo " n    Nạp sớm: nhận tài khoản tới giờ nạp lại (xin T4 rồi trả) -- mở ở cửa sổ riêng"
   echo " z    Chuyển sang máy khác: xuất / nhập ghế lái (tài khoản, hạn mức, vòng lặp, dữ liệu)"
   echo " q    Thoát"
   echo "--------------------------------------"
@@ -1709,6 +1727,7 @@ while true; do
   a|A) tai_khoan; continue ;;
   v|V) tu_dong; dung; continue ;;
   w|W) lien_tuc; dung; continue ;;
+  n|N) nap_som; dung; continue ;;
   t|T) tra_may; continue ;;
   p|P) chon_may; continue ;;
   g|G) doi_doi; dung; continue ;;
